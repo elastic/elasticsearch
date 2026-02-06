@@ -39,17 +39,25 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     /** Algorithm used in the given bucket */
     protected abstract boolean getAlgorithm(long bucketOrd);
 
-    /** Get linear counting algorithm */
-    protected abstract AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd);
+    protected interface LinearCountingAccess {
+        /**
+         * Returns a bucket-bound view of linear counting values.
+         *
+         * The returned view is mutable and reused between calls, so callers must not
+         * retain it or use it after another call to {@link #view(long)}. Not thread-safe.
+         */
+        LinearCountingBucketView view(long bucketOrd);
+    }
 
-    /** Number of elements in linear counting */
-    protected abstract int linearCountingSize(long bucketOrd);
+    protected interface LinearCountingBucketView {
+        int size();
 
-    /** Iterate encoded values from linear counting */
-    protected abstract void forEachEncoded(long bucketOrd, IntConsumer consumer);
+        void forEachEncoded(IntConsumer consumer);
 
-    /** Write linear counting values to the stream */
-    protected abstract void writeLinearCountingTo(long bucketOrd, StreamOutput out) throws IOException;
+        void writeTo(StreamOutput out) throws IOException;
+    }
+
+    protected abstract LinearCountingAccess linearCountingAccess();
 
     /** Get HyperLogLog algorithm */
     protected abstract AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd);
@@ -61,10 +69,11 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     public AbstractHyperLogLogPlusPlus clone(long bucketOrd, BigArrays bigArrays) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
-            int size = linearCountingSize(bucketOrd);
+            LinearCountingBucketView lc = linearCountingAccess().view(bucketOrd);
+            int size = lc.size();
             HyperLogLogPlusPlusSparse clone = new HyperLogLogPlusPlusSparse(precision(), bigArrays, 1);
             clone.ensureCapacity(0, size);
-            forEachEncoded(bucketOrd, value -> clone.addEncoded(0, value));
+            lc.forEachEncoded(value -> clone.addEncoded(0, value));
             return clone;
         } else {
             HyperLogLogPlusPlus clone = new HyperLogLogPlusPlus(precision(), bigArrays, 1);
@@ -76,7 +85,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     private Object getComparableData(long bucketOrd) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             Set<Integer> values = new HashSet<>();
-            forEachEncoded(bucketOrd, values::add);
+            linearCountingAccess().view(bucketOrd).forEachEncoded(values::add);
             return values;
         } else {
             Map<Byte, Integer> values = new HashMap<>();
@@ -93,9 +102,10 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         out.writeVInt(precision());
         if (getAlgorithm(bucket) == LINEAR_COUNTING) {
             out.writeBoolean(LINEAR_COUNTING);
-            int size = linearCountingSize(bucket);
+            LinearCountingBucketView lc = linearCountingAccess().view(bucket);
+            int size = lc.size();
             out.writeVLong(size);
-            writeLinearCountingTo(bucket, out);
+            lc.writeTo(out);
         } else {
             out.writeBoolean(HYPERLOGLOG);
             AbstractHyperLogLog.RunLenIterator iterator = getHyperLogLog(bucket);

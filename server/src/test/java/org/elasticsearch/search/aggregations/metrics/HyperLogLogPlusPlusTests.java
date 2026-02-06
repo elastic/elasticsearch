@@ -230,10 +230,10 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             }
             assertTrue(tripped);
             assertEquals(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING, counts.getAlgorithm(0));
-            assertEquals(seen.size(), counts.getLinearCounting(0).size());
+            assertEquals(seen.size(), counts.linearCountingAccess().view(0).size());
 
             collectNextUnique(counts, p, 0, seen, seed);
-            assertEquals(seen.size(), counts.getLinearCounting(0).size());
+            assertEquals(seen.size(), counts.linearCountingAccess().view(0).size());
         }
     }
 

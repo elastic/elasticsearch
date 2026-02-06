@@ -214,6 +214,11 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                         );
                     }
 
+                    // Track memory usage
+                    int bytesSize = lastChunkBytes.length();
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
+                    responseStream.trackBreakerBytes(bytesSize);
+
                     try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                         for (int i = 0; i < hitCount; i++) {
                             SearchHit hit = SearchHit.readFrom(in, false);
@@ -221,14 +226,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                             // Add with explicit sequence number
                             long hitSequence = lastChunkSequenceStart + i;
                             responseStream.addHitWithSequence(hit, hitSequence);
-
-                            // Track memory
-                            BytesReference sourceRef = hit.getSourceRef();
-                            if (sourceRef != null) {
-                                int hitBytes = sourceRef.length() * 2;
-                                circuitBreaker.addEstimateBytesAndMaybeBreak(hitBytes, "fetch_last_chunk");
-                                responseStream.trackBreakerBytes(hitBytes);
-                            }
                         }
                     }
                 }

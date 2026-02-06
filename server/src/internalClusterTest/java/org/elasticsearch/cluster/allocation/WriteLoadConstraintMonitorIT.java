@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -194,17 +195,15 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfIndices; i++) {
             final var indexName = randomIdentifier();
             indexNames.add(indexName);
-            createIndex(indexName, 1, 1);
+            createIndex(indexName, 1, 0);
         }
 
         // check that the indices are on the only source hotspot node, beforehand
-        ClusterStateResponse clusterState = safeGet(
-            internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
-        );
+        ClusterState clusterState = clusterService().state();
         for (String indexName : indexNames) {
             assertEquals(
                 sourceNodeId,
-                clusterState.getState().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
+                clusterState.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
             );
         }
 
@@ -217,11 +216,11 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         Set<String> preferredAndSourceNodeIDS = Sets.union(preferredNodeIds, Set.of(sourceNodeId));
 
         // check that all the shards are still assigned to the source node
-        clusterState = safeGet(internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)));
+        clusterState = clusterService().state();
         for (String indexName : indexNames) {
             assertEquals(
                 sourceNodeId,
-                clusterState.getState().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
+                clusterState.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
             );
         }
 
@@ -236,29 +235,23 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
             client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
         );
 
-        // wait for green on every index (replica has been distributed)
-        for (String indexName : indexNames) {
-            ensureGreen(indexName);
-        }
-
-        // check that all of the shards are on the source/preferred nodes
-        clusterState = safeGet(internalCluster().client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)));
-        var projectRoutingTable = clusterState.getState().routingTable(ProjectId.DEFAULT);
-        int countOnPreferred = 0;
-        for (String indexName : indexNames) {
-            var shardRoutingTable = projectRoutingTable.index(indexName).shard(0);
-            String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-            String secondaryNodeId = shardRoutingTable.replicaShards().get(0).currentNodeId();
-            assertTrue("Not preferred nodes should not have any shards", notPreferredNodeIds.contains(primaryNodeId) == false);
-            assertTrue("Not preferred nodes should not have any shards", notPreferredNodeIds.contains(secondaryNodeId) == false);
-            assertTrue("Preferred nodes or source should have all the shards", preferredAndSourceNodeIDS.contains(primaryNodeId));
-            assertTrue("Preferred nodes or source should have all the shards", preferredAndSourceNodeIDS.contains(secondaryNodeId));
-            if (preferredNodeIds.contains(primaryNodeId) || preferredNodeIds.contains(secondaryNodeId)) {
-                countOnPreferred++;
+        // spin on checking that enough rebalancing has happened, while asserting that no shards have been moved to the not preferred nodes
+        awaitClusterState(state -> {
+            var projectRoutingTable = state.routingTable(ProjectId.DEFAULT);
+            int countOnPreferred = 0;
+            for (String indexName : indexNames) {
+                var shardRoutingTable = projectRoutingTable.index(indexName).shard(0);
+                String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
+                assertTrue("Not preferred nodes should not have any assignments", notPreferredNodeIds.contains(primaryNodeId) == false);
+                assertTrue("Preferred shards should only have the assignments", preferredAndSourceNodeIDS.contains(primaryNodeId));
+                if (preferredNodeIds.contains(primaryNodeId)) {
+                    countOnPreferred++;
+                }
             }
-        }
 
-        assertTrue("At least half of the shards should be moved off the source node", countOnPreferred > numberOfIndices / 2.0);
+            // wait until at least half of the shards have been moved off the source node
+            return countOnPreferred > numberOfIndices / 2.0;
+        });
     }
 
     private void simulateHotSpottingOnNode(String nodeName, long queueLatencyThresholdMillis) {

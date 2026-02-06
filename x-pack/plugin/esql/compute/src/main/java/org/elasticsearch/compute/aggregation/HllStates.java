@@ -28,16 +28,14 @@ import java.io.IOException;
 final class HllStates {
     private HllStates() {}
 
-    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll, BytesStreamOutput scratch) {
-        if (scratch.size() > 0) {
-            scratch.seek(0);
-        }
+    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll, BytesStreamOutput scratch, BytesRefScratch scratchBytes) {
+        scratch.seek(0);
         try {
             hll.writeTo(groupId, scratch);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return scratch.bytes().toBytesRef();
+        return scratchBytes.wrap(scratch.bytes());
     }
 
     static void mergeSerialized(HyperLogLogPlusPlus hll, int groupId, BytesRef bytesRef, ByteArrayStreamInput scratchInput) {
@@ -71,6 +69,29 @@ final class HllStates {
         }
     }
 
+    private static final class BytesRefScratch {
+        private final BytesRef ref = new BytesRef();
+        private byte[] copyBuffer;
+
+        BytesRef wrap(BytesReference bytes) {
+            if (bytes.hasArray()) {
+                ref.bytes = bytes.array();
+                ref.offset = bytes.arrayOffset();
+                ref.length = bytes.length();
+                return ref;
+            }
+            int length = bytes.length();
+            if (copyBuffer == null || copyBuffer.length < length) {
+                copyBuffer = new byte[length];
+            }
+            copyToArray(bytes, copyBuffer, 0);
+            ref.bytes = copyBuffer;
+            ref.offset = 0;
+            ref.length = length;
+            return ref;
+        }
+    }
+
     static class SingleState implements AggregatorState {
 
         private static final int SINGLE_BUCKET_ORD = 0;
@@ -78,6 +99,7 @@ final class HllStates {
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
         private final BytesStreamOutput scratch;
         private final ByteArrayStreamInput scratchInput;
+        private final BytesRefScratch scratchBytes = new BytesRefScratch();
 
         SingleState(BigArrays bigArrays, int precision) {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
@@ -123,7 +145,8 @@ final class HllStates {
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeHLL(SINGLE_BUCKET_ORD, hll, scratch), 1);
+            BytesRef serialized = serializeHLL(SINGLE_BUCKET_ORD, hll, scratch, scratchBytes);
+            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serialized, 1);
         }
 
         @Override
@@ -139,6 +162,7 @@ final class HllStates {
         final HyperLogLogPlusPlus hll;
         private final BytesStreamOutput scratch;
         private final ByteArrayStreamInput scratchInput;
+        private final BytesRefScratch scratchBytes = new BytesRefScratch();
 
         GroupingState(BigArrays bigArrays, int precision) {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
@@ -188,7 +212,7 @@ final class HllStates {
             try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
-                    builder.appendBytesRef(serializeHLL(group, hll, scratch));
+                    builder.appendBytesRef(serializeHLL(group, hll, scratch, scratchBytes));
                 }
                 blocks[offset] = builder.build();
             }

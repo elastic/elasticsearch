@@ -9,11 +9,15 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+
+import java.io.IOException;
+import java.util.function.IntConsumer;
 
 /**
  * AbstractHyperLogLogPlusPlus instance that only supports linear counting. The maximum number of hashes supported
@@ -54,6 +58,21 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     @Override
     protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
         return lc.values(bucketOrd);
+    }
+
+    @Override
+    protected int linearCountingSize(long bucketOrd) {
+        return lc.size(bucketOrd);
+    }
+
+    @Override
+    protected void forEachEncoded(long bucketOrd, IntConsumer consumer) {
+        lc.forEachEncoded(bucketOrd, consumer);
+    }
+
+    @Override
+    protected void writeLinearCountingTo(long bucketOrd, StreamOutput out) throws IOException {
+        lc.writeTo(bucketOrd, out);
     }
 
     @Override
@@ -128,6 +147,34 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             final int size = sizes.get(bucketOrd);
             assert size == recomputedSize(bucketOrd);
             return size;
+        }
+
+        private void forEachEncoded(long bucketOrd, IntConsumer consumer) {
+            if (bucketOrd >= values.size()) {
+                return;
+            }
+            IntArray array = values.get(bucketOrd);
+            if (array == null) {
+                return;
+            }
+            int size = sizes.get(bucketOrd);
+            for (int i = 0; i < size; ++i) {
+                consumer.accept(array.get(i));
+            }
+        }
+
+        private void writeTo(long bucketOrd, StreamOutput out) throws IOException {
+            if (bucketOrd >= values.size()) {
+                return;
+            }
+            IntArray array = values.get(bucketOrd);
+            if (array == null) {
+                return;
+            }
+            int size = sizes.get(bucketOrd);
+            for (int i = 0; i < size; ++i) {
+                out.writeInt(array.get(i));
+            }
         }
 
         private HashesIterator values(long bucketOrd) {

@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
@@ -23,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.IntConsumer;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
@@ -149,6 +151,35 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     @Override
+    protected int linearCountingSize(long bucketOrd) {
+        final int denseOrd = denseOrd(bucketOrd);
+        if (denseOrd < 0) {
+            return smallLc.size(bucketOrd);
+        }
+        return lc.size(denseOrd);
+    }
+
+    @Override
+    protected void forEachEncoded(long bucketOrd, IntConsumer consumer) {
+        final int denseOrd = denseOrd(bucketOrd);
+        if (denseOrd < 0) {
+            smallLc.forEachEncoded(bucketOrd, consumer);
+        } else {
+            lc.forEachEncoded(denseOrd, consumer);
+        }
+    }
+
+    @Override
+    protected void writeLinearCountingTo(long bucketOrd, StreamOutput out) throws IOException {
+        final int denseOrd = denseOrd(bucketOrd);
+        if (denseOrd < 0) {
+            smallLc.writeTo(bucketOrd, out);
+        } else {
+            lc.writeTo(denseOrd, out);
+        }
+    }
+
+    @Override
     protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
         final int denseOrd = denseOrd(bucketOrd);
         if (denseOrd < 0) {
@@ -222,10 +253,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private int promoteArrayToHash(long bucketOrd) {
         final int denseOrd = ensureDenseOrd(bucketOrd);
-        final AbstractLinearCounting.HashesIterator hashes = smallLc.values(bucketOrd);
-        while (hashes.next()) {
-            lc.addEncoded(denseOrd, hashes.value());
-        }
+        smallLc.forEachEncoded(bucketOrd, value -> lc.addEncoded(denseOrd, value));
         smallLc.clear(bucketOrd);
         return denseOrd;
     }
@@ -241,21 +269,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     void upgradeToHll(long bucketOrd) {
         // We need to copy values into an array since we will override buffers.
         final int existingDenseOrd = denseOrd(bucketOrd);
-        final AbstractLinearCounting.HashesIterator hashes;
-        if (existingDenseOrd >= 0) {
-            // It's safe to reuse lc's readSpare because we're single threaded.
-            hashes = new LinearCountingIterator(lc, lc.readSpare, existingDenseOrd);
-        } else {
-            hashes = smallLc.values(bucketOrd);
-        }
-        final int denseOrd = ensureDenseOrd(bucketOrd);
-        final IntArray values = bigArrays.newIntArray(hashes.size());
+        final int size = existingDenseOrd >= 0 ? lc.size(existingDenseOrd) : smallLc.size(bucketOrd);
+        final IntArray values = bigArrays.newIntArray(size);
         try {
-            int i = 0;
-            while (hashes.next()) {
-                values.set(i++, hashes.value());
+            final int[] index = new int[1];
+            if (existingDenseOrd >= 0) {
+                lc.forEachEncoded(existingDenseOrd, value -> values.set(index[0]++, value));
+            } else {
+                smallLc.forEachEncoded(bucketOrd, value -> values.set(index[0]++, value));
             }
-            assert i == hashes.size();
+            assert index[0] == size;
+            final int denseOrd = ensureDenseOrd(bucketOrd);
             hll.reset(denseOrd);
             for (long j = 0; j < values.size(); ++j) {
                 final int encoded = values.get(j);
@@ -276,7 +300,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
         updateMaxBucketOrd(thisBucket);
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
-            merge(thisBucket, other.getLinearCounting(otherBucket));
+            other.forEachEncoded(otherBucket, value -> mergeEncoded(thisBucket, value));
         } else {
             merge(thisBucket, other.getHyperLogLog(otherBucket));
         }
@@ -469,6 +493,28 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return Byte.toUnsignedInt(sizes.get(bucketOrd));
         }
 
+        private void forEachEncoded(long bucketOrd, IntConsumer consumer) {
+            int size = size(bucketOrd);
+            if (size == 0) {
+                return;
+            }
+            final long base = baseOffset(bucketOrd);
+            for (int i = 0; i < size; ++i) {
+                consumer.accept(values.get(base + i));
+            }
+        }
+
+        private void writeTo(long bucketOrd, StreamOutput out) throws IOException {
+            int size = size(bucketOrd);
+            if (size == 0) {
+                return;
+            }
+            final long base = baseOffset(bucketOrd);
+            for (int i = 0; i < size; ++i) {
+                out.writeInt(values.get(base + i));
+            }
+        }
+
         private HashesIterator values(long bucketOrd) {
             return new InlineSmallLinearCountingIterator(this, bucketOrd);
         }
@@ -588,6 +634,34 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             final int size = sizes.get(bucketOrd);
             assert size == recomputedSize(bucketOrd);
             return size;
+        }
+
+        private void forEachEncoded(long bucketOrd, IntConsumer consumer) {
+            if (bucketOrd >= hll.maxOrd()) {
+                return;
+            }
+            BytesRef spare = new BytesRef();
+            for (int i = 0; i <= mask; ++i) {
+                hll.runLens.get(index(bucketOrd, i), 4, spare);
+                final int v = ByteUtils.readIntLE(spare.bytes, spare.offset);
+                if (v != 0) {
+                    consumer.accept(v);
+                }
+            }
+        }
+
+        private void writeTo(long bucketOrd, StreamOutput out) throws IOException {
+            if (bucketOrd >= hll.maxOrd()) {
+                return;
+            }
+            BytesRef spare = new BytesRef();
+            for (int i = 0; i <= mask; ++i) {
+                hll.runLens.get(index(bucketOrd, i), 4, spare);
+                final int v = ByteUtils.readIntLE(spare.bytes, spare.offset);
+                if (v != 0) {
+                    out.writeInt(v);
+                }
+            }
         }
 
         private HashesIterator values(long bucketOrd) {

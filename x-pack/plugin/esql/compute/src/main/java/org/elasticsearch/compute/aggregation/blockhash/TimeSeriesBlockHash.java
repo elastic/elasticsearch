@@ -225,7 +225,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             final BytesRefArray bytes = tsidHash.getBytesRefs();
             var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
-            // TODO: increase ref
+            bytes.incRef();
             try {
                 blocks[0] = new OrdinalBytesRefVector(tsidOrds.build(), dict).asBlock();
             } finally {

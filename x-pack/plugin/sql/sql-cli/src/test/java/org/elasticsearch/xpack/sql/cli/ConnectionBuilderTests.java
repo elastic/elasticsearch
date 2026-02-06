@@ -145,7 +145,7 @@ public class ConnectionBuilderTests extends SqlCliTestCase {
     public void testApiKeyConnection() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        String apiKey = "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw";
+        String apiKey = "test_api_key_encoded";
         ConnectionConfiguration con = connectionBuilder.buildConnection("http://foobar:9242/", null, randomBoolean(), apiKey);
         assertNull(con.authUser());
         assertNull(con.authPass());
@@ -158,7 +158,7 @@ public class ConnectionBuilderTests extends SqlCliTestCase {
     public void testApiKeyAndUserMutuallyExclusive() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        String apiKey = "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw";
+        String apiKey = "test_api_key_encoded";
         UserException ue = expectThrows(
             UserException.class,
             () -> connectionBuilder.buildConnection("http://user:pass@foobar:9242/", null, randomBoolean(), apiKey)

@@ -404,7 +404,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testApiKeyInUrl() throws Exception {
-        String apiKey = "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw";
+        String apiKey = "test_api_key_encoded";
         JdbcConfiguration ci = ci(jdbcPrefix() + "test:9200?apiKey=" + apiKey);
         assertThat(ci.apiKey(), is(apiKey));
         assertNull(ci.authUser());
@@ -412,7 +412,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testApiKeyInProperties() throws Exception {
-        String apiKey = "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw";
+        String apiKey = "test_api_key_encoded";
         Properties props = new Properties();
         props.setProperty(AUTH_API_KEY, apiKey);
         JdbcConfiguration ci = JdbcConfiguration.create(jdbcPrefix() + "test:9200", props, 0);
@@ -422,7 +422,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testApiKeyAndUserMutuallyExclusive() {
-        String apiKey = "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw";
+        String apiKey = "test_api_key_encoded";
         Properties props = new Properties();
         props.setProperty(AUTH_API_KEY, apiKey);
         props.setProperty(AUTH_USER, "user");
@@ -431,7 +431,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testApiKeyAndUserInUrlMutuallyExclusive() {
-        String apiKey = "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw";
+        String apiKey = "test_api_key_encoded";
         JdbcSQLException ex = expectThrows(
             JdbcSQLException.class,
             () -> ci(jdbcPrefix() + "test:9200?apiKey=" + apiKey + "&user=testuser")

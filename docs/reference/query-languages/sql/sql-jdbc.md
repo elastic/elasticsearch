@@ -134,7 +134,7 @@ When using API key authentication, do not specify `user` or `password`. The driv
 Example connection URL using API key:
 
 ```text
-jdbc:es://http://server:9200/?apiKey=VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw
+jdbc:es://http://server:9200/?apiKey=<encoded-api-key>
 ```
 
 

@@ -33,7 +33,7 @@ $ ./bin/elasticsearch-sql-cli https://sql_user:strongpassword@some.server:9200
 As an alternative to basic authentication, you can use API key authentication with the `--apikey` option. API keys can be created using the [Create API key API](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md). The API key should be provided in its encoded form (the `encoded` value returned by the Create API key API):
 
 ```bash
-$ ./bin/elasticsearch-sql-cli --apikey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw https://some.server:9200
+$ ./bin/elasticsearch-sql-cli --apikey <encoded-api-key> https://some.server:9200
 ```
 
 ::::{note}

@@ -205,7 +205,7 @@ public class HttpClientRequestTests extends ESTestCase {
 
     public void testApiKeyAuthentication() throws URISyntaxException {
         String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
-        String apiKey = "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw";
+        String apiKey = "test_api_key_encoded";
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.AUTH_API_KEY, apiKey);
 

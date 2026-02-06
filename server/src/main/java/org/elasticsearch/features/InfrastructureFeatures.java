@@ -43,9 +43,14 @@ public class InfrastructureFeatures implements FeatureSpecification {
     public static final NodeFeature CURRENT_VERSION = new NodeFeature("ES_" + RestApiVersion.current());
     private static final NodeFeature PREVIOUS_VERSION = new NodeFeature("ES_" + RestApiVersion.previous(), true);
 
+    public static final NodeFeature JACKSON_COMBINE_UNICODE_SURROGATES_IN_UTF8 = new NodeFeature(
+        "jackson_combine_unicode_surrogates_in_utf8",
+        true
+    );
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(CURRENT_VERSION, PREVIOUS_VERSION);
+        return Set.of(CURRENT_VERSION, PREVIOUS_VERSION, JACKSON_COMBINE_UNICODE_SURROGATES_IN_UTF8);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
+import org.elasticsearch.features.InfrastructureFeatures;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -85,6 +86,12 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
                         var candidate = super.generateFieldName();
                         if (candidate.contains("\0")) {
                             continue;
+                        }
+                        if (oldClusterHasFeature(InfrastructureFeatures.JACKSON_COMBINE_UNICODE_SURROGATES_IN_UTF8) == false) {
+                            candidate = stripUnpairedSurrogates(candidate);
+                            if (candidate.isBlank()) {
+                                continue;
+                            }
                         }
                         return candidate;
                     }
@@ -268,6 +275,22 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
             upgradeNode(i);
             indexDocumentsAndVerifyResults(spec, settings, indexedData);
         }
+    }
+
+    private static String stripUnpairedSurrogates(String s) {
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                if (i + 1 < s.length() && Character.isLowSurrogate(s.charAt(i + 1))) {
+                    sb.append(c);
+                    sb.append(s.charAt(++i));
+                }
+            } else if (Character.isLowSurrogate(c) == false) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
 }

@@ -285,6 +285,25 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     int getLength() {
                         return length;
                     }
+
+                    @Override
+                    boolean supportsBulkDecodeLengths() {
+                        return true;
+                    }
+
+                    @Override
+                    void bulkDecodeLengths(
+                        int firstDocId,
+                        int lastDocId,
+                        int count,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        BlockLoader.SingletonIntBuilder builder
+                    ) {
+                        int[] lengths = new int[count];
+                        Arrays.fill(lengths, 0, count, length);
+                        builder.appendInts(lengths, 0, count);
+                    }
                 };
             } else {
                 // variable length
@@ -485,6 +504,23 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 int getLength() throws IOException {
                     return decoder.decodeLength(doc, entry.numCompressedBlocks);
                 }
+
+                @Override
+                boolean supportsBulkDecodeLengths() {
+                    return true;
+                }
+
+                @Override
+                void bulkDecodeLengths(
+                    int firstDocId,
+                    int lastDocId,
+                    int count,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    BlockLoader.SingletonIntBuilder builder
+                ) throws IOException {
+                    decoder.decodeLengthsBulk(entry.numCompressedBlocks, firstDocId, lastDocId, count, docs, offset, builder);
+                }
             };
         } else {
             // sparse
@@ -670,6 +706,54 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return end - start;
         }
 
+        void decodeLengthsBulk(
+            int numBlocks,
+            int firstDocId,
+            int lastDocId,
+            int count,
+            BlockLoader.Docs docs,
+            int startOffset,
+            BlockLoader.SingletonIntBuilder builder
+        ) throws IOException {
+            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBlockId == -1 ? 0 : lastBlockId);
+            final long endBlockId = findBlock(lastDocId, numBlocks, firstBlockId);
+
+            int docsOffset = startOffset;
+            int lengthIndex = 0;
+            int[] lengths = new int[count];
+            for (long blockId = firstBlockId; blockId <= endBlockId; blockId++) {
+                int blockStartDocId = (int) docOffsets.get(blockId);
+                int blockEndDocId = (int) docOffsets.get(blockId + 1);
+                int numDocsInBlock = blockEndDocId - blockStartDocId;
+                if (blockId != lastBlockId) {
+                    decompressOffsets(blockId, numDocsInBlock);
+                }
+
+                int startDocId = blockId == firstBlockId ? firstDocId : blockStartDocId;
+                // lastDocId is inclusive and blockEndDocId is exclusive!
+                int endDocId = blockId == endBlockId ? lastDocId + 1 : blockEndDocId;
+
+                for (int docId = startDocId; docId < endDocId; docId++) {
+                    int docIdFromDocs = docs.get(docsOffset);
+                    if (docIdFromDocs == docId) {
+                        int index = docId - blockStartDocId;
+                        lengths[lengthIndex++] = uncompressedDocStarts[index + 1] - uncompressedDocStarts[index];
+                    }
+                    docsOffset++;
+                    if (docsOffset >= docs.count()) {
+                        break;
+                    }
+                }
+            }
+
+            lastBlockId = endBlockId;
+            startDocNumForBlock = docOffsets.get(endBlockId);
+            limitDocNumForBlock = docOffsets.get(endBlockId + 1);
+
+            assert count == lengthIndex;
+            builder.appendInts(lengths, 0, count);
+        }
+
         void decodeBulk(int numBlocks, int firstDocId, int lastDocId, int count, BlockLoader.SingletonBytesRefBuilder builder)
             throws IOException {
             // Lookup the first blockId using binary search and subsequent blocks can be scanned because query and values are dense
@@ -812,19 +896,45 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         abstract int getLength() throws IOException;
 
+        boolean supportsBulkDecodeLengths() {
+            return false;
+        }
+
+        void bulkDecodeLengths(
+            int firstDocId,
+            int lastDocId,
+            int count,
+            BlockLoader.Docs docs,
+            int offset,
+            BlockLoader.SingletonIntBuilder builder
+        ) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
         @Override
         @Nullable
         public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
             throws IOException {
             int count = docs.count() - offset;
-            try (var builder = factory.ints(count)) {
+            int firstDocId = docs.get(offset);
+            int lastDocId = docs.get(docs.count() - 1);
+            if (supportsBulkDecodeLengths() /*&& isDense(firstDocId, lastDocId, count)*/) {
+                // No need to check whether docs is dense, bulk loading doesn't depend on it.
+                try (var builder = factory.singletonInts(count)) {
+                    bulkDecodeLengths(firstDocId, lastDocId, count, docs, offset, builder);
+                    return builder.build();
+                }
+            }
+            try (var builder = factory.singletonInts(count)) {
+                int countIndex = 0;
+                int[] counts = new int[count];
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     boolean advance = advanceExact(doc);
                     assert advance;
-                    // TODO: look into bulk appending lengths to builder if docs is dense
-                    builder.appendInt(getLength());
+                    counts[countIndex++] = getLength();
                 }
+                builder.appendInts(counts, 0, countIndex);
                 return builder.build();
             }
         }

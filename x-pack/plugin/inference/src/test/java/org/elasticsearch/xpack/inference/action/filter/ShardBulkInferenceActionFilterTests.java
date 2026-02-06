@@ -87,9 +87,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.longThat;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atMost;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -512,11 +510,7 @@ public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInfere
             modifiedRequests[id] = res[1];
         }
 
-        ShardBulkInferenceActionFilter filter = createFilter(
-            inferenceModelMap,
-            NOOP_INDEXING_PRESSURE,
-            inferenceStats
-        );
+        ShardBulkInferenceActionFilter filter = createFilter(inferenceModelMap, NOOP_INDEXING_PRESSURE, inferenceStats);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {

@@ -92,15 +92,10 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBul
 
         ShardBulkInferenceActionFilter filter;
         if (useModelLoadingDelay) {
-            filter = createFilterInternal(
-                Map.of(model.getInferenceEntityId(), model),
-                (inputs, listener) -> {
-                    batchCount.incrementAndGet();
-                    return DelayResult.immediate();
-                },
-                DEFAULT_TIMEOUT,
-                () -> SLOW_DELAY_MS
-            );
+            filter = createFilterInternal(Map.of(model.getInferenceEntityId(), model), (inputs, listener) -> {
+                batchCount.incrementAndGet();
+                return DelayResult.immediate();
+            }, DEFAULT_TIMEOUT, () -> SLOW_DELAY_MS);
         } else {
             filter = createFilter(model, (inputs, listener) -> {
                 int batch = batchCount.incrementAndGet();

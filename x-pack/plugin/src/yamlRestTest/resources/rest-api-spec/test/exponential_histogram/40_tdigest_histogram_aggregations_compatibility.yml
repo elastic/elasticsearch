@@ -195,3 +195,16 @@ setup:
   - lte: { aggregations.percentiles_agg.values.50\.0: 2.001 }
   - gte: { aggregations.percentiles_agg.values.75\.0: 2.665 }
   - lte: { aggregations.percentiles_agg.values.75\.0: 2.667 }
+
+---
+"Exists query over tdigest and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        body:
+          query:
+            exists:
+              field: tdigest_or_exp_histo
+
+  - match: { hits.total.value: 2 }
+

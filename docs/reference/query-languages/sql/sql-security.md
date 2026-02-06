@@ -20,10 +20,13 @@ In case of an encrypted transport, the SSL/TLS support needs to be enabled in El
 
 ## Authentication [_authentication]
 
-The authentication support in {{es}} SQL is of two types:
+The authentication support in {{es}} SQL is of three types:
 
 Username/Password
 :   Set these through `user` and `password` properties.
+
+API Key
+:   Use an API key for authentication by setting the `apiKey` property. API keys can be created using the [Create API key API](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md). The API key should be provided in its encoded form (the `encoded` value returned by the Create API key API). This is an alternative to username/password authentication and cannot be used together with it. For the CLI, use the `--apikey` command line option.
 
 PKI/X.509
 :   Use X.509 certificates to authenticate {{es}} SQL to {{es}}. For this, one would need to setup the `keystore` containing the private key and certificate to the appropriate user (configured in {{es}}) and the `truststore` with the CA certificate used to sign the SSL/TLS certificates in the {{es}} cluster. That is, one should setup the key to authenticate {{es}} SQL and also to verify that is the right one. To do so, one should set the `ssl.keystore.location` and `ssl.truststore.location` properties to indicate the `keystore` and `truststore` to use. It is recommended to have these secured through a password in which case `ssl.keystore.pass` and `ssl.truststore.pass` properties are required.

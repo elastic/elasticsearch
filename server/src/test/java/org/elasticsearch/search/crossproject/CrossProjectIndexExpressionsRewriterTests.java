@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.crossproject;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -489,7 +487,6 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         }
     }
 
-    @Repeat(iterations = 10000)
     public void testValidateIndexExpressionWithoutRewrite() {
         var origin = createRandomProjectWithAlias("P0");
         var linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));

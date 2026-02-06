@@ -22,8 +22,8 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.internal.Similarities;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
 

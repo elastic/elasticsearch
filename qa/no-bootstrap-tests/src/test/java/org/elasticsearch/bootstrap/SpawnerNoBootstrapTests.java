@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -88,9 +88,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "a_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "a_plugin",
             "java.version",
@@ -139,9 +139,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "test_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "test_plugin",
             "java.version",
@@ -162,9 +162,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "other_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "other_plugin",
             "java.version",
@@ -224,9 +224,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "description",
             "test_plugin",
             "version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "name",
             "test_plugin",
             "java.version",

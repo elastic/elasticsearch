@@ -9,6 +9,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
@@ -375,7 +376,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 for (Object nodeDetails : nodesMap.values()) {
                     final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
                     final String versionString = (String) nodeDetailsMap.get("version");
-                    if (versionString.equals(Version.CURRENT.toString()) == false) {
+                    if (versionString.equals(Build.current().version()) == false) {
                         oldNodeNames.add(versionString);
                     }
                 }

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -375,7 +375,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static String loadTemplateSource(String resource, int mappingsVersion) {
         return TemplateUtils.loadTemplate(
             resource,
-            Version.CURRENT.toString(),
+            Build.current().version(),
             MAPPING_VERSION_VARIABLE,
             Map.of("fleet.managed.index.version", Integer.toString(mappingsVersion))
         );

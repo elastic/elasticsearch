@@ -34,9 +34,16 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         assertArrayEquals(new float[] { 1.0f, 3.0f, 2.0f }, scores, 0.0f);
 
         // Truncate the list of ranked docs. This simulates if the reranker service returns fewer docs than are in featureDocs, which can
-        // happen if the service has a top_n setting in use.
-        float[] truncatedScores = extractScoresFromRankedDocs(rankedDocs.subList(0, 1), featureDocs);
-        assertArrayEquals(new float[] { 0.0f, 3.0f, 0.0f }, truncatedScores, 0.0f);
+        // happen if the service has an unreported top_n setting in use.
+        IllegalStateException e = assertThrows(
+            IllegalStateException.class,
+            () -> extractScoresFromRankedDocs(rankedDocs.subList(0, 1), featureDocs)
+        );
+        assertEquals(
+            "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating"
+                + " ranked docs. Is the reranker service using an unreported top N task setting?",
+            e.getMessage()
+        );
     }
 
     public void testExtractScoresFromMultipleChunks() {
@@ -58,9 +65,16 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         assertArrayEquals(new float[] { 2.0f, 3.5f, 2.5f }, scores, 0.0f);
 
         // Truncate the list of ranked docs. This simulates if the reranker service returns fewer docs than are in featureDocs, which can
-        // happen if the service has a top_n setting in use.
-        float[] truncatedScores = extractScoresFromRankedDocs(rankedDocs.subList(0, 2), featureDocs);
-        assertArrayEquals(new float[] { 0.0f, 3.5f, 2.5f }, truncatedScores, 0.0f);
+        // happen if the service has an unreported top_n setting in use.
+        IllegalStateException e = assertThrows(
+            IllegalStateException.class,
+            () -> extractScoresFromRankedDocs(rankedDocs.subList(0, 2), featureDocs)
+        );
+        assertEquals(
+            "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating"
+                + " ranked docs. Is the reranker service using an unreported top N task setting?",
+            e.getMessage()
+        );
     }
 
     private RankFeatureDoc createRankFeatureDoc(int doc, float score, int shardIndex, List<String> featureData) {

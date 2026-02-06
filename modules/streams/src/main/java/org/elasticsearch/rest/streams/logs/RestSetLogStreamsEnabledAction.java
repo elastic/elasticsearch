@@ -49,17 +49,6 @@ public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
         assert enabled || request.path().endsWith("_disable")
             : "path should always end in either _enable or _disable but was " + request.path();
         StreamType type = StreamType.fromString(request.param("name"));
-        if (type == StreamType.LOGS) {
-            deprecationLogger.critical(
-                DeprecationCategory.API,
-                "log_stream",
-                "The 'logs' stream is deprecated. Use individual stream names such as '"
-                    + StreamType.LOGS_OTEL.getStreamName()
-                    + "' and '"
-                    + StreamType.LOGS_ECS.getStreamName()
-                    + "' instead"
-            );
-        }
 
         LogsStreamsActivationToggleAction.Request activationRequest = new LogsStreamsActivationToggleAction.Request(
             RestUtils.getMasterNodeTimeout(request),

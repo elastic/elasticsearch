@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.MATCH_ALL;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.getAllProjectAliases;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.rewriteIndexExpression;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.validateIndexExpressionWithoutRewrite;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -484,6 +485,22 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
                 assertThat(e.getMessage(), equalTo("No such project: [X*]"));
             }
         }
+    }
+
+    public void testValidateIndexExpressionWithoutRewrite() {
+        var origin = createRandomProjectWithAlias("P0");
+        var linked = List.of(createRandomProjectWithAlias("P1"));
+        var allProjectAliases = getAllProjectAliases(origin, linked);
+
+        // exclusion referencing existing project should not throw validation exception
+        validateIndexExpressionWithoutRewrite("-P1:_all", origin.projectAlias(), allProjectAliases, null);
+
+        // referencing non-existing should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [strawberries]"),
+            () -> validateIndexExpressionWithoutRewrite("-strawberries:_all", origin.projectAlias(), allProjectAliases, null)
+        );
     }
 
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {

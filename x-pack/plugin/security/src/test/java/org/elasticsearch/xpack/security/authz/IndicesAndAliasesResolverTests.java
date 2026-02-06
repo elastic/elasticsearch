@@ -3315,7 +3315,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
         var request = new SearchRequest().indices("P1:_all");
-        request.indicesOptions(IndicesOptions.fromOptions(false, false, false, false));
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
         var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             "indices:/" + randomAlphaOfLength(8),
             request,
@@ -3338,7 +3338,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
         var request = new SearchRequest().indices("P*:_all");
-        request.indicesOptions(IndicesOptions.fromOptions(false, false, false, false));
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
         var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             "indices:/" + randomAlphaOfLength(8),
             request,

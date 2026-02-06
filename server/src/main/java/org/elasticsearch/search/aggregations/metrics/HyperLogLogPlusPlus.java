@@ -62,11 +62,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private final HyperLogLog hll;
     private final LinearCounting lc;
     // Reuse a single view to avoid per-call allocations.
-    private final LinearCountingBucketViewImpl linearCountingBucketView = new LinearCountingBucketViewImpl();
-    private final LinearCountingAccess linearCountingAccess = bucketOrd -> {
-        linearCountingBucketView.reset(bucketOrd);
-        return linearCountingBucketView;
-    };
+    private final BucketView view = new BucketView();
 
     /**
      * Compute the required precision so that <code>count</code> distinct entries would be counted with linear counting.
@@ -124,7 +120,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return maxBucketOrd;
     }
 
-    private final class LinearCountingBucketViewImpl implements LinearCountingBucketView {
+    private final class BucketView implements LinearCountingView {
         private long bucketOrd;
         private int denseOrd;
         private boolean useSmall;
@@ -203,8 +199,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     @Override
-    protected LinearCountingAccess linearCountingAccess() {
-        return linearCountingAccess;
+    protected LinearCountingView linearCountingView(long bucketOrd) {
+        view.reset(bucketOrd);
+        return view;
     }
 
     @Override
@@ -328,7 +325,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
         updateMaxBucketOrd(thisBucket);
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
-            other.linearCountingAccess().view(otherBucket).forEachEncoded(value -> mergeEncoded(thisBucket, value));
+            other.linearCountingView(otherBucket).forEachEncoded(value -> mergeEncoded(thisBucket, value));
         } else {
             merge(thisBucket, other.getHyperLogLog(otherBucket));
         }

@@ -31,14 +31,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     // TODO: consider a hll sparse structure
     private final LinearCounting lc;
     // Reuse a single view to avoid per-call allocations.
-    private final LinearCountingBucketViewImpl linearCountingBucketView = new LinearCountingBucketViewImpl();
-    private final LinearCountingAccess linearCountingAccess = new LinearCountingAccess() {
-        @Override
-        public LinearCountingBucketView view(long bucketOrd) {
-            linearCountingBucketView.reset(bucketOrd);
-            return linearCountingBucketView;
-        }
-    };
+    private final BucketView view = new BucketView();
 
     /**
      * Create an sparse HLL++ algorithm where capacity is the maximum number of hashes this structure can hold
@@ -65,11 +58,12 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     }
 
     @Override
-    protected LinearCountingAccess linearCountingAccess() {
-        return linearCountingAccess;
+    protected LinearCountingView linearCountingView(long bucketOrd) {
+        view.reset(bucketOrd);
+        return view;
     }
 
-    private final class LinearCountingBucketViewImpl implements LinearCountingBucketView {
+    private final class BucketView implements LinearCountingView {
         private long bucketOrd;
 
         private void reset(long bucketOrd) {

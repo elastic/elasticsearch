@@ -35,6 +35,8 @@ final class HllStates {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        // BytesRefScratch reuses a single BytesRef and buffer; callers must consume immediately.
+        // If callers ever need to retain the data, introduce a copy-producing variant.
         return scratchBytes.wrap(scratch.bytes());
     }
 

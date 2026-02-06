@@ -44,6 +44,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.randomUnmappedFieldName;
 
 public class EsqlQueryGenerator {
 
@@ -187,18 +188,65 @@ public class EsqlQueryGenerator {
         }
     }
 
+    /**
+     * Generates a boolean expression.
+     * @deprecated Use {@link #booleanExpression(List, List)} instead to properly handle unmapped fields
+     */
+    @Deprecated
     public static String booleanExpression(List<Column> previousOutput) {
-        // TODO LIKE, RLIKE, functions etc.
-        return switch (randomIntBetween(0, 3)) {
-            case 0 -> {
+        return booleanExpression(previousOutput, null);
+    }
+
+    /**
+     * Generates a boolean expression.
+     * @param previousOutput the columns available in the current schema
+     * @param previousCommands the list of commands executed so far (used to determine if unmapped fields are allowed)
+     */
+    public static String booleanExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
+        boolean allowUnmapped = FunctionGenerator.areUnmappedFieldsAllowed(previousCommands);
+        return switch (randomIntBetween(0, 10)) {
+            case 0, 1, 2 -> {
                 String field = randomNumericField(previousOutput);
                 if (field == null) {
                     yield null;
                 }
-                yield field + " " + mathCompareOperator() + " 50";
+                yield field + " " + mathCompareOperator() + " " + randomIntBetween(-100, 100);
             }
-            case 1 -> "true";
-            default -> "false";
+            case 3 -> "true";
+            case 4 -> "false";
+            case 5 -> {
+                // IS NULL / IS NOT NULL
+                String expr = FunctionGenerator.isNullExpression(previousOutput, allowUnmapped);
+                yield expr;
+            }
+            case 6 -> {
+                // String comparison functions: starts_with, ends_with, contains
+                String expr = FunctionGenerator.stringToBoolFunction(previousOutput, allowUnmapped);
+                yield expr;
+            }
+            case 7 -> {
+                // IN expression
+                String expr = FunctionGenerator.inExpression(previousOutput, allowUnmapped);
+                yield expr;
+            }
+            case 8 -> {
+                // LIKE expression
+                String expr = FunctionGenerator.likeExpression(previousOutput, allowUnmapped);
+                yield expr;
+            }
+            case 9 -> {
+                // RLIKE expression
+                String expr = FunctionGenerator.rlikeExpression(previousOutput, allowUnmapped);
+                yield expr;
+            }
+            default -> {
+                // Numeric comparison on function result
+                String funcExpr = FunctionGenerator.stringToIntFunction(previousOutput, allowUnmapped);
+                if (funcExpr == null) {
+                    yield null;
+                }
+                yield funcExpr + " " + mathCompareOperator() + " " + randomIntBetween(0, 20);
+            }
         };
     }
 
@@ -380,8 +428,20 @@ public class EsqlQueryGenerator {
         return outerCommand + "(" + innerCommand + ")";
     }
 
+    /**
+     * @deprecated Use {@link #agg(List, List)} instead to properly handle unmapped fields
+     */
+    @Deprecated
     public static String agg(List<Column> previousOutput) {
-        String name = randomNumericField(previousOutput);
+        return agg(previousOutput, null);
+    }
+
+    public static String agg(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
+        boolean allowUnmapped = FunctionGenerator.areUnmappedFieldsAllowed(previousCommands);
+        var unmappedFieldName = randomUnmappedFieldName();
+        // Only use unmapped field if allowed and it doesn't exist in the schema
+        var canUseUnmappedFieldName = allowUnmapped && previousOutput.stream().noneMatch(x -> x.name().equals(unmappedFieldName));
+        String name = canUseUnmappedFieldName && randomBoolean() ? unmappedFieldName : randomNumericField(previousOutput);
         // complex with numerics
         if (name != null && randomBoolean()) {
             int ops = randomIntBetween(1, 3);
@@ -390,14 +450,19 @@ public class EsqlQueryGenerator {
                 if (i > 0) {
                     result.append(" + ");
                 }
-                String agg = switch (randomIntBetween(0, 5)) {
+                String agg = switch (randomIntBetween(0, 11)) {
                     case 0 -> "max(" + name + ")";
                     case 1 -> "min(" + name + ")";
                     case 2 -> "avg(" + name + ")";
                     case 3 -> "median(" + name + ")";
                     case 4 -> "sum(" + name + ")";
-                    default -> "count(" + name + ")";
-                    // TODO more numerics
+                    case 5 -> "count(" + name + ")";
+                    case 6 -> "percentile(" + name + ", " + randomIntBetween(1, 99) + ")";
+                    case 7 -> "std_dev(" + name + ")";
+                    case 8 -> "variance(" + name + ")";
+                    case 9 -> "median_absolute_deviation(" + name + ")";
+                    case 10 -> "weighted_avg(" + name + ", " + randomIntBetween(1, 10) + ")";
+                    default -> "count_distinct(" + name + ")";
                 };
                 result.append(agg);
             }
@@ -405,20 +470,42 @@ public class EsqlQueryGenerator {
         }
         // all types
         name = randomBoolean() ? randomStringField(previousOutput) : randomNumericOrDateField(previousOutput);
+        var unmappedFieldName2 = randomUnmappedFieldName();
+        // Only use unmapped field if allowed and it doesn't exist in the schema
+        canUseUnmappedFieldName = allowUnmapped && previousOutput.stream().noneMatch(x -> x.name().equals(unmappedFieldName2));
+        name = randomBoolean() && canUseUnmappedFieldName ? unmappedFieldName2 : name;
         if (name == null) {
             return "count(*)";
         }
         if (randomBoolean()) {
-            String exp = expression(previousOutput, false);
+            String exp = expression(previousOutput, false, previousCommands);
             name = exp == null ? name : exp;
         }
-        return switch (randomIntBetween(0, 5)) {
+        // For type-constrained agg functions (top, sample, first), use a type-safe field/expression
+        // instead of the arbitrary 'name' which may have an incompatible type (e.g. date_range from coalesce)
+        final String anyName = name;
+        return switch (randomIntBetween(0, 9)) {
             case 0 -> "count(*)";
-            case 1 -> "count(" + name + ")";
-            case 2 -> "absent(" + name + ")";
-            case 3 -> "present(" + name + ")";
-            case 4 -> "values(" + name + ")";
-            default -> "count_distinct(" + name + ")";
+            case 1 -> "count(" + anyName + ")";
+            case 2 -> "absent(" + anyName + ")";
+            case 3 -> "present(" + anyName + ")";
+            case 4 -> "values(" + anyName + ")";
+            case 5 -> "count_distinct(" + anyName + ")";
+            case 6, 7 -> {
+                // top() accepts: boolean, double, integer, long, date, ip, keyword, text
+                Set<String> topTypes = Set.of("boolean", "double", "integer", "long", "date", "datetime", "ip", "keyword", "text");
+                String topField = FunctionGenerator.typeSafeExpression(previousOutput, topTypes, allowUnmapped);
+                if (topField == null) topField = anyName;
+                String order = randomIntBetween(0, 1) == 0 ? "asc" : "desc";
+                yield "top(" + topField + ", " + randomIntBetween(1, 5) + ", \"" + order + "\")";
+            }
+            case 8 -> {
+                // sample() - use a commonly supported field to avoid type issues
+                String sampleField = randomName(previousOutput, FunctionGenerator.COMMONLY_SUPPORTED_TYPES);
+                if (sampleField == null) sampleField = anyName;
+                yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
+            }
+            default -> "first(" + anyName + ", " + randomDateField(previousOutput) + ")";
         };
     }
 
@@ -487,11 +574,36 @@ public class EsqlQueryGenerator {
      * @param allowConstants if set to true, this will never return a constant expression.
      *                       If no expression can be generated, it will return null
      * @return an expression or null
+     * @deprecated Use {@link #expression(List, boolean, List)} instead to properly handle unmapped fields
      */
+    @Deprecated
     public static String expression(List<Column> previousOutput, boolean allowConstants) {
+        return expression(previousOutput, allowConstants, null);
+    }
+
+    /**
+     * @param previousOutput columns that can be used in the expression
+     * @param allowConstants if set to true, this will never return a constant expression.
+     *                       If no expression can be generated, it will return null
+     * @param previousCommands the list of commands executed so far (used to determine if unmapped fields are allowed)
+     * @return an expression or null
+     */
+    public static String expression(
+        List<Column> previousOutput,
+        boolean allowConstants,
+        List<CommandGenerator.CommandDescription> previousCommands
+    ) {
         if (randomBoolean() && allowConstants) {
             return constantExpression();
         }
+        // Try to generate a function expression with high probability
+        if (randomIntBetween(0, 10) < 7) {
+            String funcExpr = functionExpression(previousOutput, previousCommands);
+            if (funcExpr != null) {
+                return funcExpr;
+            }
+        }
+        // Arithmetic expression with fields
         if (randomBoolean()) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < randomIntBetween(1, 3); i++) {
@@ -500,24 +612,13 @@ public class EsqlQueryGenerator {
                     return allowConstants ? constantExpression() : null;
                 }
                 if (i > 0) {
-                    result.append(" + ");
+                    result.append(randomFrom(" + ", " - ", " * "));
                 }
                 result.append(field);
             }
             return result.toString();
         }
-        if (randomBoolean()) {
-            String field = randomKeywordField(previousOutput);
-            if (field == null) {
-                return allowConstants ? constantExpression() : null;
-            }
-            return switch (randomIntBetween(0, 3)) {
-                case 0 -> "substring(" + field + ", 1, 3)";
-                case 1 -> "to_lower(" + field + ")";
-                case 2 -> "to_upper(" + field + ")";
-                default -> "length(" + field + ")";
-            };
-        }
+        // Field reference or constant
         if (randomBoolean() || allowConstants == false) {
             String field = randomStringField(previousOutput);
             if (field == null || randomBoolean()) {
@@ -526,6 +627,42 @@ public class EsqlQueryGenerator {
             return field;
         }
         return allowConstants ? constantExpression() : null;
+    }
+
+    /**
+     * Generates a random function expression.
+     * @deprecated Use {@link #functionExpression(List, List)} instead to properly handle unmapped fields
+     */
+    @Deprecated
+    public static String functionExpression(List<Column> previousOutput) {
+        return functionExpression(previousOutput, null);
+    }
+
+    /**
+     * Generates a random function expression.
+     * @param previousOutput the columns available in the current schema
+     * @param previousCommands the list of commands executed so far (used to determine if unmapped fields are allowed)
+     */
+    public static String functionExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
+        boolean allowUnmapped = FunctionGenerator.areUnmappedFieldsAllowed(previousCommands);
+        return switch (randomIntBetween(0, 18)) {
+            case 0, 1 -> FunctionGenerator.mathFunction(previousOutput, allowUnmapped);
+            case 2 -> FunctionGenerator.binaryMathFunction(previousOutput, allowUnmapped);
+            case 3, 4 -> FunctionGenerator.stringFunction(previousOutput, allowUnmapped);
+            case 5 -> FunctionGenerator.stringToIntFunction(previousOutput, allowUnmapped);
+            case 6 -> FunctionGenerator.dateFunction(previousOutput, allowUnmapped);
+            case 7 -> FunctionGenerator.conversionFunction(previousOutput, allowUnmapped);
+            case 8 -> FunctionGenerator.caseFunction(previousOutput, allowUnmapped);
+            case 9 -> FunctionGenerator.coalesceFunction(previousOutput, allowUnmapped);
+            case 10, 11 -> FunctionGenerator.mvFunction(previousOutput, allowUnmapped);
+            case 12 -> FunctionGenerator.concatFunction(previousOutput, allowUnmapped);
+            case 13 -> FunctionGenerator.greatestLeastFunction(previousOutput, allowUnmapped);
+            case 14 -> FunctionGenerator.mvSliceZipFunction(previousOutput, allowUnmapped);
+            case 15 -> FunctionGenerator.splitFunction(previousOutput, allowUnmapped);
+            case 16 -> FunctionGenerator.clampFunction(previousOutput, allowUnmapped);
+            case 17 -> FunctionGenerator.dateDiffFunction(previousOutput, allowUnmapped);
+            default -> FunctionGenerator.randomScalarFunction(previousOutput, allowUnmapped);
+        };
     }
 
     public static String indexPattern(String indexName) {

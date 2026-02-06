@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 141935
+summary: Add logic to fold project tags metadata on data nodes
+type: enhancement

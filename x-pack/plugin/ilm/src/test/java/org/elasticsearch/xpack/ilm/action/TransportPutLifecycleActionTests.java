@@ -19,8 +19,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.ilm.LifecycleMetadataService;
 import org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils;
-import org.elasticsearch.xpack.ilm.PutLifecycleMetadataService;
 
 import java.util.Map;
 
@@ -37,10 +37,10 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
 
         LifecyclePolicyMetadata existing = new LifecyclePolicyMetadata(policy1, headers1, randomNonNegativeLong(), randomNonNegativeLong());
 
-        assertTrue(PutLifecycleMetadataService.isNoopUpdate(existing, policy1, headers1));
-        assertFalse(PutLifecycleMetadataService.isNoopUpdate(existing, policy2, headers1));
-        assertFalse(PutLifecycleMetadataService.isNoopUpdate(existing, policy1, headers2));
-        assertFalse(PutLifecycleMetadataService.isNoopUpdate(null, policy1, headers1));
+        assertTrue(LifecycleMetadataService.isNoopUpdate(existing, policy1, headers1));
+        assertFalse(LifecycleMetadataService.isNoopUpdate(existing, policy2, headers1));
+        assertFalse(LifecycleMetadataService.isNoopUpdate(existing, policy1, headers2));
+        assertFalse(LifecycleMetadataService.isNoopUpdate(null, policy1, headers1));
     }
 
     public void testReservedStateHandler() throws Exception {
@@ -52,7 +52,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             mockClusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(PutLifecycleMetadataService.class)
+            mock(LifecycleMetadataService.class)
         );
         assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 

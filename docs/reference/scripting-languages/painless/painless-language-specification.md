@@ -28,16 +28,16 @@ For information about basic constructs that Painless and Java share, refer to co
 
 Painless scripts are parsed and compiled using the [ANTLR4](https://www.antlr.org/) and [ASM](https://asm.ow2.org/) libraries. Scripts are compiled directly into Java Virtual Machine (JVM) bytecode and executed against a standard JVM. 
 
+
 :::{image} images/painless-compilation-process.png
 :alt: Painless compilation process
 :::
 
-<!--
-:::{diagram} mermaid
+```mermaid
 flowchart LR
     A[Painless Script] --> B[ANTLR4 & ASM<br/>parsing & compilation]
     B --> C[JVM Bytecode] 
-    C --> D[Standard JVM<br/>execution]
+    C --> D[Standard JVM execution]
     
     classDef elasticBlue fill:#0B64DD,stroke:#333,stroke-width:2px,color:#fff
     classDef lightTeal fill:#48EFCF,stroke:#333,stroke-width:2px,color:#000
@@ -48,8 +48,8 @@ flowchart LR
     class B lightTeal
     class C lightPoppy
     class D pink
-:::
--->
+```
+
 
 ### Step breakdown:
 
@@ -78,11 +78,13 @@ Understanding context-syntax relationships is essential for effective Painless d
 :::
 Double-click to expand the image.
 
-<!--
-:::{diagram} mermaid
+
+```mermaid
 flowchart TD
-  A[Painless Scripts] --> B[Dev Tools Console]
+  A[Painless Scripts] --> B[Dev Tools Console <a href='http://google.com'>test link</a>]
+  link B "docs-content://explore-analyze/query-filter/tools/console.md" _blank
   A --> C[Ingest Pipelines]
+  link C "https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines" "Elasticsearch Ingest Pipelines"
   A --> D[Update API]
   A --> E[Search Queries]
   A --> F[Runtime Fields]
@@ -115,8 +117,7 @@ flowchart TD
   style G1 fill:#F990C6,color:#000
   style H1 fill:#7DD3D0,color:#000
   style I1 fill:#A1D1FF,color:#000
-:::
--->
+```
 
 
 ### Where to write Painless scripts:

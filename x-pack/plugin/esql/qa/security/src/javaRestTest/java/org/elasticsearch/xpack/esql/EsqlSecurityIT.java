@@ -1038,7 +1038,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             var respMap = entityAsMap(resp);
             var views = (List<Map<String, Object>>) respMap.get("views");
             assertThat(views.size(), equalTo(2));
-            assertThat(views.getFirst().get("name"), equalTo("view-user1"));
+            assertThat(views.stream().map(entry -> entry.get("name")).toList(), containsInAnyOrder("view", "view-user1"));
         }
         {
             var resp = getView("user2", randomFrom("view-user2", "*", "_all"));

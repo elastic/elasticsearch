@@ -356,12 +356,13 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
             @Override
             public void request(long n) {
                 logger.info("--> Client requesting {} elements", n);
-                safeAwait(barrier);
+                safeAwait(barrier); // signal request
             }
 
             @Override
             public void cancel() {
                 logger.info("--> Client cancelled subscription");
+                safeAwait(barrier); // signal cancellation
             }
         };
         final var iterator = new CancellableRateLimitedFluxIterator<>(randomIntBetween(3, 10), nextItem -> {});
@@ -382,7 +383,6 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
             iterator.onSubscribe(subscription);
             assertTrue(iterator.hasNext());
             iterator.cancel();
-            safeAwait(barrier); // signal cancellation
             assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
             safeAwait(barrier); // wait for after-cancel-complete
             // After cancellation, we should still see the original error thrown
@@ -396,7 +396,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
             @Override
             public void request(long n) {
                 logger.info("--> Client requesting {} elements", n);
-                safeAwait(barrier);
+                safeAwait(barrier); // signal request
             }
 
             @Override

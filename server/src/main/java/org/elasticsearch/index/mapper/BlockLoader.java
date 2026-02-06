@@ -710,10 +710,12 @@ public interface BlockLoader {
     }
 
     /**
-     * Specialized builder for collecting dense arrays of double values.
+     * Specialized builder for collecting dense arrays of int values.
      */
     interface SingletonIntBuilder extends Builder {
         SingletonIntBuilder appendLongs(long[] values, int from, int length);
+
+        SingletonIntBuilder appendInts(int[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

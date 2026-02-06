@@ -385,7 +385,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
             iterator.cancel();
             assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
             safeAwait(barrier); // wait for after-cancel-complete
-            // After cancellation, we should still see the original error thrown
+            // After completion, we should still see the cancellation exception
             assertThat(assertThrows(RuntimeException.class, iterator::hasNext).getCause(), instanceOf(CancellationException.class));
         });
     }

@@ -330,6 +330,8 @@ public class MetricValidator {
                 // allow percentile for all thread pools
                 // https://github.com/elastic/dev/issues/3436 remove the usage of percentile as attribute and move to metric name.
                 || (metricName.startsWith("es.thread_pool.") && attribute.equals("percentile"))
+                // ML metrics use dot-separated attribute key
+                || (metricName.startsWith("es.ml.") && attribute.equals("es.ml.is_master"))
                 || Attributes.ATTRIBUTE_PATTERN.matcher(attribute).matches()
                 : Strings.format(
                     "Attribute [%s] of [%s] does not match the required naming pattern [%s], see the naming guidelines.",

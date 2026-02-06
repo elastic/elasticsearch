@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -151,13 +152,13 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
     public void testUpdateNumAllocations() {
         var testInstance = createTestInstance();
         var expectedNumAllocations = testInstance.getNumAllocations() != null ? testInstance.getNumAllocations() + 1 : 1;
-        var updatedInstance = testInstance.updateServiceSettings(
-            Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, expectedNumAllocations)
+        var updatedElasticSearchInternalServiceSettings = testInstance.updateServiceSettings(
+            Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, expectedNumAllocations),
+            TaskType.TEXT_EMBEDDING
         );
 
-        assertThat("update should create a new instance", updatedInstance, not(equalTo(testInstance)));
-        assertThat(updatedInstance, instanceOf(ElasticsearchInternalServiceSettings.class));
-        var updatedElasticSearchInternalServiceSettings = (ElasticsearchInternalServiceSettings) updatedInstance;
+        assertThat("update should create a new instance", updatedElasticSearchInternalServiceSettings, not(equalTo(testInstance)));
+        assertThat(updatedElasticSearchInternalServiceSettings, instanceOf(ElasticsearchInternalServiceSettings.class));
         assertThat(updatedElasticSearchInternalServiceSettings.getNumAllocations(), equalTo(expectedNumAllocations));
         assertThat(updatedElasticSearchInternalServiceSettings.getAdaptiveAllocationsSettings(), nullValue());
         assertThat(updatedElasticSearchInternalServiceSettings.getNumThreads(), equalTo(testInstance.getNumThreads()));
@@ -169,13 +170,13 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
     public void testUpdateAdaptiveAllocations() throws IOException {
         var testInstance = createTestInstance();
         var expectedAdaptiveAllocations = adaptiveAllocationSettings(testInstance.getAdaptiveAllocationsSettings());
-        var updatedInstance = testInstance.updateServiceSettings(
-            Map.of(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS, toMap(expectedAdaptiveAllocations))
+        var updatedElasticSearchInternalServiceSettings = testInstance.updateServiceSettings(
+            Map.of(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS, toMap(expectedAdaptiveAllocations)),
+            TaskType.TEXT_EMBEDDING
         );
 
-        assertThat("update should create a new instance", updatedInstance, not(equalTo(testInstance)));
-        assertThat(updatedInstance, instanceOf(ElasticsearchInternalServiceSettings.class));
-        var updatedElasticSearchInternalServiceSettings = (ElasticsearchInternalServiceSettings) updatedInstance;
+        assertThat("update should create a new instance", updatedElasticSearchInternalServiceSettings, not(equalTo(testInstance)));
+        assertThat(updatedElasticSearchInternalServiceSettings, instanceOf(ElasticsearchInternalServiceSettings.class));
         assertThat(updatedElasticSearchInternalServiceSettings.getNumAllocations(), nullValue());
         assertThat(updatedElasticSearchInternalServiceSettings.getAdaptiveAllocationsSettings(), equalTo(expectedAdaptiveAllocations));
         assertThat(updatedElasticSearchInternalServiceSettings.getNumThreads(), equalTo(testInstance.getNumThreads()));
@@ -208,7 +209,8 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                 Map.ofEntries(
                     Map.entry(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1),
                     Map.entry(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS, toMap(adaptiveAllocationSettings(null)))
-                )
+                ),
+                TaskType.TEXT_EMBEDDING
             );
         });
         assertThat(
@@ -218,7 +220,10 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
     }
 
     public void testUpdateWithNoNumAllocationsAndAdaptiveAllocations() {
-        var validationException = assertThrows(ValidationException.class, () -> createTestInstance().updateServiceSettings(Map.of()));
+        var validationException = assertThrows(
+            ValidationException.class,
+            () -> createTestInstance().updateServiceSettings(Map.of(), TaskType.TEXT_EMBEDDING)
+        );
         assertThat(
             validationException.getMessage(),
             equalTo(

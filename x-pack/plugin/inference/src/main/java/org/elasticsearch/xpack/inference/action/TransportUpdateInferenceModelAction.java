@@ -66,7 +66,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     UpdateInferenceModelAction.Request,
     UpdateInferenceModelAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportUpdateInferenceModelAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportUpdateInferenceModelAction.class);
 
     private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
@@ -177,7 +177,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
                 if (didUpdate) {
-                    modelRegistry.getModel(inferenceEntityId, ActionListener.wrap((unparsedModel) -> {
+                    modelRegistry.getModel(inferenceEntityId, ActionListener.wrap(unparsedModel -> {
                         if (unparsedModel == null) {
                             listener.onFailure(
                                 new ElasticsearchStatusException(
@@ -197,9 +197,9 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     listener.onFailure(new ElasticsearchStatusException("Failed to update model", RestStatus.INTERNAL_SERVER_ERROR));
                 }
 
-            }).<UpdateInferenceModelAction.Response>andThen((listener, modelConfig) -> {
-                listener.onResponse(new UpdateInferenceModelAction.Response(modelConfig));
-            })
+            }).<UpdateInferenceModelAction.Response>andThen(
+                (listener, modelConfig) -> listener.onResponse(new UpdateInferenceModelAction.Response(modelConfig))
+            )
             .addListener(masterListener);
     }
 
@@ -229,7 +229,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ServiceSettings mergedServiceSettings = existingServiceSettings;
 
         if (newSettings.serviceSettings() != null) {
-            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newSettings.serviceSettings());
+            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(
+                newSettings.serviceSettings(),
+                existingParsedModel.getTaskType()
+            );
         }
         if (newSettings.taskSettings() != null) {
             mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newSettings.taskSettings());
@@ -310,11 +313,11 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             updateRequest.setAdaptiveAllocationsSettings(elasticServiceSettings.getAdaptiveAllocationsSettings());
             updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.INFERENCE_API);
 
-            var delegate = listener.<CreateTrainedModelAssignmentAction.Response>delegateFailure((l2, response) -> {
-                modelRegistry.updateModelTransaction(newModel, existingParsedModel, l2);
-            });
+            var delegate = listener.<CreateTrainedModelAssignmentAction.Response>delegateFailure(
+                (l2, response) -> modelRegistry.updateModelTransaction(newModel, existingParsedModel, l2)
+            );
 
-            logger.info(
+            LOGGER.info(
                 "Updating trained model deployment [{}] for inference entity [{}] with [{}] num_allocations and adaptive allocations [{}]",
                 deploymentId,
                 inferenceEntityId,
@@ -365,7 +368,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     }
 
     private void checkEndpointExists(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
-        modelRegistry.getModelWithSecrets(inferenceEntityId, ActionListener.wrap((model) -> {
+        modelRegistry.getModelWithSecrets(inferenceEntityId, ActionListener.wrap(model -> {
             if (model == null) {
                 listener.onFailure(
                     ExceptionsHelper.entityNotFoundException(Messages.INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE, inferenceEntityId)

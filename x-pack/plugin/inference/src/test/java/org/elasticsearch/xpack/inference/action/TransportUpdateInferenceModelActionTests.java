@@ -505,7 +505,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         Map<String, Object> newServiceSettingsMap = Map.of("some_service_key", "some_service_value");
         var originalServiceSettings = mock(ServiceSettings.class);
         var updatedServiceSettings = mock(ServiceSettings.class);
-        when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);
+        when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap, TaskType.TEXT_EMBEDDING)).thenReturn(
+            updatedServiceSettings
+        );
 
         Map<String, Object> newTaskSettingsMap = Map.of("some_task_key", "some_task_value");
         var originalTaskSettings = mock(TaskSettings.class);
@@ -519,7 +521,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             SERVICE_NAME_VALUE
         );
 
-        verify(originalServiceSettings).updateServiceSettings(newServiceSettingsMap);
+        verify(originalServiceSettings).updateServiceSettings(newServiceSettingsMap, TaskType.TEXT_EMBEDDING);
         verify(originalTaskSettings).updatedTaskSettings(newTaskSettingsMap);
 
         assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));

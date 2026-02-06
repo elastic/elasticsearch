@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -43,14 +43,102 @@ import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     AmazonBedrockEmbeddingsServiceSettings> {
+    private static final String TEST_REGION = "test-region";
+    private static final String INITIAL_TEST_REGION = "initial-test-region";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final AmazonBedrockProvider TEST_PROVIDER = AmazonBedrockProvider.AMAZONTITAN;
+    private static final AmazonBedrockProvider INITIAL_TEST_PROVIDER = AmazonBedrockProvider.AI21LABS;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 1536;
+    private static final boolean TEST_DIMENSIONS_SET_BY_USER = true;
+    private static final boolean INITIAL_TEST_DIMENSIONS_SET_BY_USER = false;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        var newSettingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            TEST_DIMENSIONS,
+            TEST_DIMENSIONS_SET_BY_USER,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY,
+            TEST_RATE_LIMIT
+        );
+        var serviceSettings = new AmazonBedrockEmbeddingsServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_TEST_SIMILARITY,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(newSettingsMap, TaskType.TEXT_EMBEDDING);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new AmazonBedrockEmbeddingsServiceSettings(
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
+                    TEST_DIMENSIONS,
+                    TEST_DIMENSIONS_SET_BY_USER,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = new AmazonBedrockEmbeddingsServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_TEST_SIMILARITY,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new AmazonBedrockEmbeddingsServiceSettings(
+                    INITIAL_TEST_REGION,
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_PROVIDER,
+                    INITIAL_TEST_DIMENSIONS,
+                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+                    INITIAL_TEST_MAX_INPUT_TOKENS,
+                    INITIAL_TEST_SIMILARITY,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var maxInputTokens = 512;
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(
-            createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE),
+            createEmbeddingsRequestSettingsMap(
+                TEST_REGION,
+                TEST_MODEL_ID,
+                TEST_PROVIDER.toString(),
+                null,
+                null,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_SIMILARITY
+            ),
             ConfigurationParseContext.REQUEST
         );
 
@@ -58,13 +146,13 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             serviceSettings,
             is(
                 new AmazonBedrockEmbeddingsServiceSettings(
-                    region,
-                    model,
-                    AmazonBedrockProvider.AMAZONTITAN,
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
                     null,
                     false,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
                     null
                 )
             )
@@ -72,12 +160,16 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var maxInputTokens = 512;
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE);
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            null,
+            null,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY,
+            TEST_RATE_LIMIT
+        );
 
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
@@ -85,38 +177,65 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             serviceSettings,
             is(
                 new AmazonBedrockEmbeddingsServiceSettings(
-                    region,
-                    model,
-                    AmazonBedrockProvider.AMAZONTITAN,
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
                     null,
                     false,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
-                    new RateLimitSettings(3)
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
+    private static HashMap<String, Object> createEmbeddingsRequestSettingsMap(
+        String region,
+        String model,
+        String provider,
+        @Nullable Integer dimensions,
+        @Nullable Boolean dimensionsSetByUser,
+        @Nullable Integer maxTokens,
+        @Nullable SimilarityMeasure similarityMeasure,
+        int rateLimit
+    ) {
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            region,
+            model,
+            provider,
+            dimensions,
+            dimensionsSetByUser,
+            maxTokens,
+            similarityMeasure
+        );
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        return settingsMap;
+    }
+
     public void testFromMap_Request_DimensionsSetByUser_IsFalse_WhenDimensionsAreNotPresent() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var maxInputTokens = 512;
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            null,
+            null,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY
+        );
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
             is(
                 new AmazonBedrockEmbeddingsServiceSettings(
-                    region,
-                    model,
-                    AmazonBedrockProvider.AMAZONTITAN,
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
                     null,
                     false,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
                     null
                 )
             )
@@ -124,12 +243,15 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_Request_DimensionsSetByUser_ShouldThrowWhenPresent() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var maxInputTokens = 512;
-
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, true, maxInputTokens, SimilarityMeasure.COSINE);
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            null,
+            true,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -145,12 +267,16 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_Request_Dimensions_ShouldThrowWhenPresent() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var dims = 128;
-
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, dims, null, null, null);
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            TEST_DIMENSIONS,
+            null,
+            null,
+            null,
+            TEST_RATE_LIMIT
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -164,12 +290,17 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_Request_MaxTokensShouldBePositiveInteger() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
         var maxInputTokens = -128;
 
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, null, maxInputTokens, null);
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            null,
+            null,
+            maxInputTokens,
+            null
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -183,20 +314,14 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-        var dims = 1536;
-        var maxInputTokens = 512;
-
         var settingsMap = createEmbeddingsRequestSettingsMap(
-            region,
-            model,
-            provider,
-            dims,
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            TEST_DIMENSIONS,
             false,
-            maxInputTokens,
-            SimilarityMeasure.COSINE
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY
         );
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
@@ -204,13 +329,13 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             serviceSettings,
             is(
                 new AmazonBedrockEmbeddingsServiceSettings(
-                    region,
-                    model,
-                    AmazonBedrockProvider.AMAZONTITAN,
-                    dims,
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
+                    TEST_DIMENSIONS,
                     false,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
                     null
                 )
             )
@@ -218,38 +343,38 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, true, null, null);
+        var settingsMap = createEmbeddingsRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), null, true, null, null);
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
             serviceSettings,
-            is(new AmazonBedrockEmbeddingsServiceSettings(region, model, AmazonBedrockProvider.AMAZONTITAN, null, true, null, null, null))
+            is(new AmazonBedrockEmbeddingsServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, null, true, null, null, null))
         );
     }
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenSimilarityIsPresent() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, null, true, null, SimilarityMeasure.DOT_PRODUCT);
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            null,
+            true,
+            null,
+            TEST_SIMILARITY
+        );
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(
             serviceSettings,
             is(
                 new AmazonBedrockEmbeddingsServiceSettings(
-                    region,
-                    model,
-                    AmazonBedrockProvider.AMAZONTITAN,
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER,
                     null,
                     true,
                     null,
-                    SimilarityMeasure.DOT_PRODUCT,
+                    TEST_SIMILARITY,
                     null
                 )
             )
@@ -257,11 +382,16 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
-        var region = "region";
-        var model = "model-id";
-        var provider = "amazontitan";
-
-        var settingsMap = createEmbeddingsRequestSettingsMap(region, model, provider, 1, null, null, null);
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            TEST_DIMENSIONS,
+            null,
+            null,
+            null,
+            TEST_RATE_LIMIT
+        );
 
         var exception = expectThrows(
             ValidationException.class,
@@ -276,56 +406,82 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
         var entity = new AmazonBedrockEmbeddingsServiceSettings(
-            "testregion",
-            "testmodel",
-            AmazonBedrockProvider.AMAZONTITAN,
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER,
             null,
-            true,
+            TEST_DIMENSIONS_SET_BY_USER,
             null,
             null,
-            new RateLimitSettings(2)
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"region":"testregion","model":"testmodel","provider":"AMAZONTITAN",""" + """
-            "rate_limit":{"requests_per_minute":2},"dimensions_set_by_user":true}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"region":"%s","model":"%s","provider":"%s",""" + """
+                        "rate_limit":{"requests_per_minute":%d},"dimensions_set_by_user":%b}""",
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER.name(),
+                    TEST_RATE_LIMIT,
+                    TEST_DIMENSIONS_SET_BY_USER
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new AmazonBedrockEmbeddingsServiceSettings(
-            "testregion",
-            "testmodel",
-            AmazonBedrockProvider.AMAZONTITAN,
-            1024,
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER,
+            TEST_DIMENSIONS,
             false,
-            512,
+            TEST_MAX_INPUT_TOKENS,
             null,
-            new RateLimitSettings(3)
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"region":"testregion","model":"testmodel","provider":"AMAZONTITAN",""" + """
-            "rate_limit":{"requests_per_minute":3},"dimensions":1024,"max_input_tokens":512,"dimensions_set_by_user":false}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"region":"%s","model":"%s","provider":"%s","rate_limit":{"requests_per_minute":%d},\
+                        "dimensions":%d,"max_input_tokens":%d,"dimensions_set_by_user":%b}""",
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER.name(),
+                    TEST_RATE_LIMIT,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    false
+                )
+            )
+        );
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
         var entity = new AmazonBedrockEmbeddingsServiceSettings(
-            "testregion",
-            "testmodel",
-            AmazonBedrockProvider.AMAZONTITAN,
-            1024,
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER,
+            TEST_DIMENSIONS,
             false,
-            512,
+            TEST_MAX_INPUT_TOKENS,
             null,
-            new RateLimitSettings(3)
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -333,9 +489,22 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"region":"testregion","model":"testmodel","provider":"AMAZONTITAN",""" + """
-            "rate_limit":{"requests_per_minute":3},"dimensions":1024,"max_input_tokens":512}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"region":"%s","model":"%s","provider":"%s","rate_limit":{"requests_per_minute":%d},\
+                        "dimensions":%d,"max_input_tokens":%d}""",
+                    TEST_REGION,
+                    TEST_MODEL_ID,
+                    TEST_PROVIDER.name(),
+                    TEST_RATE_LIMIT,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS
+                )
+            )
+        );
     }
 
     public static HashMap<String, Object> createEmbeddingsRequestSettingsMap(

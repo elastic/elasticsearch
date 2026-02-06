@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -187,7 +188,8 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
         var updatedMaxBatchSize = randomValueOtherThan(initialMaxBatchSize, () -> randomIntBetween(1, EMBEDDING_MAX_BATCH_SIZE));
         var actualUpdatedSettings = initialSettings.updateServiceSettings(
-            Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, updatedMaxBatchSize)
+            Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, updatedMaxBatchSize),
+            TaskType.TEXT_EMBEDDING
         );
 
         var expectedUpdatedSettings = new GoogleVertexAiEmbeddingsServiceSettings(
@@ -220,7 +222,10 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
         var invalidMaxBatchSize = EMBEDDING_MAX_BATCH_SIZE + 1;
         var exception = expectThrows(ValidationException.class, () -> {
-            initialSettings.updateServiceSettings(Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, invalidMaxBatchSize));
+            initialSettings.updateServiceSettings(
+                Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, invalidMaxBatchSize),
+                TaskType.TEXT_EMBEDDING
+            );
         });
 
         assertThat(exception.getMessage(), containsString("[max_batch_size] must be less than or equal to [250.0]"));

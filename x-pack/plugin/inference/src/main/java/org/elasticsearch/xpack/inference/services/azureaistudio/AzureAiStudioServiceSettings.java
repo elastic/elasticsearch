@@ -23,6 +23,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
@@ -43,15 +45,15 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-        String target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
             AzureAiStudioService.NAME,
             context
         );
-        AzureAiStudioEndpointType endpointType = extractRequiredEnum(
+        var endpointType = extractRequiredEnum(
             map,
             ENDPOINT_TYPE_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -60,7 +62,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
             validationException
         );
 
-        AzureAiStudioProvider provider = extractRequiredEnum(
+        var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -70,6 +72,49 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         );
 
         return new BaseAzureAiStudioCommonFields(target, provider, endpointType, rateLimitSettings);
+    }
+
+    protected BaseAzureAiStudioCommonFields updateBaseServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var extractedTarget = extractOptionalString(
+            serviceSettings,
+            TARGET_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AzureAiStudioService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        var extractedEndpointType = extractOptionalEnum(
+            serviceSettings,
+            ENDPOINT_TYPE_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            AzureAiStudioEndpointType::fromString,
+            EnumSet.allOf(AzureAiStudioEndpointType.class),
+            validationException
+        );
+
+        var extractedProvider = extractOptionalEnum(
+            serviceSettings,
+            PROVIDER_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            AzureAiStudioProvider::fromString,
+            EnumSet.allOf(AzureAiStudioProvider.class),
+            validationException
+        );
+
+        return new BaseAzureAiStudioCommonFields(
+            extractedTarget != null ? extractedTarget : this.target,
+            extractedProvider != null ? extractedProvider : this.provider,
+            extractedEndpointType != null ? extractedEndpointType : this.endpointType,
+            extractedRateLimitSettings
+        );
     }
 
     protected AzureAiStudioServiceSettings(StreamInput in) throws IOException {

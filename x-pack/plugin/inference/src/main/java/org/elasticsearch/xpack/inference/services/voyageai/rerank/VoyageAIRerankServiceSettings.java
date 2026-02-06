@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.rerank;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,8 +25,6 @@ import java.util.Objects;
 
 public class VoyageAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, VoyageAIRateLimitServiceSettings {
     public static final String NAME = "voyageai_rerank_service_settings";
-
-    private static final Logger logger = LogManager.getLogger(VoyageAIRerankServiceSettings.class);
 
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 

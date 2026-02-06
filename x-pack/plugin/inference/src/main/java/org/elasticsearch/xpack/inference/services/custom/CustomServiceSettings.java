@@ -42,8 +42,10 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -76,27 +78,21 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     );
 
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         var textEmbeddingSettings = TextEmbeddingSettings.fromMap(map, taskType, validationException);
 
-        String url = extractRequiredString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var url = extractRequiredString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         var queryParams = QueryParameters.fromMap(map, validationException);
 
-        Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
-        var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false);
+        var stringHeaders = extractStringHeadersMap(map, validationException);
 
-        String requestContentString = extractRequiredString(map, REQUEST, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var requestContentString = extractRequiredString(map, REQUEST, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        Map<String, Object> responseParserMap = extractRequiredMap(
-            map,
-            RESPONSE,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var responseParserMap = extractRequiredMap(map, RESPONSE, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        Map<String, Object> jsonParserMap = extractRequiredMap(
+        var jsonParserMap = extractRequiredMap(
             Objects.requireNonNullElse(responseParserMap, new HashMap<>()),
             JSON_PARSER,
             RESPONSE_SCOPE,
@@ -105,13 +101,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var responseJsonParser = extractResponseParser(taskType, jsonParserMap, validationException);
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            CustomService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, CustomService.NAME, context);
 
         var inputTypeTranslator = InputTypeTranslator.fromMap(map, validationException, CustomService.NAME);
         var batchSize = extractOptionalPositiveInteger(map, BATCH_SIZE, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -123,9 +113,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         throwIfNotEmptyMap(jsonParserMap, JSON_PARSER, NAME);
         throwIfNotEmptyMap(responseParserMap, RESPONSE, NAME);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomServiceSettings(
             textEmbeddingSettings,
@@ -151,7 +139,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             "ml_inference_custom_service_embedding_type"
         );
 
-        public static TextEmbeddingSettings fromMap(Map<String, Object> map, TaskType taskType, ValidationException validationException) {
+        private static TextEmbeddingSettings fromMap(Map<String, Object> map, TaskType taskType, ValidationException validationException) {
             if (taskType != TaskType.TEXT_EMBEDDING) {
                 return NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
             }
@@ -160,6 +148,35 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
             Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
             return new TextEmbeddingSettings(similarity, dims, maxInputTokens);
+        }
+
+        private TextEmbeddingSettings updateTextEmbeddingServiceSettings(
+            Map<String, Object> map,
+            TaskType taskType,
+            ValidationException validationException
+        ) {
+            if (taskType != TaskType.TEXT_EMBEDDING) {
+                return NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
+            }
+
+            var extractedSimilarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+            var extractedDimensions = extractOptionalPositiveInteger(
+                map,
+                DIMENSIONS,
+                ModelConfigurations.SERVICE_SETTINGS,
+                validationException
+            );
+            var extractedMaxInputTokens = extractOptionalPositiveInteger(
+                map,
+                MAX_INPUT_TOKENS,
+                ModelConfigurations.SERVICE_SETTINGS,
+                validationException
+            );
+            return new TextEmbeddingSettings(
+                extractedSimilarityMeasure != null ? extractedSimilarityMeasure : this.similarityMeasure,
+                extractedDimensions != null ? extractedDimensions : this.dimensions,
+                extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens
+            );
         }
 
         private final SimilarityMeasure similarityMeasure;
@@ -313,6 +330,96 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public String modelId() {
         // returning null because the model id is embedded in the url or the request body
         return null;
+    }
+
+    @Override
+    public CustomServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var updatedTextEmbeddingServiceSettings = this.textEmbeddingSettings.updateTextEmbeddingServiceSettings(
+            serviceSettings,
+            taskType,
+            validationException
+        );
+
+        var extractedUrl = extractOptionalString(
+            serviceSettings,
+            ServiceFields.URL,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var extractedQueryParams = QueryParameters.fromMap(serviceSettings, validationException);
+
+        var extractedStringHeaders = extractStringHeadersMap(serviceSettings, validationException);
+
+        var extractedRequestContentString = extractOptionalString(
+            serviceSettings,
+            REQUEST,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var extractedResponseJsonParser = extractCustomResponseParser(serviceSettings, taskType, validationException);
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            CustomService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        var extractedInputTypeTranslator = InputTypeTranslator.fromMap(serviceSettings, validationException, CustomService.NAME);
+
+        var extractedBatchSize = extractOptionalPositiveInteger(
+            serviceSettings,
+            BATCH_SIZE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new CustomServiceSettings(
+            updatedTextEmbeddingServiceSettings,
+            extractedUrl != null ? extractedUrl : this.url,
+            extractedStringHeaders.isEmpty() == false ? extractedStringHeaders : this.headers,
+            extractedQueryParams != QueryParameters.EMPTY ? extractedQueryParams : this.queryParameters,
+            extractedRequestContentString != null ? extractedRequestContentString : this.requestContentString,
+            extractedResponseJsonParser != NoopResponseParser.INSTANCE ? extractedResponseJsonParser : this.responseJsonParser,
+            extractedRateLimitSettings,
+            extractedBatchSize != null ? extractedBatchSize : this.batchSize,
+            extractedInputTypeTranslator != InputTypeTranslator.EMPTY_TRANSLATOR ? extractedInputTypeTranslator : this.inputTypeTranslator
+        );
+    }
+
+    private static Map<String, String> extractStringHeadersMap(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var extractedHeaders = extractOptionalMapRemoveNulls(serviceSettings, HEADERS, validationException);
+        return validateMapStringValues(extractedHeaders, HEADERS, validationException, false);
+    }
+
+    private static CustomResponseParser extractCustomResponseParser(
+        Map<String, Object> serviceSettings,
+        TaskType taskType,
+        ValidationException validationException
+    ) {
+        var extractedResponseParserMap = extractOptionalMap(serviceSettings, RESPONSE, validationException);
+
+        var extractedJsonParserMap = extractOptionalMap(
+            Objects.requireNonNullElse(extractedResponseParserMap, new HashMap<>()),
+            JSON_PARSER,
+            validationException
+        );
+
+        var extractedResponseJsonParser = extractResponseParser(taskType, extractedJsonParserMap, validationException);
+
+        throwIfNotEmptyMap(extractedJsonParserMap, JSON_PARSER, NAME);
+        throwIfNotEmptyMap(extractedResponseParserMap, RESPONSE, NAME);
+        return extractedResponseJsonParser;
     }
 
     @Override

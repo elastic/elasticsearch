@@ -32,6 +32,10 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/mv_dedupe.md
 :::
 
+:::{include} ../_snippets/functions/layout/mv_difference.md
+:::
+
+
 :::{include} ../_snippets/functions/layout/mv_first.md
 :::
 

@@ -106,7 +106,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             throw new AssertionError("expected resolved " + resolution.message());
         }
         expression = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
-        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        assertThat("Expression yielded unexpected datatype", expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
 
         Object result;
@@ -268,13 +268,13 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                     assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
                 }
-                assertThat(block.getPositionCount(), is(positions));
+                assertThat("Unexpected number of positions", block.getPositionCount(), is(positions));
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
                         assertThat(toJavaObjectUnsignedLongAware(block, p), allNullsMatcher());
                         continue;
                     }
-                    assertThat(toJavaObjectUnsignedLongAware(block, p), testCase.getMatcher());
+                    assertThat("Unexpected value at position '" + p + "'", toJavaObjectUnsignedLongAware(block, p), testCase.getMatcher());
                 }
                 assertThat(
                     "evaluates to tracked block",

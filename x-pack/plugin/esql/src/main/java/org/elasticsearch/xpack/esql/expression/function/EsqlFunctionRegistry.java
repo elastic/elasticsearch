@@ -158,6 +158,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConc
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
@@ -526,6 +527,7 @@ public class EsqlFunctionRegistry {
                 def(MvContains.class, MvContains::new, "mv_contains"),
                 def(MvCount.class, MvCount::new, "mv_count"),
                 def(MvDedupe.class, MvDedupe::new, "mv_dedupe"),
+                def(MvDifference.class, MvDifference::new, "mv_difference"),
                 def(MvFirst.class, MvFirst::new, "mv_first"),
                 def(MvIntersection.class, MvIntersection::new, "mv_intersection"),
                 def(MvLast.class, MvLast::new, "mv_last"),

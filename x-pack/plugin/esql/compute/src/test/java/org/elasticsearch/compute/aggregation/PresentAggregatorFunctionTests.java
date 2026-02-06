@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -66,7 +67,7 @@ public class PresentAggregatorFunctionTests extends AggregatorFunctionTestCase {
             // randomly add the null page before or after the non-null page
             input.add(randomFrom(0, 1), page);
 
-            List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());
+            List<Page> results = new TestDriverRunner().builder(driverContext()).input(input).run(operatorFactory);
 
             assertThat(results.size(), equalTo(1));
             var firstPage = results.get(0);

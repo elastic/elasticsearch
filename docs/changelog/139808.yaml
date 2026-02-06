@@ -1,5 +1,0 @@
-pr: 139808
-summary: Fix bug when downsampling exponential histograms with last value
-area: Downsampling
-type: bug
-issues: []

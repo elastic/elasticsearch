@@ -377,6 +377,31 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals(bytes, IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encodeFromMap(List.of(mappedNameValue)));
     }
 
+    public void testCoalescedDecodeAsMapReturnsNullForVoidEntry() throws IOException {
+        final IgnoredSourceFieldMapper.NameValue voidNameValue = new IgnoredSourceFieldMapper.NameValue(
+            "target_field",
+            0,
+            XContentDataHelper.voidValue(),
+            null
+        );
+        final List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding
+            .decodeAsMap(IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.encode(List.of(voidNameValue)));
+        assertEquals(0, mappedNameValues.size());
+    }
+
+    public void testLegacyDecodeAsMapReturnsNullForVoidEntry() throws IOException {
+        final IgnoredSourceFieldMapper.NameValue voidNameValue = new IgnoredSourceFieldMapper.NameValue(
+            "target_field",
+            0,
+            XContentDataHelper.voidValue(),
+            null
+        );
+        final IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decodeAsMap(
+            IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encode(voidNameValue)
+        );
+        assertNull(mappedNameValue);
+    }
+
     public void testMultipleIgnoredFieldsRootObject() throws IOException {
         boolean booleanValue = randomBoolean();
         int intValue = randomInt();

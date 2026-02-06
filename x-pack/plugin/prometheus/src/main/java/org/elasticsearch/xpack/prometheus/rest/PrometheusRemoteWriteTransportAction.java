@@ -25,7 +25,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.prometheus.proto.RemoteWriteProtos;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
 
@@ -52,9 +52,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     @Override
     protected void doExecute(Task task, RemoteWriteRequest request, ActionListener<RemoteWriteResponse> listener) {
         try {
-            RemoteWriteProtos.WriteRequest writeRequest = RemoteWriteProtos.WriteRequest.parseFrom(
-                request.remoteWriteRequest.streamInput()
-            );
+            RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.parseFrom(request.remoteWriteRequest.streamInput());
 
             // Log the received data for debugging (skeleton implementation)
             logger.debug("Received Prometheus remote write request with {} timeseries", writeRequest.getTimeseriesCount());

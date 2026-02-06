@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.prometheus.proto.RemoteWriteProtos;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -53,19 +53,19 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     public void testRemoteWriteEndpointWithEmptyRequest() throws Exception {
-        RemoteWriteProtos.WriteRequest writeRequest = RemoteWriteProtos.WriteRequest.newBuilder().build();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().build();
 
         Response response = sendRemoteWriteRequest(writeRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
 
     public void testRemoteWriteEndpointWithTimeseries() throws Exception {
-        RemoteWriteProtos.WriteRequest writeRequest = RemoteWriteProtos.WriteRequest.newBuilder()
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
-                RemoteWriteProtos.TimeSeries.newBuilder()
-                    .addLabels(RemoteWriteProtos.Label.newBuilder().setName("__name__").setValue("test_metric").build())
-                    .addLabels(RemoteWriteProtos.Label.newBuilder().setName("job").setValue("test_job").build())
-                    .addSamples(RemoteWriteProtos.Sample.newBuilder().setValue(42.0).setTimestamp(System.currentTimeMillis()).build())
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("job").setValue("test_job").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(42.0).setTimestamp(System.currentTimeMillis()).build())
                     .build()
             )
             .build();
@@ -76,17 +76,17 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteEndpointWithMultipleTimeseries() throws Exception {
         long now = System.currentTimeMillis();
-        RemoteWriteProtos.WriteRequest writeRequest = RemoteWriteProtos.WriteRequest.newBuilder()
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
-                RemoteWriteProtos.TimeSeries.newBuilder()
-                    .addLabels(RemoteWriteProtos.Label.newBuilder().setName("__name__").setValue("metric_one").build())
-                    .addSamples(RemoteWriteProtos.Sample.newBuilder().setValue(1.0).setTimestamp(now).build())
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("metric_one").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(1.0).setTimestamp(now).build())
                     .build()
             )
             .addTimeseries(
-                RemoteWriteProtos.TimeSeries.newBuilder()
-                    .addLabels(RemoteWriteProtos.Label.newBuilder().setName("__name__").setValue("metric_two").build())
-                    .addSamples(RemoteWriteProtos.Sample.newBuilder().setValue(2.0).setTimestamp(now).build())
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("metric_two").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(2.0).setTimestamp(now).build())
                     .build()
             )
             .build();
@@ -95,7 +95,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
 
-    private Response sendRemoteWriteRequest(RemoteWriteProtos.WriteRequest writeRequest) throws IOException {
+    private Response sendRemoteWriteRequest(RemoteWrite.WriteRequest writeRequest) throws IOException {
         Request request = new Request("POST", "/_prometheus/api/v1/write");
         byte[] body = writeRequest.toByteArray();
         request.setEntity(new ByteArrayEntity(body, ContentType.create("application/x-protobuf")));

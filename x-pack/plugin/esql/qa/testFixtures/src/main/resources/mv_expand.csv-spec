@@ -504,3 +504,158 @@ FROM employees
 emp_no:integer | job_positions:keyword                                                     | is_rehired:keyword | salary_change:keyword      | is_rehired_again:boolean
 10008          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer] | [false, true]      | [-2.92, 0.75, 3.54, 12.68] | [false, true]
 ;
+
+
+testPushDownMvExpandPastProject
+// https://github.com/elastic/elasticsearch/issues/136596
+required_capability: push_down_mv_expand_past_project
+from partial_mapping_no_source_sample_data,no_mapping_sample_data 
+| eval spZehshmg = false, `@timestamp` = null, xrRYYdVC = -1193517579093331092 
+| rename xrRYYdVC AS `goqRirHJaE`, `@timestamp` AS gilMWmQyQ 
+| sort goqRirHJaE NULLS LAST 
+| where true 
+| limit 14644 
+| mv_expand `spZehshmg` 
+| keep goqRirHJaE
+;
+
+goqRirHJaE:long
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+;
+
+
+testPushDownMvExpandPastProject2
+required_capability: push_down_mv_expand_past_project
+from languages 
+| eval a = [1,2] 
+| rename a AS b 
+| sort b 
+| mv_expand b 
+| keep b
+;
+
+b:integer
+1
+2
+1
+2
+1
+2
+1
+2
+;
+
+
+testPushDownMvExpandPastProject3
+required_capability: push_down_mv_expand_past_project
+from languages 
+| eval a = 2 
+| rename a AS b 
+| mv_expand b 
+| keep b
+;
+
+b:integer
+2
+2
+2
+2
+;
+
+
+testPushDownMvExpandPastProject4
+required_capability: push_down_mv_expand_past_project
+row a = [1,2,3] 
+| eval c = a 
+| eval a = 12 
+| rename c as b 
+| keep * 
+| mv_expand b
+;
+
+b:integer   | a:integer
+1           | 12
+2           | 12
+3           | 12
+;
+
+
+testPushDownMvExpandPastProject5
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: push_down_mv_expand_past_project
+from employees, (from employees | keep salary)
+| eval salary = salary::keyword
+| keep salary
+| mv_expand salary
+| sort salary 
+| limit 6 
+;
+
+salary:keyword
+25324          
+25324          
+25945          
+25945          
+25976          
+25976  
+;
+
+
+testPushDownMvExpandPastProject6
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: push_down_mv_expand_past_project
+from employees, (from employees | keep salary)
+| eval salary = salary::keyword
+| eval tmp = salary
+| keep salary, tmp
+| mv_expand salary
+| sort salary 
+| limit 6 
+;
+
+salary:keyword | tmp:keyword
+25324          | 25324          
+25324          | 25324          
+25945          | 25945          
+25945          | 25945          
+25976          | 25976          
+25976          | 25976          
+;
+
+
+testPushDownMvExpandPastProject7
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: push_down_mv_expand_past_project
+from employees, (from employees | keep salary)
+| eval salary = salary::keyword
+| eval tmp = salary
+| keep salary, tmp
+| mv_expand tmp
+| sort salary 
+| limit 6 
+;
+
+salary:keyword | tmp:keyword
+25324          | 25324          
+25324          | 25324          
+25945          | 25945          
+25945          | 25945          
+25976          | 25976          
+25976          | 25976       
+;

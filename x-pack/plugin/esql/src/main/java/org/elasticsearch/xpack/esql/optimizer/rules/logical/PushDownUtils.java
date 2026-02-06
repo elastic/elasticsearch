@@ -195,7 +195,7 @@ class PushDownUtils {
         }
     }
 
-    private static <P extends LogicalPlan> P resolveRenamesFromProject(P plan, Project project) {
+    public static <P extends LogicalPlan> P resolveRenamesFromProject(P plan, Project project) {
         AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
         project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
         var aliases = aliasBuilder.build();

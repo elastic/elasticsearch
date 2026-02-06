@@ -15,12 +15,5 @@
  * library, that exists in the system classloader.
  * {@link org.elasticsearch.entitlement.bridge.InstrumentationRegistry} holds all the entitlements check definitions, one for each
  * instrumented method.
- * <p>
- * In order to work across multiple Java versions, this project uses multi-release jars via the {@code mrjar} plugin, which makes it is
- * possible to specify classes for specific Java versions in specific {@code src} folders (e.g. {@code main23} for classes available to
- * Java 23+).
- * All the versioned Java classes are merged into the bridge jar. Therefore, we must prefix the class name
- * with the version, e.g. {@code Java23EntitlementCheckerHandle} and {@code Java23EntitlementChecker}.
- * </p>
  */
 package org.elasticsearch.entitlement.bridge;

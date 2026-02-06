@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -40,7 +41,7 @@ public class ExponentialHistogramFieldBlockLoaderTests extends BlockLoaderTestCa
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singletonList(new ExponentialHistogramMapperPlugin());
+        return Collections.singletonList(new AnalyticsPlugin());
     }
 
     @Override

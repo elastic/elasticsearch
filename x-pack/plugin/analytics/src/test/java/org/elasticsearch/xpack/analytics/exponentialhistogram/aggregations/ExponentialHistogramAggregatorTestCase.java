@@ -14,9 +14,9 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramMapperPlugin;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
+import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,7 +28,7 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new ExponentialHistogramMapperPlugin());
+        return List.of(new AnalyticsPlugin());
     }
 
     protected static List<ExponentialHistogram> createRandomHistograms(int count) {

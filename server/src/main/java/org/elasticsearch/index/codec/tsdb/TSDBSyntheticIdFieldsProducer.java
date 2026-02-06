@@ -93,7 +93,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             @Override
             public int getDocCount() {
-                return maxDocs - 1; // All docs have a synthetic id
+                return maxDocs; // All docs have a synthetic id
             }
 
             @Override
@@ -474,7 +474,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
     private static UnsupportedOperationException unsupportedException() {
         var error = "This method should not be called on this enum";
-        assert false : error;
         return new UnsupportedOperationException(error);
     }
 }

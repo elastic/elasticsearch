@@ -90,8 +90,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 inferenceId,
                 inferenceText,
                 minScore,
-                failuresAllowed(),
-                null
+                failuresAllowed()
             ) {
                 @Override
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {

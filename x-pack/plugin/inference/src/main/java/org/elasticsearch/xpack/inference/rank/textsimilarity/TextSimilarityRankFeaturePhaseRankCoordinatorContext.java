@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
@@ -40,7 +39,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected final String inferenceId;
     protected final String inferenceText;
     protected final Float minScore;
-    protected final ChunkScorerConfig chunkScorerConfig;
 
     public TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         int size,
@@ -50,15 +48,13 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceId,
         String inferenceText,
         Float minScore,
-        boolean failuresAllowed,
-        @Nullable ChunkScorerConfig chunkScorerConfig
+        boolean failuresAllowed
     ) {
         super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.minScore = minScore;
-        this.chunkScorerConfig = chunkScorerConfig;
     }
 
     @Override
@@ -202,21 +198,5 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         // this will ensure that all positive scores lie in the [1, inf) range,
         // while negative values (and 0) will be shifted to (0, 1]
         return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
-    }
-
-    ChunkScorerConfig resolveChunkingSettings(int windowSize) {
-        if (chunkScorerConfig == null) {
-            return null;
-        }
-
-        if (chunkScorerConfig.chunkingSettings() != null) {
-            return chunkScorerConfig;
-        }
-
-        if (windowSize <= 0) {
-            throw new IllegalStateException("Unable to determine reranker window size for inference endpoint [" + inferenceId + "]");
-        }
-        ChunkingSettings endpointSettings = ChunkScorerConfig.defaultChunkingSettings(windowSize);
-        return new ChunkScorerConfig(chunkScorerConfig.size(), chunkScorerConfig.inferenceText(), endpointSettings);
     }
 }

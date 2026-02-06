@@ -219,8 +219,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     inferenceId,
                     inferenceText,
                     minScore,
-                    failuresAllowed(),
-                    null
+                    failuresAllowed()
                 ) {
                     @Override
                     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

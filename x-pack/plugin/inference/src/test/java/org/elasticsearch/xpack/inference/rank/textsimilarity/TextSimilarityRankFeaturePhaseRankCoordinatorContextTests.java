@@ -7,27 +7,17 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
 
-import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankFeaturePhaseRankCoordinatorContext.extractScoresFromRankedDocs;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+
+// TODO: Add empty ranked docs and feature docs test
 
 public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends ESTestCase {
-
-    private final Client mockClient = mock(Client.class);
 
     public void testExtractScoresFromRankedDocs() {
         final List<RankedDocsResults.RankedDoc> rankedDocs = List.of(
@@ -77,121 +67,5 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         RankFeatureDoc featureDoc = new RankFeatureDoc(doc, score, shardIndex);
         featureDoc.featureData(featureData);
         return featureDoc;
-    }
-
-    public void testComputeScoresWithAutoResolveChunkingSettings() {
-        ChunkScorerConfig configWithNullSettings = new ChunkScorerConfig(3, "test query", null);
-        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
-            10,
-            0,
-            100,
-            mockClient,
-            "my-inference-id",
-            "some query",
-            0.0f,
-            false,
-            configWithNullSettings
-        );
-
-        context.computeScores(new RankFeatureDoc[0], assertNoFailureListener(scores -> {}));
-
-        verify(mockClient).execute(
-            eq(GetInferenceModelAction.INSTANCE),
-            argThat(request -> "my-inference-id".equals(((GetInferenceModelAction.Request) request).getInferenceEntityId())),
-            any()
-        );
-    }
-
-    public void testComputeScoresWithUserProvidedChunkingSettings() {
-        ChunkScorerConfig config = new ChunkScorerConfig(3, "test query", ChunkScorerConfig.defaultChunkingSettings(128));
-        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
-            10,
-            0,
-            100,
-            mockClient,
-            "my-inference-id",
-            "some query",
-            0.0f,
-            false,
-            config
-        );
-
-        context.computeScores(new RankFeatureDoc[0], assertNoFailureListener(scores -> {}));
-
-        verify(mockClient, never()).execute(eq(GetRerankerWindowSizeAction.INSTANCE), any(), any());
-    }
-
-    public void testResolveChunkingSettingsReturnsNullWhenNoConfig() {
-        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
-            10,
-            0,
-            100,
-            mockClient,
-            "my-inference-id",
-            "some query",
-            0.0f,
-            false,
-            null
-        );
-
-        assertNull(context.resolveChunkingSettings(123));
-    }
-
-    public void testResolveChunkingSettingsReturnsOriginalWhenChunkingSettingsPresent() {
-        ChunkScorerConfig config = new ChunkScorerConfig(3, "test query", ChunkScorerConfig.defaultChunkingSettings(128));
-        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
-            10,
-            0,
-            100,
-            mockClient,
-            "my-inference-id",
-            "some query",
-            0.0f,
-            false,
-            config
-        );
-
-        ChunkScorerConfig resolved = context.resolveChunkingSettings(-1);
-        assertSame(config, resolved);
-    }
-
-    public void testResolveChunkingSettingsUsesEndpointWindow() {
-        ChunkScorerConfig config = new ChunkScorerConfig(3, "test query", null);
-        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
-            10,
-            0,
-            100,
-            mockClient,
-            "my-inference-id",
-            "some query",
-            0.0f,
-            false,
-            config
-        );
-
-        ChunkScorerConfig resolved = context.resolveChunkingSettings(333);
-        assertNotNull(resolved);
-        assertEquals(Integer.valueOf(3), resolved.size());
-        assertEquals("test query", resolved.inferenceText());
-        assertNotNull(resolved.chunkingSettings());
-        assertEquals(333, resolved.chunkingSettings().asMap().get("max_chunk_size"));
-    }
-
-    public void testResolveChunkingSettingsThrowsWhenWindowSizeInvalid() {
-        ChunkScorerConfig config = new ChunkScorerConfig(3, "test query", null);
-        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
-            10,
-            0,
-            100,
-            mockClient,
-            "my-inference-id",
-            "some query",
-            0.0f,
-            false,
-            config
-        );
-
-        expectThrows(IllegalStateException.class, () -> context.resolveChunkingSettings(0));
-        expectThrows(IllegalStateException.class, () -> context.resolveChunkingSettings(-1));
     }
 }

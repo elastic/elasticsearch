@@ -30,6 +30,6 @@ public record UnparsedModel(
         Map<String, Object> settings,
         Map<String, Object> secrets
     ) {
-        this(inferenceEntityId, taskType, service, settings, secrets, EndpointMetadata.EMPTY);
+        this(inferenceEntityId, taskType, service, settings, secrets, EndpointMetadata.EMPTY_INSTANCE);
     }
 }

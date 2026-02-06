@@ -33,7 +33,11 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         "inference_endpoint_metadata_fields_added"
     );
 
-    public static final EndpointMetadata EMPTY = new EndpointMetadata(Heuristics.EMPTY, Internal.EMPTY, Display.EMPTY);
+    public static final EndpointMetadata EMPTY_INSTANCE = new EndpointMetadata(
+        Heuristics.EMPTY_INSTANCE,
+        Internal.EMPTY_INSTANCE,
+        Display.EMPTY_INSTANCE
+    );
 
     public static final String METADATA = "metadata";
     public static final String HEURISTICS = "heuristics";
@@ -46,9 +50,9 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         "endpoint_metadata_fields",
         true,
         args -> new EndpointMetadata(
-            args[0] == null ? Heuristics.EMPTY : (Heuristics) args[0],
-            args[1] == null ? Internal.EMPTY : (Internal) args[1],
-            args[2] == null ? Display.EMPTY : (Display) args[2]
+            args[0] == null ? Heuristics.EMPTY_INSTANCE : (Heuristics) args[0],
+            args[1] == null ? Internal.EMPTY_INSTANCE : (Internal) args[1],
+            args[2] == null ? Display.EMPTY_INSTANCE : (Display) args[2]
         )
     );
 
@@ -73,7 +77,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
     }
 
     public boolean isEmpty() {
-        return this.equals(EMPTY);
+        return this.equals(EMPTY_INSTANCE);
     }
 
     public Params getXContentParamsExcludeInternalFields() {
@@ -110,7 +114,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
 
     public record Display(@Nullable String name) implements ToXContentObject, Writeable {
 
-        public static final Display EMPTY = new Display((String) null);
+        public static final Display EMPTY_INSTANCE = new Display((String) null);
 
         public static final String NAME = "name";
 
@@ -160,7 +164,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         @Nullable LocalDate endOfLifeDate
     ) implements ToXContentObject, Writeable {
 
-        public static final Heuristics EMPTY = new Heuristics(List.of(), null, (LocalDate) null, null);
+        public static final Heuristics EMPTY_INSTANCE = new Heuristics(List.of(), null, (LocalDate) null, null);
 
         public static final String PROPERTIES = "properties";
         public static final String STATUS = "status";
@@ -263,7 +267,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
 
     public record Internal(@Nullable String fingerprint, @Nullable Long version) implements ToXContentObject, Writeable {
 
-        public static final Internal EMPTY = new Internal(null, null);
+        public static final Internal EMPTY_INSTANCE = new Internal(null, null);
 
         public static final String FINGERPRINT = "fingerprint";
         public static final String VERSION = "version";

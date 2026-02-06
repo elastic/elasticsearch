@@ -42,16 +42,16 @@ public final class EndpointMetadataParser {
 
     /**
      * Parse {@link EndpointMetadata} from a map with the same structure as the JSON produced by
-     * {@link EndpointMetadata#toXContent}. Returns {@link EndpointMetadata#EMPTY} if the map is null or empty.
+     * {@link EndpointMetadata#toXContent}. Returns {@link EndpointMetadata#EMPTY_INSTANCE} if the map is null or empty.
      */
     public static EndpointMetadata fromMap(@Nullable Map<String, Object> map, String root) {
         if (isMapNullOrEmpty(map)) {
-            return EndpointMetadata.EMPTY;
+            return EndpointMetadata.EMPTY_INSTANCE;
         }
 
         var metadataMap = ServiceUtils.removeFromMap(map, METADATA);
         if (isMapNullOrEmpty(metadataMap)) {
-            return EndpointMetadata.EMPTY;
+            return EndpointMetadata.EMPTY_INSTANCE;
         }
 
         var metadataRoot = pathToKey(root, METADATA);
@@ -67,11 +67,11 @@ public final class EndpointMetadataParser {
 
     /**
      * Parse {@link EndpointMetadata.Heuristics} from a map with the same structure as the JSON produced by
-     * {@link EndpointMetadata.Heuristics#toXContent}. Returns {@link EndpointMetadata.Heuristics#EMPTY} if the map is null or empty.
+     * {@link EndpointMetadata.Heuristics#toXContent}. Returns {@link EndpointMetadata.Heuristics#EMPTY_INSTANCE} if the map is null or empty.
      */
     static EndpointMetadata.Heuristics heuristicsFromMap(@Nullable Map<String, Object> map, String root) {
         if (map == null || map.isEmpty()) {
-            return EndpointMetadata.Heuristics.EMPTY;
+            return EndpointMetadata.Heuristics.EMPTY_INSTANCE;
         }
         var properties = extractStringList(map, PROPERTIES, root);
         var status = extractEnum(map, STATUS, root, StatusHeuristic::fromString, EnumSet.allOf(StatusHeuristic.class));
@@ -83,11 +83,11 @@ public final class EndpointMetadataParser {
 
     /**
      * Parse {@link EndpointMetadata.Internal} from a map with the same structure as the JSON produced by
-     * {@link EndpointMetadata.Internal#toXContent}. Returns {@link EndpointMetadata.Internal#EMPTY} if the map is null or empty.
+     * {@link EndpointMetadata.Internal#toXContent}. Returns {@link EndpointMetadata.Internal#EMPTY_INSTANCE} if the map is null or empty.
      */
     static EndpointMetadata.Internal internalFromMap(@Nullable Map<String, Object> map, String root) {
         if (map == null || map.isEmpty()) {
-            return EndpointMetadata.Internal.EMPTY;
+            return EndpointMetadata.Internal.EMPTY_INSTANCE;
         }
         var fingerprint = ObjectParserUtils.removeAsType(map, FINGERPRINT, root, String.class);
         var version = extractNumber(map, VERSION, root);
@@ -100,10 +100,10 @@ public final class EndpointMetadataParser {
      */
     static EndpointMetadata.Display displayFromMap(@Nullable Map<String, Object> map, String root) {
         if (map == null || map.isEmpty()) {
-            return EndpointMetadata.Display.EMPTY;
+            return EndpointMetadata.Display.EMPTY_INSTANCE;
         }
         var name = ObjectParserUtils.removeAsType(map, NAME, root, String.class);
-        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY;
+        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY_INSTANCE;
     }
 
     private EndpointMetadataParser() {}

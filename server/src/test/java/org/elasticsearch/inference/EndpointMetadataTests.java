@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -30,7 +31,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
 
     public static EndpointMetadata.Display randomDisplay() {
         var name = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY;
+        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY_INSTANCE;
     }
 
     public static EndpointMetadata.Heuristics randomHeuristics() {
@@ -45,7 +46,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
 
     private static LocalDate randomLocalDate() {
         var minDay = LocalDate.MIN.toEpochDay();
-        var maxDay = LocalDate.now().toEpochDay();
+        var maxDay = LocalDate.now(ZoneId.systemDefault()).toEpochDay();
         return LocalDate.ofEpochDay(randomLongBetween(minDay, maxDay));
     }
 

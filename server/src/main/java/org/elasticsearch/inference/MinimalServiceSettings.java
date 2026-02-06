@@ -81,7 +81,7 @@ public record MinimalServiceSettings(
             DenseVectorFieldMapper.ElementType elementType = args[4] == null
                 ? null
                 : DenseVectorFieldMapper.ElementType.fromString((String) args[4]);
-            var metadata = args[5] == null ? EndpointMetadata.EMPTY : (EndpointMetadata) args[5];
+            var metadata = args[5] == null ? EndpointMetadata.EMPTY_INSTANCE : (EndpointMetadata) args[5];
             return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType, metadata);
         }
     );
@@ -144,7 +144,7 @@ public record MinimalServiceSettings(
         @Nullable SimilarityMeasure similarity,
         @Nullable ElementType elementType
     ) {
-        this(service, taskType, dimensions, similarity, elementType, EndpointMetadata.EMPTY);
+        this(service, taskType, dimensions, similarity, elementType, EndpointMetadata.EMPTY_INSTANCE);
     }
 
     public MinimalServiceSettings(Model model) {
@@ -153,7 +153,8 @@ public record MinimalServiceSettings(
             model.getTaskType(),
             model.getServiceSettings().dimensions(),
             model.getServiceSettings().similarity(),
-            model.getServiceSettings().elementType()
+            model.getServiceSettings().elementType(),
+            model.getConfigurations().getEndpointMetadata()
         );
     }
 
@@ -164,7 +165,9 @@ public record MinimalServiceSettings(
             in.readOptionalInt(),
             in.readOptionalEnum(SimilarityMeasure.class),
             in.readOptionalEnum(ElementType.class),
-            in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? new EndpointMetadata(in) : EndpointMetadata.EMPTY
+            in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)
+                ? new EndpointMetadata(in)
+                : EndpointMetadata.EMPTY_INSTANCE
         );
     }
 
@@ -225,7 +228,9 @@ public record MinimalServiceSettings(
         if (elementType != null) {
             builder.field(ELEMENT_TYPE_FIELD, elementType);
         }
-        builder.field(METADATA, endpointMetadata);
+        if (endpointMetadata.isEmpty() == false) {
+            builder.field(METADATA, endpointMetadata);
+        }
         return builder.endObject();
     }
 

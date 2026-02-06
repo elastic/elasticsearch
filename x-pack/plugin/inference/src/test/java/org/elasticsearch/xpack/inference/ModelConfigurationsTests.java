@@ -87,13 +87,13 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             );
             case 3 -> {
                 var endpointMetadata = instance.getEndpointMetadata();
-                if (endpointMetadata.equals(EndpointMetadata.EMPTY)) {
+                if (endpointMetadata.equals(EndpointMetadata.EMPTY_INSTANCE)) {
                     var heuristics = EndpointMetadataTests.randomHeuristics();
                     var internal = EndpointMetadataTests.randomInternal();
                     var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
                     endpointMetadata = new EndpointMetadata(heuristics, internal, display);
                 } else {
-                    endpointMetadata = EndpointMetadata.EMPTY;
+                    endpointMetadata = EndpointMetadata.EMPTY_INSTANCE;
                 }
                 yield new ModelConfigurations(
                     instance.getInferenceEntityId(),
@@ -181,7 +181,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 instance.getServiceSettings(),
                 instance.getTaskSettings(),
                 instance.getChunkingSettings(),
-                EndpointMetadata.EMPTY
+                EndpointMetadata.EMPTY_INSTANCE
             );
         }
     }
@@ -194,7 +194,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             ElserInternalServiceSettingsTests.createRandom(),
             ElserMlNodeTaskSettings.DEFAULT,
             null,
-            EndpointMetadata.EMPTY
+            EndpointMetadata.EMPTY_INSTANCE
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

@@ -48,29 +48,29 @@ public class EndpointMetadataParserTests extends ESTestCase {
     private static final List<String> PROPERTIES_LIST = List.of("prop1", "prop2");
 
     public void testFromMap_ReturnsEmpty_WhenMapIsNull() {
-        assertThat(EndpointMetadataParser.fromMap(null, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY));
+        assertThat(EndpointMetadataParser.fromMap(null, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMapIsEmpty() {
-        assertThat(EndpointMetadataParser.fromMap(Map.of(), EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY));
+        assertThat(EndpointMetadataParser.fromMap(Map.of(), EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMetadataKeyMissing() {
         var map = new HashMap<String, Object>();
         map.put(OTHER_KEY, VALUE);
-        assertThat(EndpointMetadataParser.fromMap(map, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY));
+        assertThat(EndpointMetadataParser.fromMap(map, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMetadataValueIsNull() {
         Map<String, Object> map = new HashMap<>();
         map.put(METADATA, null);
-        assertThat(EndpointMetadataParser.fromMap(map, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY));
+        assertThat(EndpointMetadataParser.fromMap(map, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMetadataValueIsEmptyMap() {
         var map = new HashMap<String, Object>();
         map.put(METADATA, new HashMap<String, Object>());
-        assertThat(EndpointMetadataParser.fromMap(map, ROOT), equalTo(EndpointMetadata.EMPTY));
+        assertThat(EndpointMetadataParser.fromMap(map, ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ParsesFullMetadata() {
@@ -120,17 +120,17 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var result = EndpointMetadataParser.fromMap(rootMap, EMPTY_ROOT);
 
-        assertThat(result.heuristics(), equalTo(EndpointMetadata.Heuristics.EMPTY));
-        assertThat(result.internal(), equalTo(EndpointMetadata.Internal.EMPTY));
-        assertThat(result.display(), equalTo(EndpointMetadata.Display.EMPTY));
+        assertThat(result.heuristics(), equalTo(EndpointMetadata.Heuristics.EMPTY_INSTANCE));
+        assertThat(result.internal(), equalTo(EndpointMetadata.Internal.EMPTY_INSTANCE));
+        assertThat(result.display(), equalTo(EndpointMetadata.Display.EMPTY_INSTANCE));
     }
 
     public void testHeuristicsFromMap_ReturnsEmpty_WhenMapIsNull() {
-        assertThat(EndpointMetadataParser.heuristicsFromMap(null, ROOT), equalTo(EndpointMetadata.Heuristics.EMPTY));
+        assertThat(EndpointMetadataParser.heuristicsFromMap(null, ROOT), equalTo(EndpointMetadata.Heuristics.EMPTY_INSTANCE));
     }
 
     public void testHeuristicsFromMap_ReturnsEmpty_WhenMapIsEmpty() {
-        assertThat(EndpointMetadataParser.heuristicsFromMap(Map.of(), ROOT), equalTo(EndpointMetadata.Heuristics.EMPTY));
+        assertThat(EndpointMetadataParser.heuristicsFromMap(Map.of(), ROOT), equalTo(EndpointMetadata.Heuristics.EMPTY_INSTANCE));
     }
 
     public void testHeuristicsFromMap_ParsesAllFields() {
@@ -172,11 +172,11 @@ public class EndpointMetadataParserTests extends ESTestCase {
     }
 
     public void testInternalFromMap_ReturnsEmpty_WhenMapIsNull() {
-        assertThat(EndpointMetadataParser.internalFromMap(null, ROOT), equalTo(EndpointMetadata.Internal.EMPTY));
+        assertThat(EndpointMetadataParser.internalFromMap(null, ROOT), equalTo(EndpointMetadata.Internal.EMPTY_INSTANCE));
     }
 
     public void testInternalFromMap_ReturnsEmpty_WhenMapIsEmpty() {
-        assertThat(EndpointMetadataParser.internalFromMap(Map.of(), ROOT), equalTo(EndpointMetadata.Internal.EMPTY));
+        assertThat(EndpointMetadataParser.internalFromMap(Map.of(), ROOT), equalTo(EndpointMetadata.Internal.EMPTY_INSTANCE));
     }
 
     public void testInternalFromMap_ParsesFingerprintAndVersion() {
@@ -210,11 +210,11 @@ public class EndpointMetadataParserTests extends ESTestCase {
     }
 
     public void testDisplayFromMap_ReturnsEmpty_WhenMapIsNull() {
-        assertThat(EndpointMetadataParser.displayFromMap(null, ROOT), equalTo(EndpointMetadata.Display.EMPTY));
+        assertThat(EndpointMetadataParser.displayFromMap(null, ROOT), equalTo(EndpointMetadata.Display.EMPTY_INSTANCE));
     }
 
     public void testDisplayFromMap_ReturnsEmpty_WhenMapIsEmpty() {
-        assertThat(EndpointMetadataParser.displayFromMap(Map.of(), ROOT), equalTo(EndpointMetadata.Display.EMPTY));
+        assertThat(EndpointMetadataParser.displayFromMap(Map.of(), ROOT), equalTo(EndpointMetadata.Display.EMPTY_INSTANCE));
     }
 
     public void testDisplayFromMap_ParsesName() {
@@ -231,7 +231,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var result = EndpointMetadataParser.displayFromMap(map, ROOT);
 
-        assertThat(result, equalTo(EndpointMetadata.Display.EMPTY));
+        assertThat(result, equalTo(EndpointMetadata.Display.EMPTY_INSTANCE));
     }
 
     public void testDisplayFromMap_Throws_WhenNameWrongType() {

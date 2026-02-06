@@ -124,7 +124,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
         this.chunkingSettings = chunkingSettings;
-        this.endpointMetadata = Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY);
+        this.endpointMetadata = Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY_INSTANCE);
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {
@@ -138,7 +138,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
             this.endpointMetadata = new EndpointMetadata(in);
         } else {
-            this.endpointMetadata = EndpointMetadata.EMPTY;
+            this.endpointMetadata = EndpointMetadata.EMPTY_INSTANCE;
         }
     }
 

@@ -30,7 +30,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             similarity = randomFrom(SimilarityMeasure.values());
             elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         }
-        var endpointMetadata = randomBoolean() ? EndpointMetadata.EMPTY : EndpointMetadataTests.randomInstance();
+        var endpointMetadata = randomBoolean() ? EndpointMetadata.EMPTY_INSTANCE : EndpointMetadataTests.randomInstance();
         return new MinimalServiceSettings(
             randomBoolean() ? null : randomAlphaOfLength(10),
             taskType,
@@ -122,7 +122,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             }
             case 5 -> {
                 // Ensure we always get a different value: if EMPTY, use non-EMPTY; if non-EMPTY, use EMPTY or different instance
-                if (endpointMetadata.equals(EndpointMetadata.EMPTY)) {
+                if (endpointMetadata.equals(EndpointMetadata.EMPTY_INSTANCE)) {
                     // Generate a non-EMPTY instance by ensuring at least one field is non-empty
                     var heuristics = EndpointMetadataTests.randomHeuristics();
                     var internal = EndpointMetadataTests.randomInternal();
@@ -131,7 +131,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
                 } else {
                     endpointMetadata = randomValueOtherThan(
                         endpointMetadata,
-                        () -> randomBoolean() ? EndpointMetadata.EMPTY : EndpointMetadataTests.randomInstance()
+                        () -> randomBoolean() ? EndpointMetadata.EMPTY_INSTANCE : EndpointMetadataTests.randomInstance()
                     );
                 }
             }
@@ -153,7 +153,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
                 instance.dimensions(),
                 instance.similarity(),
                 instance.elementType(),
-                EndpointMetadata.EMPTY
+                EndpointMetadata.EMPTY_INSTANCE
             );
         }
     }

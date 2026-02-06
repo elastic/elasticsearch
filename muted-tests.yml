@@ -312,9 +312,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.CartesianPolygonEnvelopeXYMinMax}
   issue: https://github.com/elastic/elasticsearch/issues/141425
-- class: org.elasticsearch.search.query.VectorIT
-  method: testFilteredQueryStrategy
-  issue: https://github.com/elastic/elasticsearch/issues/141469
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testAttachAndGetToken
   issue: https://github.com/elastic/elasticsearch/issues/141470
@@ -362,9 +359,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/141954
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testOptionalLengthReaderSparseToLengthValues
-  issue: https://github.com/elastic/elasticsearch/issues/142009
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/142032

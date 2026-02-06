@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXContentObject
@@ -40,9 +41,9 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     );
 
     public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
@@ -53,9 +54,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ElasticInferenceServiceCompletionServiceSettings(modelId);
     }
@@ -83,6 +82,26 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var extractedModelId = extractOptionalString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+            serviceSettings,
+            ModelConfigurations.SERVICE_SETTINGS,
+            ElasticInferenceService.NAME,
+            TaskType.CHAT_COMPLETION,
+            ConfigurationParseContext.REQUEST,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new ElasticInferenceServiceCompletionServiceSettings(extractedModelId != null ? extractedModelId : this.modelId);
     }
 
     @Override

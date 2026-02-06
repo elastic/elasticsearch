@@ -143,7 +143,6 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
             );
             doneState = new DoneState(true, illegalStateException);
             cancelSubscription();
-            clearQueue();
             signalConsumer();
             throw illegalStateException;
         }

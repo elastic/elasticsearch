@@ -142,8 +142,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "quick");
-            assertThat(message.get("hits"), equalTo("3"));
-            assertThat(message.get("indices"), equalTo(INDEX_NAME));
+            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
+            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
         }
     }
 
@@ -203,9 +203,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
             assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
             assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
-            if (message.get("query").contains("quick")) {
+            if (message.get(ES_FIELDS_PREFIX + "query").contains("quick")) {
                 assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
-            } else if (message.get("query").contains("fox")) {
+            } else if (message.get(ES_FIELDS_PREFIX + "query").contains("fox")) {
                 assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
             } else {
                 fail("unexpected query logged: " + message.get(ES_FIELDS_PREFIX + "query"));
@@ -298,7 +298,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
-            assertThat(message.get("is_system"), equalTo("true"));
+            assertThat(message.get(ES_FIELDS_PREFIX + "is_system"), equalTo("true"));
         } finally {
             ActivityLoggingUtils.disableLoggingSystem();
             client().execute(

@@ -33,6 +33,8 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -82,6 +84,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @TestLogging(
     reason = "testing debug log output to identify race condition",
@@ -1052,6 +1056,303 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testGetResultPartialResultsFalseOnRunningSearchDoesNotIncludePartialResults() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
+        SearchListenerPlugin.blockLocalQueryPhase();
+        SearchListenerPlugin.blockRemoteQueryPhase();
+
+        AggregationBuilder agg = AggregationBuilders.max("max").field("@timestamp");
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10).aggregation(agg));
+
+        final String responseId;
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            responseId = response.getId();
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
+            SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        } finally {
+            response.decRef();
+        }
+
+        final AsyncSearchResponse runningResponse = getAsyncSearch(responseId, false);
+        try {
+            // Test that a response object with no partial results will not be fleshed out with hits and aggs
+            assertTrue(runningResponse.isRunning());
+            assertTrue(runningResponse.isPartial());
+            assertThat(runningResponse.getSearchResponse().getHits().getHits().length, equalTo(0));
+            assertThat(runningResponse.getSearchResponse().getAggregations(), nullValue());
+        } finally {
+            runningResponse.decRef();
+        }
+
+        SearchListenerPlugin.allowLocalQueryPhase();
+        final AsyncSearchResponse localQueryDoneWithIntermediateResponse = getAsyncSearch(responseId, true);
+        try {
+            // Test that a response object for a partial response will be fleshed out with the partial response if requested
+            assertTrue(localQueryDoneWithIntermediateResponse.isRunning());
+            assertTrue(localQueryDoneWithIntermediateResponse.isPartial());
+            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getHits().getHits().length, equalTo(10));
+            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations(), notNullValue());
+        } finally {
+            localQueryDoneWithIntermediateResponse.decRef();
+        }
+
+        final AsyncSearchResponse localQueryDoneWithNoIntermediateResponse = getAsyncSearch(responseId, false);
+        try {
+            // Test that a response object is not fleshed out with hits and aggs when partial results are disabled
+            assertTrue(localQueryDoneWithNoIntermediateResponse.isRunning());
+            assertTrue(localQueryDoneWithNoIntermediateResponse.isPartial());
+            assertThat(localQueryDoneWithNoIntermediateResponse.getSearchResponse().getHits().getHits().length, equalTo(0));
+            assertThat(localQueryDoneWithNoIntermediateResponse.getSearchResponse().getAggregations(), nullValue());
+        } finally {
+            localQueryDoneWithNoIntermediateResponse.decRef();
+        }
+
+        SearchListenerPlugin.allowRemoteQueryPhase();
+        waitForSearchTasksToFinish();
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId, randomBoolean());
+        try {
+            assertFalse(finishedResponse.isPartial());
+            assertFalse(finishedResponse.isRunning());
+            assertThat(finishedResponse.getSearchResponse().getHits().getHits().length, equalTo(10));
+            assertThat(finishedResponse.getSearchResponse().getAggregations(), notNullValue());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+        } finally {
+            finishedResponse.decRef();
+        }
+
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(responseId);
+            assertFalse(statusResponse.isPartial());
+
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+        }
+    }
+
+    public void testGetResultPartialResultsFalseOnRunningSearchDoesNotIncludePartialResultsCcsMrtFalse() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
+        SearchListenerPlugin.blockLocalQueryPhase();
+        SearchListenerPlugin.blockRemoteQueryPhase();
+        SearchListenerPlugin.blockQueryPhaseCompletion(localNumShards);
+
+        AggregationBuilder agg = AggregationBuilders.max("max").field("@timestamp");
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        request.setCcsMinimizeRoundtrips(false);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        request.setKeepOnCompletion(true);
+        request.setBatchedReduceSize(2);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10).aggregation(agg));
+
+        final String responseId;
+        final AsyncSearchResponse response = submitAsyncSearch(request);
+        try {
+            responseId = response.getId();
+            assertNotNull(response.getSearchResponse());
+            assertTrue(response.isRunning());
+            SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        } finally {
+            response.decRef();
+        }
+
+        final AsyncSearchResponse runningResponse = getAsyncSearch(responseId, false);
+        try {
+            // Test that a response object with no partial results will not be fleshed out with aggs
+            assertTrue(runningResponse.isRunning());
+            assertTrue(runningResponse.isPartial());
+            assertThat(runningResponse.getSearchResponse().getAggregations(), nullValue());
+        } finally {
+            runningResponse.decRef();
+        }
+
+        SearchListenerPlugin.allowLocalQueryPhase();
+        SearchListenerPlugin.waitForQueryPhaseCompletion();
+        final AsyncSearchResponse localQueryDoneNoPartialResponse = getAsyncSearch(responseId, false);
+        try {
+            // Test that a response object is not fleshed out with aggs when partial results are disabled
+            assertTrue(localQueryDoneNoPartialResponse.isRunning());
+            assertTrue(localQueryDoneNoPartialResponse.isPartial());
+            assertThat(localQueryDoneNoPartialResponse.getSearchResponse().getAggregations(), nullValue());
+        } finally {
+            localQueryDoneNoPartialResponse.decRef();
+        }
+
+        final AsyncSearchResponse localQueryDoneWithPartialResponse = getAsyncSearch(responseId, true);
+        try {
+            // Test that a response object for a partial response will be fleshed out with the partial response if requested
+            assertTrue(localQueryDoneWithPartialResponse.isRunning());
+            assertTrue(localQueryDoneWithPartialResponse.isPartial());
+            assertThat(localQueryDoneWithPartialResponse.getSearchResponse().getAggregations(), notNullValue());
+        } finally {
+            localQueryDoneWithPartialResponse.decRef();
+        }
+
+        SearchListenerPlugin.allowRemoteQueryPhase();
+        waitForSearchTasksToFinish();
+        final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId, randomBoolean());
+        try {
+            assertFalse(finishedResponse.isPartial());
+            assertFalse(finishedResponse.isRunning());
+            assertThat(finishedResponse.getSearchResponse().getAggregations(), notNullValue());
+
+            SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+        } finally {
+            finishedResponse.decRef();
+        }
+
+        // check that the async_search/status response includes the same cluster details
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(responseId);
+            assertFalse(statusResponse.isPartial());
+
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+        }
+    }
+
     public void testRemoteClusterOnlyCCSSuccessfulResult() throws Exception {
         // for remote-only queries, we can't use the SearchListenerPlugin since that listens for search
         // stage on the local cluster, so we only test final state of the search response
@@ -1905,6 +2206,14 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         return client(LOCAL_CLUSTER).execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id)).actionGet();
     }
 
+    protected AsyncSearchResponse getAsyncSearch(String id, boolean returnPartialResponse) {
+        return client(LOCAL_CLUSTER).execute(
+            GetAsyncSearchAction.INSTANCE,
+            new GetAsyncResultRequest(id).setReturnPartialResults(returnPartialResponse)
+                .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(1))
+        ).actionGet();
+    }
+
     protected AsyncStatusResponse getAsyncStatus(String id) {
         return client(LOCAL_CLUSTER).execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id)).actionGet();
     }
@@ -1991,6 +2300,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         private static final AtomicReference<CountDownLatch> localQueryLatch = new AtomicReference<>();
         private static final AtomicReference<CountDownLatch> remoteQueryLatch = new AtomicReference<>();
         private static final AtomicReference<CountDownLatch> failedQueryLatch = new AtomicReference<>();
+        private static final AtomicReference<CountDownLatch> queryPhaseCompleteLatch = new AtomicReference<>();
 
         /**
          * For tests that cannot use SearchListenerPlugin, ensure all latches are unset to
@@ -2042,6 +2352,17 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             }
         }
 
+        static void blockQueryPhaseCompletion(int numCompletions) {
+            queryPhaseCompleteLatch.set(new CountDownLatch(numCompletions));
+        }
+
+        static void waitForQueryPhaseCompletion() throws InterruptedException {
+            final CountDownLatch latch = queryPhaseCompleteLatch.get();
+            if (latch != null) {
+                latch.await(60, TimeUnit.SECONDS);
+            }
+        }
+
         static void waitRemoteSearchStarted() throws InterruptedException {
             assertTrue(startedRemoteLatch.get().await(60, TimeUnit.SECONDS));
         }
@@ -2080,6 +2401,13 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
+                    }
+                }
+
+                @Override
+                public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
+                    if (queryPhaseCompleteLatch.get() != null) {
+                        queryPhaseCompleteLatch.get().countDown();
                     }
                 }
 

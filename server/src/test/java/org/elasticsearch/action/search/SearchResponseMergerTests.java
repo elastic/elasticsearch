@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchResponseMergerTests extends ESTestCase {
@@ -1409,6 +1410,233 @@ public class SearchResponseMergerTests extends ESTestCase {
                     mergedResponse.decRef();
                 }
 
+                searchResponseMerger.add(searchResponsePartialAggs);
+                mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value(), equalTo(4L)); // should be 2 hits from remote1, 2 from remote2
+
+                    SearchHit hit1 = hits.getHits()[0];
+                    String expectedHit1 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit1.toString(), expectedHit1);
+
+                    SearchHit hit2 = hits.getHits()[1];
+                    String expectedHit2 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 2.0,
+                          "sort" : [
+                            2.0
+                          ]
+                        }""";
+                    assertEquals(hit2.toString(), expectedHit2);
+
+                    SearchHit hit3 = hits.getHits()[2];
+                    String expectedHit3 = """
+                        {
+                          "_index" : "remote1:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit3.toString(), expectedHit3);
+
+                    SearchHit hit4 = hits.getHits()[3];
+                    String expectedHit4 = """
+                        {
+                          "_index" : "remote2:foo_idx",
+                          "_score" : 1.0,
+                          "sort" : [
+                            1.0
+                          ]
+                        }""";
+                    assertEquals(hit4.toString(), expectedHit4);
+
+                    double expectedMaxValue = 55.55;  // value from remote2
+                    long expectedBucketsDocCount = 33 + 44 + 55;  // contributions from all 3 search responses
+                    Max max = mergedResponse.getAggregations().get(maxAggName);
+                    assertEquals(expectedMaxValue, max.value(), 0d);
+                    Range range = mergedResponse.getAggregations().get(rangeAggName);
+                    assertEquals(1, range.getBuckets().size());
+                    Range.Bucket bucket = range.getBuckets().get(0);
+                    assertEquals("0.0", bucket.getFromAsString());
+                    assertEquals("10000.0", bucket.getToAsString());
+                    assertEquals(expectedBucketsDocCount, bucket.getDocCount());
+                } finally {
+                    mergedResponse.decRef();
+                }
+            }
+        } finally {
+            searchResponseRemote1.decRef();
+            searchResponseRemote2.decRef();
+            searchResponsePartialAggs.decRef();
+        }
+    }
+
+    /**
+     * Tests the partial results scenario used by MutableSearchResponse when
+     * doing cross-cluster search with minimize_roundtrips=true but we don't want the partial results,
+     * only progress
+     */
+    public void testPartialResultsNotReturnedWhenGetSearchProgressResult() {
+        String maxAggName = "max123";
+        String rangeAggName = "range123";
+
+        // partial aggs from local cluster (no search hits)
+        double value = 33.33;
+        int count = 33;
+        SearchResponse searchResponsePartialAggs = new SearchResponse(
+            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), Float.NaN),
+            createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            2,
+            2,
+            0,
+            33,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        // full response from remote1 remote cluster
+        value = 44.44;
+        count = 44;
+        String clusterAlias = "remote1";
+        int total = 3;
+        int successful = 2;
+        int skipped = 1;
+        Index[] indices = new Index[] { new Index("foo_idx", "1bba9f5b-c5a1-4664-be1b-26be590c1aff") };
+        final SearchResponse searchResponseRemote1 = new SearchResponse(
+            createSimpleDeterministicSearchHits(clusterAlias, indices),
+            createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            total,
+            successful,
+            skipped,
+            44,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        // full response from remote2 remote cluster
+        value = 55.55;
+        count = 55;
+        clusterAlias = "remote2";
+        total = 3;
+        successful = 2;
+        skipped = 1;
+        indices = new Index[] { new Index("foo_idx", "ae024679-097a-4a27-abf8-403f1e9189de") };
+        SearchResponse searchResponseRemote2 = new SearchResponse(
+            createSimpleDeterministicSearchHits(clusterAlias, indices),
+            createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            total,
+            successful,
+            skipped,
+            55,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        try {
+            SearchResponse.Clusters clusters = SearchResponseTests.createCCSClusterObject(
+                3,
+                2,
+                true,
+                2,
+                1,
+                0,
+                0,
+                new ShardSearchFailure[0]
+            );
+
+            // merge partial aggs with remote1, check, then merge in remote2, check
+            try (
+                SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
+                    0,
+                    10,
+                    10,
+                    new SearchTimeProvider(0, 0, () -> 0),
+                    emptyReduceContextBuilder(
+                        new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                            .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+                    )
+                )
+            ) {
+                searchResponseMerger.add(searchResponsePartialAggs);
+                searchResponseMerger.add(searchResponseRemote1);
+                SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters, false);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value(), equalTo(0L)); // no hits should be returned in progress response
+
+                    var aggregations = mergedResponse.getAggregations();
+                    assertThat(aggregations.asList(), hasSize(0));
+                } finally {
+                    mergedResponse.decRef();
+                }
+
+                searchResponseMerger.add(searchResponseRemote2);
+                mergedResponse = searchResponseMerger.getMergedResponse(clusters, false);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value(), equalTo(0L)); // no hits should be returned in progress response
+
+                    var aggregations = mergedResponse.getAggregations();
+                    assertThat(aggregations.asList(), hasSize(0));
+                } finally {
+                    mergedResponse.decRef();
+                }
+            }
+
+            // merge remote1 and remote2, no partial aggs, check, then merge in partial aggs from local, check
+            try (
+                SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
+                    0,
+                    10,
+                    10,
+                    new SearchTimeProvider(0, 0, () -> 0),
+                    emptyReduceContextBuilder(
+                        new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                            .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+                    )
+                )
+            ) {
+                searchResponseMerger.add(searchResponseRemote2);
+                searchResponseMerger.add(searchResponseRemote1);
+                SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters, false);
+                try {
+                    SearchHits hits = mergedResponse.getHits();
+                    assertThat(hits.getTotalHits().value(), equalTo(0L)); // no hits should be returned in progress response
+
+                    var aggregations = mergedResponse.getAggregations();
+                    assertThat(aggregations.asList(), hasSize(0));
+                } finally {
+                    mergedResponse.decRef();
+                }
+
+                // Validate a full response is still returned when adding partial aggs at the end
                 searchResponseMerger.add(searchResponsePartialAggs);
                 mergedResponse = searchResponseMerger.getMergedResponse(clusters);
                 try {

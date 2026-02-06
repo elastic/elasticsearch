@@ -238,7 +238,12 @@ class MutableSearchResponse extends AbstractRefCounted {
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      * This method also restores the response headers in the current thread context when requested, if the final response is available.
      */
-    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime, boolean restoreResponseHeaders) {
+    synchronized AsyncSearchResponse toAsyncSearchResponse(
+        AsyncSearchTask task,
+        long expirationTime,
+        boolean restoreResponseHeaders,
+        boolean returnPartialResultsInResponse
+    ) {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
@@ -255,7 +260,13 @@ class MutableSearchResponse extends AbstractRefCounted {
             // partial results branch
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(task);
             try {
-                if (searchResponseMerger == null) { // local-only search or CCS MRT=false
+                if (returnPartialResultsInResponse == false) {
+                    if (reducedAggsSource != null) {
+                        InternalAggregations reducedAggs = reducedAggsSource.get();
+                        reducedAggsSource = () -> reducedAggs;
+                    }
+                    searchResponse = buildResponse(task.getStartTimeNanos(), null);
+                } else if (searchResponseMerger == null) { // local-only search or CCS MRT=false
                     /*
                      * Build the response, reducing aggs if we haven't already and
                      * storing the result of the reduction, so we won't have to reduce

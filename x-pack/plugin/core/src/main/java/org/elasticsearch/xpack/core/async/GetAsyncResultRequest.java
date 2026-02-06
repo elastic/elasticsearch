@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +20,11 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
     private final String id;
     private TimeValue waitForCompletionTimeout = TimeValue.MINUS_ONE;
     private TimeValue keepAlive = TimeValue.MINUS_ONE;
+    private boolean returnPartialResults = true;
+
+    private static final TransportVersion RETURN_PARTIAL_RESULTS_VERSION = TransportVersion.fromName(
+        "return_async_partial_results_query_param"
+    );
 
     /**
      * Creates a new request
@@ -34,6 +40,9 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         this.id = in.readString();
         this.waitForCompletionTimeout = TimeValue.timeValueMillis(in.readLong());
         this.keepAlive = in.readTimeValue();
+        if (in.getTransportVersion().supports(RETURN_PARTIAL_RESULTS_VERSION)) {
+            this.returnPartialResults = in.readBoolean();
+        }
     }
 
     @Override
@@ -42,6 +51,9 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         out.writeString(id);
         out.writeLong(waitForCompletionTimeout.millis());
         out.writeTimeValue(keepAlive);
+        if (out.getTransportVersion().supports(RETURN_PARTIAL_RESULTS_VERSION)) {
+            out.writeBoolean(returnPartialResults);
+        }
     }
 
     @Override
@@ -80,6 +92,18 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         return keepAlive;
     }
 
+    /**
+     * Sets whether partial results should be returned if the search is not yet complete.
+     */
+    public GetAsyncResultRequest setReturnPartialResults(boolean returnPartialResults) {
+        this.returnPartialResults = returnPartialResults;
+        return this;
+    }
+
+    public boolean getReturnPartialResults() {
+        return returnPartialResults;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -87,11 +111,12 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         GetAsyncResultRequest request = (GetAsyncResultRequest) o;
         return Objects.equals(id, request.id)
             && waitForCompletionTimeout.equals(request.waitForCompletionTimeout)
-            && keepAlive.equals(request.keepAlive);
+            && keepAlive.equals(request.keepAlive)
+            && returnPartialResults == request.returnPartialResults;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, waitForCompletionTimeout, keepAlive);
+        return Objects.hash(id, waitForCompletionTimeout, keepAlive, returnPartialResults);
     }
 }

@@ -10,7 +10,6 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;
@@ -177,7 +176,7 @@ public interface DenseVector {
     int size();
 
     static float getMagnitude(byte[] vector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(byte[] vector, int dims) {

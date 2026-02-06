@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 142015
+summary: Create native byte vector scorers
+type: enhancement

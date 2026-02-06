@@ -140,6 +140,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             String typeName = switch (type) {
                                 case I1I4 -> "_int1_int4";
                                 case I2I4 -> "_int2_int4";
+                                case I4I4 -> "_int4_int4";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
@@ -352,6 +353,23 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceLong(dotI2I4Handle, a, query, length);
         }
 
+        private static final MethodHandle dotI4I4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.I4I4, Operation.SINGLE)
+        );
+
+        /**
+         * Computes the dot product of a 4-bit (symmetric BBQ) vector against another 4-bit vector.
+         *
+         * @param a      address of the int4 vector (bit-sliced)
+         * @param query  address of the int4 vector (bit-sliced)
+         * @param length number of index bytes
+         */
+        static long dotProductI4I4(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0, length, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceLong(dotI4I4Handle, a, query, length);
+        }
+
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("Dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
@@ -440,6 +458,22 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             case DOT_PRODUCT -> lookup.findStatic(
                                                 JdkVectorSimilarityFunctions.class,
                                                 "dotProductI2I4",
+                                                type
+                                            );
+                                            case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");
+                                        };
+                                    }
+                                    case I4I4 -> {
+                                        MethodType type = MethodType.methodType(
+                                            long.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class
+                                        );
+                                        yield switch (op.getKey().function()) {
+                                            case DOT_PRODUCT -> lookup.findStatic(
+                                                JdkVectorSimilarityFunctions.class,
+                                                "dotProductI4I4",
                                                 type
                                             );
                                             case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");

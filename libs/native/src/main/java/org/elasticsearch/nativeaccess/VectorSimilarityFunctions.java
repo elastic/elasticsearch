@@ -63,7 +63,11 @@ public interface VectorSimilarityFunctions {
         /**
          * 2-bit data, 4-bit queries
          */
-        I2I4((byte) 2);
+        I2I4((byte) 2),
+        /**
+         * 4-bit data, 4-bit queries (symmetric)
+         */
+        I4I4((byte) 4);
 
         private final byte dataBits;
 

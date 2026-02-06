@@ -195,3 +195,41 @@ setup:
   - lte: { aggregations.percentiles_agg.values.50\.0: 2.001 }
   - gte: { aggregations.percentiles_agg.values.75\.0: 2.665 }
   - lte: { aggregations.percentiles_agg.values.75\.0: 2.667 }
+
+---
+"Percentile ranks aggregation over tdigest and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentile_ranks" ]
+      reason: exponential_histogram percentile_ranks aggregations was introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            percentile_ranks_agg:
+              percentile_ranks:
+                field: tdigest_or_exp_histo
+                values: [0, 1, 2, 5, 8]
+
+  - match: { hits.total.value: 2 }
+  - match:
+      aggregations.percentile_ranks_agg.values:
+        0.0: 0.0
+        1.0: 30.0
+        2.0: 60.0
+        5.0: 90.0
+        8.0: 100.0
+
+---
+"Exists query over tdigest and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        body:
+          query:
+            exists:
+              field: tdigest_or_exp_histo
+
+  - match: { hits.total.value: 2 }
+

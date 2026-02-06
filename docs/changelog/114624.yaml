@@ -1,0 +1,6 @@
+pr: 114624
+summary: Empty mappings equals empty properties
+area: Search
+type: enhancement
+issues:
+ - 107031

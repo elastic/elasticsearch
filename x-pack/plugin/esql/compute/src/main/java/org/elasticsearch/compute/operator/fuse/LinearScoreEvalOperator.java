@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -42,26 +43,13 @@ import java.util.Map;
  *
  */
 public class LinearScoreEvalOperator implements Operator {
-    public record Factory(
-        int discriminatorPosition,
-        int scorePosition,
-        LinearConfig linearConfig,
-        String sourceText,
-        int sourceLine,
-        int sourceColumn
-    ) implements OperatorFactory {
+    public record Factory(int discriminatorPosition, int scorePosition, LinearConfig linearConfig, WarningSourceLocation source)
+        implements
+            OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new LinearScoreEvalOperator(
-                driverContext,
-                discriminatorPosition,
-                scorePosition,
-                linearConfig,
-                sourceText,
-                sourceLine,
-                sourceColumn
-            );
+            return new LinearScoreEvalOperator(driverContext, discriminatorPosition, scorePosition, linearConfig, source);
         }
 
         @Override
@@ -91,9 +79,7 @@ public class LinearScoreEvalOperator implements Operator {
     private long rowsReceived = 0;
     private long rowsEmitted = 0;
 
-    private final String sourceText;
-    private final int sourceLine;
-    private final int sourceColumn;
+    private final WarningSourceLocation source;
     private Warnings warnings;
     private final DriverContext driverContext;
 
@@ -102,19 +88,14 @@ public class LinearScoreEvalOperator implements Operator {
         int discriminatorPosition,
         int scorePosition,
         LinearConfig config,
-        String sourceText,
-        int sourceLine,
-        int sourceColumn
+        WarningSourceLocation source
     ) {
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
         this.config = config;
         this.normalizer = createNormalizer(config.normalizer());
         this.driverContext = driverContext;
-
-        this.sourceText = sourceText;
-        this.sourceLine = sourceLine;
-        this.sourceColumn = sourceColumn;
+        this.source = source;
 
         finished = false;
         inputPages = new ArrayDeque<>();
@@ -420,7 +401,7 @@ public class LinearScoreEvalOperator implements Operator {
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
         }
 
         return warnings;

@@ -4,26 +4,26 @@
 
 | field | window | result |
 | --- | --- | --- |
-| aggregate_metric_double | | boolean |
-| boolean | | boolean |
-| cartesian_point | | boolean |
-| cartesian_shape | | boolean |
-| date | | boolean |
-| date_nanos | | boolean |
-| double | | boolean |
-| exponential_histogram | | boolean |
-| geo_point | | boolean |
-| geo_shape | | boolean |
-| geohash | | boolean |
-| geohex | | boolean |
-| geotile | | boolean |
-| histogram | | boolean |
-| integer | | boolean |
-| ip | | boolean |
-| keyword | | boolean |
-| long | | boolean |
-| tdigest | | boolean |
-| text | | boolean |
-| unsigned_long | | boolean |
-| version | | boolean |
+| aggregate_metric_double | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| boolean | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| cartesian_point | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| cartesian_shape | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| date | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| double | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| exponential_histogram | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| geo_point | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| geo_shape | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| geohash | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| geohex | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| geotile | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| histogram | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| integer | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| ip | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| keyword | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| long | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| tdigest | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| text | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| unsigned_long | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| version | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 

@@ -322,7 +322,9 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 searcher,
                 () -> currentTime[0],
                 null,
-                emptyMap()
+                emptyMap(),
+                null,
+                null
             );
 
             BytesReference source = BytesReference.bytes(

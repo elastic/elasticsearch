@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -181,6 +182,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributes;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -715,7 +717,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField);
+            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -1031,17 +1033,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return fork;
             }
 
-            List<Attribute> newOutput = new ArrayList<>();
-
-            // We don't want to keep the same attributes that are outputted by the FORK branches.
-            // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
-            for (Attribute attr : outputUnion) {
-                newOutput.add(
-                    new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType(), Nullability.FALSE, null, attr.synthetic())
-                );
-            }
-
-            return fork.replaceSubPlansAndOutput(newSubPlans, newOutput);
+            return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributes(outputUnion));
         }
 
         /*
@@ -1236,16 +1228,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (score instanceof UnresolvedAttribute) {
                 score = maybeResolveAttribute((UnresolvedAttribute) score, childrenOutput);
             }
+            if (score instanceof UnresolvedAttribute ua && score.name().equals(MetadataAttribute.SCORE)) {
+                score = ua.withUnresolvedMessage(
+                    "FUSE requires a score column, default [" + MetadataAttribute.SCORE + "] column not found."
+                );
+            }
 
             Attribute discriminator = fuse.discriminator();
             if (discriminator instanceof UnresolvedAttribute) {
                 discriminator = maybeResolveAttribute((UnresolvedAttribute) discriminator, childrenOutput);
             }
+            if (discriminator instanceof UnresolvedAttribute ua && discriminator.name().equals(Fork.FORK_FIELD)) {
+                discriminator = ua.withUnresolvedMessage(
+                    "FUSE requires a column to group by, default [" + Fork.FORK_FIELD + "] column not found."
+                );
+            }
 
-            List<NamedExpression> keys = fuse.keys()
-                .stream()
-                .map(attr -> attr instanceof UnresolvedAttribute ? maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput) : attr)
-                .toList();
+            List<NamedExpression> keys = fuse.keys().stream().map(attr -> {
+                if (attr.resolved()) {
+                    return attr;
+                }
+                attr = maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput);
+
+                if (attr instanceof UnresolvedAttribute ua && ua.name().equals(IdFieldMapper.NAME)) {
+                    return ua.withUnresolvedMessage("FUSE requires a key column, default [" + IdFieldMapper.NAME + "] column not found");
+                }
+
+                if (attr instanceof UnresolvedAttribute ua && ua.name().equals(MetadataAttribute.INDEX)) {
+                    return ua.withUnresolvedMessage(
+                        "FUSE requires a key column, default [" + MetadataAttribute.INDEX + "] column not found"
+                    );
+                }
+
+                return attr;
+            }).toList();
 
             // some attributes were unresolved or the wrong type
             // we return Fuse here so that the Verifier can raise an error message
@@ -1740,7 +1756,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan child = plan.child();
 
             if (plan instanceof Completion completion) {
-                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                CompletionFunction completionFunction = new CompletionFunction(
+                    source,
+                    completion.prompt(),
+                    inferenceIdLiteral,
+                    completion.taskSettings()
+                );
                 Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
                 return new Eval(source, child, List.of(alias));
             }
@@ -2758,8 +2779,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
                 for (Attribute oldAttr : childOutput) {
                     newChildOutput.add(oldAttr);
-                    if (oldOutputToConvertFunctions.containsKey(oldAttr.name())) {
-                        Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
+                    Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
+                    if (converts != null) {
                         // create a new alias for each conversion function and add it to the new aliases list
                         for (AbstractConvertFunction convert : converts) {
                             // create a new alias for the conversion function
@@ -2767,7 +2788,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Alias newAlias = new Alias(
                                 oldAttr.source(),
                                 newAliasName, // oldAttrName$$converted_to$$targetType
-                                convert.replaceChildren(Collections.singletonList(oldAttr))
+                                convert.replaceChildren(Collections.singletonList(oldAttr)),
+                                null, // generate a new id
+                                true // this'll be used to Project the synthetic attributes out when finishing analysis
                             );
                             newAliases.add(newAlias);
                             newChildOutput.add(newAlias.toAttribute());

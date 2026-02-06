@@ -30,6 +30,7 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
         List<Object> values = new ArrayList<>(fields.size());
         fields.forEach(f -> values.add(f.child().fold(context.foldCtx())));
         var blocks = BlockUtils.fromListRow(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-        return new LocalRelation(row.source(), row.output(), LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
+        // When Row has no fields, we still need 1 row for downstream Eval operations to work on
+        return new LocalRelation(row.source(), row.output(), LocalSupplier.of(blocks.length == 0 ? new Page(1) : new Page(blocks)));
     }
 }

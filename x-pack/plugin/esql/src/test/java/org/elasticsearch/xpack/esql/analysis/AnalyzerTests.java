@@ -320,6 +320,59 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(rowEmpNo.id(), empNo.id());
     }
 
+    public void testRowWithForwardReferences() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        // ROW x = 4, y = 2, z = x + y
+        var plan = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "x", new Literal(EMPTY, 4, INTEGER)),
+                    new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER)),
+                    new Alias(EMPTY, "z", new Add(EMPTY, new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y")))
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var row = as(limit.child(), Row.class);
+
+        assertEquals(3, row.fields().size());
+
+        // x should be literal 4
+        Alias xField = row.fields().get(0);
+        assertEquals("x", xField.name());
+        assertThat(xField.child(), instanceOf(Literal.class));
+        assertEquals(4, ((Literal) xField.child()).value());
+
+        // y should be literal 2
+        Alias yField = row.fields().get(1);
+        assertEquals("y", yField.name());
+        assertThat(yField.child(), instanceOf(Literal.class));
+        assertEquals(2, ((Literal) yField.child()).value());
+
+        // z should be Add(literal 4, literal 2), not Add(UnresolvedAttribute, UnresolvedAttribute)
+        Alias zField = row.fields().get(2);
+        assertEquals("z", zField.name());
+        assertThat(zField.child(), instanceOf(Add.class));
+        Add addExpr = (Add) zField.child();
+        assertThat(addExpr.left(), instanceOf(Literal.class));
+        assertThat(addExpr.right(), instanceOf(Literal.class));
+        assertEquals(4, ((Literal) addExpr.left()).value());
+        assertEquals(2, ((Literal) addExpr.right()).value());
+    }
+
+    public void testRowWithUnresolvableForwardReferences() {
+        verifyUnsupported("""
+            ROW a = b + c, b = 1, c = 2
+            """, """
+            Found 2 problems
+            line 1:9: Unknown column [b]
+            line 1:13: Unknown column [c]""");
+    }
+
     public void testUnresolvableAttribute() {
         Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
 

@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -575,6 +576,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        /**
+         * Override skipResolved to always process Row nodes, even when they are already resolved.
+         * <p>
+         * When all Row fields are literals (e.g., {@code ROW a = 1, b = 2, a = 3}), the Row node
+         * is resolved immediately after parsing since all expressions are resolved literals.
+         * However, we still need the Analyzer to:
+         * <ul>
+         *   <li>Handle duplicate field names (remove earlier definitions when later ones shadow them)</li>
+         *   <li>Resolve field references in later fields that refer to earlier ones
+         *       (e.g., {@code ROW x = 4, z = x + 1})</li>
+         * </ul>
+         * <p>
+         * In contrast, when Row contains field references (e.g., {@code ROW x = 4, z = x + y}),
+         * the Row is unresolved due to UnresolvedAttributes, so it would be processed anyway.
+         * This override ensures consistent handling for both cases.
+         */
+        @Override
+        protected boolean skipResolved(LogicalPlan plan) {
+            return plan instanceof Row == false;
+        }
+
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
@@ -606,6 +629,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                case Row row -> resolveRow(row);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1345,29 +1369,124 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
+        /**
+         * Resolves EVAL command fields by processing each alias field and resolving any unresolved attributes.
+         * Supports intra-command field references (later fields can reference earlier ones) and field shadowing.
+         *
+         * @param eval        the Eval node to resolve
+         * @param childOutput the output attributes from the child plan
+         * @return the resolved Eval node, or the original if unchanged
+         */
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
+            List<Alias> newFields = getAliases(eval.fields(), childOutput);
+            return newFields != eval.fields() ? new Eval(eval.source(), eval.child(), newFields) : eval;
+        }
+
+        /**
+         * Resolves ROW command fields, allowing later fields to reference earlier ones.
+         * Unlike EVAL, ROW has no child input, so resolution starts with an empty attribute list.
+         * Field expressions are directly substituted rather than creating attribute references,
+         * since ROW typically contains foldable literal expressions.
+         * <p>
+         * Example - basic intra-row reference:
+         * <pre>
+         * ROW x = 4, y = 2, z = x + y
+         * - x is defined as literal 4
+         * - y is defined as literal 2
+         * - z references x and y, resolved by substituting their expressions: 4 + 2
+         * </pre>
+         * <p>
+         * Example - field shadowing:
+         * <pre>
+         * ROW x = 5, y = x * 2, x = y + 1
+         * - First x = 5 is defined
+         * - y = x * 2 → y = 5 * 2 (x is substituted with 5)
+         * - Second x = y + 1 → x = 10 + 1 (y is substituted with 10, first x is shadowed)
+         * - Final output: y = 10, x = 11
+         * </pre>
+         * <p>
+         * <b>Related Optimizations:</b>
+         * <ul>
+         *   <li>{@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables}
+         *       - Propagates foldable expressions from ROW fields to downstream operators,
+         *       replacing ReferenceAttributes with their constant values.</li>
+         *   <li>{@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns}
+         *       - Removes unused ROW fields that are not referenced by any downstream operator.</li>
+         * </ul>
+         *
+         * @param row the Row node to resolve
+         * @return the resolved Row node, or the original if unchanged
+         */
+        private LogicalPlan resolveRow(Row row) {
+            List<Alias> newFields = getAliases(row.fields(), List.of());
+            return newFields != row.fields() ? new Row(row.source(), newFields) : row;
+        }
+
+        /**
+         * Resolves alias fields by processing unresolved attributes and handling intra-command references.
+         * Used by both EVAL and ROW commands to support field references within the same command.
+         * <p>
+         * This method implements three key mechanisms:
+         * <ol>
+         *   <li><b>Attribute Resolution</b>: Resolves {@link UnresolvedAttribute} against available inputs
+         *       (child output + previously defined fields in this command)</li>
+         *   <li><b>Expression Substitution</b>: When a field references another field defined in the same
+         *       command, substitutes the actual expression instead of the attribute reference. This enables
+         *       proper constant folding for ROW and correct reference tracking for EVAL.</li>
+         *   <li><b>Field Shadowing</b>: When a field name is redefined, removes the previous definition from
+         *       the resolution scope so only the latest definition is visible to subsequent fields.</li>
+         * </ol>
+         * <p>
+         * Example - EVAL with shadowing:
+         * <pre>
+         * FROM test | EVAL x = emp_no + 1, y = x, z = y + 1, y = z
+         *
+         * Processing order:
+         * 1. x = emp_no + 1      → resolved, added to scope
+         * 2. y = x               → x resolved to (emp_no + 1), added to scope
+         * 3. z = y + 1           → y resolved to (emp_no + 1), z = (emp_no + 1) + 1, added to scope
+         * 4. y = z               → z resolved to (emp_no + 1 + 1), y redefined (shadows previous y)
+         *
+         * Final scope contains: x, z, y (where y = emp_no + 1 + 1)
+         * </pre>
+         *
+         * @param fields      the list of alias fields to resolve
+         * @param childOutput the output attributes from the child plan (empty for ROW)
+         * @return the resolved fields list, or the original list if nothing changed (for identity check)
+         */
+        private List<Alias> getAliases(List<Alias> fields, List<Attribute> childOutput) {
+            // Tracks all resolvable attributes: child output + fields defined so far in this command
             List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
             List<Alias> newFields = new ArrayList<>();
+            // Maps field names to their defining expressions for intra-command substitution
+            Map<String, Expression> fieldExpressions = new HashMap<>();
             boolean changed = false;
-            for (Alias field : eval.fields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+
+            for (Alias field : fields) {
+                // Resolve unresolved attributes, substituting expressions for intra-command references
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
+                    Attribute attribute = resolveAttribute(ua, allResolvedInputs);
+                    // If this attribute was defined earlier in this command, substitute its expression
+                    return fieldExpressions.getOrDefault(attribute.name(), attribute);
+                });
 
                 changed |= result != field;
                 newFields.add(result);
 
                 if (result.resolved()) {
-                    // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
-                    Attribute existing = allResolvedInputs.stream()
+                    // Handle field shadowing: remove any previous attribute with the same name
+                    // This ensures only the last definition is visible for subsequent field resolution
+                    allResolvedInputs.stream()
                         .filter(attr -> attr.name().equals(result.name()))
                         .findFirst()
-                        .orElse(null);
-                    if (existing != null) {
-                        allResolvedInputs.remove(existing);
-                    }
+                        .ifPresent(allResolvedInputs::remove);
                     allResolvedInputs.add(result.toAttribute());
+
+                    // Track the expression for potential substitution in later fields
+                    fieldExpressions.put(result.name(), result.child());
                 }
             }
-            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+            return changed ? newFields : fields;
         }
 
         /**

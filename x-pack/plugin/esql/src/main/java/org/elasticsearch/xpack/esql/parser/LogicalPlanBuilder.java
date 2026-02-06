@@ -352,10 +352,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return result;
     }
 
+    /**
+     * Creates a Row logical plan from the parsed ROW command.
+     * <p>
+     * Note: Unlike other commands, we do NOT call {@code mergeOutputExpressions} here to handle
+     * duplicate field names. This is intentional because:
+     * <ul>
+     *   <li>Row fields may contain forward references to earlier fields
+     *       (e.g., {@code ROW x = 4, y = 2, z = x + y})</li>
+     *   <li>Both duplicate field removal and field reference resolution are handled together
+     *       in the Analyzer's {@code resolveRow} method</li>
+     *   <li>This ensures consistent handling regardless of whether the Row contains only literals
+     *       (resolved at parse time) or includes field references (unresolved until analysis)</li>
+     * </ul>
+     *
+     * @see org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs#resolveRow
+     */
     @Override
-    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
+        return new Row(source(ctx), visitFields(ctx.fields()));
     }
 
     private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {

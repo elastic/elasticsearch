@@ -284,7 +284,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         assert q.length == length * 2;
         // 128 / 8 == 16
@@ -306,7 +307,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                         queryAdditionalCorrection,
                         similarityFunction,
                         centroidDp,
-                        scores
+                        scores,
+                        bulkSize
                     );
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                     return score128Bulk(
@@ -316,7 +318,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                         queryAdditionalCorrection,
                         similarityFunction,
                         centroidDp,
-                        scores
+                        scores,
+                        bulkSize
                     );
                 }
             }
@@ -331,7 +334,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
         int i = 0;
@@ -393,6 +397,22 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 }
             }
         }
+        if (limit < bulkSize) {
+            // missing vectors to score
+            maxScore = scoreTailIndividually(
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize,
+                limit,
+                offset,
+                ay,
+                ly,
+                y1,
+                maxScore
+            );
+        }
         in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
@@ -404,7 +424,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
         int i = 0;
@@ -466,7 +487,84 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 }
             }
         }
+        if (limit < bulkSize) {
+            // missing vectors to score
+            maxScore = scoreTailIndividually(
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize,
+                limit,
+                offset,
+                ay,
+                ly,
+                y1,
+                maxScore
+            );
+        }
         in.seek(offset + 16L * bulkSize);
+        return maxScore;
+    }
+
+    private float scoreTailIndividually(
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize,
+        int limit,
+        long offset,
+        float ay,
+        float ly,
+        float y1,
+        float maxScore
+    ) {
+        for (int j = limit; j < bulkSize; j++) {
+            float ax = memorySegment.get(
+                ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                offset + (long) j * Float.BYTES
+            );
+
+            float lx = memorySegment.get(
+                ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                offset + 4L * bulkSize + (long) j * Float.BYTES
+            );
+            lx = (lx - ax) * TWO_BIT_SCALE;
+
+            int targetComponentSum = memorySegment.get(
+                ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                offset + 8L * bulkSize + (long) j * Integer.BYTES
+            );
+
+            float additionalCorrection = memorySegment.get(
+                ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                offset + 12L * bulkSize + (long) j * Float.BYTES
+            );
+
+            float qcDist = scores[j];
+
+            float res = ax * ay * dimensions + lx * ay * targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
+
+            if (similarityFunction == EUCLIDEAN) {
+                res = res * -2f + additionalCorrection + queryAdditionalCorrection + 1f;
+                res = Math.max(1f / res, 0f);
+                scores[j] = res;
+                maxScore = Math.max(maxScore, res);
+            } else {
+                res = res + queryAdditionalCorrection + additionalCorrection - centroidDp;
+
+                if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                    res = VectorUtil.scaleMaxInnerProductScore(res);
+                    scores[j] = res;
+                    maxScore = Math.max(maxScore, res);
+                } else {
+                    res = Math.max((res + 1f) * 0.5f, 0f);
+                    scores[j] = res;
+                    maxScore = Math.max(maxScore, res);
+                }
+            }
+        }
         return maxScore;
     }
 }

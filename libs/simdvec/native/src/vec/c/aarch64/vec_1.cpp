@@ -872,12 +872,12 @@ static inline void doti2i4_inner_bulk(
     f32_t* results
 ) {
     int c = 0;
-    int bit_length = length/2;
+    const int bit_length = length/2;
     // TODO: specialised implementation
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        int64_t lower = doti1i4_inner(a, query, bit_length);
-        int64_t upper = doti1i4_inner(a + bit_length, query, bit_length);
+        int64_t lower = doti1i4_inner(a0, query, bit_length);
+        int64_t upper = doti1i4_inner(a0 + bit_length, query, bit_length);
         results[c] = (f32_t)(lower + (upper << 1));
     }
 }

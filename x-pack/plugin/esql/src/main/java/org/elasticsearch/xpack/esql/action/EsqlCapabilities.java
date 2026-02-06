@@ -1185,7 +1185,10 @@ public class EsqlCapabilities {
          * Basic Views with no branching (do not need subqueries or FORK).
          */
         VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
-
+        /**
+         * Views crud actions as index actions
+         */
+        VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
         /**
          * Views with branching (requires subqueries/FORK).
          */

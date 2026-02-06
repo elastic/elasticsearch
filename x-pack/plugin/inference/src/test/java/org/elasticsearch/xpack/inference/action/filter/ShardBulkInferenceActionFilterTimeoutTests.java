@@ -7,20 +7,11 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -35,9 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
@@ -47,17 +36,9 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,13 +46,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbedding;
@@ -100,34 +77,16 @@ import static org.mockito.Mockito.when;
  *   <li><b>Multiple inference fields per document</b>: If any field times out, the entire document fails.</li>
  * </ul>
  *
- * <p>All tests randomly use {@link IndexRequest} or {@link UpdateRequest} to ensure both are covered.</p>
+ * <p>All tests randomly use {@link org.elasticsearch.action.index.IndexRequest} or
+ * {@link org.elasticsearch.action.update.UpdateRequest} to ensure both are covered.</p>
  */
-public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
+public class ShardBulkInferenceActionFilterTimeoutTests extends AbstractShardBulkInferenceActionFilterTestCase {
 
-    private static final IndexingPressure NOOP_INDEXING_PRESSURE = new IndexingPressure(Settings.EMPTY);
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMillis(50);
     private static final long SLOW_DELAY_MS = 100;  // Must exceed DEFAULT_TIMEOUT
 
-    private ThreadPool threadPool;
-    private boolean useLegacyFormat;
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { true }, new Object[] { false });
-    }
-
     public ShardBulkInferenceActionFilterTimeoutTests(boolean useLegacyFormat) {
-        this.useLegacyFormat = useLegacyFormat;
-    }
-
-    @Before
-    public void setupThreadPool() {
-        threadPool = new TestThreadPool(getTestName());
-    }
-
-    @After
-    public void tearDownThreadPool() {
-        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        super(useLegacyFormat);
     }
 
     // ========== Test Cases ==========
@@ -360,26 +319,19 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
         assertThat(itemDescription + " should have timeout status", response.getFailure().getStatus(), equalTo(RestStatus.REQUEST_TIMEOUT));
     }
 
-    private InferenceFieldMetadata inferenceFieldMetadata(String field, StaticModel model) {
-        return new InferenceFieldMetadata(field, model.getInferenceEntityId(), new String[] { field }, null);
-    }
-
-    private BulkItemRequest bulkItemRequest(int id, String field, String value) {
-        return new BulkItemRequest(id, randomDocWriteRequest(field, value));
-    }
-
-    private static DocWriteRequest<?> randomDocWriteRequest(String field, String value) {
-        if (randomBoolean()) {
-            return new IndexRequest("index").source(field, value);
+    private void runFilterAndVerify(
+        ShardBulkInferenceActionFilter filter,
+        StaticModel model,
+        String field,
+        String[] texts,
+        java.util.function.Consumer<BulkItemRequest[]> verifier
+    ) throws Exception {
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of(field, inferenceFieldMetadata(field, model));
+        BulkItemRequest[] items = new BulkItemRequest[texts.length];
+        for (int i = 0; i < texts.length; i++) {
+            items[i] = bulkItemRequest(i, field, texts[i]);
         }
-        return new UpdateRequest().doc(new IndexRequest("index").source(field, value));
-    }
-
-    private static DocWriteRequest<?> randomDocWriteRequest(Map<String, Object> source) {
-        if (randomBoolean()) {
-            return new IndexRequest("index").source(source);
-        }
-        return new UpdateRequest().doc(new IndexRequest("index").source(source));
+        runFilterAndVerify(filter, fieldMap, items, verifier);
     }
 
     // ========== Filter Creation ==========
@@ -531,6 +483,7 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
         return clusterService;
     }
 
+<<<<<<< HEAD
     // ========== Test Execution ==========
 
     private void runFilterAndVerify(
@@ -546,30 +499,6 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
             items[i] = bulkItemRequest(i, field, texts[i]);
         }
         runFilterAndVerify(filter, fieldMap, items, verifier);
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void runFilterAndVerify(
-        ShardBulkInferenceActionFilter filter,
-        Map<String, InferenceFieldMetadata> fieldMap,
-        BulkItemRequest[] items,
-        Consumer<BulkItemRequest[]> verifier
-    ) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionFilterChain chain = (task, action, request, listener) -> {
-            try {
-                BulkShardRequest bulkRequest = (BulkShardRequest) request;
-                verifier.accept(bulkRequest.items());
-            } finally {
-                latch.countDown();
-            }
-        };
-
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
-        request.setInferenceFieldMap(fieldMap);
-
-        filter.apply(mock(Task.class), TransportShardBulkAction.ACTION_NAME, request, mock(ActionListener.class), chain);
-        awaitLatch(latch, 30, TimeUnit.SECONDS);
     }
 
     // ========== Supporting Types ==========
@@ -595,45 +524,6 @@ public class ShardBulkInferenceActionFilterTimeoutTests extends ESTestCase {
 
         static DelayResult delayThenComplete(long delayMs) {
             return new DelayResult(false, delayMs);
-        }
-    }
-
-    private static class StaticModel extends TestModel {
-        private final Map<String, ChunkedInference> resultMap = new java.util.HashMap<>();
-
-        public static StaticModel createRandomInstance() {
-            org.elasticsearch.inference.TaskType taskType = randomFrom(
-                org.elasticsearch.inference.TaskType.TEXT_EMBEDDING,
-                org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING
-            );
-            TestModel testModel = TestModel.createRandomInstance(taskType);
-            return new StaticModel(
-                testModel.getInferenceEntityId(),
-                testModel.getTaskType(),
-                randomAlphaOfLength(10),
-                testModel.getServiceSettings(),
-                testModel.getTaskSettings(),
-                testModel.getSecretSettings()
-            );
-        }
-
-        StaticModel(
-            String inferenceId,
-            org.elasticsearch.inference.TaskType taskType,
-            String service,
-            TestServiceSettings serviceSettings,
-            TestTaskSettings taskSettings,
-            TestSecretSettings secretSettings
-        ) {
-            super(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings);
-        }
-
-        void putResult(String input, ChunkedInference result) {
-            resultMap.put(input, result);
-        }
-
-        ChunkedInference getResults(String input) {
-            return resultMap.getOrDefault(input, new ChunkedInferenceEmbedding(List.of()));
         }
     }
 }

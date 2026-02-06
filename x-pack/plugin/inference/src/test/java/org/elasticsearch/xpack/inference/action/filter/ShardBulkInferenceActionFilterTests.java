@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -22,23 +20,14 @@ import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -57,8 +46,6 @@ import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -72,8 +59,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.junit.After;
-import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -83,7 +68,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -94,7 +78,6 @@ import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -112,7 +95,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.longThat;
@@ -126,30 +108,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ShardBulkInferenceActionFilterTests extends ESTestCase {
+public class ShardBulkInferenceActionFilterTests extends AbstractShardBulkInferenceActionFilterTestCase {
     private static final Object EXPLICIT_NULL = new Object();
-    private static final IndexingPressure NOOP_INDEXING_PRESSURE = new NoopIndexingPressure();
-
-    private final boolean useLegacyFormat;
-    private ThreadPool threadPool;
 
     public ShardBulkInferenceActionFilterTests(boolean useLegacyFormat) {
-        this.useLegacyFormat = useLegacyFormat;
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { true }, new Object[] { false });
-    }
-
-    @Before
-    public void setupThreadPool() {
-        threadPool = new TestThreadPool(getTestName());
-    }
-
-    @After
-    public void tearDownThreadPool() throws Exception {
-        terminate(threadPool);
+        super(useLegacyFormat);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -1186,30 +1149,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
     }
 
-    private static ClusterService createClusterService(boolean useLegacyFormat) {
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
-        when(indexMetadata.getSettings()).thenReturn(indexSettings);
-
-        ProjectMetadata project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
-        when(project.index(anyString())).thenReturn(indexMetadata);
-
-        Metadata metadata = mock(Metadata.class);
-        when(metadata.getProject()).thenReturn(project);
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
-        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
-        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE)));
-        return clusterService;
-    }
-
     private static BulkItemRequest[] randomBulkItemRequest(
         boolean useLegacyFormat,
         Map<String, StaticModel> modelMap,
@@ -1322,50 +1261,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
     }
 
-    private static class StaticModel extends TestModel {
-        private final Map<String, ChunkedInference> resultMap;
-
-        StaticModel(
-            String inferenceEntityId,
-            TaskType taskType,
-            String service,
-            TestServiceSettings serviceSettings,
-            TestTaskSettings taskSettings,
-            TestSecretSettings secretSettings
-        ) {
-            super(inferenceEntityId, taskType, service, serviceSettings, taskSettings, secretSettings);
-            this.resultMap = new HashMap<>();
-        }
-
-        public static StaticModel createRandomInstance() {
-            return createRandomInstance(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
-        }
-
-        public static StaticModel createRandomInstance(TaskType taskType) {
-            TestModel testModel = TestModel.createRandomInstance(taskType);
-            return new StaticModel(
-                testModel.getInferenceEntityId(),
-                testModel.getTaskType(),
-                randomAlphaOfLength(10),
-                testModel.getServiceSettings(),
-                testModel.getTaskSettings(),
-                testModel.getSecretSettings()
-            );
-        }
-
-        ChunkedInference getResults(String text) {
-            return resultMap.getOrDefault(text, new ChunkedInferenceEmbedding(List.of()));
-        }
-
-        void putResult(String text, ChunkedInference result) {
-            resultMap.put(text, result);
-        }
-
-        boolean hasResult(String text) {
-            return resultMap.containsKey(text);
-        }
-    }
-
     private static class InstrumentedIndexingPressure extends IndexingPressure {
         private Coordinating coordinating = null;
 
@@ -1384,23 +1279,4 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
     }
 
-    private static class NoopIndexingPressure extends IndexingPressure {
-        private NoopIndexingPressure() {
-            super(Settings.EMPTY);
-        }
-
-        @Override
-        public Coordinating createCoordinatingOperation(boolean forceExecution) {
-            return new NoopCoordinating(forceExecution);
-        }
-
-        private class NoopCoordinating extends Coordinating {
-            private NoopCoordinating(boolean forceExecution) {
-                super(forceExecution);
-            }
-
-            @Override
-            public void increment(int operations, long bytes) {}
-        }
-    }
 }

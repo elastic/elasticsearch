@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -124,7 +125,7 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
 import org.elasticsearch.xpack.inference.rest.RestDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetCCMConfigurationAction;
@@ -248,6 +249,8 @@ public class InferencePlugin extends Plugin
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
+
+    private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
 
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
@@ -483,6 +486,7 @@ public class InferencePlugin extends Plugin
             ccmService
         );
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),
@@ -496,7 +500,8 @@ public class InferencePlugin extends Plugin
                 modelRegistry,
                 services.client(),
                 ccmFeature,
-                ccmService
+                ccmService,
+                inferenceFeatureService
             )
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
@@ -584,8 +589,16 @@ public class InferencePlugin extends Plugin
                 new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new),
-                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom),
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::readDiffFrom
+                ),
                 new NamedWriteableRegistry.Entry(
                     QueryBuilder.class,
                     InterceptedInferenceMatchQueryBuilder.NAME,
@@ -615,8 +628,8 @@ public class InferencePlugin extends Plugin
             List.of(
                 new NamedXContentRegistry.Entry(
                     Metadata.ProjectCustom.class,
-                    new ParseField(ModelRegistryMetadata.TYPE),
-                    ModelRegistryMetadata::fromXContent
+                    new ParseField(ModelRegistryClusterStateMetadata.TYPE),
+                    ModelRegistryClusterStateMetadata::fromXContent
                 ),
                 new NamedXContentRegistry.Entry(
                     Metadata.ProjectCustom.class,
@@ -636,8 +649,19 @@ public class InferencePlugin extends Plugin
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
             .setAliasName(InferenceIndex.INDEX_ALIAS)
             .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-            .setDescription("Contains inference service and model configuration")
+            .setDescription(INFERENCE_INDEX_DESCRIPTION)
             .setMappings(InferenceIndex.mappingsV1())
+            .setSettings(InferenceIndex.settings())
+            .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+            .build();
+
+        var inferenceIndexV2Descriptor = SystemIndexDescriptor.builder()
+            .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+            .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+            .setAliasName(InferenceIndex.INDEX_ALIAS)
+            .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+            .setDescription(INFERENCE_INDEX_DESCRIPTION)
+            .setMappings(InferenceIndex.mappingsV2())
             .setSettings(InferenceIndex.settings())
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
@@ -648,11 +672,11 @@ public class InferencePlugin extends Plugin
                 .setIndexPattern(InferenceIndex.INDEX_PATTERN)
                 .setAliasName(InferenceIndex.INDEX_ALIAS)
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-                .setDescription("Contains inference service and model configuration")
+                .setDescription(INFERENCE_INDEX_DESCRIPTION)
                 .setMappings(InferenceIndex.mappings())
                 .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
+                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor, inferenceIndexV2Descriptor))
                 .build(),
             SystemIndexDescriptor.builder()
                 .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

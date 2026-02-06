@@ -282,7 +282,7 @@ public abstract class SenderService implements InferenceService {
      * @return the retrieved {@link ModelCreator}
      * @throws ElasticsearchStatusException if no {@link ModelCreator} is found for the given task type
      */
-    protected static <C extends ModelCreator<? extends Model>> C retrieveModelCreatorFromMapOrThrow(
+    protected static <C> C retrieveModelCreatorFromMapOrThrow(
         Map<TaskType, C> modelCreators,
         String inferenceId,
         TaskType taskType,

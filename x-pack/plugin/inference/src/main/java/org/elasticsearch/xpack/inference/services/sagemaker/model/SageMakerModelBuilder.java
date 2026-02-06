@@ -65,6 +65,7 @@ public class SageMakerModelBuilder {
         Map<String, Object> secrets
     ) {
         var validationException = new ValidationException();
+
         var awsSecretSettings = secrets != null
             ? AwsSecretSettings.fromMap(removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS))
             : null;

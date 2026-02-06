@@ -197,7 +197,7 @@ public class InferenceUtils {
         return null;
     }
 
-    private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
+    public static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
         if (validValues.contains(enumValue) == false) {
             throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));
         }

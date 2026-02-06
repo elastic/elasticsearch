@@ -74,6 +74,8 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
 
+    public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -81,7 +83,8 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_CCM_CACHE,
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
-            EMBEDDING_TASK_TYPE
+            EMBEDDING_TASK_TYPE,
+            ENDPOINT_METADATA_FIELD
         );
     }
 

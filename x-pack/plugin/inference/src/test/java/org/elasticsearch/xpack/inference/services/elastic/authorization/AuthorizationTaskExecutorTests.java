@@ -23,6 +23,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
@@ -58,6 +59,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     private PersistentTasksService persistentTasksService;
     private String localNodeId;
     private FeatureService enabledFeatureServiceMock;
+    private InferenceFeatureService inferenceFeatureService;
     private CCMFeature unsupportedEnvironmentCcmFeatureMock;
     private CCMEnablementService ccmEnablementServiceMock;
 
@@ -70,6 +72,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         localNodeId = clusterService.localNode().getId();
         enabledFeatureServiceMock = mock(FeatureService.class);
         when(enabledFeatureServiceMock.clusterHasFeature(any(), any())).thenReturn(true);
+        inferenceFeatureService = new InferenceFeatureService(clusterService, enabledFeatureServiceMock);
         unsupportedEnvironmentCcmFeatureMock = mock(CCMFeature.class);
         when(unsupportedEnvironmentCcmFeatureMock.isCcmSupportedEnvironment()).thenReturn(false);
         ccmEnablementServiceMock = mock(CCMEnablementService.class);
@@ -98,7 +101,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -123,7 +127,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -166,7 +171,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -202,7 +208,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             clock
         );
@@ -261,7 +268,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             clock
         );
@@ -330,7 +338,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -372,7 +381,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             clock
         );
@@ -445,7 +455,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             clock
         );
@@ -498,7 +509,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -536,7 +548,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -570,7 +583,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -603,7 +617,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );
@@ -658,7 +673,8 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
+                createMockCCMService(false),
+                inferenceFeatureService
             ),
             Clock.systemUTC()
         );

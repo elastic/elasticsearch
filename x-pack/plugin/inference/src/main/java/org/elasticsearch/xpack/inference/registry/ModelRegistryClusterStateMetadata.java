@@ -46,18 +46,21 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Deleted models are retained as tombstones until the {@link ModelRegistry} upgrades from the existing inference index.
  * After the upgrade, all active models are registered.
  */
-public class ModelRegistryMetadata implements Metadata.ProjectCustom {
+public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "model_registry";
 
-    public static final ModelRegistryMetadata EMPTY_NOT_UPGRADED = new ModelRegistryMetadata(ImmutableOpenMap.of(), Set.of());
-    public static final ModelRegistryMetadata EMPTY_UPGRADED = new ModelRegistryMetadata(ImmutableOpenMap.of());
+    public static final ModelRegistryClusterStateMetadata EMPTY_NOT_UPGRADED = new ModelRegistryClusterStateMetadata(
+        ImmutableOpenMap.of(),
+        Set.of()
+    );
+    public static final ModelRegistryClusterStateMetadata EMPTY_UPGRADED = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.of());
 
     private static final ParseField UPGRADED_FIELD = new ParseField("upgraded");
     private static final ParseField MODELS_FIELD = new ParseField("models");
     private static final ParseField TOMBSTONES_FIELD = new ParseField("tombstones");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ModelRegistryMetadata, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ModelRegistryClusterStateMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         false,
         args -> {
@@ -65,9 +68,9 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
             var settingsMap = (ImmutableOpenMap<String, MinimalServiceSettings>) args[1];
             var deletedIDs = (List<String>) args[2];
             if (isUpgraded) {
-                return new ModelRegistryMetadata(settingsMap);
+                return new ModelRegistryClusterStateMetadata(settingsMap);
             }
-            return new ModelRegistryMetadata(settingsMap, new HashSet<>(deletedIDs));
+            return new ModelRegistryClusterStateMetadata(settingsMap, new HashSet<>(deletedIDs));
         }
     );
 
@@ -84,8 +87,8 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         PARSER.declareStringArray(optionalConstructorArg(), TOMBSTONES_FIELD);
     }
 
-    public static ModelRegistryMetadata fromState(ProjectMetadata projectMetadata) {
-        ModelRegistryMetadata resp = projectMetadata.custom(TYPE);
+    public static ModelRegistryClusterStateMetadata fromState(ProjectMetadata projectMetadata) {
+        ModelRegistryClusterStateMetadata resp = projectMetadata.custom(TYPE);
         return resp != null ? resp : EMPTY_NOT_UPGRADED;
     }
 
@@ -93,11 +96,11 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         "inference_model_registry_metadata"
     );
 
-    public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
-        return withAddedModels(List.of(new ModelRegistry.ModelAndSettings(inferenceEntityId, settings)));
+    public ModelRegistryClusterStateMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
+        return withAddedModels(List.of(new ModelRegistryMetadataTask.ModelAndSettings(inferenceEntityId, settings)));
     }
 
-    public ModelRegistryMetadata withAddedModels(List<ModelRegistry.ModelAndSettings> models) {
+    public ModelRegistryClusterStateMetadata withAddedModels(List<ModelRegistryMetadataTask.ModelAndSettings> models) {
         var modifiedMap = false;
         ImmutableOpenMap.Builder<String, MinimalServiceSettings> settingsBuilder = ImmutableOpenMap.builder(modelMap);
 
@@ -114,29 +117,29 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         }
 
         if (isUpgraded) {
-            return new ModelRegistryMetadata(settingsBuilder.build());
+            return new ModelRegistryClusterStateMetadata(settingsBuilder.build());
         }
 
         var newTombstone = new HashSet<>(tombstones);
         models.forEach(existing -> newTombstone.remove(existing.inferenceEntityId()));
-        return new ModelRegistryMetadata(settingsBuilder.build(), newTombstone);
+        return new ModelRegistryClusterStateMetadata(settingsBuilder.build(), newTombstone);
     }
 
-    public ModelRegistryMetadata withRemovedModel(Set<String> inferenceEntityIds) {
+    public ModelRegistryClusterStateMetadata withRemovedModel(Set<String> inferenceEntityIds) {
         var mapBuilder = ImmutableOpenMap.builder(modelMap);
         for (var toDelete : inferenceEntityIds) {
             mapBuilder.remove(toDelete);
         }
         if (isUpgraded) {
-            return new ModelRegistryMetadata(mapBuilder.build());
+            return new ModelRegistryClusterStateMetadata(mapBuilder.build());
         }
 
         var newTombstone = new HashSet<>(tombstones);
         newTombstone.addAll(inferenceEntityIds);
-        return new ModelRegistryMetadata(mapBuilder.build(), newTombstone);
+        return new ModelRegistryClusterStateMetadata(mapBuilder.build(), newTombstone);
     }
 
-    public ModelRegistryMetadata withUpgradedModels(Map<String, MinimalServiceSettings> indexModels) {
+    public ModelRegistryClusterStateMetadata withUpgradedModels(Map<String, MinimalServiceSettings> indexModels) {
         if (isUpgraded) {
             throw new IllegalArgumentException("Already upgraded");
         }
@@ -146,7 +149,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
                 builder.fPut(entry.getKey(), entry.getValue());
             }
         }
-        return new ModelRegistryMetadata(builder.build());
+        return new ModelRegistryClusterStateMetadata(builder.build());
     }
 
     private final boolean isUpgraded;
@@ -154,22 +157,26 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     private final Map<String, Set<String>> serviceToInferenceEndpointIds;
     private final Set<String> tombstones;
 
-    public ModelRegistryMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap) {
+    public ModelRegistryClusterStateMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap) {
         this(modelMap, null, true);
     }
 
-    public ModelRegistryMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap, Set<String> tombstone) {
+    public ModelRegistryClusterStateMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap, Set<String> tombstone) {
         this(modelMap, Collections.unmodifiableSet(tombstone), false);
     }
 
-    public ModelRegistryMetadata(StreamInput in) throws IOException {
+    public ModelRegistryClusterStateMetadata(StreamInput in) throws IOException {
         this.isUpgraded = in.readBoolean();
         this.modelMap = in.readImmutableOpenMap(StreamInput::readString, MinimalServiceSettings::new);
         this.tombstones = isUpgraded ? null : in.readCollectionAsSet(StreamInput::readString);
         this.serviceToInferenceEndpointIds = buildServiceToInferenceEndpointIdsMap(modelMap);
     }
 
-    private ModelRegistryMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap, Set<String> tombstones, boolean isUpgraded) {
+    private ModelRegistryClusterStateMetadata(
+        ImmutableOpenMap<String, MinimalServiceSettings> modelMap,
+        Set<String> tombstones,
+        boolean isUpgraded
+    ) {
         this.isUpgraded = isUpgraded;
         this.modelMap = modelMap;
         this.tombstones = tombstones;
@@ -204,7 +211,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         }
     }
 
-    public static ModelRegistryMetadata fromXContent(XContentParser parser) throws IOException {
+    public static ModelRegistryClusterStateMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -267,7 +274,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     @Override
     public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
-        return new ModelRegistryMetadataDiff((ModelRegistryMetadata) before, this);
+        return new ModelRegistryMetadataDiff((ModelRegistryClusterStateMetadata) before, this);
     }
 
     public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
@@ -313,7 +320,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         if (obj.getClass() != getClass()) {
             return false;
         }
-        ModelRegistryMetadata other = (ModelRegistryMetadata) obj;
+        ModelRegistryClusterStateMetadata other = (ModelRegistryClusterStateMetadata) obj;
         return Objects.equals(this.modelMap, other.modelMap)
             && isUpgraded == other.isUpgraded
             && Objects.equals(this.tombstones, other.tombstones);
@@ -337,7 +344,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         final DiffableUtils.MapDiff<String, MinimalServiceSettings, ImmutableOpenMap<String, MinimalServiceSettings>> settingsDiff;
         final Set<String> tombstone;
 
-        ModelRegistryMetadataDiff(ModelRegistryMetadata before, ModelRegistryMetadata after) {
+        ModelRegistryMetadataDiff(ModelRegistryClusterStateMetadata before, ModelRegistryClusterStateMetadata after) {
             this.isUpgraded = after.isUpgraded;
             this.settingsDiff = DiffableUtils.diff(before.modelMap, after.modelMap, DiffableUtils.getStringKeySerializer());
             this.tombstone = after.isUpgraded ? null : after.tombstones;
@@ -375,11 +382,11 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
         @Override
         public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
-            var metadata = (ModelRegistryMetadata) part;
+            var metadata = (ModelRegistryClusterStateMetadata) part;
             if (isUpgraded) {
-                return new ModelRegistryMetadata(settingsDiff.apply(metadata.modelMap));
+                return new ModelRegistryClusterStateMetadata(settingsDiff.apply(metadata.modelMap));
             } else {
-                return new ModelRegistryMetadata(settingsDiff.apply(metadata.modelMap), tombstone);
+                return new ModelRegistryClusterStateMetadata(settingsDiff.apply(metadata.modelMap), tombstone);
             }
         }
     }

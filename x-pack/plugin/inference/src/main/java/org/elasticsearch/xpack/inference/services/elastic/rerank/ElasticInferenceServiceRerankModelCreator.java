@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -33,20 +34,18 @@ public class ElasticInferenceServiceRerankModelCreator extends ElasticInferenceS
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        @Nullable Map<String, Object> taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         return new ElasticInferenceServiceRerankModel(
             inferenceId,
             taskType,
             service,
             serviceSettings,
-            taskSettings,
-            secretSettings,
             elasticInferenceServiceComponents,
-            context
+            context,
+            endpointMetadata
         );
     }
 

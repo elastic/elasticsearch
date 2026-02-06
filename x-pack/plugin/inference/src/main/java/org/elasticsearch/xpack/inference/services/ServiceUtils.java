@@ -89,7 +89,6 @@ public final class ServiceUtils {
      * @return {@code null} if not present else the object cast to type T
      * @param <T> The expected type
      */
-    @SuppressWarnings("unchecked")
     public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type, ValidationException validationException) {
         return InferenceUtils.removeAsType(sourceMap, key, type, validationException);
     }
@@ -427,16 +426,6 @@ public final class ServiceUtils {
         return InferenceUtils.extractOptionalString(map, settingName, scope, validationException);
     }
 
-    @SuppressWarnings("unchecked")
-    public static <T> List<T> extractOptionalList(
-        Map<String, Object> map,
-        String settingName,
-        Class<T> type,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractOptionalList(map, settingName, type, validationException);
-    }
-
     public static Integer extractRequiredPositiveInteger(
         Map<String, Object> map,
         String settingName,
@@ -695,26 +684,6 @@ public final class ServiceUtils {
         map.values().removeIf(Objects::isNull);
 
         return map;
-    }
-
-    public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
-        Map<String, Object> map,
-        String settingName,
-        int maxValue,
-        String scope,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax(map, settingName, maxValue, scope, validationException);
-    }
-
-    public static Integer extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
-        Map<String, Object> map,
-        String settingName,
-        int minValue,
-        String scope,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, settingName, minValue, scope, validationException);
     }
 
     public static Integer extractRequiredPositiveIntegerBetween(

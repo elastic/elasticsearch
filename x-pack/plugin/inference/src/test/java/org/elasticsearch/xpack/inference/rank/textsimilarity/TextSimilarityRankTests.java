@@ -263,7 +263,13 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
         );
         assertThat(ex.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(ex.getDetailedMessage(), containsString("Reranker input document count and returned score count mismatch"));
+        assertThat(
+            ex.getDetailedMessage(),
+            containsString(
+                "Scores not computed for all feature docs. This is a sign that the reranker service may be unexpectedly truncating ranked"
+                    + " docs."
+            )
+        );
     }
 
     private static Matcher<SearchHit> searchHitWith(int expectedRank, float expectedScore, String expectedText) {

@@ -160,6 +160,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
          */
         private final Parameter<Metric> defaultMetric = new Parameter<>(Names.DEFAULT_METRIC, false, () -> null, (n, c, o) -> {
             try {
+                // For testing, now that the default metric is optional,
+                // it's possible to get the `null` value in tests and this throws an NPE.
                 if (o == null) {
                     return null;
                 }
@@ -281,14 +283,13 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
         /**
          * Return a delegate field type which is max if it exists or any other metric.
-         * This will be switched to average soon, so now use with caution.
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
             if (metricFields.containsKey(Metric.max)) {
                 return metricFields.get(Metric.max);
             }
-            // We iterate on the metrics to ensure that we have a predictable order in metrics
+            // We iterate on the metrics to ensure that we have a deterministic order in metrics
             for (Metric metric : Metric.values()) {
                 if (metricFields.containsKey(metric)) {
                     return metricFields.get(metric);

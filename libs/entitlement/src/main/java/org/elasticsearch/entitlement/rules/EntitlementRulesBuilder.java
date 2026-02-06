@@ -70,6 +70,20 @@ public class EntitlementRulesBuilder {
     }
 
     /**
+     * Starts defining rules for the specified class and applies the specified configuration.
+     *
+     * @param <T> the type of the class
+     * @param clazz the class to define rules for
+     * @param builderConsumer a consumer that configures the rules for the class
+     * @return a class method builder for the specified class
+     */
+    public <T> ClassMethodBuilder<T> on(Class<? extends T> clazz, Consumer<ClassMethodBuilder<T>> builderConsumer) {
+        ClassMethodBuilder<T> classMethodBuilder = new ClassMethodBuilder<>(registry, clazz);
+        builderConsumer.accept(classMethodBuilder);
+        return classMethodBuilder;
+    }
+
+    /**
      * Applies the same rule configuration to multiple classes.
      * <p>
      * This method is useful when multiple classes share the same entitlement

@@ -312,9 +312,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.CartesianPolygonEnvelopeXYMinMax}
   issue: https://github.com/elastic/elasticsearch/issues/141425
-- class: org.elasticsearch.search.query.VectorIT
-  method: testFilteredQueryStrategy
-  issue: https://github.com/elastic/elasticsearch/issues/141469
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testAttachAndGetToken
   issue: https://github.com/elastic/elasticsearch/issues/141470

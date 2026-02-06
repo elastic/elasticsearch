@@ -349,6 +349,36 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), any());
     }
 
+    public void testExtractionSetsProjectRouting() throws IOException {
+        List<InternalComposite.InternalBucket> buckets = Collections.singletonList(
+            createCompositeBucket(
+                1000L,
+                "time_bucket",
+                1,
+                Arrays.asList(createMax("time", 1999), createAvg("responsetime", 11.0)),
+                Collections.singletonList(Tuple.tuple("airline", "a"))
+            )
+        );
+
+        String projectRouting = "_alias:prod-*";
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 2000L, projectRouting),
+            timingStatsReporter,
+            aggregatedSearchRequestBuilder
+        );
+
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(createSearchResponse("buckets", buckets, null));
+        when(client.execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture())).thenReturn(searchResponse);
+
+        assertThat(extractor.hasNext(), is(true));
+        extractor.next();
+
+        assertThat(searchRequestCaptor.getValue().getProjectRouting(), equalTo(projectRouting));
+    }
+
     public void testExtractionGivenSearchResponseHasError() {
         CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
             compositeAggregationBuilder,
@@ -367,6 +397,10 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
     }
 
     private CompositeAggregationDataExtractorContext createContext(long start, long end) {
+        return createContext(start, end, null);
+    }
+
+    private CompositeAggregationDataExtractorContext createContext(long start, long end, String projectRouting) {
         return new CompositeAggregationDataExtractorContext(
             jobId,
             timeField,
@@ -380,7 +414,8 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             true,
             Collections.emptyMap(),
             SearchRequest.DEFAULT_INDICES_OPTIONS,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting
         );
     }
 

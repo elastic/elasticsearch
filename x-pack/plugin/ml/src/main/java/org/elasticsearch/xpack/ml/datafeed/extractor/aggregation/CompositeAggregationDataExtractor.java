@@ -152,6 +152,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             searchSourceBuilder,
             context.queryContext.indicesOptions
         );
+
+        if (context.queryContext.projectRouting != null) {
+            searchRequest.request().setProjectRouting(context.queryContext.projectRouting);
+        }
+
         SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);

@@ -112,6 +112,9 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
                 SearchRequest.DEFAULT_INDICES_OPTIONS
             )
         );
+        // Note: project_routing is intentionally not randomized here to avoid validation issues
+        // with mismatched indicesOptions. project_routing is tested separately in dedicated tests.
+
         if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
             settings.put("type", "keyword");

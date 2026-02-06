@@ -176,6 +176,10 @@ class ScrollDataExtractor implements DataExtractor {
             .setAllowPartialSearchResults(false)
             .setSource(searchSourceBuilder);
 
+        if (context.queryContext.projectRouting != null) {
+            searchRequestBuilder.request().setProjectRouting(context.queryContext.projectRouting);
+        }
+
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }

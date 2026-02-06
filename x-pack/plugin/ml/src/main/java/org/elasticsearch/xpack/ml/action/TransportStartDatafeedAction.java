@@ -245,41 +245,65 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     return;
                 }
 
-                final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
-                    client,
-                    MachineLearningField.ML_API_FEATURE
+                // Apply CPS mode to detect if we're using cross-project search
+                DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+                    datafeedConfigHolder.get(),
+                    crossProjectModeDecider
                 );
-                remoteClusterLicenseChecker.checkRemoteClusterLicenses(
-                    RemoteClusterLicenseChecker.remoteClusterAliases(
-                        transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
-                        params.getDatafeedIndices()
-                    ),
-                    ActionListener.wrap(response -> {
-                        if (response.isSuccess() == false) {
-                            responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                        } else {
-                            final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-                            List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                                remoteClusterService.getRegisteredRemoteClusterNames(),
-                                remoteIndices
-                            );
-                            checkRemoteConfigVersions(
-                                datafeedConfigHolder.get(),
-                                remoteAliases,
-                                (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
-                            );
-                            createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
-                        }
-                    },
-                        e -> responseHeaderPreservingListener.onFailure(
-                            createUnknownLicenseError(
-                                params.getDatafeedId(),
-                                RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
-                                e
+                boolean isCpsMode = effectiveDatafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+
+                if (isCpsMode) {
+                    // Skip license check for CPS - all projects share the same highest license
+                    // Still do version check
+                    final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+                    List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
+                        remoteClusterService.getRegisteredRemoteClusterNames(),
+                        remoteIndices
+                    );
+                    checkRemoteConfigVersions(
+                        effectiveDatafeed,
+                        remoteAliases,
+                        (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
+                    );
+                    createDataExtractor(task, job, effectiveDatafeed, params, waitForTaskListener);
+                } else {
+                    // Traditional remote cluster search - check licenses
+                    final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
+                        client,
+                        MachineLearningField.ML_API_FEATURE
+                    );
+                    remoteClusterLicenseChecker.checkRemoteClusterLicenses(
+                        RemoteClusterLicenseChecker.remoteClusterAliases(
+                            transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
+                            params.getDatafeedIndices()
+                        ),
+                        ActionListener.wrap(response -> {
+                            if (response.isSuccess() == false) {
+                                responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
+                            } else {
+                                final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+                                List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
+                                    remoteClusterService.getRegisteredRemoteClusterNames(),
+                                    remoteIndices
+                                );
+                                checkRemoteConfigVersions(
+                                    datafeedConfigHolder.get(),
+                                    remoteAliases,
+                                    (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
+                                );
+                                createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                            }
+                        },
+                            e -> responseHeaderPreservingListener.onFailure(
+                                createUnknownLicenseError(
+                                    params.getDatafeedId(),
+                                    RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
+                                    e
+                                )
                             )
                         )
-                    )
-                );
+                    );
+                }
             } else {
                 createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
             }

@@ -35,7 +35,7 @@ public class CancelTasksRequestTests extends ESTestCase {
         assertEquals(cancelTasksRequest.getDescription(), task.getDescription());
     }
 
-    public void testGetDescription_TruncatesNodes() {
+    public void testGetDescription_BoundedCollectorTruncation() {
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setActions("action1", "action2");
         cancelTasksRequest.setTargetTaskId(new TaskId("node1", 1));

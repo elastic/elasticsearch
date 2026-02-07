@@ -13,4 +13,6 @@ ALL-UNNAMED:
     - relative_path: ".mailcap"
       relative_to: "home"
       mode: "read"
+    - path: "/usr/share/elasticsearch/lib/bcmail-fips.jar"
+      mode: "read"
 

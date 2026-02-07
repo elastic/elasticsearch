@@ -274,9 +274,13 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
+        String hash = "blockHash=BytesRefLongBlockHash{keys=[tsid[channel=0], timestamp[channel=1]], entries=0, size=%size%}".replace(
+            "%size%",
+            byteRefBlockHashSize()
+        );
         return equalTo(
             "TimeSeriesAggregationOperator["
-                + "blockHash=TimeSeriesBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0b}"
+                + hash
                 + ", aggregators=[GroupingAggregator[aggregatorFunction=FirstDocIdGroupingAggregatorFunction[channel=2], mode=SINGLE]]]"
         );
     }

@@ -51,7 +51,7 @@ public class MetricsApmIT extends ESRestTestCase {
         .module("apm")
         .setting("telemetry.metrics.enabled", "true")
         .setting("telemetry.agent.metrics_interval", "1s")
-        .setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
+        .setting("telemetry.agent.server_url", () -> "http://" + mockApmServer.getHttpAddress())
         .build();
 
     @Override

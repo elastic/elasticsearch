@@ -53,7 +53,7 @@ public class TracesApmIT extends ESRestTestCase {
         .setting("telemetry.metrics.enabled", "false")
         .setting("telemetry.tracing.enabled", "true")
         .setting("telemetry.agent.metrics_interval", "1s")
-        .setting("telemetry.agent.server_url", () -> "http://127.0.0.1:" + mockApmServer.getPort())
+        .setting("telemetry.agent.server_url", () -> "http://" + mockApmServer.getHttpAddress())
         .build();
 
     @ClassRule

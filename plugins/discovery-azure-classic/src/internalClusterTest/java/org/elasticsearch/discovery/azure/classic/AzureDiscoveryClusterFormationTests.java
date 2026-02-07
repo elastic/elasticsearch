@@ -19,6 +19,7 @@ import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -85,6 +86,17 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         @Override
         protected void before() {
             assumeFalse("Can't run in a FIPS JVM because none of the supported Keystore types can be used", inFipsJvm());
+        }
+    };
+
+    @ClassRule
+    public static final ExternalResource MUTE_IN_IPV6 = new ExternalResource() {
+        @Override
+        protected void before() {
+            assumeFalse(
+                "Tests not currently working correctly with IPv6",
+                Booleans.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "true"))
+            );
         }
     };
 

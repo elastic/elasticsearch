@@ -146,7 +146,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
 
         // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
+        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrlLocalhost() + "/" + accountName;
 
         // The first node configured sets these for all nodes
         MAX_CONNECTION_SETTING.compareAndSet(-1, randomIntBetween(10, 30));

@@ -55,7 +55,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
             .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
             .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
-            .setting("reindex.remote.whitelist", "127.0.0.1:*")
+            .setting("reindex.remote.whitelist", "127.0.0.1:*,[::1]:*")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")

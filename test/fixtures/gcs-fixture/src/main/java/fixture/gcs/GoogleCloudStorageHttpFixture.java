@@ -29,7 +29,13 @@ public class GoogleCloudStorageHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        String host = server.getAddress().getHostString();
+        if (host.contains(":") && false == host.startsWith("[")) {
+            // ipv6 formatting
+            host = "[" + host + "]";
+        }
+
+        return "http://" + host + ":" + server.getAddress().getPort();
     }
 
     @Override

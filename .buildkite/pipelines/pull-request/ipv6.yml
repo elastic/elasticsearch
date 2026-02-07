@@ -1,0 +1,34 @@
+config:
+  allow-labels: test-ipv6
+  skip-labels:
+    - ">test-mute"
+steps:
+  - group: ipv6-tests
+    steps:
+      - label: "{{matrix.GRADLE_TASK}} / ipv6-tests"
+        key: "packaging-tests-unix"
+        command: .ci/scripts/run-gradle.sh --continue -Djava.net.preferIPv6Addresses=true -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints {{matrix.GRADLE_TASK}}
+        timeout_in_minutes: 300
+        agents:
+          provider: aws
+          imagePrefix: elasticsearch-aws-ubuntu-2404-nvidia
+          instanceType: m7a.8xlarge
+          diskSizeGb: 350
+          diskType: gp3
+          diskName: /dev/sda1
+          ipv6Only: true
+        env:
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+          JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv6Addresses=true"
+          _JAVA_OPTIONS: "-Djava.net.preferIPv6Addresses=true"
+          USE_IPV6_TESTING: "true"
+          DISABLE_DOCKER_TESTS: "true"
+        matrix:
+          setup:
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkPart4
+              - checkPart5
+              - checkPart6

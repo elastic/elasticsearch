@@ -50,9 +50,18 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
         ObjectPath stats = ObjectPath.createFromResponse(statsResponse);
         String address = stats.evaluate("nodes." + masterNode + ".http.publish_address");
         assertThat(address, is(notNullValue()));
-        String[] splitAddress = address.split(":", 2);
-        String host = splitAddress[0];
-        int port = Integer.parseInt(splitAddress[1]);
+        String host;
+        int port;
+        // Handle IPv6 addresses in [host]:port format
+        if (address.startsWith("[")) {
+            int closingBracket = address.indexOf(']');
+            host = address.substring(1, closingBracket);
+            port = Integer.parseInt(address.substring(closingBracket + 2));
+        } else {
+            String[] splitAddress = address.split(":", 2);
+            host = splitAddress[0];
+            port = Integer.parseInt(splitAddress[1]);
+        }
 
         // put watch
         try (XContentBuilder builder = jsonBuilder()) {

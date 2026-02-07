@@ -97,7 +97,12 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(),
             TestUtils.createServiceAccount(random())
         );
-        String upstreamServerUrl = "http://" + upstreamServer.getAddress().getHostString() + ":" + upstreamServer.getAddress().getPort();
+        String host = upstreamServer.getAddress().getHostString();
+        if (host.contains(":") && false == host.startsWith("[")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+        String upstreamServerUrl = "http://" + host + ":" + upstreamServer.getAddress().getPort();
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), upstreamServerUrl)

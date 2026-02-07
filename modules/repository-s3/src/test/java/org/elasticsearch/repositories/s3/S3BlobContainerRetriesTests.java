@@ -37,7 +37,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -139,7 +138,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             DEFAULT_REGION_UNAVAILABLE
         ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
-                assertEquals("127.0.0.1", host);
+                assertTrue(InetAddress.getByName(host).isLoopbackAddress());
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
                     throw new UnknownHostException(host);
                 }
@@ -204,7 +203,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        String host = address.getHostString();
+        if (host.contains(":") && false == host.startsWith("[")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+        final String endpoint = "http://" + host + ":" + address.getPort();
         logger.info("--> creating client with endpoint [{}]", endpoint);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
 

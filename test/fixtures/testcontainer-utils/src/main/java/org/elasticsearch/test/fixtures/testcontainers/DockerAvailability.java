@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class DockerAvailability {
@@ -31,6 +32,9 @@ public class DockerAvailability {
     private static final boolean EXCLUDED_OS = isExcludedOs();
     private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
     private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
+    private static final boolean DISABLE_DOCKER_TESTS = Boolean.parseBoolean(
+        Optional.ofNullable(System.getenv("DISABLE_DOCKER_TESTS")).orElse("false")
+    );
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
     static void assumeDockerIsAvailable() {
@@ -57,7 +61,7 @@ public class DockerAvailability {
     }
 
     private static boolean isExcludedOs() {
-        if (CI == false) {
+        if (CI == false || DISABLE_DOCKER_TESTS == true) {
             // we dont exclude OS outside of CI environment
             return false;
         }

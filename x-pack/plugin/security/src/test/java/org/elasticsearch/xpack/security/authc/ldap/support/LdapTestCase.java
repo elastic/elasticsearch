@@ -188,7 +188,12 @@ public abstract class LdapTestCase extends ESTestCase {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
             InetAddress listenAddress = resolveListenAddress(ldapServers[i].getListenAddress());
-            LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
+            String hostName = NetworkAddress.format(listenAddress);
+            if (hostName.contains(":")) {
+                // ipv6 format
+                hostName = "[" + hostName + "]";
+            }
+            LDAPURL url = new LDAPURL("ldap", hostName, ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -27,7 +28,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsRestAction;
 import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction;
+import org.elasticsearch.xpack.oteldata.otlp.OTLPTracesRestAction;
+import org.elasticsearch.xpack.oteldata.otlp.OTLPTracesTransportAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
@@ -60,6 +64,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(OTelPlugin.class);
 
+    private static final boolean OTLP_TRACES_ENABLED = new FeatureFlag("otlp_traces").isEnabled();
     private final SetOnce<OTelIndexTemplateRegistry> registry = new SetOnce<>();
     private final boolean enabled;
 
@@ -79,7 +84,12 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new OTLPMetricsRestAction());
+        List<RestHandler> handlers = new ArrayList<>(2);
+        handlers.add(new OTLPMetricsRestAction());
+        if (OTLP_TRACES_ENABLED) {
+            handlers.add(new OTLPTracesRestAction());
+        }
+        return handlers;
     }
 
     @Override
@@ -110,6 +120,11 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<ActionHandler> getActions() {
-        return List.of(new ActionHandler(OTLPMetricsTransportAction.TYPE, OTLPMetricsTransportAction.class));
+        List<ActionHandler> handlers = new ArrayList<>(2);
+        handlers.add(new ActionHandler(OTLPMetricsTransportAction.TYPE, OTLPMetricsTransportAction.class));
+        if (OTLP_TRACES_ENABLED) {
+            handlers.add(new ActionHandler(OTLPTracesTransportAction.TYPE, OTLPTracesTransportAction.class));
+        }
+        return handlers;
     }
 }

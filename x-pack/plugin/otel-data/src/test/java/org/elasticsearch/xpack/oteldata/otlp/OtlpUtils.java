@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.oteldata.otlp;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.ArrayValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
@@ -26,6 +27,12 @@ import io.opentelemetry.proto.metrics.v1.Sum;
 import io.opentelemetry.proto.metrics.v1.Summary;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
+import io.opentelemetry.proto.trace.v1.ResourceSpans;
+import io.opentelemetry.proto.trace.v1.ScopeSpans;
+import io.opentelemetry.proto.trace.v1.Span;
+import io.opentelemetry.proto.trace.v1.Status;
+
+import com.google.protobuf.ByteString;
 
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -200,5 +207,42 @@ public class OtlpUtils {
         }
 
         return ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(resourceMetrics).build();
+    }
+
+    // --- Trace utilities ---
+
+    public static Span createSpan(String name) {
+        return createSpan(name, List.of());
+    }
+
+    public static Span createSpan(String name, List<KeyValue> attributes) {
+        return Span.newBuilder()
+            .setName(name)
+            .setTraceId(ByteString.copyFrom(new byte[16]))
+            .setSpanId(ByteString.copyFrom(new byte[8]))
+            .setStartTimeUnixNano(System.nanoTime())
+            .setEndTimeUnixNano(System.nanoTime())
+            .setKind(Span.SpanKind.SPAN_KIND_INTERNAL)
+            .setStatus(Status.newBuilder().setCode(Status.StatusCode.STATUS_CODE_OK).build())
+            .addAllAttributes(attributes)
+            .build();
+    }
+
+    public static ResourceSpans createResourceSpans(List<KeyValue> resourceAttributes, List<ScopeSpans> scopeSpans) {
+        return ResourceSpans.newBuilder().setResource(createResource(resourceAttributes)).addAllScopeSpans(scopeSpans).build();
+    }
+
+    public static ScopeSpans createScopeSpans(String name, String version, List<Span> spans) {
+        return ScopeSpans.newBuilder().setScope(createScope(name, version)).addAllSpans(spans).build();
+    }
+
+    public static ExportTraceServiceRequest createTracesRequest(List<Span> spans) {
+        return createTracesRequest(List.of(keyValue("service.name", "test-service")), spans);
+    }
+
+    public static ExportTraceServiceRequest createTracesRequest(List<KeyValue> resourceAttributes, List<Span> spans) {
+        return ExportTraceServiceRequest.newBuilder()
+            .addResourceSpans(createResourceSpans(resourceAttributes, List.of(createScopeSpans("test", "1.0.0", spans))))
+            .build();
     }
 }

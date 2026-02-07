@@ -360,6 +360,9 @@ tests:
 - class: org.elasticsearch.repositories.s3.S3BlobContainerRetriesTests
   method: testReadBlobWithReadTimeouts
   issue: https://github.com/elastic/elasticsearch/issues/141960
+- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
+  method: testMixedSortFieldTypes
+  issue: https://github.com/elastic/elasticsearch/issues/142077
 
 # Examples:
 #

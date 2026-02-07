@@ -371,6 +371,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: testGroupingAggregate {TestCase=<random exponential histograms>}
   issue: https://github.com/elastic/elasticsearch/issues/142037
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
+  method: testAggregateIntermediate {TestCase=<random exponential histograms>}
+  issue: https://github.com/elastic/elasticsearch/issues/142068
 
 # Examples:
 #

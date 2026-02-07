@@ -10,23 +10,30 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
@@ -36,6 +43,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +52,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction.SETTING_CLUSTER_BLOCK_INDICES_PER_PROJECT;
+import static org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction.SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT;
+import static org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction.SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT;
+import static org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction.SETTING_CLUSTER_WARN_INDICES_PER_PROJECT;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -56,6 +70,23 @@ public class ClusterStatsIT extends ESIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
+    }
+
+    public static class TestIndexLimitTierPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(
+                SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT,
+                SETTING_CLUSTER_WARN_INDICES_PER_PROJECT,
+                SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT,
+                SETTING_CLUSTER_BLOCK_INDICES_PER_PROJECT
+            );
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), TestIndexLimitTierPlugin.class);
     }
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {
@@ -155,6 +186,63 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal(), Matchers.equalTo(total));
         assertThat(stats.getPrimaries(), Matchers.equalTo(primaries));
         assertThat(stats.getReplication(), Matchers.equalTo(replicationFactor));
+    }
+
+    public void testUserIndicesLimitGuardRai1() throws InterruptedException, ExecutionException {
+        int nudge = randomIntBetween(1, 3);
+        int warn = nudge + randomIntBetween(1, 3);
+        int critical = warn + randomIntBetween(1, 3);
+        int block = critical + randomIntBetween(1, 3);
+
+        internalCluster().startNode();
+        updateClusterSettings(
+            Settings.builder()
+                .put("cluster.indices_per_project_nudge", nudge)
+                .put("cluster.indices_per_project_warn", warn)
+                .put("cluster.indices_per_project_critical", critical)
+                .put("cluster.indices_per_project_block", block)
+        );
+        ensureGreen();
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        ProjectResolver projectResolver = internalCluster().getInstance(ProjectResolver.class, internalCluster().getMasterName());
+
+        record Tier(int threshold, ClusterStatsResponse.IndexLimitTier tier) {}
+
+        List<Tier> tiers = List.of(
+            new Tier(nudge, ClusterStatsResponse.IndexLimitTier.NUDGE),
+            new Tier(warn, ClusterStatsResponse.IndexLimitTier.WARN),
+            new Tier(critical, ClusterStatsResponse.IndexLimitTier.CRITICAL),
+            new Tier(block, ClusterStatsResponse.IndexLimitTier.BLOCK)
+        );
+
+        for (Tier tier : tiers) {
+
+            var totalUserIndices = clusterService.state()
+                .projectState(projectResolver.getProjectId())
+                .metadata()
+                .stream()
+                .filter(indexMetadata -> indexMetadata.isSystem() == false)
+                .count();
+
+            List<ActionFuture<CreateIndexResponse>> futures = new ArrayList<>();
+
+            for (int i = (int) totalUserIndices + 1; i <= tier.threshold; i++) {
+                futures.add(
+                    indicesAdmin().prepareCreate("index-" + i)
+                        .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                        .execute()
+                );
+            }
+
+            for (ActionFuture<CreateIndexResponse> future : futures) {
+                assertAcked(future.get());
+            }
+            ensureGreen();
+
+            ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
+            assertThat(response.indexLimitTier, equalTo(tier.tier));
+        }
+
     }
 
     public void testIndicesShardStats() throws ExecutionException, InterruptedException {

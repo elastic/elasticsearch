@@ -46,9 +46,9 @@ import java.util.Objects;
 public class SliceBuilder implements Writeable, ToXContentObject {
     private static final MatchNoDocsQuery NOT_PART_OF_SLICE = new MatchNoDocsQuery("this shard is not part of the slice");
 
-    private static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
-    private static final ParseField MAX_FIELD = new ParseField("max");
+    public static final ParseField MAX_FIELD = new ParseField("max");
     private static final ObjectParser<SliceBuilder, Void> PARSER = new ObjectParser<>("slice", SliceBuilder::new);
 
     static {

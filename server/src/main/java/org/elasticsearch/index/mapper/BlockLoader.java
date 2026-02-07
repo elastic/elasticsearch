@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -244,6 +245,10 @@ public interface BlockLoader {
         BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
 
         NumericDocValues toLengthValues();
+
+        default DocIdSetIterator lengthIterator(int length) throws IOException {
+            return null;
+        }
     }
 
     interface RowStrideReader extends Reader {

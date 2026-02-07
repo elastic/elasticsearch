@@ -377,6 +377,9 @@ tests:
 - class: org.elasticsearch.xpack.diskbbq.DirectIOIT
   method: testDirectIOUsed {p0=bbq_disk}
   issue: https://github.com/elastic/elasticsearch/issues/141942
+- class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
+  method: testTrueModeSupportedVectorType
+  issue: https://github.com/elastic/elasticsearch/issues/142070
 
 # Examples:
 #

@@ -110,7 +110,18 @@ public abstract class OTelDocumentBuilder {
                 }
                 builder.endArray();
             }
-            default -> throw new IllegalArgumentException("Unsupported attribute value type: " + value.getValueCase());
+            case KVLIST_VALUE -> {
+                builder.startObject();
+                List<KeyValue> kvList = value.getKvlistValue().getValuesList();
+                for (int i = 0, kvListSize = kvList.size(); i < kvListSize; i++) {
+                    KeyValue kv = kvList.get(i);
+                    builder.field(kv.getKey());
+                    buildAnyValue(builder, kv.getValue());
+                }
+                builder.endObject();
+            }
+            case BYTES_VALUE -> builder.value(value.getBytesValue().toByteArray());
+            case VALUE_NOT_SET -> builder.nullValue();
         }
     }
 }

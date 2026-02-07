@@ -69,6 +69,6 @@ public abstract class ResolveTransportVersionConflictTask extends AbstractGenera
     @Override
     protected void writeUpperBound(TransportVersionResourcesService resources, TransportVersionUpperBound newUpperBound)
         throws IOException {
-        resources.writeUpperBound(newUpperBound, true);
+        resources.writeUpperBound(newUpperBound);
     }
 }

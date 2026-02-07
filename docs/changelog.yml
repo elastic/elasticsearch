@@ -9,11 +9,21 @@ products:
     - cloud-serverless
   # Add more products as needed
 
+# Extraction configuration
+# Controls automatic extraction of information from PR descriptions
+extract:
+  # Auto-extract release notes from PR descriptions (default: true)
+  # Can be overridden by CLI --no-extract-release-notes
+  release_notes: true
+  # Auto-extract issues from PR body (default: true)
+  # Looks for patterns like "Fixes #123", "Closes #456", etc.
+  issues: true
+
 # Available lifecycle values (strongly typed: preview, beta, ga)
-# lifecycles:
-#   - preview
-#   - beta
-#   - ga
+lifecycles:
+  - preview
+  - beta
+  - ga
 
 # Pivot configuration for types, subtypes, and areas with label mappings.
 # By default we render entries grouped by type > subtype > area.
@@ -242,3 +252,24 @@ block:
           - Watcher
         types:
           - docs
+
+# Bundle configuration (profiles and defaults)
+bundle:
+  # Input directory containing changelog YAML files
+  # directory: docs/changelog
+  # Output directory for bundled changelog files
+  # output_directory: docs/releases
+  # Whether to resolve (copy contents) by default
+  resolve: true
+
+  # Named bundle profiles for different release scenarios
+  # profiles:
+    # Example: Elasticsearch release profile
+    # elasticsearch-release:
+    #   products: "elasticsearch {version} {lifecycle}"
+    #   output: "elasticsearch-{version}.yaml"
+
+    # Example: Serverless release profile
+    # serverless-release:
+    #   products: "cloud-serverless {version} *"
+    #   output: "serverless-{version}.yaml"

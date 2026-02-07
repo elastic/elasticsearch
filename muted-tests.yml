@@ -380,6 +380,9 @@ tests:
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testTrueModeSupportedVectorType
   issue: https://github.com/elastic/elasticsearch/issues/142070
+- class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
+  method: testTrueModeLicenseNotSupported
+  issue: https://github.com/elastic/elasticsearch/issues/142071
 
 # Examples:
 #

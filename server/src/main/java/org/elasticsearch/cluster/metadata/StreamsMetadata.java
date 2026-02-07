@@ -33,29 +33,64 @@ import java.util.Objects;
 public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "streams";
-    public static final StreamsMetadata EMPTY = new StreamsMetadata(false);
+    public static final StreamsMetadata EMPTY = new StreamsMetadata(false, false, false);
     private static final ParseField LOGS_ENABLED = new ParseField("logs_enabled");
+    private static final ParseField LOGS_ECS_ENABLED = new ParseField("logs_ecs_enabled");
+    private static final ParseField LOGS_OTEL_ENABLED = new ParseField("logs_otel_enabled");
     private static final ConstructingObjectParser<StreamsMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false, args -> {
         boolean logsEnabled = (boolean) args[0];
-        return new StreamsMetadata(logsEnabled);
+        boolean logsOtelEnabled = (boolean) args[2];
+        boolean logsECSEnabled = (boolean) args[1];
+        return new StreamsMetadata(logsEnabled, logsECSEnabled, logsOtelEnabled);
     });
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), LOGS_ENABLED);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), LOGS_ENABLED);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), LOGS_ECS_ENABLED);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), LOGS_OTEL_ENABLED);
     }
     private static final TransportVersion STREAMS_LOGS_SUPPORT = TransportVersion.fromName("streams_logs_support");
+    public static TransportVersion STREAM_SPLIT_VERSION = TransportVersion.fromName("stream_split_version");
 
     public boolean logsEnabled;
+    public boolean logsECSEnabled;
+    public boolean logsOTelEnabled;
 
     public StreamsMetadata(StreamInput in) throws IOException {
         logsEnabled = in.readBoolean();
+        if (in.getTransportVersion().supports(STREAM_SPLIT_VERSION)) {
+            logsECSEnabled = in.readBoolean();
+            logsOTelEnabled = in.readBoolean();
+        }
     }
 
-    public StreamsMetadata(boolean logsEnabled) {
+    public StreamsMetadata(boolean logsEnabled, boolean logsECSEnabled, boolean logsOTelEnabled) {
         this.logsEnabled = logsEnabled;
+        this.logsECSEnabled = logsECSEnabled;
+        this.logsOTelEnabled = logsOTelEnabled;
+    }
+
+    public StreamsMetadata toggleLogs(boolean logsEnabled) {
+        return new StreamsMetadata(logsEnabled, this.logsECSEnabled, this.logsOTelEnabled);
+    }
+
+    public StreamsMetadata toggleECS(boolean ecsEnabled) {
+        return new StreamsMetadata(this.logsEnabled, ecsEnabled, this.logsOTelEnabled);
+    }
+
+    public StreamsMetadata toggleOTel(boolean oTelEnabled) {
+        return new StreamsMetadata(this.logsEnabled, this.logsECSEnabled, oTelEnabled);
     }
 
     public boolean isLogsEnabled() {
         return logsEnabled;
+    }
+
+    public boolean isLogsECSEnabled() {
+        return logsECSEnabled;
+    }
+
+    public boolean isLogsOTelEnabled() {
+        return logsOTelEnabled;
     }
 
     @Override
@@ -85,19 +120,23 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(logsEnabled);
+        out.writeBoolean(logsECSEnabled);
+        out.writeBoolean(logsOTelEnabled);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            ChunkedToXContentHelper.chunk((builder, bParams) -> builder.field(LOGS_ENABLED.getPreferredName(), logsEnabled))
+            ChunkedToXContentHelper.chunk((builder, bParams) -> builder.field(LOGS_ENABLED.getPreferredName(), logsEnabled)),
+            ChunkedToXContentHelper.chunk((builder, bParams) -> builder.field(LOGS_ECS_ENABLED.getPreferredName(), logsECSEnabled)),
+            ChunkedToXContentHelper.chunk((builder, bParams) -> builder.field(LOGS_OTEL_ENABLED.getPreferredName(), logsOTelEnabled))
         );
     }
 
     @Override
     public boolean equals(Object o) {
         if ((o instanceof StreamsMetadata that)) {
-            return logsEnabled == that.logsEnabled;
+            return logsEnabled == that.logsEnabled && logsECSEnabled == that.logsECSEnabled && logsOTelEnabled == that.logsOTelEnabled;
         } else {
             return false;
         }
@@ -105,7 +144,7 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(logsEnabled);
+        return Objects.hash(logsEnabled, logsECSEnabled, logsOTelEnabled);
     }
 
     public static StreamsMetadata fromXContent(XContentParser parser) throws IOException {

@@ -67,7 +67,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         super.setUp();
         exporter = OtlpHttpMetricExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/metrics")
-            .addHeader("Authorization", "ApiKey " + createApiKey())
+            .addHeader("Authorization", "ApiKey " + createApiKey("metrics-*"))
             .build();
         meterProvider = SdkMeterProvider.builder()
             .registerMetricReader(
@@ -77,28 +77,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
                     .build()
             )
             .build();
-    }
-
-    private static String createApiKey() throws IOException {
-        // Create API key with create_doc privilege for metrics-* index
-        Request createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity("""
-            {
-              "name": "otel-metrics-test-key",
-              "role_descriptors": {
-                "metrics_writer": {
-                  "index": [
-                    {
-                      "names": ["metrics-*"],
-                      "privileges": ["create_doc", "auto_configure"]
-                    }
-                  ]
-                }
-              }
-            }
-            """);
-        ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
-        return createApiKeyResponse.evaluate("encoded");
     }
 
     /**

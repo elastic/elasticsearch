@@ -37,10 +37,7 @@ public abstract class OTelDocumentBuilder {
     protected void buildResource(Resource resource, ByteString schemaUrl, XContentBuilder builder) throws IOException {
         builder.startObject("resource");
         addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
-        if (resource.getDroppedAttributesCount() > 0) {
-            builder.field("dropped_attributes_count", resource.getDroppedAttributesCount());
-        }
-        buildAttributes(builder, resource.getAttributesList());
+        buildAttributes(builder, resource.getAttributesList(), resource.getDroppedAttributesCount());
         builder.endObject();
     }
 
@@ -49,10 +46,7 @@ public abstract class OTelDocumentBuilder {
         addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
         addFieldIfNotEmpty(builder, "name", scope.getNameBytes());
         addFieldIfNotEmpty(builder, "version", scope.getVersionBytes());
-        if (scope.getDroppedAttributesCount() > 0) {
-            builder.field("dropped_attributes_count", scope.getDroppedAttributesCount());
-        }
-        buildAttributes(builder, scope.getAttributesList());
+        buildAttributes(builder, scope.getAttributesList(), scope.getDroppedAttributesCount());
         builder.endObject();
     }
 
@@ -74,7 +68,10 @@ public abstract class OTelDocumentBuilder {
         builder.endObject();
     }
 
-    protected void buildAttributes(XContentBuilder builder, List<KeyValue> attributes) throws IOException {
+    protected void buildAttributes(XContentBuilder builder, List<KeyValue> attributes, int droppedAttributesCount) throws IOException {
+        if (droppedAttributesCount > 0) {
+            builder.field("dropped_attributes_count", droppedAttributesCount);
+        }
         builder.startObject("attributes");
         for (int i = 0, size = attributes.size(); i < size; i++) {
             KeyValue attribute = attributes.get(i);

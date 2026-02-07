@@ -52,7 +52,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
         buildDataStream(builder, dataPointGroup.targetIndex());
         buildScope(builder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
-        buildAttributes(builder, dataPointGroup.dataPointAttributes());
+        buildAttributes(builder, dataPointGroup.dataPointAttributes(), 0);
         if (Strings.hasLength(dataPointGroup.unit())) {
             builder.field("unit", dataPointGroup.unit());
         }

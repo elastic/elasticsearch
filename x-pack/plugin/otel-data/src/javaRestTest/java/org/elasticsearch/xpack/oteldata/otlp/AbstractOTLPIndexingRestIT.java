@@ -18,9 +18,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
+
+import java.io.IOException;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 
@@ -63,5 +66,26 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+    }
+
+    protected static String createApiKey(String indexPattern) throws IOException {
+        Request createApiKeyRequest = new Request("POST", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "otel-test-key",
+              "role_descriptors": {
+                "writer": {
+                  "index": [
+                    {
+                      "names": ["$INDEX_PATTERN"],
+                      "privileges": ["create_doc", "auto_configure"]
+                    }
+                  ]
+                }
+              }
+            }
+            """.replace("$INDEX_PATTERN", indexPattern));
+        ObjectPath createApiKeyResponse = ObjectPath.createFromResponse(client().performRequest(createApiKeyRequest));
+        return createApiKeyResponse.evaluate("encoded");
     }
 }

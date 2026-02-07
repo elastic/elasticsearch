@@ -336,7 +336,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     int b = 0;
-                    blocks[b++] = new DocVector(refCounteds, shard, leaf, docs, true).asBlock();
+                    blocks[b++] = new DocVector(refCounteds, shard, leaf, docs, DocVector.config().singleSegmentNonDecreasing(true))
+                        .asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;

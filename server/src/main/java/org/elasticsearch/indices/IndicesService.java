@@ -1688,8 +1688,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
      * the same cache.
      */
-    public void loadIntoContext(ShardSearchRequest request, SearchContext context) throws Exception {
-        assert canCache(request, context);
+    public void loadIntoContext(ShardSearchRequest request, SearchContext context, Consumer<Runnable> cancellationRegistrar)
+        throws Exception {
+        assert IndicesService.canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
@@ -1703,7 +1704,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 QueryPhase.execute(context);
                 context.queryResult().writeToNoId(out);
                 loadedFromCache[0] = false;
-            }
+            },
+            cancellationRegistrar
         );
 
         if (loadedFromCache[0]) {
@@ -1746,6 +1748,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.
      * @param cacheKey key for the thing being cached within this shard
      * @param loader loads the data into the cache if needed
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled
      * @return the contents of the cache or the result of calling the loader
      */
     private BytesReference cacheShardLevelResult(
@@ -1753,7 +1756,8 @@ public class IndicesService extends AbstractLifecycleComponent
         MappingLookup.CacheKey mappingCacheKey,
         DirectoryReader reader,
         BytesReference cacheKey,
-        CheckedConsumer<StreamOutput, IOException> loader
+        CheckedConsumer<StreamOutput, IOException> loader,
+        Consumer<Runnable> cancellationRegistrar
     ) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
@@ -1772,7 +1776,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey, cancellationRegistrar);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {

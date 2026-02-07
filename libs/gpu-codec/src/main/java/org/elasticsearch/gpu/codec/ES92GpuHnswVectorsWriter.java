@@ -30,9 +30,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterIndexInput;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
@@ -49,19 +47,12 @@ import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtil
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
-import java.nio.channels.FileChannel;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
-import static java.nio.file.StandardOpenOption.READ;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -71,6 +62,8 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
+import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousMemorySegment;
+import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousPackedMemorySegment;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
@@ -602,15 +595,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // TODO: revert to directly pass data mapped with DatasetUtils.getInstance() to generateGpuGraphAndWriteMeta
                 // when cuvs has fixed this problem
                 int packedRowSize = fieldInfo.getVectorDimension();
-                long packedVectorsDataSize = (long) numVectors * packedRowSize;
-
                 try (
-                    var packedSegmentHolder = getPackedMemorySegment(
+                    var packedSegmentHolder = getContiguousPackedMemorySegment(
                         memorySegmentAccessInput,
                         mergeState.segmentInfo.dir,
                         mergeState.segmentInfo.name,
                         numVectors,
-                        packedVectorsDataSize,
                         sourceRowPitch,
                         packedRowSize
                     )
@@ -677,155 +667,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
             }
-        }
-    }
-
-    interface MemorySegmentHolder extends Closeable {
-        MemorySegment memorySegment();
-
-        @Override
-        default void close() {}
-    }
-
-    /**
-     * This method tries to get directly a segment slice for the whole input. If that fails because the input is too big, it falls back
-     * to a file-backed MemorySegment over the whole vector data.
-     * The file-backed MemorySegment is created by copying all the vector data to a temporary file, then manually mapping that file via the
-     * Java {@link FileChannel} API.
-     */
-    private static MemorySegmentHolder getContiguousMemorySegment(MemorySegmentAccessInput input, Directory dir, String baseName)
-        throws IOException {
-        var inputSlice = input.segmentSliceOrNull(0L, input.length());
-        if (inputSlice != null) {
-            return () -> inputSlice;
-        }
-
-        String tempVectorsFilename = copyInputToTempFile((IndexInput) input, dir, baseName);
-        return createFileBackedMemorySegment(dir, tempVectorsFilename, input.length());
-    }
-
-    /**
-     * Packs the vector data, excluding any padding/extra info at the end.
-     * This method tries to use a direct slice over the whole input, and pack the vector data while copying them to an off-heap
-     * MemorySegment.
-     * If that fails because the input is too big, it falls back to a file-backed MemorySegment over the whole vector data.
-     * The file-backed MemorySegment is created by copying the vector data (without extra padding) to a temporary file, then manually
-     * mapping that file via the Java {@link FileChannel} API.
-     */
-    private static MemorySegmentHolder getPackedMemorySegment(
-        MemorySegmentAccessInput input,
-        Directory dir,
-        String baseName,
-        int numVectors,
-        long packedVectorsDataSize,
-        int sourceRowPitch,
-        int packedRowSize
-    ) throws IOException {
-        MemorySegment sourceSegment = input.segmentSliceOrNull(0, input.length());
-        if (sourceSegment != null) {
-            // noinspection resource
-            Arena arena = Arena.ofConfined();
-            var packedSegment = arena.allocate(packedVectorsDataSize, 64);
-            for (int i = 0; i < numVectors; i++) {
-                MemorySegment.copy(sourceSegment, (long) i * sourceRowPitch, packedSegment, (long) i * packedRowSize, packedRowSize);
-            }
-            return new MemorySegmentHolder() {
-                @Override
-                public MemorySegment memorySegment() {
-                    return packedSegment;
-                }
-
-                @Override
-                public void close() {
-                    arena.close();
-                }
-            };
-        }
-
-        String tempVectorsFilename = copyInputToTempFilePacked(
-            (IndexInput) input,
-            dir,
-            baseName,
-            numVectors,
-            sourceRowPitch,
-            packedRowSize
-        );
-        return createFileBackedMemorySegment(dir, tempVectorsFilename, packedVectorsDataSize);
-    }
-
-    private static String copyInputToTempFilePacked(
-        IndexInput input,
-        Directory dir,
-        String baseName,
-        int numVectors,
-        int sourceRowPitch,
-        int packedRowSize
-    ) throws IOException {
-        try (
-            IndexInput clonedInput = input.clone();
-            IndexOutput tempVectorsFile = dir.createTempOutput(baseName, "vec_", IOContext.DEFAULT)
-        ) {
-
-            byte[] buffer = new byte[packedRowSize];
-            for (int i = 0; i < numVectors; i++) {
-                clonedInput.seek((long) i * sourceRowPitch);
-                clonedInput.readBytes(buffer, 0, packedRowSize);
-                tempVectorsFile.writeBytes(buffer, 0, packedRowSize);
-            }
-
-            return tempVectorsFile.getName();
-        }
-    }
-
-    private static MemorySegmentHolder createFileBackedMemorySegment(Directory dir, String tempVectorsFilename, long tempVectorsFileSize)
-        throws IOException {
-        Arena arena = null;
-        try {
-            arena = Arena.ofConfined();
-            final Arena arenaCopy = arena;
-            try (FileChannel fc = FileChannel.open(Path.of(tempVectorsFilename), Set.of(READ))) {
-                MemorySegment mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0L, tempVectorsFileSize, arena);
-                return new MemorySegmentHolder() {
-                    @Override
-                    public MemorySegment memorySegment() {
-                        return mapped;
-                    }
-
-                    @Override
-                    public void close() {
-                        arenaCopy.close();
-                        org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, tempVectorsFilename);
-                    }
-                };
-            }
-        } catch (Throwable t) {
-            if (arena != null) {
-                arena.close();
-            }
-            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(dir, tempVectorsFilename);
-            throw t;
-        }
-    }
-
-    private static String copyInputToTempFile(IndexInput input, Directory dir, String baseName) throws IOException {
-        try (
-            IndexInput clonedInput = input.clone();
-            IndexOutput tempVectorsFile = dir.createTempOutput(baseName, "vec_", IOContext.DEFAULT)
-        ) {
-
-            clonedInput.seek(0);
-            byte[] buffer = new byte[1024 * 1024];
-            var limit = clonedInput.length() - buffer.length;
-            while (clonedInput.getFilePointer() < limit) {
-                clonedInput.readBytes(buffer, 0, buffer.length);
-                tempVectorsFile.writeBytes(buffer, 0, buffer.length);
-            }
-            var bytesLeft = clonedInput.length() - 1 - clonedInput.getFilePointer();
-            if (bytesLeft > 0) {
-                clonedInput.readBytes(buffer, 0, (int) bytesLeft);
-                tempVectorsFile.writeBytes(buffer, 0, (int) bytesLeft);
-            }
-            return tempVectorsFile.getName();
         }
     }
 

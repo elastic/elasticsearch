@@ -374,6 +374,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: testAggregateIntermediate {TestCase=<random exponential histograms>}
   issue: https://github.com/elastic/elasticsearch/issues/142068
+- class: org.elasticsearch.xpack.diskbbq.DirectIOIT
+  method: testDirectIOUsed {p0=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/141942
 
 # Examples:
 #

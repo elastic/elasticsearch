@@ -817,14 +817,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
             throws IOException {
             int count = docs.count() - offset;
-            try (var builder = factory.ints(count)) {
+            try (var builder = factory.singletonInts(count)) {
+                int countIndex = 0;
+                int[] counts = new int[count];
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     boolean advance = advanceExact(doc);
                     assert advance;
-                    // TODO: look into bulk appending lengths to builder if docs is dense
-                    builder.appendInt(getLength());
+                    counts[countIndex++] = getLength();
                 }
+                builder.appendInts(counts, 0, countIndex);
                 return builder.build();
             }
         }

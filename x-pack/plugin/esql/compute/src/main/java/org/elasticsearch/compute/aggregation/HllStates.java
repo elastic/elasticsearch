@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesRefScratch;
+import org.elasticsearch.common.bytes.BytesRefViewScratch;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,15 +27,15 @@ import java.io.IOException;
 final class HllStates {
     private HllStates() {}
 
-    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll, BytesStreamOutput scratch, BytesRefScratch scratchBytes) {
+    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll, BytesStreamOutput scratch, BytesRefViewScratch scratchBytes) {
         scratch.seek(0);
         try {
             hll.writeTo(groupId, scratch);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        // BytesRefScratch reuses a single BytesRef and buffer; callers must consume immediately.
-        // If callers ever need to retain the data, use BytesRefScratch.copy.
+        // BytesRefViewScratch reuses a single BytesRef and buffer; callers must consume immediately.
+        // If callers ever need to retain the data, use BytesRefViewScratch.copy.
         return scratchBytes.wrap(scratch.bytes());
     }
 
@@ -55,7 +55,7 @@ final class HllStates {
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
         private final BytesStreamOutput scratch;
         private final ByteArrayStreamInput scratchInput;
-        private final BytesRefScratch scratchBytes = new BytesRefScratch();
+        private final BytesRefViewScratch scratchBytes = new BytesRefViewScratch();
 
         SingleState(BigArrays bigArrays, int precision) {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
@@ -118,7 +118,7 @@ final class HllStates {
         final HyperLogLogPlusPlus hll;
         private final BytesStreamOutput scratch;
         private final ByteArrayStreamInput scratchInput;
-        private final BytesRefScratch scratchBytes = new BytesRefScratch();
+        private final BytesRefViewScratch scratchBytes = new BytesRefViewScratch();
 
         GroupingState(BigArrays bigArrays, int precision) {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);

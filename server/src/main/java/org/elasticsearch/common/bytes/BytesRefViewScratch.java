@@ -16,10 +16,10 @@ import java.io.IOException;
 
 /**
  * Reusable wrapper for turning a {@link BytesReference} into a {@link BytesRef} without
- * per-call allocations. The returned {@link BytesRef} is reused and is only valid until
- * the next call to {@link #wrap(BytesReference)}. Not thread-safe.
+ * per-call allocations. The returned {@link BytesRef} is a reused view and is only valid
+ * until the next call to {@link #wrap(BytesReference)}. Not thread-safe.
  */
-public final class BytesRefScratch {
+public final class BytesRefViewScratch {
     private final BytesRef ref = new BytesRef();
     private byte[] copyBuffer;
 

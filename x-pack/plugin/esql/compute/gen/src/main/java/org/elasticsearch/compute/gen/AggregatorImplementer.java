@@ -60,6 +60,7 @@ import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
+import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.fromString;
@@ -570,7 +571,7 @@ public class AggregatorImplementer {
 
         for (int i = 0; i < intermediateState.size(); i++) {
             var interState = intermediateState.get(i);
-            interState.assignToVariable(builder, i, isFirstLast);
+            interState.assignToVariable(builder, i, isFirstLast, false);
             builder.addStatement("assert $L.getPositionCount() == 1", interState.name());
         }
         if (aggState.declaredType().isPrimitive()) {
@@ -732,12 +733,15 @@ public class AggregatorImplementer {
             }
         }
 
-        public void assignToVariable(MethodSpec.Builder builder, int offset, boolean forcePassDown) {
+        public void assignToVariable(MethodSpec.Builder builder, int offset, boolean forcePassDown, boolean trackingGroupIdOnNull) {
             builder.addStatement("Block $L = page.getBlock(channels.get($L))", name + "Uncast", offset);
             ClassName blockType = blockType(elementType());
             if (forcePassDown == false) {
                 builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");
                 {
+                    if (trackingGroupIdOnNull) {
+                        builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
+                    }
                     builder.addStatement("return");
                     builder.endControlFlow();
                 }

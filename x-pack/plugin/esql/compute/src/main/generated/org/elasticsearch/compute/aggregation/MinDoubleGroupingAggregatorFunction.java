@@ -274,18 +274,22 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
+      state.enableGroupIdTracking(new SeenGroupIds.Empty());
       return;
     }
     DoubleVector min = ((DoubleBlock) minUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      state.enableGroupIdTracking(new SeenGroupIds.Empty());
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    if (seen.isConstant() == false || seen.allTrue() == false) {
+      state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    }
     assert min.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);

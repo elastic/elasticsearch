@@ -602,23 +602,36 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
+    private static boolean isSumAggregator(String aggregatorName) {
+        for (String type : List.of("Int", "Double", "Long", "Float")) {
+            if (aggregatorName.equals("Sum" + type + "Aggregator")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private MethodSpec addIntermediateInput(TypeName groupsType) {
         boolean groupsIsBlock = groupsType.toString().endsWith("Block");
+        String aggregatorName = this.declarationType.getSimpleName().toString();
+
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(TypeName.INT, "positionOffset");
         builder.addParameter(groupsType, "groups");
         builder.addParameter(PAGE, "page");
-
-        builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
+        // for primitive state, or sum aggregator, we can avoid tracking the groupIds if the seen is all true to reduce the overhead
+        final boolean trackGroupIdsWithSeen = groupsIsBlock == false
+            && (aggState.declaredType().isPrimitive() || isSumAggregator(aggregatorName));
+        if (trackGroupIdsWithSeen == false) {
+            builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
+        }
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
-
         // NOTE:
         // In FIRST & LAST only, this forces the aggregator function's "addIntermediateInput" methods to call the
         // aggregator's "combineIntermediate" method, and let it handle null blocks however it wants. This will be removed once
         // BlockArgument can have two variants: One that wants to handle nulls itself like in this case, and one that wants
         // them filtered out like in the case for geo functions.
-        String aggregatorName = this.declarationType.getSimpleName().toString();
 
         // First/Last aggregators still retain the "All" prefix, in order to not conflict with the aggregators for the old First/Last that
         // are still used by some functions.
@@ -626,8 +639,13 @@ public class GroupingAggregatorImplementer {
 
         int count = 0;
         for (var interState : intermediateState) {
-            interState.assignToVariable(builder, count, isFirstLast);
+            interState.assignToVariable(builder, count, isFirstLast, trackGroupIdsWithSeen);
             count++;
+        }
+        if (trackGroupIdsWithSeen) {
+            builder.beginControlFlow("if (seen.isConstant() == false || seen.allTrue() == false)");
+            builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
+            builder.endControlFlow();
         }
         final String first = intermediateState.get(0).name();
         if (intermediateState.size() > 1) {

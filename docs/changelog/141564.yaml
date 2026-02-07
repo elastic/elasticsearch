@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+ - 141040
+pr: 141564
+summary: Add 'logs.otel' and 'logs.ecs' stream types
+type: enhancement

@@ -15,12 +15,16 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
@@ -33,11 +37,16 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
+import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModelTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -45,11 +54,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
@@ -69,7 +80,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class MixedbreadServiceTests extends InferenceServiceTestCase {
+public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
     public static final String UNKNOWN_SETTINGS_EXCEPTION =
         "Configuration contains settings [{extra_key=value}] unknown to the [mixedbread] service";
     public static final Boolean RETURN_DOCUMENTS_TRUE = true;
@@ -88,6 +99,140 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+
+    public MixedbreadServiceTests() {
+        super(createTestConfiguration());
+    }
+
+    public static TestConfiguration createTestConfiguration() {
+        return new TestConfiguration.Builder(
+            new CommonConfig(RERANK, COMPLETION, EnumSet.of(RERANK)) {
+
+                @Override
+                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                    return MixedbreadServiceTests.createService(threadPool, clientManager);
+                }
+
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                    return MixedbreadServiceTests.createServiceSettingsMap(taskType);
+                }
+
+                @Override
+                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
+                    return switch (taskType) {
+                        case RERANK -> new ModelConfigurations(
+                            INFERENCE_ID_VALUE,
+                            taskType,
+                            MixedbreadService.NAME,
+                            MixedbreadRerankServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            EmptyTaskSettings.INSTANCE
+                        );
+                        default -> throw new IllegalStateException("Unexpected value: " + taskType);
+                    };
+                }
+
+                @Override
+                protected ModelSecrets createModelSecrets() {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                }
+
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+                    return MixedbreadServiceTests.createServiceSettingsMap(taskType);
+                }
+
+                @Override
+                protected Map<String, Object> createTaskSettingsMap(TaskType taskType) {
+                    if (taskType.equals(RERANK)) {
+                        return MixedbreadRerankTaskSettingsTests.getTaskSettingsMap(null, null);
+                    } else {
+                        return createTaskSettingsMap();
+                    }
+                }
+
+                @Override
+                protected Map<String, Object> createTaskSettingsMap() {
+                    return new HashMap<>();
+                }
+
+                @Override
+                protected Map<String, Object> createSecretSettingsMap() {
+                    return MixedbreadServiceTests.createSecretSettingsMap();
+                }
+
+                @Override
+                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                    assertModel(model, taskType, modelIncludesSecrets, ConfigurationParseContext.REQUEST);
+                }
+
+                @Override
+                protected void assertModel(
+                    Model model,
+                    TaskType taskType,
+                    boolean modelIncludesSecrets,
+                    ConfigurationParseContext parseContext
+                ) {
+                    MixedbreadServiceTests.assertModel(model, taskType, modelIncludesSecrets, parseContext);
+                }
+
+                @Override
+                protected EnumSet<TaskType> supportedStreamingTasks() {
+                    return null;
+                }
+
+                @Override
+                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+                    assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_NAME_VALUE), Matchers.is(300));
+                }
+            }
+        )
+            .build();
+    }
+
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets, ConfigurationParseContext parseContext) {
+        switch (taskType) {
+            case RERANK -> assertRerankModel(model, modelIncludesSecrets);
+            default -> fail("unexpected task type [" + taskType + "]");
+        }
+    }
+
+    private static MixedbreadModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
+        assertThat(model, instanceOf(MixedbreadModel.class));
+
+        var mixedbreadModel = (MixedbreadModel) model;
+        assertThat(mixedbreadModel.getServiceSettings().modelId(), Matchers.is(MODEL_NAME_VALUE));
+        assertThat(mixedbreadModel.uri().toString(), Matchers.is(DEFAULT_RERANK_URL));
+        if (modelIncludesSecrets) {
+            assertThat(mixedbreadModel.getSecretSettings().apiKey(), Matchers.is(new SecureString(API_KEY.toCharArray())));
+        }
+        return mixedbreadModel;
+    }
+
+    private static void assertRerankModel(Model model, boolean modelIncludesSecrets) {
+        var mixedbreadModel = assertCommonModelFields(model, modelIncludesSecrets);
+        assertThat(mixedbreadModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
+        assertThat(mixedbreadModel.getTaskType(), Matchers.is(RERANK));
+    }
+
+    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        return new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    }
+
+    private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+        if (taskType == RERANK) {
+            return MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(MODEL_NAME_VALUE, null);
+        }
+        return Map.of();
+    }
+
+    private static Map<String, Object> createSecretSettingsMap() {
+        return new HashMap<>(Map.of("api_key", API_KEY));
+    }
 
     @Before
     public void init() throws Exception {
@@ -841,6 +986,6 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(8000));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(22000));
     }
 }

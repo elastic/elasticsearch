@@ -79,9 +79,11 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     );
 
     /**
-     * Apart from v1 all other models have a context length of at least 8k.
+     * Apart from v1 all other models have a context length of up to 32k.
+     * <a href="https://github.com/elastic/elasticsearch/pull/132169#issue-3276542497">Here</a>
+     * 8k tokens were converted into 5500 words, that's why the default window size is set to 22000
      */
-    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 8000;
+    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 22000;
 
     private static final Map<TaskType, ModelCreator<? extends MixedbreadModel>> MODEL_CREATORS = Map.of(
         TaskType.RERANK,

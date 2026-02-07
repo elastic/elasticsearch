@@ -131,9 +131,9 @@ public interface VectorSimilarityFunctions {
 
     MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
 
-    MethodHandle scoreEuclideanBulk();
+    MethodHandle applyCorrectionsEuclideanBulk();
 
-    MethodHandle scoreMaxInnerProductBulk();
+    MethodHandle applyCorrectionsMaxInnerProductBulk();
 
-    MethodHandle scoreDotProductBulk();
+    MethodHandle applyCorrectionsDotProductBulk();
 }

@@ -45,9 +45,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     private static final Map<OperationSignature<?>, MethodHandle> HANDLES;
 
-    static final MethodHandle scoreEuclideanBulk$mh;
-    static final MethodHandle scoreMaxInnerProductBulk$mh;
-    static final MethodHandle scoreDotProductBulk$mh;
+    static final MethodHandle applyCorrectionsEuclideanBulk$mh;
+    static final MethodHandle applyCorrectionsMaxInnerProductBulk$mh;
+    static final MethodHandle applyCorrectionsDotProductBulk$mh;
 
     private static final JdkVectorSimilarityFunctions INSTANCE;
 
@@ -176,9 +176,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS // scores
                 );
 
-                scoreEuclideanBulk$mh = bindFunction("bbq_score_euclidean_bulk", caps, score);
-                scoreMaxInnerProductBulk$mh = bindFunction("bbq_score_maximum_inner_product_bulk", caps, score);
-                scoreDotProductBulk$mh = bindFunction("bbq_score_dot_product_bulk", caps, score);
+                applyCorrectionsEuclideanBulk$mh = bindFunction("diskbbq_apply_corrections_euclidean_bulk", caps, score);
+                applyCorrectionsMaxInnerProductBulk$mh = bindFunction("diskbbq_apply_corrections_maximum_inner_product_bulk", caps, score);
+                applyCorrectionsDotProductBulk$mh = bindFunction("diskbbq_apply_corrections_dot_product_bulk", caps, score);
 
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
@@ -188,9 +188,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         enable them in your OS/Hypervisor/VM/container""");
                 }
                 HANDLES = null;
-                scoreEuclideanBulk$mh = null;
-                scoreMaxInnerProductBulk$mh = null;
-                scoreDotProductBulk$mh = null;
+                applyCorrectionsEuclideanBulk$mh = null;
+                applyCorrectionsMaxInnerProductBulk$mh = null;
+                applyCorrectionsDotProductBulk$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -406,7 +406,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float scoreEuclideanBulk(
+        private static float applyCorrectionsEuclideanBulk(
             MemorySegment corrections,
             int bulkSize,
             int dimensions,
@@ -420,7 +420,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment scores
         ) {
             try {
-                return (float) scoreEuclideanBulk$mh.invokeExact(
+                return (float) applyCorrectionsEuclideanBulk$mh.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,
@@ -438,7 +438,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float scoreMaxInnerProductBulk(
+        private static float applyCorrectionsMaxInnerProductBulk(
             MemorySegment corrections,
             int bulkSize,
             int dimensions,
@@ -452,7 +452,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment scores
         ) {
             try {
-                return (float) scoreMaxInnerProductBulk$mh.invokeExact(
+                return (float) applyCorrectionsMaxInnerProductBulk$mh.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,
@@ -470,7 +470,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float scoreDotProductBulk(
+        private static float applyCorrectionsDotProductBulk(
             MemorySegment corrections,
             int bulkSize,
             int dimensions,
@@ -484,7 +484,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment scores
         ) {
             try {
-                return (float) scoreDotProductBulk$mh.invokeExact(
+                return (float) applyCorrectionsDotProductBulk$mh.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,
@@ -504,9 +504,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         private static final Map<OperationSignature<?>, MethodHandle> HANDLES_WITH_CHECKS;
 
-        static final MethodHandle SCORE_EUCLIDEAN_HANDLE_BULK;
-        static final MethodHandle SCORE_MAX_INNER_PRODUCT_HANDLE_BULK;
-        static final MethodHandle SCORE_DOT_PRODUCT_HANDLE_BULK;
+        static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
+        static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
+        static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
 
         static {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
@@ -678,15 +678,19 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     MemorySegment.class
                 );
 
-                SCORE_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "scoreEuclideanBulk", scoringFunction);
-                SCORE_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "scoreMaxInnerProductBulk",
+                    "applyCorrectionsEuclideanBulk",
                     scoringFunction
                 );
-                SCORE_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "scoreDotProductBulk",
+                    "applyCorrectionsMaxInnerProductBulk",
+                    scoringFunction
+                );
+                APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "applyCorrectionsDotProductBulk",
                     scoringFunction
                 );
             } catch (ReflectiveOperationException e) {
@@ -711,18 +715,18 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
-        public MethodHandle scoreEuclideanBulk() {
-            return SCORE_EUCLIDEAN_HANDLE_BULK;
+        public MethodHandle applyCorrectionsEuclideanBulk() {
+            return APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
         }
 
         @Override
-        public MethodHandle scoreMaxInnerProductBulk() {
-            return SCORE_MAX_INNER_PRODUCT_HANDLE_BULK;
+        public MethodHandle applyCorrectionsMaxInnerProductBulk() {
+            return APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
         }
 
         @Override
-        public MethodHandle scoreDotProductBulk() {
-            return SCORE_DOT_PRODUCT_HANDLE_BULK;
+        public MethodHandle applyCorrectionsDotProductBulk() {
+            return APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
         }
     }
 }

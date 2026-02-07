@@ -23,7 +23,7 @@
 #include "amd64/amd64_vec_common.h"
 #include "score_common.h"
 
-static inline __m256 score_inner(
+static inline __m256 apply_base_corrections(
     const f32_t* lowerInterval,
     const f32_t* upperInterval,
     const int32_t* targetComponentSum,
@@ -34,50 +34,50 @@ static inline __m256 score_inner(
     const f32_t dimensions,
     const f32_t indexBitScale
 ) {
-    __m256 ax = _mm256_loadu_ps(lowerInterval);
-    __m256 lx = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(upperInterval), ax), _mm256_set1_ps(indexBitScale));
-    __m256 tcs = _mm256_cvtepi32_ps(_mm256_lddqu_si256((const __m256i*)(targetComponentSum)));
+    const __m256 ax = _mm256_loadu_ps(lowerInterval);
+    const __m256 lx = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(upperInterval), ax), _mm256_set1_ps(indexBitScale));
+    const __m256 tcs = _mm256_cvtepi32_ps(_mm256_lddqu_si256((const __m256i*)(targetComponentSum)));
 
-    __m256 qcDist = _mm256_loadu_ps(score);
+    const __m256 qcDist = _mm256_loadu_ps(score);
 
     // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
     // ax * ay * dimensions
-    __m256 res1 = _mm256_mul_ps(ax, _mm256_set1_ps(ay * dimensions));
+    const __m256 res1 = _mm256_mul_ps(ax, _mm256_set1_ps(ay * dimensions));
     // ay * lx * (float) targetComponentSum
-    __m256 res2 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ay)), tcs);
+    const __m256 res2 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ay)), tcs);
     // ax * ly * y1
-    __m256 res3 = _mm256_mul_ps(ax, _mm256_set1_ps(ly * y1));
+    const __m256 res3 = _mm256_mul_ps(ax, _mm256_set1_ps(ly * y1));
     // lx * ly * qcDist
-    __m256 res4 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ly)), qcDist);
+    const __m256 res4 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ly)), qcDist);
     return _mm256_add_ps(_mm256_add_ps(res1, res2), _mm256_add_ps(res3, res4));
 }
 
-EXPORT f32_t bbq_score_euclidean_bulk(
+EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
         const int8_t* corrections,
-		int32_t bulkSize,
-        int32_t dimensions,
-        f32_t queryLowerInterval,
-        f32_t queryUpperInterval,
-        int32_t queryComponentSum,
-        f32_t queryAdditionalCorrection,
-        f32_t queryBitScale,
-        f32_t indexBitScale,
-        f32_t centroidDp,
+		const int32_t bulkSize,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
         f32_t* scores
 ) {
-    f32_t ay = queryLowerInterval;
-    f32_t ly = (queryUpperInterval - ay) * queryBitScale;
-    f32_t y1 = queryComponentSum;
+    const f32_t ay = queryLowerInterval;
+    const f32_t ly = (queryUpperInterval - ay) * queryBitScale;
+    const f32_t y1 = queryComponentSum;
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    corrections_t c = unpack_corrections(corrections, bulkSize);
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
-    int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    const int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 additionalCorrection = _mm256_loadu_ps(c.additionalCorrections + i);
-        __m256 res = score_inner(
+        __m256 res = apply_base_corrections(
             c.lowerIntervals + i,
             c.upperIntervals + i,
             c.targetComponentSums + i,
@@ -101,7 +101,7 @@ EXPORT f32_t bbq_score_euclidean_bulk(
         _mm256_storeu_ps(scores + i, res);
     }
     for (; i < bulkSize; ++i) {
-        f32_t score = score_euclidean_inner(
+        f32_t score = apply_corrections_euclidean_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
@@ -123,31 +123,31 @@ EXPORT f32_t bbq_score_euclidean_bulk(
     return maxScore;
 }
 
-EXPORT f32_t bbq_score_maximum_inner_product_bulk(
+EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
         const int8_t* corrections,
-		int32_t bulkSize,
-        int32_t dimensions,
-        f32_t queryLowerInterval,
-        f32_t queryUpperInterval,
-        int32_t queryComponentSum,
-        f32_t queryAdditionalCorrection,
-        f32_t queryBitScale,
-        f32_t indexBitScale,
-        f32_t centroidDp,
+		const int32_t bulkSize,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
         f32_t* scores
 ) {
-    f32_t ay = queryLowerInterval;
-    f32_t ly = (queryUpperInterval - ay) * queryBitScale;
-    f32_t y1 = queryComponentSum;
+    const f32_t ay = queryLowerInterval;
+    const f32_t ly = (queryUpperInterval - ay) * queryBitScale;
+    const f32_t y1 = queryComponentSum;
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    corrections_t c = unpack_corrections(corrections, bulkSize);
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
-    int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    const int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 res = score_inner(
+        __m256 res = apply_base_corrections(
             c.lowerIntervals + i,
             c.upperIntervals + i,
             c.targetComponentSums + i,
@@ -179,7 +179,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
     }
 
     for (; i < bulkSize; ++i) {
-        f32_t score = score_maximum_inner_product_inner(
+        f32_t score = apply_corrections_maximum_inner_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
@@ -201,31 +201,31 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
     return maxScore;
 }
 
-EXPORT f32_t bbq_score_dot_product_bulk(
+EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
         const int8_t* corrections,
-		int32_t bulkSize,
-        int32_t dimensions,
-        f32_t queryLowerInterval,
-        f32_t queryUpperInterval,
-        int32_t queryComponentSum,
-        f32_t queryAdditionalCorrection,
-        f32_t queryBitScale,
-        f32_t indexBitScale,
-        f32_t centroidDp,
+		const int32_t bulkSize,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
         f32_t* scores
 ) {
-    f32_t ay = queryLowerInterval;
-    f32_t ly = (queryUpperInterval - ay) * queryBitScale;
-    f32_t y1 = queryComponentSum;
+    const f32_t ay = queryLowerInterval;
+    const f32_t ly = (queryUpperInterval - ay) * queryBitScale;
+    const f32_t y1 = queryComponentSum;
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    corrections_t c = unpack_corrections(corrections, bulkSize);
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
-    int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    const int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 res = score_inner(
+        __m256 res = apply_base_corrections(
             c.lowerIntervals + i,
             c.upperIntervals + i,
             c.targetComponentSums + i,
@@ -255,7 +255,7 @@ EXPORT f32_t bbq_score_dot_product_bulk(
     }
 
     for (; i < bulkSize; ++i) {
-        f32_t score = score_dot_product_inner(
+        f32_t score = apply_corrections_dot_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,

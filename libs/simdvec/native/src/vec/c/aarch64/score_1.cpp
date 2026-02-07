@@ -17,26 +17,26 @@
 
 #include "score_common.h"
 
-EXPORT f32_t bbq_score_euclidean_bulk(
+EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
         const int8_t* corrections,
-		int32_t bulkSize,
-        int32_t dimensions,
-        f32_t queryLowerInterval,
-        f32_t queryUpperInterval,
-        int32_t queryComponentSum,
-        f32_t queryAdditionalCorrection,
-        f32_t queryBitScale,
-        f32_t indexBitScale,
-        f32_t centroidDp,
+		const int32_t bulkSize,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
         f32_t* scores
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    corrections_t c = unpack_corrections(corrections, bulkSize);
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     for (; i < bulkSize; ++i) {
-        f32_t score = score_euclidean_inner(
+        f32_t score = apply_corrections_euclidean_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
@@ -58,26 +58,26 @@ EXPORT f32_t bbq_score_euclidean_bulk(
     return maxScore;
 }
 
-EXPORT f32_t bbq_score_maximum_inner_product_bulk(
+EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
         const int8_t* corrections,
-		int32_t bulkSize,
-        int32_t dimensions,
-        f32_t queryLowerInterval,
-        f32_t queryUpperInterval,
-        int32_t queryComponentSum,
-        f32_t queryAdditionalCorrection,
-        f32_t queryBitScale,
-        f32_t indexBitScale,
-        f32_t centroidDp,
+		const int32_t bulkSize,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
         f32_t* scores
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    corrections_t c = unpack_corrections(corrections, bulkSize);
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     for (; i < bulkSize; ++i) {
-        f32_t score = score_maximum_inner_product_inner(
+        f32_t score = apply_corrections_maximum_inner_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
@@ -99,26 +99,26 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
     return maxScore;
 }
 
-EXPORT f32_t bbq_score_dot_product_bulk(
+EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
         const int8_t* corrections,
-		int32_t bulkSize,
-        int32_t dimensions,
-        f32_t queryLowerInterval,
-        f32_t queryUpperInterval,
-        int32_t queryComponentSum,
-        f32_t queryAdditionalCorrection,
-        f32_t queryBitScale,
-        f32_t indexBitScale,
-        f32_t centroidDp,
+		const int32_t bulkSize,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
         f32_t* scores
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    corrections_t c = unpack_corrections(corrections, bulkSize);
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     for (; i < bulkSize; ++i) {
-        f32_t score = score_dot_product_inner(
+        f32_t score = apply_corrections_dot_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,

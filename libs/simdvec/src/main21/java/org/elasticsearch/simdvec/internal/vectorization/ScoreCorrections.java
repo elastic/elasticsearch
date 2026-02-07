@@ -16,16 +16,16 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 
-class ScoreAdjustments {
+class ScoreCorrections {
     static final VectorSimilarityFunctions SIMILARITY_FUNCTIONS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
-    static final MethodHandle SCORE_EUCLIDEAN_BULK = SIMILARITY_FUNCTIONS.scoreEuclideanBulk();
-    static final MethodHandle SCORE_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.scoreMaxInnerProductBulk();
-    static final MethodHandle SCORE_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.scoreDotProductBulk();
+    static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsEuclideanBulk();
+    static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsMaxInnerProductBulk();
+    static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsDotProductBulk();
 
-    static float nativeScoreBulk(
+    static float nativeApplyCorrectionsBulk(
         VectorSimilarityFunction similarityFunction,
         MemorySegment corrections,
         int bulkSize,
@@ -41,7 +41,7 @@ class ScoreAdjustments {
     ) {
         try {
             return switch (similarityFunction) {
-                case EUCLIDEAN -> (float) SCORE_EUCLIDEAN_BULK.invokeExact(
+                case EUCLIDEAN -> (float) APPLY_CORRECTIONS_EUCLIDEAN_BULK.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,
@@ -54,7 +54,7 @@ class ScoreAdjustments {
                     centroidDp,
                     scores
                 );
-                case DOT_PRODUCT, COSINE -> (float) SCORE_DOT_PRODUCT_BULK.invokeExact(
+                case DOT_PRODUCT, COSINE -> (float) APPLY_CORRECTIONS_DOT_PRODUCT_BULK.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,
@@ -67,7 +67,7 @@ class ScoreAdjustments {
                     centroidDp,
                     scores
                 );
-                case MAXIMUM_INNER_PRODUCT -> (float) SCORE_MAX_INNER_PRODUCT_BULK.invokeExact(
+                case MAXIMUM_INNER_PRODUCT -> (float) APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,

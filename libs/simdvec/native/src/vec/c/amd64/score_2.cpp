@@ -31,7 +31,7 @@
 #include "amd64/amd64_vec_common.h"
 #include "score_common.h"
 
-static inline __m512 score_inner(
+static inline __m512 apply_base_corrections(
     const f32_t* lowerInterval,
     const f32_t* upperInterval,
     const int32_t* targetComponentSum,
@@ -42,50 +42,50 @@ static inline __m512 score_inner(
     const f32_t dimensions,
     const f32_t indexBitScale
 ) {
-    __m512 ax = _mm512_loadu_ps(lowerInterval);
-    __m512 lx = _mm512_mul_ps(_mm512_sub_ps(_mm512_loadu_ps(upperInterval), ax), _mm512_set1_ps(indexBitScale));
-    __m512 tcs = _mm512_cvtepi32_ps(_mm512_loadu_si512((const __m512i*)(targetComponentSum)));
+    const __m512 ax = _mm512_loadu_ps(lowerInterval);
+    const __m512 lx = _mm512_mul_ps(_mm512_sub_ps(_mm512_loadu_ps(upperInterval), ax), _mm512_set1_ps(indexBitScale));
+    const __m512 tcs = _mm512_cvtepi32_ps(_mm512_loadu_si512((const __m512i*)(targetComponentSum)));
 
-    __m512 qcDist = _mm512_loadu_ps(score);
+    const __m512 qcDist = _mm512_loadu_ps(score);
 
     // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
     // ax * ay * dimensions
-    __m512 res1 = _mm512_mul_ps(ax, _mm512_set1_ps(ay * dimensions));
+    const __m512 res1 = _mm512_mul_ps(ax, _mm512_set1_ps(ay * dimensions));
     // ay * lx * (float) targetComponentSum
-    __m512 res2 = _mm512_mul_ps(_mm512_mul_ps(lx, _mm512_set1_ps(ay)), tcs);
+    const __m512 res2 = _mm512_mul_ps(_mm512_mul_ps(lx, _mm512_set1_ps(ay)), tcs);
     // ax * ly * y1
-    __m512 res3 = _mm512_mul_ps(ax, _mm512_set1_ps(ly * y1));
+    const __m512 res3 = _mm512_mul_ps(ax, _mm512_set1_ps(ly * y1));
     // lx * ly * qcDist
-    __m512 res4 = _mm512_mul_ps(_mm512_mul_ps(lx, _mm512_set1_ps(ly)), qcDist);
+    const __m512 res4 = _mm512_mul_ps(_mm512_mul_ps(lx, _mm512_set1_ps(ly)), qcDist);
     return _mm512_add_ps(_mm512_add_ps(res1, res2), _mm512_add_ps(res3, res4));
 }
 
-EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
+EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
         const int8_t* corrections,
-		int32_t bulkSize,
-        int32_t dimensions,
-        f32_t queryLowerInterval,
-        f32_t queryUpperInterval,
-        int32_t queryComponentSum,
-        f32_t queryAdditionalCorrection,
-        f32_t queryBitScale,
-        f32_t indexBitScale,
-        f32_t centroidDp,
+		const int32_t bulkSize,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
         f32_t* scores
 ) {
-    f32_t ay = queryLowerInterval;
-    f32_t ly = (queryUpperInterval - ay) * queryBitScale;
-    f32_t y1 = queryComponentSum;
+    const f32_t ay = queryLowerInterval;
+    const f32_t ly = (queryUpperInterval - ay) * queryBitScale;
+    const f32_t y1 = queryComponentSum;
 
     __m512 max_score = _mm512_set1_ps(-std::numeric_limits<f32_t>::infinity());
 
-    corrections_t c = unpack_corrections(corrections, bulkSize);
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m512) / sizeof(f32_t);
-    int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    const int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m512 res = score_inner(
+        __m512 res = apply_base_corrections(
             c.lowerIntervals + i,
             c.upperIntervals + i,
             c.targetComponentSums + i,
@@ -117,7 +117,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
     f32_t maxScore = _mm512_reduce_max_ps(max_score);
 
     for (; i < bulkSize; ++i) {
-        f32_t score = score_maximum_inner_product_inner(
+        f32_t score = apply_corrections_maximum_inner_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,

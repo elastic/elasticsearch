@@ -298,7 +298,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        int count = 10_000;
+        int count;
+        Set<DataType> complexTypes = Set.of(DataType.EXPONENTIAL_HISTOGRAM);
+        if (testCase.getData().stream().anyMatch(d -> complexTypes.contains(d.type()))) {
+            // Limit the amount of data for large types, otherwise the test run very long or even hang
+            count = 500;
+        } else {
+            count = 10_000;
+        }
+
         int threads = 5;
         var evalSupplier = evaluator(expression);
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {

@@ -66,6 +66,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     public AbstractHyperLogLogPlusPlus clone(long bucketOrd, BigArrays bigArrays) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
+            // View is reused; consume immediately.
             LinearCountingView lc = linearCountingView(bucketOrd);
             int size = lc.size();
             HyperLogLogPlusPlusSparse clone = new HyperLogLogPlusPlusSparse(precision(), bigArrays, 1);
@@ -82,6 +83,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     private Object getComparableData(long bucketOrd) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             Set<Integer> values = new HashSet<>();
+            // View is reused; consume immediately.
             linearCountingView(bucketOrd).forEachEncoded(values::add);
             return values;
         } else {
@@ -99,6 +101,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         out.writeVInt(precision());
         if (getAlgorithm(bucket) == LINEAR_COUNTING) {
             out.writeBoolean(LINEAR_COUNTING);
+            // View is reused; consume immediately.
             LinearCountingView lc = linearCountingView(bucket);
             int size = lc.size();
             out.writeVLong(size);

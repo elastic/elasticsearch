@@ -10,8 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.BytesRefScratch;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -36,7 +35,7 @@ final class HllStates {
             throw new RuntimeException(e);
         }
         // BytesRefScratch reuses a single BytesRef and buffer; callers must consume immediately.
-        // If callers ever need to retain the data, introduce a copy-producing variant.
+        // If callers ever need to retain the data, use BytesRefScratch.copy.
         return scratchBytes.wrap(scratch.bytes());
     }
 
@@ -46,51 +45,6 @@ final class HllStates {
             hll.mergeSerialized(groupId, scratchInput);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Copies the content of the BytesReference to an array of bytes. The byte[] must
-     * have enough space to fit the bytesReference object, otherwise an
-     * {@link ArrayIndexOutOfBoundsException} will be thrown.
-     *
-     * @return number of bytes copied
-     */
-    static int copyToArray(BytesReference bytesReference, byte[] arr, int offset) {
-        int origOffset = offset;
-        final BytesRefIterator iterator = bytesReference.iterator();
-        try {
-            BytesRef slice;
-            while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
-                offset += slice.length;
-            }
-            return offset - origOffset;
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static final class BytesRefScratch {
-        private final BytesRef ref = new BytesRef();
-        private byte[] copyBuffer;
-
-        BytesRef wrap(BytesReference bytes) {
-            if (bytes.hasArray()) {
-                ref.bytes = bytes.array();
-                ref.offset = bytes.arrayOffset();
-                ref.length = bytes.length();
-                return ref;
-            }
-            int length = bytes.length();
-            if (copyBuffer == null || copyBuffer.length < length) {
-                copyBuffer = new byte[length];
-            }
-            copyToArray(bytes, copyBuffer, 0);
-            ref.bytes = copyBuffer;
-            ref.offset = 0;
-            ref.length = length;
-            return ref;
         }
     }
 

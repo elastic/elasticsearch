@@ -58,11 +58,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private long denseCount;
     private long maxBucketOrd;
     private final int arrayLimit;
-    private final InlineSmallLinearCounting smallLc;
+    private final SmallArrayLinearCounting smallLc;
     private final HyperLogLog hll;
     private final LinearCounting lc;
     // Reuse a single view to avoid per-call allocations.
-    private final BucketView view = new BucketView();
+    private final LinearCountingBucketView bucketView = new LinearCountingBucketView();
 
     /**
      * Compute the required precision so that <code>count</code> distinct entries would be counted with linear counting.
@@ -86,7 +86,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         super(precision);
         HyperLogLog hll = null;
         LinearCounting lc = null;
-        InlineSmallLinearCounting smallLc = null;
+        SmallArrayLinearCounting smallLc = null;
         IntArray denseOrds = null;
         BitArray algorithm = null;
         int arrayLimit;
@@ -96,7 +96,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             lc = new LinearCounting(bigArrays, 0, precision, hll);
             // Keep the array tier small and below the hash LC threshold to avoid immediate promotion.
             arrayLimit = Math.min(SMALL_ARRAY_SIZE, lc.threshold);
-            smallLc = new InlineSmallLinearCounting(precision, bigArrays, initialBucketCount, arrayLimit);
+            smallLc = new SmallArrayLinearCounting(precision, bigArrays, initialBucketCount, arrayLimit);
             denseOrds = bigArrays.newIntArray(initialBucketCount);
             algorithm = new BitArray(1, bigArrays);
             success = true;
@@ -120,10 +120,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return maxBucketOrd;
     }
 
-    private final class BucketView implements LinearCountingView {
+    private final class LinearCountingBucketView implements LinearCountingView {
         private long bucketOrd;
         private int denseOrd;
         private boolean useSmall;
+        private final BytesRef spare = new BytesRef();
 
         private void reset(long bucketOrd) {
             this.bucketOrd = bucketOrd;
@@ -143,28 +144,29 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         public void forEachEncoded(IntConsumer consumer) {
             if (useSmall) {
                 smallLc.forEachEncoded(bucketOrd, consumer);
-            } else {
-                lc.forEachEncoded(denseOrd, consumer);
+                return;
+            }
+            if (denseOrd >= lc.hll.maxOrd()) {
+                return;
+            }
+            for (int i = 0; i <= lc.mask; ++i) {
+                lc.hll.runLens.get(lc.index(denseOrd, i), 4, spare);
+                final int v = ByteUtils.readIntLE(spare.bytes, spare.offset);
+                if (v != 0) {
+                    consumer.accept(v);
+                }
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (useSmall) {
-                int size = smallLc.size(bucketOrd);
-                if (size == 0) {
-                    return;
-                }
-                final long base = smallLc.baseOffset(bucketOrd);
-                for (int i = 0; i < size; ++i) {
-                    out.writeInt(smallLc.values.get(base + i));
-                }
+                smallLc.writeTo(bucketOrd, out);
                 return;
             }
             if (denseOrd >= lc.hll.maxOrd()) {
                 return;
             }
-            BytesRef spare = new BytesRef();
             for (int i = 0; i <= lc.mask; ++i) {
                 lc.hll.runLens.get(lc.index(denseOrd, i), 4, spare);
                 final int v = ByteUtils.readIntLE(spare.bytes, spare.offset);
@@ -200,8 +202,8 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected LinearCountingView linearCountingView(long bucketOrd) {
-        view.reset(bucketOrd);
-        return view;
+        bucketView.reset(bucketOrd);
+        return bucketView;
     }
 
     @Override
@@ -298,11 +300,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         final IntArray values = bigArrays.newIntArray(size);
         try {
             final int[] index = new int[1];
-            if (existingDenseOrd >= 0) {
-                lc.forEachEncoded(existingDenseOrd, value -> values.set(index[0]++, value));
-            } else {
-                smallLc.forEachEncoded(bucketOrd, value -> values.set(index[0]++, value));
-            }
+            linearCountingView(bucketOrd).forEachEncoded(value -> values.set(index[0]++, value));
             assert index[0] == size;
             final int denseOrd = ensureDenseOrd(bucketOrd);
             hll.reset(denseOrd);
@@ -456,14 +454,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
-    private static class InlineSmallLinearCounting extends AbstractLinearCounting implements Releasable {
+    private static class SmallArrayLinearCounting extends AbstractLinearCounting implements Releasable {
 
         private final BigArrays bigArrays;
         private final int arrayLimit;
         private IntArray values;
         private ByteArray sizes;
 
-        InlineSmallLinearCounting(int p, BigArrays bigArrays, long initialBuckets, int arrayLimit) {
+        SmallArrayLinearCounting(int p, BigArrays bigArrays, long initialBuckets, int arrayLimit) {
             super(p);
             this.bigArrays = bigArrays;
             this.arrayLimit = arrayLimit;
@@ -520,6 +518,17 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             final long base = baseOffset(bucketOrd);
             for (int i = 0; i < size; ++i) {
                 consumer.accept(values.get(base + i));
+            }
+        }
+
+        private void writeTo(long bucketOrd, StreamOutput out) throws IOException {
+            int size = size(bucketOrd);
+            if (size == 0) {
+                return;
+            }
+            final long base = baseOffset(bucketOrd);
+            for (int i = 0; i < size; ++i) {
+                out.writeInt(values.get(base + i));
             }
         }
 
@@ -602,20 +611,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             final int size = sizes.get(bucketOrd);
             assert size == recomputedSize(bucketOrd);
             return size;
-        }
-
-        private void forEachEncoded(long bucketOrd, IntConsumer consumer) {
-            if (bucketOrd >= hll.maxOrd()) {
-                return;
-            }
-            BytesRef spare = new BytesRef();
-            for (int i = 0; i <= mask; ++i) {
-                hll.runLens.get(index(bucketOrd, i), 4, spare);
-                final int v = ByteUtils.readIntLE(spare.bytes, spare.offset);
-                if (v != 0) {
-                    consumer.accept(v);
-                }
-            }
         }
 
         private long index(long bucketOrd, int index) {

@@ -6,12 +6,17 @@
  */
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.ArrayValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
+import io.opentelemetry.proto.logs.v1.LogRecord;
+import io.opentelemetry.proto.logs.v1.ResourceLogs;
+import io.opentelemetry.proto.logs.v1.ScopeLogs;
+import io.opentelemetry.proto.logs.v1.SeverityNumber;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogram;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
@@ -200,5 +205,40 @@ public class OtlpUtils {
         }
 
         return ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(resourceMetrics).build();
+    }
+
+    // --- Log utilities ---
+
+    public static LogRecord createLogRecord(String body, SeverityNumber severityNumber, String severityText) {
+        return createLogRecord(body, severityNumber, severityText, List.of());
+    }
+
+    public static LogRecord createLogRecord(String body, SeverityNumber severityNumber, String severityText, List<KeyValue> attributes) {
+        return LogRecord.newBuilder()
+            .setTimeUnixNano(System.nanoTime())
+            .setObservedTimeUnixNano(System.nanoTime())
+            .setSeverityNumber(severityNumber)
+            .setSeverityText(severityText)
+            .setBody(AnyValue.newBuilder().setStringValue(body).build())
+            .addAllAttributes(attributes)
+            .build();
+    }
+
+    public static ResourceLogs createResourceLogs(List<KeyValue> resourceAttributes, List<ScopeLogs> scopeLogs) {
+        return ResourceLogs.newBuilder().setResource(createResource(resourceAttributes)).addAllScopeLogs(scopeLogs).build();
+    }
+
+    public static ScopeLogs createScopeLogs(String name, String version, List<LogRecord> logRecords) {
+        return ScopeLogs.newBuilder().setScope(createScope(name, version)).addAllLogRecords(logRecords).build();
+    }
+
+    public static ExportLogsServiceRequest createLogsRequest(List<LogRecord> logRecords) {
+        return createLogsRequest(List.of(keyValue("service.name", "test-service")), logRecords);
+    }
+
+    public static ExportLogsServiceRequest createLogsRequest(List<KeyValue> resourceAttributes, List<LogRecord> logRecords) {
+        return ExportLogsServiceRequest.newBuilder()
+            .addResourceLogs(createResourceLogs(resourceAttributes, List.of(createScopeLogs("test", "1.0.0", logRecords))))
+            .build();
     }
 }

@@ -649,6 +649,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
         } else {
+            boolean b = true;
+            if (b) {
+                throw new RuntimeException("HEGO ERROR, randomScorerSupplier=" + randomScorerSupplier);
+            }
             logger.warn("Cannot get merged raw vectors from scorer. Performances will be degraded.");
             var byteVectorValues = getMergedByteVectorValues(fieldInfo, mergeState);
 

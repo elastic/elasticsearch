@@ -167,10 +167,14 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
             _mm256_set1_ps(queryAdditionalCorrection - centroidDp)
         );
 
-        // We do not have masking on AVX2 for this kind of operation, mimic it with AND + ADD
+        // In scalar code, this is a if-else branch on res (or res elements) being positive or negative.
+        // Vectorized, this means computing both branches in 2 vector registers, and then combine them into one,
+        // masking for positive/negative. Computing both with SIMD operations is faster than computing only the
+        // right branch with scalar operations.
         __m256 negative_scaled = _mm256_rcp_ps(_mm256_fnmadd_ps(_mm256_set1_ps(1.0f), res, _mm256_set1_ps(1.0f)));
         __m256 positive_scaled = _mm256_add_ps(_mm256_set1_ps(1.0f), res);
 
+        // We do not have masking ops on AVX2, so we mimic them with AND + ADD
         __m256 is_neg = _mm256_cmp_ps(res, _mm256_setzero_ps(), _CMP_LT_OQ);
         res = _mm256_add_ps(_mm256_and_ps(is_neg, negative_scaled), _mm256_andnot_ps(is_neg, positive_scaled));
 
@@ -238,7 +242,7 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
         );
 
         __m256 additionalCorrection = _mm256_loadu_ps(c.additionalCorrections + i);
-        // For cosine, we need to apply the additional correction, which is
+        // For dot product we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
 
         // res = res + additionalCorrection + queryAdditionalCorrection - centroidDp (+ 1.0f);

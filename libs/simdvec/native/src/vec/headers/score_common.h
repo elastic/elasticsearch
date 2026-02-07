@@ -101,7 +101,7 @@ static inline f32_t apply_corrections_dot_product_inner(
     const f32_t y1 = queryComponentSum;
     f32_t score = ax * ay * dimensions + ay * lx * (f32_t) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
 
-    // For cosine, we need to apply the additional correction, which is
+    // For dot product we need to apply the additional correction, which is
     // assumed to be the non-centered dot-product between the vector and the centroid
     score += queryAdditionalCorrection + additionalCorrection - centroidDp;
     return fmax((1.0f + score) / 2.0f, 0.0f);

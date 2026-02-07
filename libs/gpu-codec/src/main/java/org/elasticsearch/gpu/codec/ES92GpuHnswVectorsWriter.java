@@ -603,22 +603,19 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         numVectors,
                         sourceRowPitch,
                         packedRowSize
+                    );
+                    var dataset = DatasetUtilsImpl.fromMemorySegment(
+                        packedSegmentHolder.memorySegment(),
+                        numVectors,
+                        packedRowSize,
+                        dataType
+                    );
+                    var resourcesHolder = new ResourcesHolder(
+                        cuVSResourceManager,
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
                     )
                 ) {
-                    try (
-                        var dataset = DatasetUtilsImpl.fromMemorySegment(
-                            packedSegmentHolder.memorySegment(),
-                            numVectors,
-                            packedRowSize,
-                            dataType
-                        );
-                        var resourcesHolder = new ResourcesHolder(
-                            cuVSResourceManager,
-                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
-                        )
-                    ) {
-                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                    }
+                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                 }
             } else {
                 logger.info(

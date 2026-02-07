@@ -51,21 +51,9 @@ class MemorySegmentUtils {
         Arena arena = null;
         try {
             arena = Arena.ofConfined();
-            final Arena arenaCopy = arena;
             try (FileChannel fc = FileChannel.open(dataFile, Set.of(READ))) {
                 MemorySegment mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0L, dataSize, arena);
-                return new MemorySegmentHolder() {
-                    @Override
-                    public MemorySegment memorySegment() {
-                        return mapped;
-                    }
-
-                    @Override
-                    public void close() {
-                        arenaCopy.close();
-                        IOUtils.deleteFilesIgnoringExceptions(dataFile);
-                    }
-                };
+                return new FileBackedMemorySegmentHolder(mapped, arena, dataFile);
             }
         } catch (Throwable t) {
             if (arena != null) {
@@ -91,7 +79,7 @@ class MemorySegmentUtils {
         throws IOException {
         var inputSlice = input.segmentSliceOrNull(0L, input.length());
         if (inputSlice != null) {
-            return () -> inputSlice;
+            return new DirectMemorySegmentHolder(inputSlice);
         }
 
         // The only implementation of MemorySegmentAccessInput is MemorySegmentIndexInput, which is currently used only by
@@ -124,23 +112,12 @@ class MemorySegmentUtils {
         long packedVectorsDataSize = (long) numVectors * packedRowSize;
         MemorySegment sourceSegment = input.segmentSliceOrNull(0, input.length());
         if (sourceSegment != null) {
-            // noinspection resource
             Arena arena = Arena.ofConfined();
             var packedSegment = arena.allocate(packedVectorsDataSize, 64);
             for (int i = 0; i < numVectors; i++) {
                 MemorySegment.copy(sourceSegment, (long) i * sourceRowPitch, packedSegment, (long) i * packedRowSize, packedRowSize);
             }
-            return new MemorySegmentHolder() {
-                @Override
-                public MemorySegment memorySegment() {
-                    return packedSegment;
-                }
-
-                @Override
-                public void close() {
-                    arena.close();
-                }
-            };
+            return new ArenaMemorySegmentHolder(packedSegment, arena);
         }
 
         assert dir instanceof FSDirectory;
@@ -162,17 +139,7 @@ class MemorySegmentUtils {
             IndexOutput tempVectorsFile = dir.createTempOutput(baseName, "vec_", IOContext.DEFAULT)
         ) {
             clonedInput.seek(0);
-            byte[] buffer = new byte[1024 * 1024];
-            var limit = clonedInput.length() - buffer.length;
-            while (clonedInput.getFilePointer() < limit) {
-                clonedInput.readBytes(buffer, 0, buffer.length);
-                tempVectorsFile.writeBytes(buffer, 0, buffer.length);
-            }
-            var bytesLeft = clonedInput.length() - 1 - clonedInput.getFilePointer();
-            if (bytesLeft > 0) {
-                clonedInput.readBytes(buffer, 0, (int) bytesLeft);
-                tempVectorsFile.writeBytes(buffer, 0, (int) bytesLeft);
-            }
+            tempVectorsFile.copyBytes(clonedInput, clonedInput.length());
             return dir.getDirectory().resolve(tempVectorsFile.getName());
         }
     }
@@ -210,4 +177,21 @@ class MemorySegmentUtils {
             return dir.getDirectory().resolve(tempVectorsFile.getName());
         }
     }
+
+    record FileBackedMemorySegmentHolder(MemorySegment memorySegment, Arena arena, Path dataFile) implements MemorySegmentHolder {
+        @Override
+        public void close() {
+            arena.close();
+            IOUtils.deleteFilesIgnoringExceptions(dataFile);
+        }
+    }
+
+    record ArenaMemorySegmentHolder(MemorySegment memorySegment, Arena arena) implements MemorySegmentHolder {
+        @Override
+        public void close() {
+            arena.close();
+        }
+    }
+
+    record DirectMemorySegmentHolder(MemorySegment memorySegment) implements MemorySegmentHolder {}
 }

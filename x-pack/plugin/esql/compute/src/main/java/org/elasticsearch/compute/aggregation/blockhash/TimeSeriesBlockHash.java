@@ -97,16 +97,15 @@ public final class TimeSeriesBlockHash extends BlockHash {
         long prevTimestamp = timestamps.getLong(0);
         trackTimestamp(prevTimestamp);
         int prevGroupId = (int) hashOrdToGroup(finalHash.add(tsid, prevTimestamp));
-        // single tsid and rounded timestamp
-        long lastTime = timestamps.getLong(positionCount - 1);
-        if (lastTime == prevTimestamp) {
+        if (prevTimestamp == timestamps.getLong(positionCount - 1)) {
             try (var groups = blockFactory.newConstantIntVector(prevGroupId, positionCount)) {
                 addInput.add(0, groups);
             }
             return;
         }
-        try (var groupIds = blockFactory.newIntVectorFixedBuilder(positionCount)) {
-            groupIds.appendInt(0, prevGroupId);
+        final IntVector groupsIds;
+        try (var groupBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            groupBuilder.appendInt(0, prevGroupId);
             for (int p = 1; p < positionCount; p++) {
                 long timestamp = timestamps.getLong(p);
                 if (prevTimestamp != timestamp) {
@@ -114,39 +113,68 @@ public final class TimeSeriesBlockHash extends BlockHash {
                     prevGroupId = (int) hashOrdToGroup(finalHash.add(tsid, timestamp));
                     prevTimestamp = timestamp;
                 }
-                groupIds.appendInt(p, prevGroupId);
+                groupBuilder.appendInt(p, prevGroupId);
             }
-            try (var groups = groupIds.build()) {
-                addInput.add(0, groups);
-            }
+            groupsIds = groupBuilder.build();
+        }
+        try (groupsIds) {
+            addInput.add(0, groupsIds);
         }
     }
 
     private void addOrdinals(OrdinalBytesRefVector tsidVector, LongVector timestamps, GroupingAggregatorFunction.AddInput addInput) {
         final int positionCount = tsidVector.getPositionCount();
-        try (var groupIds = blockFactory.newIntVectorFixedBuilder(positionCount)) {
-            try (var tsidOrds = ordsForTsidDict(tsidVector)) {
-                int prevTsid = tsidOrds.getInt(0);
-                long prevTimestamp = timestamps.getLong(0);
-                trackTimestamp(prevTimestamp);
-                int prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(prevTsid, prevTimestamp)));
-                groupIds.appendInt(0, prevGroupId);
+        final IntVector groupIds;
+        try (var tsidOrds = ordsForTsidDict(tsidVector)) {
+            if (timestamps.isConstant()) {
+                groupIds = groupIdsForOrdinalsWithConstantTimestamp(positionCount, tsidOrds, timestamps.getLong(0));
+            } else {
+                groupIds = groupIdsForOrdinals(positionCount, tsidOrds, timestamps);
+            }
+        }
+        try (groupIds) {
+            addInput.add(0, groupIds);
+        }
+    }
 
-                for (int p = 1; p < positionCount; p++) {
-                    final long timestamp = timestamps.getLong(p);
-                    trackTimestamp(timestamp);
-                    int tsid = tsidOrds.getInt(p);
-                    if (tsid != prevTsid || timestamp != prevTimestamp) {
-                        prevTimestamp = timestamps.getLong(p);
-                        prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(tsid, prevTimestamp)));
-                        prevTsid = tsid;
-                    }
-                    groupIds.appendInt(p, prevGroupId);
+    private IntVector groupIdsForOrdinals(int positionCount, IntVector tsidOrds, LongVector timestamps) {
+        try (var groupIds = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            int prevTsid = tsidOrds.getInt(0);
+            long prevTimestamp = timestamps.getLong(0);
+            trackTimestamp(prevTimestamp);
+            int prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(prevTsid, prevTimestamp)));
+            groupIds.appendInt(0, prevGroupId);
+            for (int p = 1; p < positionCount; p++) {
+                final long timestamp = timestamps.getLong(p);
+                trackTimestamp(timestamp);
+                int tsid = tsidOrds.getInt(p);
+                if (tsid != prevTsid || timestamp != prevTimestamp) {
+                    prevTimestamp = timestamps.getLong(p);
+                    prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(tsid, prevTimestamp)));
+                    prevTsid = tsid;
                 }
+                groupIds.appendInt(p, prevGroupId);
             }
-            try (var groups = groupIds.build()) {
-                addInput.add(0, groups);
+            return groupIds.build();
+        }
+    }
+
+    private IntVector groupIdsForOrdinalsWithConstantTimestamp(int positionCount, IntVector tsidOrds, long timestamp) {
+        trackTimestamp(timestamp);
+        try (var groupIds = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            int prevTsid = tsidOrds.getInt(0);
+            int prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(prevTsid, timestamp)));
+            groupIds.appendInt(0, prevGroupId);
+
+            for (int p = 1; p < positionCount; p++) {
+                int tsid = tsidOrds.getInt(p);
+                if (tsid != prevTsid) {
+                    prevGroupId = Math.toIntExact(hashOrdToGroup(finalHash.add(tsid, timestamp)));
+                    prevTsid = tsid;
+                }
+                groupIds.appendInt(p, prevGroupId);
             }
+            return groupIds.build();
         }
     }
 

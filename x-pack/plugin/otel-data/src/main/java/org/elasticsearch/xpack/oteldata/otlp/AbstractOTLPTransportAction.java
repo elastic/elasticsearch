@@ -82,7 +82,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             });
 
         } catch (Exception e) {
-            logger.error("failed to execute otlp metrics request", e);
+            logger.error("failed to execute otlp request", e);
             handleFailure(listener, e, context);
         }
     }
@@ -98,6 +98,17 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
         ProcessingContext EMPTY = () -> 0;
 
+        /**
+         * Creates a ProcessingContext that only tracks the total number of data points processed
+         * and does not track any ignored data points or error messages.
+         *
+         * @param totalDataPoints the total number of data points processed
+         * @return a ProcessingContext instance with the specified total data points and no ignored data points or error messages
+         */
+        static ProcessingContext withTotalDataPoints(int totalDataPoints) {
+            return new WithTotalDataPoints(totalDataPoints);
+        }
+
         int totalDataPoints();
 
         default int getIgnoredDataPoints() {
@@ -107,6 +118,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         default String getIgnoredDataPointsMessage(int limit) {
             return "";
         }
+
+        /**
+         * A simple implementation of ProcessingContext that only tracks the total number of data points processed
+         * and does not track any ignored data points or error messages.
+         */
+        record WithTotalDataPoints(int totalDataPoints) implements ProcessingContext {}
     }
 
     /**

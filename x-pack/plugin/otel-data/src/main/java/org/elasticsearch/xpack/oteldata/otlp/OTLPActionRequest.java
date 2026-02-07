@@ -18,9 +18,12 @@ import java.io.IOException;
 public class OTLPActionRequest extends ActionRequest implements CompositeIndicesRequest {
     private final BytesReference request;
 
+    // This constructor is required by the HandledTransportAction API but is never used at runtime.
+    // The REST handler creates the request locally and the transport action processes it on the same node,
+    // so node-to-node serialization does not occur. A matching writeTo is intentionally omitted.
     public OTLPActionRequest(StreamInput in) throws IOException {
         super(in);
-        request = in.readBytesReference();
+        throw new UnsupportedOperationException("OTLPActionRequest should not be deserialized from a stream");
     }
 
     public OTLPActionRequest(BytesReference request) {

@@ -23,7 +23,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -161,7 +160,6 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         private void readColumnAtATime(int segmentStart, int segmentEnd) throws IOException {
-            System.err.println(docs + " " + new ValuesReaderDocs(docs) + " " + segmentStart + " " + segmentEnd + " " + Arrays.toString(forwards));
             ValuesReaderDocs readerDocs = new ValuesReaderDocs(docs).mapped(forwards, segmentStart, segmentEnd);
             readerDocs.setCount(segmentEnd);
             for (CurrentWork c : columnAtATime) {

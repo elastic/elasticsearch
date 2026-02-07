@@ -1,0 +1,7 @@
+ExchangeSinkExec[[emp_no{f}, job_positions{r}, salary{f}],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[emp_no{f}, job_positions{r}, salary{f}]]
+\_TopN[[Order[salary{f},ASC,LAST]],20[INTEGER],false]
+  \_MvExpand[job_positions{f},job_positions{r}]
+    \_Project[[emp_no{f}, job_positions{f}, salary{f}]]
+      \_EsRelation[employees][avg_worked_seconds{f}, birth_date{f}, emp_no{f}, first_name{f}, gender{f}, height{f}, height.float{f}, height.half_float{f}, height.scaled_float{f}, hire_date{f}, is_rehired{f}, job_positions{f}, languages{f}, languages.byte{f}, languages.long{f}, languages.short{f}, last_name{f}, salary{f}, salary_change{f}, salary_change.int{f}, salary_change.keyword{f}, salary_change.long{f}, still_hired{f}]<>]]

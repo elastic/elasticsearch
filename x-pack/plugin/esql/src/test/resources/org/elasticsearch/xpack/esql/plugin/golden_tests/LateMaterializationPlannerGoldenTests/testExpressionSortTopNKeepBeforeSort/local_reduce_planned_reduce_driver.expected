@@ -1,0 +1,5 @@
+ExchangeSinkExec[[height{f}, hire_date{f}, $$order_by{r}],false]
+\_ProjectExec[[height{f}, hire_date{f}, $$order_by{r}]]
+  \_FieldExtractExec[hire_date{f}]<[],[]>
+    \_TopNExec[[Order[$$order_by{r},ASC,LAST]],20[INTEGER],44]
+      \_ExchangeSourceExec[[_doc{f}, height{f}, $$order_by{r}],false]

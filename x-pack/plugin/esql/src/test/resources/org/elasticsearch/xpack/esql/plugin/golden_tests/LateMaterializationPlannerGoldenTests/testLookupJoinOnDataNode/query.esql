@@ -1,0 +1,6 @@
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| LIMIT 20

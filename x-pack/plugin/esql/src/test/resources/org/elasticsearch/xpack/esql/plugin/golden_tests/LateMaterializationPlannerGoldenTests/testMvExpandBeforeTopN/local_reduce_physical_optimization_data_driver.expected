@@ -1,0 +1,7 @@
+ExchangeSinkExec[[emp_no{f}, job_positions{r}, salary{f}],false]
+\_ProjectExec[[emp_no{f}, job_positions{r}, salary{f}]]
+  \_TopNExec[[Order[salary{f},ASC,LAST]],20[INTEGER],58]
+    \_MvExpandExec[job_positions{f},job_positions{r}]
+      \_ProjectExec[[emp_no{f}, job_positions{f}, salary{f}]]
+        \_FieldExtractExec[emp_no{f}, job_positions{f}, salary{f}]<[],[]>
+          \_EsQueryExec[employees], indexMode[standard], [_doc{f}], limit[], sort[] estimatedRowSize[62] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

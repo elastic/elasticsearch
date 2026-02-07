@@ -392,6 +392,9 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumTests
+  method: testGroupingAggregate {TestCase=<random exponential histograms>}
+  issue: https://github.com/elastic/elasticsearch/issues/142081
 
 # Examples:
 #

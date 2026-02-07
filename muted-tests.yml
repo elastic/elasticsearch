@@ -312,9 +312,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.CartesianPolygonEnvelopeXYMinMax}
   issue: https://github.com/elastic/elasticsearch/issues/141425
-- class: org.elasticsearch.search.query.VectorIT
-  method: testFilteredQueryStrategy
-  issue: https://github.com/elastic/elasticsearch/issues/141469
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testAttachAndGetToken
   issue: https://github.com/elastic/elasticsearch/issues/141470
@@ -374,6 +371,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: testGroupingAggregate {TestCase=<random exponential histograms>}
   issue: https://github.com/elastic/elasticsearch/issues/142037
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
+  method: testAggregateIntermediate {TestCase=<random exponential histograms>}
+  issue: https://github.com/elastic/elasticsearch/issues/142068
+- class: org.elasticsearch.xpack.diskbbq.DirectIOIT
+  method: testDirectIOUsed {p0=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/141942
+- class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
+  method: testTrueModeSupportedVectorType
+  issue: https://github.com/elastic/elasticsearch/issues/142070
+- class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
+  method: testTrueModeLicenseNotSupported
+  issue: https://github.com/elastic/elasticsearch/issues/142071
+- class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
+  method: testAutoModeSupportedVectorType
+  issue: https://github.com/elastic/elasticsearch/issues/142072
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFieldDataStats
+  issue: https://github.com/elastic/elasticsearch/issues/142078
+- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
+  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
+  issue: https://github.com/elastic/elasticsearch/issues/142079
 
 # Examples:
 #

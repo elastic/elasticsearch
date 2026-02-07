@@ -273,9 +273,8 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
-     * TODO: pass BlockFactory
      */
-    Block filter(int... positions);
+    Block filter(int... positions); // TODO mayContainDuplicates
 
     /**
      * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing

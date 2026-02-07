@@ -344,14 +344,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
     }
 
-    private static void collectUniqueCount(
-        HyperLogLogPlusPlus counts,
-        int p,
-        long bucket,
-        Set<Integer> seen,
-        int[] seed,
-        int targetSize
-    ) {
+    private static void collectUniqueCount(HyperLogLogPlusPlus counts, int p, long bucket, Set<Integer> seen, int[] seed, int targetSize) {
         while (seen.size() < targetSize) {
             collectNextUnique(counts, p, bucket, seen, seed);
         }

@@ -36,10 +36,10 @@ import java.util.function.IntConsumer;
  *
  * Trying to understand what this class does without having read the paper is considered adventurous.
  *
- * The HyperLogLogPlusPlus contains two algorithms, one for linear counting and the HyperLogLog algorithm. Initially hashes added to the
- * data structure are processed using a small array and then linear counting until a threshold defined by the precision is reached where
- * the data is replayed to the HyperLogLog algorithm and then this is used. The small array delays allocating the full hash/HLL backing
- * bytes until a bucket shows meaningful cardinality.
+ * It uses two algorithms (linear counting and HyperLogLog) with a small array pre-tier. Values flow small array -> hash-based linear
+ * counting -> HLL once the precision threshold is exceeded. The small array delays allocating the full hash/HLL backing bytes until a
+ * bucket shows meaningful cardinality. Dense ord mapping keeps the shared backing memory proportional to promoted buckets rather than the
+ * max bucket ordinal.
  *
  * It supports storing several HyperLogLogPlusPlus structures which are identified by a bucket number.
  */
@@ -568,6 +568,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         private final ByteBuffer writeSpare;
         private final BigArrays bigArrays;
         // We are actually using HyperLogLog's runLens array but interpreting it as a hash set for linear counting.
+        // This means the hash LC and HLL tiers share the same backing bytes today. In the future we could use a single
+        // shared map with group encodings for the hash tier, similar to the approach in
+        // x-pack/plugin/esql/compute/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st.
         private final HyperLogLog hll;
         private final int capacity;
         // Number of elements stored (keyed by dense ord).

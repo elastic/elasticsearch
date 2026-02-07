@@ -27,10 +27,10 @@ public class HllStatesTests extends ESTestCase {
     private static final BytesRef[] EXTRA_BYTES = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
 
     public void testSingleStateSerializedMergeRoundTrip() {
-        try (var source = new HllStates.SingleState(BIG_ARRAYS, PRECISION_THRESHOLD); var target = new HllStates.SingleState(
-            BIG_ARRAYS,
-            PRECISION_THRESHOLD
-        )) {
+        try (
+            var source = new HllStates.SingleState(BIG_ARRAYS, PRECISION_THRESHOLD);
+            var target = new HllStates.SingleState(BIG_ARRAYS, PRECISION_THRESHOLD)
+        ) {
             collectSingleState(source);
             BytesStreamOutput scratch = new BytesStreamOutput();
             BytesRefViewScratch scratchBytes = new BytesRefViewScratch();
@@ -44,10 +44,10 @@ public class HllStatesTests extends ESTestCase {
     }
 
     public void testGroupingStateSerializedMergeRoundTrip() {
-        try (var source = new HllStates.GroupingState(BIG_ARRAYS, PRECISION_THRESHOLD); var target = new HllStates.GroupingState(
-            BIG_ARRAYS,
-            PRECISION_THRESHOLD
-        )) {
+        try (
+            var source = new HllStates.GroupingState(BIG_ARRAYS, PRECISION_THRESHOLD);
+            var target = new HllStates.GroupingState(BIG_ARRAYS, PRECISION_THRESHOLD)
+        ) {
             collectGroupingState(source);
             BytesStreamOutput scratch = new BytesStreamOutput();
             BytesRefViewScratch scratchBytes = new BytesRefViewScratch();

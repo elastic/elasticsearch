@@ -4,8 +4,6 @@ _[Known issues](/release-notes/known-issues.md#elasticsearch-9.3.0-known-issues)
 ### Features and enhancements [elasticsearch-9.3.0-features-enhancements]
 * New Cloud Connect UI for self-managed installations. 
   Adds Cloud Connect functionality to Kibana, which allows you to use cloud solutions like AutoOps and Elastic Inference Service in your self-managed Elasticsearch clusters.
-* New Cloud Connect UI for self-managed installations. 
-  Adds Cloud Connect functionality to Kibana, which allows you to use cloud solutions like AutoOps and Elastic Inference Service in your self-managed Elasticsearch clusters.
 * Simulate shards moved by explicit commands. [#136066](https://github.com/elastic/elasticsearch/pull/136066) 
 * Iterate directly over contents of `RoutingNode`. [#137694](https://github.com/elastic/elasticsearch/pull/137694) 
 * Allocation: add duration and count metrics for write load hotspot. [#138465](https://github.com/elastic/elasticsearch/pull/138465) 
@@ -161,8 +159,6 @@ _[Known issues](/release-notes/known-issues.md#elasticsearch-9.3.0-known-issues)
 **Mapping**
 * Simple bulk loading for binary doc values. [#137860](https://github.com/elastic/elasticsearch/pull/137860) 
 * AggregateMetricDouble fields should not build BKD indexes. [#138724](https://github.com/elastic/elasticsearch/pull/138724) 
-* Enable doc_values skippers. [#138723](https://github.com/elastic/elasticsearch/pull/138723) 
-  Doc_values skippers add a sparse index to doc_values fields, allowing efficient querying and filtering on a field without having to build a separate BKD or terms index.  These are now enabled automatically on any field configured with  and  if the index setting  is set to  (default , or  for TSDB indexes). TSDB indexes now default to using skippers in place of indexes for their , , and   fields, greatly reducing their on-disk footprint.  To disable skippers in TSDB indexes, set  to .
 * Enable doc_values skippers. [#138723](https://github.com/elastic/elasticsearch/pull/138723) 
   Doc_values skippers add a sparse index to doc_values fields, allowing efficient querying and filtering on a field without having to build a separate BKD or terms index.  These are now enabled automatically on any field configured with  and  if the index setting  is set to  (default , or  for TSDB indexes). TSDB indexes now default to using skippers in place of indexes for their , , and   fields, greatly reducing their on-disk footprint.  To disable skippers in TSDB indexes, set  to .
 * Add index.mapping.nested_parents.limit and raise nested fields limit to 100. [#138961](https://github.com/elastic/elasticsearch/pull/138961) 

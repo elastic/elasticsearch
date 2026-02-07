@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.ClassFileInfo;
@@ -78,6 +79,8 @@ public class InstrumenterTests extends ESTestCase {
         void someMethod(int arg);
 
         void someMethod(int arg, String anotherArg);
+
+        void someMethodThatThrowsCheckedException(int arg) throws IOException;
     }
 
     /**
@@ -101,6 +104,8 @@ public class InstrumenterTests extends ESTestCase {
         public static void someStaticMethod(int arg, String anotherArg) {}
 
         public static void anotherStaticMethod(int arg) {}
+
+        public void someMethodThatThrowsCheckedException(int arg) throws IOException {}
     }
 
     /**
@@ -124,6 +129,7 @@ public class InstrumenterTests extends ESTestCase {
 
         void checkCtorOverload(Class<?> callerClass, int arg);
 
+        void checkSomeMethodThatThrowsCheckedException(Class<?> callerClass, Testable that, int arg);
     }
 
     public static class TestEntitlementCheckerHolder {
@@ -149,9 +155,11 @@ public class InstrumenterTests extends ESTestCase {
         int checkCtorCallCount = 0;
         int checkCtorIntCallCount = 0;
 
+        int checkSomeMethodThatThrowsIOExceptionCallCount = 0;
+
         private void throwIfActive() {
             if (isActive) {
-                throw new TestException();
+                throw new NotEntitledException("entitled");
             }
         }
 
@@ -200,6 +208,14 @@ public class InstrumenterTests extends ESTestCase {
         @Override
         public void checkCtorOverload(Class<?> callerClass, int arg) {
             checkCtorIntCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertEquals(123, arg);
+            throwIfActive();
+        }
+
+        @Override
+        public void checkSomeMethodThatThrowsCheckedException(Class<?> callerClass, Testable that, int arg) {
+            checkSomeMethodThatThrowsIOExceptionCallCount++;
             assertSame(InstrumenterTests.class, callerClass);
             assertEquals(123, arg);
             throwIfActive();
@@ -287,6 +303,18 @@ public class InstrumenterTests extends ESTestCase {
         assertEquals(1, TestEntitlementCheckerHolder.checkerInstance.checkCtorIntCallCount);
     }
 
+    public void testInstanceMethodWithException() throws Exception {
+        Method targetMethod = TestClassToInstrument.class.getMethod("someMethodThatThrowsCheckedException", int.class);
+        var instrumenter = createInstrumenter(Map.of("checkSomeMethodThatThrowsCheckedException", targetMethod));
+        var loader = instrumentTestClass(instrumenter);
+
+        TestEntitlementCheckerHolder.checkerInstance.isActive = true;
+        Testable testTargetClass = (Testable) (loader.testClass.getConstructor().newInstance());
+
+        testTargetClass.someMethod(123);
+        expectThrows(IOException.class, () -> testTargetClass.someMethodThatThrowsCheckedException(123));
+    }
+
     /**
      * These tests don't replace classToInstrument in-place but instead load a separate class with the same class name.
      * This requires a configuration slightly different from what we'd use in production.
@@ -338,6 +366,14 @@ public class InstrumenterTests extends ESTestCase {
         }
         System.arraycopy(targetParameterTypes, 0, checkParameterTypes, extraArgs, targetParameterTypes.length);
         var checkMethod = MockEntitlementChecker.class.getMethod(methodName, checkParameterTypes);
+        if ("checkSomeMethodThatThrowsCheckedException".equals(methodName)) {
+            return CheckMethod.checkedException(
+                Type.getInternalName(MockEntitlementChecker.class),
+                checkMethod.getName(),
+                Arrays.stream(Type.getArgumentTypes(checkMethod)).map(Type::getDescriptor).toList().stream().toList(),
+                IOException.class
+            );
+        }
         return new CheckMethod(
             Type.getInternalName(MockEntitlementChecker.class),
             checkMethod.getName(),

@@ -355,9 +355,10 @@ class Elasticsearch {
             try {
                 // The command doesn't matter; it doesn't even need to exist
                 startProcess.accept(new ProcessBuilder(""));
-            } catch (NotEntitledException e) {
-                return;
             } catch (Exception e) {
+                if (e instanceof IOException && e.getCause() instanceof NotEntitledException) {
+                    return;
+                }
                 throw new IllegalStateException("Failed entitlement protection self-test", e);
             }
             throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");

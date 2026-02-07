@@ -12,13 +12,17 @@ package org.elasticsearch.entitlement.qa.test;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
+
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class OperatingSystemActions {
 
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void processBuilder_start() throws IOException {
         new ProcessBuilder("").start();
     }
 
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void processBuilder_startPipeline() throws IOException {
         ProcessBuilder.startPipeline(List.of());
     }

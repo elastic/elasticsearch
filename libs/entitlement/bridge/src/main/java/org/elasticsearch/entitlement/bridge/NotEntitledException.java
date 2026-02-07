@@ -7,6 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation.impl;
+package org.elasticsearch.entitlement.bridge;
 
-final class TestException extends RuntimeException {}
+import java.security.AccessControlException;
+
+public class NotEntitledException extends AccessControlException {
+    public NotEntitledException(String message) {
+        super(message);
+    }
+}

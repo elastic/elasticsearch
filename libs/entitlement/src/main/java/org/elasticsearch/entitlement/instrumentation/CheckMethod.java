@@ -20,4 +20,41 @@ import java.util.List;
  *                             <a href="https://docs.oracle.com/javase/specs/jvms/se23/html/jvms-4.html#jvms-4.3">type descriptors</a>)
  *                             for methodName parameters.
  */
-public record CheckMethod(String className, String methodName, List<String> parameterDescriptors) {}
+public record CheckMethod(
+    String className,
+    String methodName,
+    List<String> parameterDescriptors,
+    CheckMethodType checkMethodType,
+    Class<? extends Exception> checked,
+    Object constant,
+    int parameter
+) {
+
+    public enum CheckMethodType {
+        NOT_ENTITLED,
+        CHECKED_EXCEPTION,
+        CONSTANT_VALUE,
+        PARAMETER_VALUE
+    }
+
+    public CheckMethod(String className, String methodName, List<String> parameterDescriptors) {
+        this(className, methodName, parameterDescriptors, CheckMethodType.NOT_ENTITLED, null, null, -1);
+    }
+
+    public static CheckMethod checkedException(
+        String className,
+        String methodName,
+        List<String> parameterDescriptors,
+        Class<? extends Exception> checked
+    ) {
+        return new CheckMethod(className, methodName, parameterDescriptors, CheckMethodType.CHECKED_EXCEPTION, checked, null, -1);
+    }
+
+    public static CheckMethod constantValue(String className, String methodName, List<String> parameterDescriptors, Object constant) {
+        return new CheckMethod(className, methodName, parameterDescriptors, CheckMethodType.CONSTANT_VALUE, null, constant, -1);
+    }
+
+    public static CheckMethod parameterValue(String className, String methodName, List<String> parameterDescriptors, int parameter) {
+        return new CheckMethod(className, methodName, parameterDescriptors, CheckMethodType.PARAMETER_VALUE, null, null, parameter);
+    }
+}

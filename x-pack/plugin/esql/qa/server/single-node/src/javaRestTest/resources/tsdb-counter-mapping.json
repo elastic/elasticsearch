@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "metricset": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "counter": {
+      "type": "long",
+      "time_series_metric": "counter"
+    },
+    "k8s": {
+      "properties": {
+        "pod": {
+          "properties": {
+            "uid": {
+              "type": "keyword",
+              "time_series_dimension": true
+            },
+            "name": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}

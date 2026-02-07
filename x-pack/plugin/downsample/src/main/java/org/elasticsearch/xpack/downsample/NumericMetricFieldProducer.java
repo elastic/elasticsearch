@@ -131,4 +131,89 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
             }
         }
     }
+
+    static final class AggregateCounter extends NumericMetricFieldProducer {
+        private double firstValue = Double.NaN;
+        private double lastValue = Double.NaN;
+        private double delta = 0;
+
+        AggregateCounter(String name) {
+            super(name);
+        }
+
+        /**
+         * Resets the producer to an empty value.
+         */
+        public void reset() {
+            isEmpty = true;
+            firstValue = Double.NaN;
+            lastValue = Double.NaN;
+            delta = 0;
+        }
+
+        @Override
+        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+            double currentLastValue = Double.NaN;
+            for (int i = 0; i < docIdBuffer.size(); i++) {
+                int docId = docIdBuffer.get(i);
+                if (docValues.advanceExact(docId) == false) {
+                    continue;
+                }
+                int docValuesCount = docValues.docValueCount();
+                assert docValuesCount > 0;
+                isEmpty = false;
+                var currentValue = docValues.nextValue();
+                // If this the first time we encounter a value
+                if (Double.isNaN(lastValue)) {
+                    firstValue = currentValue;
+                    lastValue = currentValue;
+                    currentLastValue = currentValue;
+                    continue;
+                }
+
+                // check for reset
+                if (currentValue > firstValue) {
+                    delta += currentLastValue;
+                    currentLastValue = currentValue;
+                }
+                firstValue = currentValue;
+            }
+            delta += currentLastValue - firstValue;
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), firstValue);
+            }
+        }
+
+        public void writeLastValue(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), lastValue);
+            }
+        }
+
+        public void writeResetOffsetValue(XContentBuilder builder) throws IOException {
+            if (hasResetValue()) {
+                builder.field(name(), resetValue());
+            }
+        }
+
+        double firstValue() {
+            return firstValue;
+        }
+
+        double lastValue() {
+            return lastValue;
+        }
+
+        double resetValue() {
+            return firstValue + delta - lastValue;
+        }
+
+        boolean hasResetValue() {
+            return isEmpty() == false && resetValue() > 0;
+        }
+    }
 }

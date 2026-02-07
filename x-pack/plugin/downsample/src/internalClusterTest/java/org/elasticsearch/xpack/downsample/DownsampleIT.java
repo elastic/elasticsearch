@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -173,6 +174,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                   "type": "double",
                   "time_series_metric": "gauge"
                 },
+                "metrics.requests": {
+                  "type": "double",
+                  "time_series_metric": "counter"
+                },
                 "metrics.latency": {
                   "type": "exponential_histogram",
                   "time_series_metric": "histogram"
@@ -210,12 +215,14 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             try {
                 int maxHistogramSize = randomIntBetween(2, 10);
+                AtomicInteger counter = new AtomicInteger(0);
                 return XContentFactory.jsonBuilder()
                     .startObject()
                     .field("@timestamp", ts)
                     .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
+                    .field("metrics.requests", counter.addAndGet(randomIntBetween(-counter.get(), 100)))
 
                     .startObject("metrics.latency")
                     .field("scale", 0)

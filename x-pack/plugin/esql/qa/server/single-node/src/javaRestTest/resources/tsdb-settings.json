@@ -4,6 +4,10 @@
     "routing_path": [
       "metricset",
       "k8s.pod.uid"
-    ]
+    ],
+    "time_series": {
+      "start_time": "2021-04-29T00:00:00Z",
+      "end_time": "2021-04-29T23:59:59Z"
+    }
   }
 }

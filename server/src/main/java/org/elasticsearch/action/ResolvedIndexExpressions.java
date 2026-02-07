@@ -50,17 +50,21 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     }
 
     public static final class Builder {
-        private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
+        private final List<Op> ops = new ArrayList<>();
+
+        sealed interface Op {
+            record Add(ResolvedIndexExpression expression) implements Op {}
+
+            record Exclude(Set<String> expressions) implements Op {}
+        }
 
         /**
          * Add a new resolved expression.
          * @param original         the original expression that was resolved -- may be blank for "access all" cases
-         * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it.
-         *                         May be empty.
          */
         public void addExpressions(
             String original,
-            HashSet<String> localExpressions,
+            Set<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult,
             Set<String> remoteExpressions
         ) {
@@ -68,8 +72,10 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             Objects.requireNonNull(localExpressions);
             Objects.requireNonNull(resolutionResult);
             Objects.requireNonNull(remoteExpressions);
-            expressions.add(
-                new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), remoteExpressions)
+            ops.add(
+                new Op.Add(
+                    new ResolvedIndexExpression(original, new LocalExpressions(localExpressions, resolutionResult, null), remoteExpressions)
+                )
             );
         }
 
@@ -78,13 +84,13 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
          * @param expression       the expression you want to add.
          */
         public void addExpression(ResolvedIndexExpression expression) {
-            expressions.add(expression);
+            ops.add(new Op.Add(expression));
         }
 
         public void addRemoteExpressions(String original, Set<String> remoteExpressions) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(remoteExpressions);
-            expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, remoteExpressions));
+            ops.add(new Op.Add(new ResolvedIndexExpression(original, LocalExpressions.NONE, remoteExpressions)));
         }
 
         /**
@@ -93,24 +99,41 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
-                final var iter = expressions.iterator();
-                while (iter.hasNext()) {
-                    final ResolvedIndexExpression current = iter.next();
-                    if (expressionsToExclude.contains(current.original())) {
-                        iter.remove();
-                        continue;
-                    }
-                    final Set<String> localExpressions = current.localExpressions().indices();
-                    if (localExpressions.isEmpty()) {
-                        continue;
-                    }
-                    localExpressions.removeAll(expressionsToExclude);
-                }
+                ops.add(new Op.Exclude(expressionsToExclude));
             }
         }
 
         public ResolvedIndexExpressions build() {
-            // TODO make all sets on `expressions` immutable
+            List<ResolvedIndexExpression> expressions = new ArrayList<>();
+            outer: for (int i = 0; i < ops.size(); i++) {
+                if (ops.get(i) instanceof Op.Add(ResolvedIndexExpression e)) {
+                    Set<String> indices = null; // lazily initialized to avoid unnecessary copying if there are no excludes
+                    for (int j = i + 1; j < ops.size(); j++) {
+                        if (ops.get(j) instanceof Op.Exclude(Set<String> excludes)) {
+                            if (excludes.contains(e.original())) {
+                                continue outer;
+                            }
+                            if (indices == null) {
+                                indices = new HashSet<>(e.localExpressions().indices());
+                            }
+                            indices.removeAll(excludes);
+                        }
+                    }
+                    expressions.add(
+                        indices == null
+                            ? e
+                            : new ResolvedIndexExpression(
+                                e.original(),
+                                new LocalExpressions(
+                                    indices,
+                                    e.localExpressions().localIndexResolutionResult(),
+                                    e.localExpressions().exception()
+                                ),
+                                e.remoteExpressions()
+                            )
+                    );
+                }
+            }
             return new ResolvedIndexExpressions(expressions);
         }
     }

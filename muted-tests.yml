@@ -386,6 +386,9 @@ tests:
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testAutoModeSupportedVectorType
   issue: https://github.com/elastic/elasticsearch/issues/142072
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFieldDataStats
+  issue: https://github.com/elastic/elasticsearch/issues/142078
 
 # Examples:
 #

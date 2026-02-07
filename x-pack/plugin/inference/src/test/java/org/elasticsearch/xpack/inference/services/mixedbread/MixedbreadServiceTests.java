@@ -105,92 +105,89 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
     }
 
     public static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(
-            new CommonConfig(RERANK, COMPLETION, EnumSet.of(RERANK)) {
+        return new TestConfiguration.Builder(new CommonConfig(RERANK, COMPLETION, EnumSet.of(RERANK)) {
 
-                @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                    return MixedbreadServiceTests.createService(threadPool, clientManager);
-                }
+            @Override
+            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                return MixedbreadServiceTests.createService(threadPool, clientManager);
+            }
 
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                    return MixedbreadServiceTests.createServiceSettingsMap(taskType);
-                }
+            @Override
+            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                return MixedbreadServiceTests.createServiceSettingsMap(taskType);
+            }
 
-                @Override
-                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
-                    return switch (taskType) {
-                        case RERANK -> new ModelConfigurations(
-                            INFERENCE_ID_VALUE,
-                            taskType,
-                            MixedbreadService.NAME,
-                            MixedbreadRerankServiceSettings.fromMap(
-                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
-                                ConfigurationParseContext.PERSISTENT
-                            ),
-                            EmptyTaskSettings.INSTANCE
-                        );
-                        default -> throw new IllegalStateException("Unexpected value: " + taskType);
-                    };
-                }
+            @Override
+            protected ModelConfigurations createModelConfigurations(TaskType taskType) {
+                return switch (taskType) {
+                    case RERANK -> new ModelConfigurations(
+                        INFERENCE_ID_VALUE,
+                        taskType,
+                        MixedbreadService.NAME,
+                        MixedbreadRerankServiceSettings.fromMap(
+                            createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                            ConfigurationParseContext.PERSISTENT
+                        ),
+                        EmptyTaskSettings.INSTANCE
+                    );
+                    default -> throw new IllegalStateException("Unexpected value: " + taskType);
+                };
+            }
 
-                @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
-                }
+            @Override
+            protected ModelSecrets createModelSecrets() {
+                return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+            }
 
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
-                    return MixedbreadServiceTests.createServiceSettingsMap(taskType);
-                }
+            @Override
+            protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+                return MixedbreadServiceTests.createServiceSettingsMap(taskType);
+            }
 
-                @Override
-                protected Map<String, Object> createTaskSettingsMap(TaskType taskType) {
-                    if (taskType.equals(RERANK)) {
-                        return MixedbreadRerankTaskSettingsTests.getTaskSettingsMap(null, null);
-                    } else {
-                        return createTaskSettingsMap();
-                    }
-                }
-
-                @Override
-                protected Map<String, Object> createTaskSettingsMap() {
-                    return new HashMap<>();
-                }
-
-                @Override
-                protected Map<String, Object> createSecretSettingsMap() {
-                    return MixedbreadServiceTests.createSecretSettingsMap();
-                }
-
-                @Override
-                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                    assertModel(model, taskType, modelIncludesSecrets, ConfigurationParseContext.REQUEST);
-                }
-
-                @Override
-                protected void assertModel(
-                    Model model,
-                    TaskType taskType,
-                    boolean modelIncludesSecrets,
-                    ConfigurationParseContext parseContext
-                ) {
-                    MixedbreadServiceTests.assertModel(model, taskType, modelIncludesSecrets, parseContext);
-                }
-
-                @Override
-                protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return null;
-                }
-
-                @Override
-                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-                    assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_NAME_VALUE), Matchers.is(300));
+            @Override
+            protected Map<String, Object> createTaskSettingsMap(TaskType taskType) {
+                if (taskType.equals(RERANK)) {
+                    return MixedbreadRerankTaskSettingsTests.getTaskSettingsMap(null, null);
+                } else {
+                    return createTaskSettingsMap();
                 }
             }
-        )
-            .build();
+
+            @Override
+            protected Map<String, Object> createTaskSettingsMap() {
+                return new HashMap<>();
+            }
+
+            @Override
+            protected Map<String, Object> createSecretSettingsMap() {
+                return MixedbreadServiceTests.createSecretSettingsMap();
+            }
+
+            @Override
+            protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                assertModel(model, taskType, modelIncludesSecrets, ConfigurationParseContext.REQUEST);
+            }
+
+            @Override
+            protected void assertModel(
+                Model model,
+                TaskType taskType,
+                boolean modelIncludesSecrets,
+                ConfigurationParseContext parseContext
+            ) {
+                MixedbreadServiceTests.assertModel(model, taskType, modelIncludesSecrets, parseContext);
+            }
+
+            @Override
+            protected EnumSet<TaskType> supportedStreamingTasks() {
+                return null;
+            }
+
+            @Override
+            protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+                assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_NAME_VALUE), Matchers.is(300));
+            }
+        }).build();
     }
 
     private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets, ConfigurationParseContext parseContext) {

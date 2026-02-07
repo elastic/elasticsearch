@@ -2,6 +2,7 @@
 "Test cat count help":
   - do:
       cat.count:
+        method: GET
         help: true
 
   - match:
@@ -14,7 +15,8 @@
 "Test cat count output":
 
   - do:
-      cat.count: {}
+      cat.count:
+        method: GET
 
   - match:
       $body: |
@@ -29,7 +31,8 @@
         refresh: true
 
   - do:
-      cat.count: {}
+      cat.count:
+        method: GET
 
   - match:
       $body: |
@@ -45,6 +48,7 @@
 
   - do:
       cat.count:
+        method: GET
         h: count
 
   - match:
@@ -55,6 +59,7 @@
 
   - do:
       cat.count:
+        method: GET
         index: index1
 
   - match:
@@ -64,6 +69,7 @@
 
   - do:
       cat.count:
+        method: GET
         index: index2
         v: true
 

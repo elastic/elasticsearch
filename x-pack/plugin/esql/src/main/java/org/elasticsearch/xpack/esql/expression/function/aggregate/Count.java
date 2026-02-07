@@ -167,6 +167,22 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     }
 
     @Override
+    protected Expression canonicalize() {
+        var field = field();
+        if (field.foldable() && field instanceof Literal l) {
+            if (l.value() != null && ((l.value() instanceof List<?>) == false || l.dataType() == DENSE_VECTOR)) {
+                // Normalize COUNT(constant) to COUNT(*) for proper deduplication.
+                // This doesn't apply to COUNT([1,2,3]) which is a multi-value field.
+                var wildcardLiteral = Literal.keyword(source(), StringUtils.WILDCARD);
+                var canonicalFilter = filter().canonical();
+                var canonicalWindow = window().canonical();
+                return new Count(source(), wildcardLiteral, canonicalFilter, canonicalWindow);
+            }
+        }
+        return super.canonicalize();
+    }
+
+    @Override
     public Expression surrogate() {
         var s = source();
         var field = field();
@@ -201,7 +217,6 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         if (field.foldable()) {
             if (field instanceof Literal l) {
                 if (l.value() != null && ((l.value() instanceof List<?>) == false || l.dataType() == DENSE_VECTOR)) {
-                    // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
                     // Does not apply to COUNT([1,2,3])
                     // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD));
                     return null;

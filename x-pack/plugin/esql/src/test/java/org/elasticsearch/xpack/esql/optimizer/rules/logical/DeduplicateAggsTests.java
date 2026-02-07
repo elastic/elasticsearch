@@ -82,14 +82,12 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      * <pre>{@code
-     * Project[[c1{r}#2, c2{r}#4, cs{r}#6, cm{r}#8, cexp{r}#10]]
-     * \_Eval[[c1{r}#2 AS c2, c1{r}#2 AS cs, c1{r}#2 AS cm, c1{r}#2 AS cexp]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
-     *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * Project[[c1{r}#4, c1{r}#4 AS c2#6, c1{r}#4 AS cs#8, c1{r}#4 AS cm#10, c1{r}#4 AS cexp#12]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Aggregate[[],[COUNT(1[INTEGER],true[BOOLEAN],PT0S[TIME_DURATION]) AS c1#4]]
+     *     \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      * }</pre>
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsCountAll() {
         var plan = plan("""
               from test
@@ -97,18 +95,19 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("c1", "c2", "cs", "cm", "cexp"));
-        var eval = as(project.child(), Eval.class);
-        var fields = eval.fields();
-        assertThat(Expressions.names(fields), contains("c2", "cs", "cm", "cexp"));
-        for (Alias field : fields) {
-            assertThat(Expressions.name(field.child()), is("c1"));
-        }
-        var limit = as(eval.child(), Limit.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("c1", "c2", "cs", "cm", "cexp"));
+        // c1 is a reference, c2/cs/cm/cexp are aliases to c1
+        as(projections.get(0), ReferenceAttribute.class);
+        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("c1"));
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("c1"));
+        assertThat(Expressions.name(aliased(projections.get(3), ReferenceAttribute.class)), is("c1"));
+        assertThat(Expressions.name(aliased(projections.get(4), ReferenceAttribute.class)), is("c1"));
+        var limit = as(project.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("c1"));
-        aggFieldName(aggs.get(0), Count.class, "*");
+        aggFieldName(aggs.get(0), Count.class, "1");
         var source = as(agg.child(), EsRelation.class);
     }
 
@@ -188,14 +187,14 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      * <pre>{@code
-     * Project[[c1{r}#7, cx{r}#10, cs{r}#12, cy{r}#15]]
-     * \_Eval[[c1{r}#7 AS cx, c1{r}#7 AS cs, c1{r}#7 AS cy]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
-     *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * Project[[c1{r}#9, cx{r}#12, c1{r}#9 AS cs#14, cx{r}#12 AS cy#17]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Aggregate[[],[COUNT(1[INTEGER],true[BOOLEAN],PT0S[TIME_DURATION]) AS c1#9, COUNT(x{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]
+     * ) AS cx#12]]
+     *     \_Eval[[1[INTEGER] AS x#4]]
+     *       \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      * }</pre>
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsWithAliasedFields() {
         var plan = plan("""
               from test
@@ -205,19 +204,20 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("c1", "cx", "cs", "cy"));
-        var eval = as(project.child(), Eval.class);
-        var fields = eval.fields();
-        assertThat(Expressions.names(fields), contains("cx", "cs", "cy"));
-        for (Alias field : fields) {
-            assertThat(Expressions.name(field.child()), is("c1"));
-        }
-        var limit = as(eval.child(), Limit.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("c1", "cx", "cs", "cy"));
+        // c1 and cx are references, cs is alias to c1, cy is alias to cx
+        as(projections.get(0), ReferenceAttribute.class);
+        as(projections.get(1), ReferenceAttribute.class);
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("c1"));
+        assertThat(Expressions.name(aliased(projections.get(3), ReferenceAttribute.class)), is("cx"));
+        var limit = as(project.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
-        assertThat(Expressions.names(aggs), contains("c1"));
-        aggFieldName(aggs.get(0), Count.class, "*");
-        var source = as(agg.child(), EsRelation.class);
+        assertThat(Expressions.names(aggs), contains("c1", "cx"));
+        aggFieldName(aggs.get(0), Count.class, "1");
+        aggFieldName(aggs.get(1), Count.class, "x");
+        var eval = as(agg.child(), Eval.class);
     }
 
     /**

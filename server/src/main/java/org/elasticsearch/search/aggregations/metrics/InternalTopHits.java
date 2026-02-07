@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -129,7 +130,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
                     shardDocs = new TopFieldDocs[aggregations.size()];
                     maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
-                    reducedTopDocs = TopDocs.merge(new Sort(topFieldDocs.fields), from, size, (TopFieldDocs[]) shardDocs);
+                    Sort sort = SortFieldValidation.validateAndMaybeRewrite(Arrays.asList(shardDocs), topFieldDocs.fields);
+                    reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
                 } else {
                     shardDocs = new TopDocs[aggregations.size()];
                     maxScore = reduceAndFindMaxScore(aggregations, shardDocs);

@@ -137,6 +137,55 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
         assertEquals(exception.getMessage(), message);
     }
 
+    public void testVerifyElserModelOnARM64_ThenThrowsIAE() {
+        String elserModelId = ".elser_model_2";
+        Set<String> arm64Architecture = Set.of("linux-aarch64");
+        
+        String message = "The ELSER model (["
+            + elserModelId
+            + "]) cannot be deployed on ARM64 (aarch64) architecture. "
+            + "ELSER currently requires x86_64 architecture due to dependencies on Intel-specific optimizations. "
+            + "Cluster ML nodes have architecture: ["
+            + "linux-aarch64"
+            + "]";
+
+        Throwable exception = expectThrows(
+            IllegalArgumentException.class,
+            "Expected IllegalArgumentException but no exception was thrown",
+            () -> MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(arm64Architecture, null, elserModelId)
+        );
+        assertEquals(exception.getMessage(), message);
+    }
+
+    public void testVerifyElserModelOnX86_ThenNoException() {
+        String elserModelId = ".elser_model_2";
+        Set<String> x86Architecture = Set.of("linux-x86_64");
+        
+        // Should not throw an exception
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(x86Architecture, null, elserModelId);
+    }
+
+    public void testVerifyNonElserModelOnARM64_ThenNoException() {
+        String nonElserModelId = "my-custom-model";
+        Set<String> arm64Architecture = Set.of("linux-aarch64");
+        
+        // Should not throw an exception for non-ELSER models
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(arm64Architecture, null, nonElserModelId);
+    }
+
+    public void testVerifyElser1ModelOnARM64_ThenThrowsIAE() {
+        String elserModelId = ".elser_model_1";
+        Set<String> arm64Architecture = Set.of("linux-aarch64");
+        
+        Throwable exception = expectThrows(
+            IllegalArgumentException.class,
+            "Expected IllegalArgumentException but no exception was thrown",
+            () -> MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(arm64Architecture, null, elserModelId)
+        );
+        assertTrue(exception.getMessage().contains("ELSER"));
+        assertTrue(exception.getMessage().contains("ARM64"));
+    }
+
     private Set<String> nArchitectures(Integer n) {
         Set<String> architectures = new HashSet<String>(n);
         for (int i = 0; i < n; i++) {

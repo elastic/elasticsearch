@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+
 /**
  * A collection of {@link ResolvedIndexExpression}.
  */
@@ -47,6 +49,10 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(expressions);
+    }
+
+    public static ResolvedIndexExpressions merge(ResolvedIndexExpressions r1, ResolvedIndexExpressions r2) {
+        return new ResolvedIndexExpressions(concatLists(r1.expressions(), r2.expressions()));
     }
 
     public static final class Builder {

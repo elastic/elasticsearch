@@ -383,6 +383,9 @@ tests:
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testTrueModeLicenseNotSupported
   issue: https://github.com/elastic/elasticsearch/issues/142071
+- class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
+  method: testAutoModeSupportedVectorType
+  issue: https://github.com/elastic/elasticsearch/issues/142072
 
 # Examples:
 #

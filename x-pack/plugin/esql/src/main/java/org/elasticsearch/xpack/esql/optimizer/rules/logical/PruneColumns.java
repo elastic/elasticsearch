@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -88,6 +89,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                         forkPresent.set(true);
                         yield pruneColumnsInFork(fork, used);
                     }
+                    case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
                     default -> p;
                 };
             } while (recheck.get());
@@ -288,6 +290,27 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
         }
         return fork;
+    }
+
+    /**
+     * Prunes RegexExtract operations (Dissect and Grok) when none of their extracted fields are used.
+     * <p>
+     * Note: Due to limitations in {@link RegexExtract#withGeneratedNames(List)}, which requires the exact same
+     * number of fields as the original pattern, we can only remove the entire RegexExtract node
+     * if ALL extracted fields are unused. Partial field pruning is not supported.
+     * </p>
+     */
+    private static LogicalPlan pruneUnusedRegexExtract(RegexExtract re, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = re;
+
+        var remaining = pruneUnusedAndAddReferences(re.extractedFields(), used);
+        // If none of the extracted fields are used, remove the entire RegexExtract node
+        if (remaining != null && remaining.isEmpty()) {
+            p = re.child();
+            recheck.set(true);
+        }
+
+        return p;
     }
 
     private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {

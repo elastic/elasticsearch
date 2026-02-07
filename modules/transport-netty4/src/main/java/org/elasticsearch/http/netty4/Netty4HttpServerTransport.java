@@ -19,10 +19,12 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
@@ -417,8 +419,23 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
 
-            ch.pipeline()
-                .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
+            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor() {
+                @Override
+                protected EmbeddedChannel newContentDecoder(String contentEncoding) throws Exception {
+                    // Netty's built-in snappy support only handles the framed format, but some
+                    // protocols (e.g. Prometheus remote write) use the block format. Replace with
+                    // an auto-detecting decoder that handles both formats transparently.
+                    if (HttpHeaderValues.SNAPPY.contentEqualsIgnoreCase(contentEncoding)) {
+                        return new EmbeddedChannel(
+                            ctx.channel().id(),
+                            ctx.channel().metadata().hasDisconnect(),
+                            ctx.channel().config(),
+                            new Netty4SnappyDecoder()
+                        );
+                    }
+                    return super.newContentDecoder(contentEncoding);
+                }
+            }) // this handles request body decompression
                 .addLast("encoder", new HttpResponseEncoder() {
                     @Override
                     protected boolean isContentAlwaysEmpty(HttpResponse msg) {

@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.compression.Snappy;
+
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -165,9 +169,16 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         return RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build();
     }
 
+    /**
+     * Sends a remote write request with snappy block-format compression, matching real Prometheus client behavior.
+     */
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest) throws IOException {
+        byte[] protobufBytes = writeRequest.toByteArray();
+        byte[] snappyCompressed = snappyBlockCompress(protobufBytes);
+
         Request request = new Request("POST", "/_prometheus/api/v1/write");
-        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyCompressed, ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader("Content-Encoding", "snappy"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
@@ -233,5 +244,22 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     private static void assertLabel(Map<String, Object> source, String labelName, String expectedValue) {
         Map<String, Object> labels = (Map<String, Object>) source.get("labels");
         assertThat(labels.get(labelName), equalTo(expectedValue));
+    }
+
+    /**
+     * Compresses data using snappy block format (not framed), matching the format used by Prometheus clients.
+     */
+    private static byte[] snappyBlockCompress(byte[] data) {
+        ByteBuf input = Unpooled.wrappedBuffer(data);
+        ByteBuf output = Unpooled.buffer();
+        try {
+            new Snappy().encode(input, output, data.length);
+            byte[] result = new byte[output.readableBytes()];
+            output.readBytes(result);
+            return result;
+        } finally {
+            input.release();
+            output.release();
+        }
     }
 }

@@ -120,7 +120,6 @@ public abstract class AbstractVersionsTask extends DefaultTask {
     static final String SERVER_MODULE_PATH = "server/src/main/java/";
 
     static final String VERSION_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/Version.java";
-    static final String TRANSPORT_VERSIONS_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/TransportVersions.java";
     static final String INDEX_VERSIONS_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/index/IndexVersions.java";
 
     static final String SERVER_RESOURCES_PATH = "server/src/main/resources/";

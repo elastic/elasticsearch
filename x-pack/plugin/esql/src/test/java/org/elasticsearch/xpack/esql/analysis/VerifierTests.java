@@ -2932,11 +2932,13 @@ public class VerifierTests extends ESTestCase {
             )
         );
 
-        assertThat(error("""
-            FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
-                 (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
-            | FUSE GROUP BY label
-            """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            assertThat(error("""
+                FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
+                     (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
+                | FUSE GROUP BY label
+                """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
+        }
     }
 
     public void testNoMetricInStatsByClause() {

@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.exponentialhistogram.aggregations.bucket.histogra
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramAvgAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramMaxAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramMinAggregator;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramPercentileRanksAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramPercentilesAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramSumAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramValueCountAggregator;
@@ -106,6 +108,38 @@ public class ExponentialHistogramAggregatorsRegistrar {
                         formatter,
                         metadata
                     );
+                }
+                throw new IllegalArgumentException(
+                    "Percentiles algorithm "
+                        + percentilesConfig.getMethod().toString()
+                        + " must not be used with exponential_histogram field"
+                );
+            },
+            true
+        );
+    }
+
+    public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            PercentileRanksAggregationBuilder.REGISTRY_KEY,
+            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+                if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
+                    double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
+                    return new ExponentialHistogramPercentileRanksAggregator(
+                        name,
+                        config,
+                        context,
+                        parent,
+                        percents,
+                        compression,
+                        executionHint,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
+
                 }
                 throw new IllegalArgumentException(
                     "Percentiles algorithm "

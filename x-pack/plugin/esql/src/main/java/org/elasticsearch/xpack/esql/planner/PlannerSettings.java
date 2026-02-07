@@ -89,7 +89,7 @@ public class PlannerSettings {
      */
     public static final Setting<Double> PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD = Setting.doubleSetting(
         "esql.partial_agg_emit_unique_threshold",
-        0.5,
+        0.1,
         0.0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

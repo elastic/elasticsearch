@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,11 +81,13 @@
 #   - security
 #   - other
 
-pr: 128602
+pr: "128602"
+issues:
+- https://github.com/elastic/elasticsearch/issues/127517
 type: bug-fix
 products:
 - product: elasticsearch
   target: 9.3.0
 areas:
-- Machine Learning
+- Machine learning
 title: Fixing KDE evaluate() to return correct ValueAndMagnitude object

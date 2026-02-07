@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,12 +81,12 @@
 #   - security
 #   - other
 
-pr: 138923
+pr: "138923"
 type: enhancement
 products:
 - product: elasticsearch
   target: 9.3.0
 areas:
 - Infra/Scripting
-- Ingest Node
+- Ingest node
 title: Bump mustache.java to 0.9.14

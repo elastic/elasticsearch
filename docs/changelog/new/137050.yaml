@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,9 +81,13 @@
 #   - security
 #   - other
 
-pr: 137050
+pr: "137050"
+issues:
+- https://github.com/elastic/elasticsearch/issues/137021
 type: bug-fix
 products:
 - product: elasticsearch
   target: 9.3.0
+areas:
+- Engine
 title: Fixes memory leak in BytesRefLongBlockHash

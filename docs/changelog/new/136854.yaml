@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,9 +81,11 @@
 #   - security
 #   - other
 
-pr: 136854
+pr: "136854"
 type: bug-fix
 products:
 - product: elasticsearch
   target: 9.3.0
+areas:
+- SQL
 title: 'SQL: do not attempt to canonicalize InnerAggregate'

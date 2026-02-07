@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,7 +81,9 @@
 #   - security
 #   - other
 
-pr: 135895
+pr: "135895"
+issues:
+- https://github.com/elastic/elasticsearch/issues/135823
 type: enhancement
 products:
 - product: elasticsearch

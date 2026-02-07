@@ -4,8 +4,9 @@
 
 # Available products (optional - if not specified, all products from products.yml are allowed)
 products:
-  - elasticsearch
-  - cloud-serverless
+  available:
+    - elasticsearch
+    - cloud-serverless
   # Add more products as needed
 
 # Available lifecycle values (strongly typed: preview, beta, ga)

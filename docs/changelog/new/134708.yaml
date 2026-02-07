@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,9 +81,11 @@
 #   - security
 #   - other
 
-pr: 134708
+pr: "134708"
 type: enhancement
 products:
 - product: elasticsearch
   target: 9.3.0
-title: '  Default semantic_text fields to ELSER on EIS when available'
+areas:
+- Relevance
+title: "  Default semantic_text fields to ELSER on EIS when available"

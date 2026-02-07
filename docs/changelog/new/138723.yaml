@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,11 +81,14 @@
 #   - security
 #   - other
 
-pr: 138723
+pr: "138723"
 type: feature
 products:
 - product: elasticsearch
   target: 9.3.0
+  lifecycle: ga
 areas:
 - Mapping
-title: Remove DOC_VALUES_SKIPPER feature flag
+title: Enable doc_values skippers
+description: Doc_values skippers add a sparse index to doc_values fields, allowing efficient querying and filtering on a field without having to build a separate BKD or terms index.  These are now enabled automatically on any field configured with  and  if the index setting  is set to  (default , or  for TSDB indexes). TSDB indexes now default to using skippers in place of indexes for their , , and   fields, greatly reducing their on-disk footprint.  To disable skippers in TSDB indexes, set  to .
+highlight: true

@@ -1,4 +1,4 @@
-##### Required fields #####
+﻿##### Required fields #####
 
 # title:
 #   A required string that is a short, user-facing headline.
@@ -13,7 +13,9 @@
 #   - docs
 #   - enhancement
 #   - feature
+#   - known-issue
 #   - regression
+#   - security
 #   - other
 
 # products:
@@ -79,11 +81,9 @@
 #   - security
 #   - other
 
-pr: 134361
+pr: "134361"
 type: enhancement
 products:
 - product: elasticsearch
   target: 9.3.0
-areas:
-- Cluster coordination
 title: Add `ThreadWatchdog` to `ClusterApplierService`

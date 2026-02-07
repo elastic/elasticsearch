@@ -176,6 +176,81 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         assertEquals(1, planExecutor.metrics().stats().get("features.stats"));
     }
 
+    public void testSettingsMetric() {
+        String[] indices = new String[] { "test" };
+
+        Client esqlClient = mock(Client.class);
+        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        doAnswer((Answer<Void>) invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
+            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
+            return null;
+        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
+
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), mockQueryLog(), List.of());
+
+        // Initial values should be 0
+        assertEquals(0L, planExecutor.metrics().stats().get("settings.time_zone"));
+        assertEquals(0L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+
+        // Run a query with time_zone setting
+        var request = new EsqlQueryRequest();
+        request.query("SET time_zone=\"UTC\"; FROM test | KEEP foo");
+        request.allowPartialResults(false);
+        EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(null);
+
+        executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
+            @Override
+            public void onResponse(Versioned<Result> result) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("this shouldn't happen: " + e.getMessage());
+            }
+        });
+
+        // time_zone should now be 1
+        assertEquals(1L, planExecutor.metrics().stats().get("settings.time_zone"));
+        assertEquals(0L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+
+        // Run another query with unmapped_fields setting
+        request = new EsqlQueryRequest();
+        request.query("SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
+        request.allowPartialResults(false);
+        executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
+            @Override
+            public void onResponse(Versioned<Result> result) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("this shouldn't happen: " + e.getMessage());
+            }
+        });
+
+        // Both should now have values
+        assertEquals(1L, planExecutor.metrics().stats().get("settings.time_zone"));
+        assertEquals(1L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+
+        // Run a query with multiple settings
+        request = new EsqlQueryRequest();
+        request.query("SET time_zone=\"America/New_York\"; SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
+        request.allowPartialResults(false);
+        executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
+            @Override
+            public void onResponse(Versioned<Result> result) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("this shouldn't happen: " + e.getMessage());
+            }
+        });
+
+        // Both should be incremented
+        assertEquals(2L, planExecutor.metrics().stats().get("settings.time_zone"));
+        assertEquals(2L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+    }
+
     private void executeEsql(
         PlanExecutor planExecutor,
         EsqlQueryRequest request,

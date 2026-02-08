@@ -1512,6 +1512,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
         assertThat(targetRoutingNumberOfShards, is(9));
+
+        assertWarnings(
+            "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the "
+                + "deprecation documentation for the next major version."
+        );
     }
 
     public void testGetIndexNumberOfRoutingShardsNullVsNotDefined() {

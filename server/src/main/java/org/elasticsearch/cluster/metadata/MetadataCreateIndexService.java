@@ -1402,12 +1402,11 @@ public class MetadataCreateIndexService {
      * it will return the value configured for that index.
      */
     static int getIndexNumberOfRoutingShards(Settings indexSettings, @Nullable IndexMetadata sourceMetadata) {
-        final int routingNumShards = getIndexNumberOfRoutingShards(
+        return getIndexNumberOfRoutingShards(
             indexSettings,
             sourceMetadata == null ? 1 : sourceMetadata.getNumberOfShards(),
             sourceMetadata == null ? 0 : sourceMetadata.getRoutingNumShards()
         );
-        return routingNumShards;
     }
 
     /**

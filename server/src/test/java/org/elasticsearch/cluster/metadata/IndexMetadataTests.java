@@ -468,6 +468,11 @@ public class IndexMetadataTests extends ESTestCase {
             () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings)
         );
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
+
+        assertWarnings(
+            "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the "
+                + "deprecation documentation for the next major version."
+        );
     }
 
     public void testMissingNumberOfShards() {

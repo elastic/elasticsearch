@@ -7,7 +7,6 @@ setup:
         body:
           settings:
             number_of_shards: 3
-            number_of_routing_shards: 3
           mappings:
             "properties":
               "val1":

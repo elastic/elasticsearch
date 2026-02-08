@@ -313,6 +313,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.datafeed.CpsCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -876,7 +877,8 @@ public class MachineLearning extends Plugin
             SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
             ANOMALY_DETECTION_ENABLED,
             DATA_FRAME_ANALYTICS_ENABLED,
-            NLP_ENABLED
+            NLP_ENABLED,
+            CpsCredentialManager.SHARED_SERVICE_SECRET_SETTING
         );
     }
 
@@ -1068,12 +1070,14 @@ public class MachineLearning extends Plugin
             indexNameExpressionResolver,
             () -> NativeMemoryCalculator.getMaxModelMemoryLimit(clusterService)
         );
+        CpsCredentialManager cpsCredentialManager = new CpsCredentialManager(client, threadPool, clusterService, settings);
         DatafeedManager datafeedManager = new DatafeedManager(
             datafeedConfigProvider,
             jobConfigProvider,
             xContentRegistry,
             settings,
-            client
+            client,
+            cpsCredentialManager
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled

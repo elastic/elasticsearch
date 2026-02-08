@@ -370,6 +370,56 @@ public class DatafeedConfigProvider {
         );
     }
 
+    /**
+     * Patches the cloudInternalApiKey and headers on an existing datafeed config.
+     * Used for CPS migration during update when a legacy datafeed transitions to CPS.
+     * This loads the existing config, applies the patch, and re-indexes using optimistic concurrency.
+     *
+     * @param datafeedId           The datafeed ID to patch
+     * @param cloudInternalApiKey  The internal API key credential to set
+     * @param cpsHeaders           The CPS auth headers to set
+     * @param listener             Returns the patched config on success
+     */
+    public void patchCloudInternalApiKey(
+        String datafeedId,
+        String cloudInternalApiKey,
+        Map<String, String> cpsHeaders,
+        ActionListener<DatafeedConfig> listener
+    ) {
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, new DelegatingActionListener<>(listener) {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                if (getResponse.isExists() == false) {
+                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                    return;
+                }
+                final long seqNo = getResponse.getSeqNo();
+                final long primaryTerm = getResponse.getPrimaryTerm();
+                BytesReference source = getResponse.getSourceAsBytesRef();
+                DatafeedConfig.Builder configBuilder;
+                try {
+                    configBuilder = parseLenientlyFromSource(source);
+                } catch (IOException e) {
+                    delegate.onFailure(new ElasticsearchParseException("Failed to parse datafeed config [" + datafeedId + "]", e));
+                    return;
+                }
+
+                configBuilder.setCloudInternalApiKey(cloudInternalApiKey);
+                if (cpsHeaders.isEmpty() == false) {
+                    configBuilder.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(cpsHeaders, clusterService.state()));
+                }
+
+                DatafeedConfig patchedConfig = configBuilder.build();
+                indexUpdatedConfig(patchedConfig, seqNo, primaryTerm, delegate.delegateFailureAndWrap((l, indexResponse) -> {
+                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                    l.onResponse(patchedConfig);
+                }));
+            }
+        });
+    }
+
     private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));

@@ -120,6 +120,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     // private static final TransportVersion DATAFEED_PROJECT_ROUTING = TransportVersion.fromName("datafeed_project_routing");
     static final TransportVersion DATAFEED_PROJECT_ROUTING = TransportVersion.fromName("index_limit_exceeded_exception");
 
+    private static final TransportVersion DATAFEED_CLOUD_INTERNAL_API_KEY = TransportVersion.fromName("datafeed_cloud_internal_api_key");
+
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField ID = new ParseField("datafeed_id");
@@ -139,6 +141,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField MAX_EMPTY_SEARCHES = new ParseField("max_empty_searches");
     public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
+    public static final ParseField CLOUD_INTERNAL_API_KEY = new ParseField("cloud_internal_api_key");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -225,6 +228,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
+            // cloud_internal_api_key is only parsed from internal storage (lenient parser), not from REST requests.
+            parser.declareString(Builder::setCloudInternalApiKey, CLOUD_INTERNAL_API_KEY);
         }
         parser.declareObject(
             Builder::setDelayedDataCheckConfig,
@@ -268,6 +273,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final Map<String, Object> runtimeMappings;
     @Nullable
     private final String projectRouting;
+    @Nullable
+    private final String cloudInternalApiKey;
 
     private DatafeedConfig(
         String id,
@@ -285,7 +292,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Integer maxEmptySearches,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
-        String projectRouting
+        String projectRouting,
+        String cloudInternalApiKey
     ) {
         this.id = id;
         this.jobId = jobId;
@@ -303,6 +311,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
         this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
         this.projectRouting = projectRouting;
+        this.cloudInternalApiKey = cloudInternalApiKey;
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -336,6 +345,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.projectRouting = in.readOptionalString();
         } else {
             this.projectRouting = null;
+        }
+        if (in.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_API_KEY)) {
+            this.cloudInternalApiKey = in.readOptionalString();
+        } else {
+            this.cloudInternalApiKey = null;
         }
     }
 
@@ -600,6 +614,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return projectRouting;
     }
 
+    @Nullable
+    public String getCloudInternalApiKey() {
+        return cloudInternalApiKey;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -633,6 +652,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
             out.writeOptionalString(projectRouting);
+        }
+        if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_API_KEY)) {
+            out.writeOptionalString(cloudInternalApiKey);
         }
     }
 
@@ -704,6 +726,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (projectRouting != null) {
             builder.field(PROJECT_ROUTING.getPreferredName(), projectRouting);
         }
+        if (forInternalStorage && cloudInternalApiKey != null) {
+            builder.field(CLOUD_INTERNAL_API_KEY.getPreferredName(), cloudInternalApiKey);
+        }
         builder.endObject();
         return builder;
     }
@@ -765,7 +790,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
             && Objects.equals(this.runtimeMappings, that.runtimeMappings)
-            && Objects.equals(this.projectRouting, that.projectRouting);
+            && Objects.equals(this.projectRouting, that.projectRouting)
+            && Objects.equals(this.cloudInternalApiKey, that.cloudInternalApiKey);
     }
 
     @Override
@@ -786,7 +812,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             maxEmptySearches,
             indicesOptions,
             runtimeMappings,
-            projectRouting
+            projectRouting,
+            cloudInternalApiKey
         );
     }
 
@@ -861,6 +888,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings = Collections.emptyMap();
         private String projectRouting;
+        private String cloudInternalApiKey;
 
         public Builder() {}
 
@@ -887,6 +915,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = new HashMap<>(config.runtimeMappings);
             this.projectRouting = config.projectRouting;
+            this.cloudInternalApiKey = config.cloudInternalApiKey;
         }
 
         public Builder(StreamInput in) throws IOException {
@@ -920,6 +949,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             runtimeMappings = in.readGenericMap();
             if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
                 projectRouting = in.readOptionalString();
+            }
+            if (in.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_API_KEY)) {
+                cloudInternalApiKey = in.readOptionalString();
             }
         }
 
@@ -960,6 +992,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
                 out.writeOptionalString(projectRouting);
             }
+            if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_API_KEY)) {
+                out.writeOptionalString(cloudInternalApiKey);
+            }
         }
 
         @Override
@@ -982,7 +1017,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(maxEmptySearches, builder.maxEmptySearches)
                 && Objects.equals(indicesOptions, builder.indicesOptions)
                 && Objects.equals(runtimeMappings, builder.runtimeMappings)
-                && Objects.equals(projectRouting, builder.projectRouting);
+                && Objects.equals(projectRouting, builder.projectRouting)
+                && Objects.equals(cloudInternalApiKey, builder.cloudInternalApiKey);
         }
 
         @Override
@@ -1003,7 +1039,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 maxEmptySearches,
                 indicesOptions,
                 runtimeMappings,
-                projectRouting
+                projectRouting,
+                cloudInternalApiKey
             );
         }
 
@@ -1155,6 +1192,16 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return projectRouting;
         }
 
+        public Builder setCloudInternalApiKey(String cloudInternalApiKey) {
+            this.cloudInternalApiKey = cloudInternalApiKey;
+            return this;
+        }
+
+        @Nullable
+        public String getCloudInternalApiKey() {
+            return cloudInternalApiKey;
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, JOB_ID.getPreferredName());
@@ -1206,7 +1253,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 maxEmptySearches,
                 indicesOptions,
                 runtimeMappings,
-                projectRouting
+                projectRouting,
+                cloudInternalApiKey
             );
         }
 

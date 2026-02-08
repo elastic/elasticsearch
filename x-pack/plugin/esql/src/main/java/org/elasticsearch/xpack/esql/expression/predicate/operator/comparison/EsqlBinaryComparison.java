@@ -294,27 +294,32 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
      * NOTE: this method should be consistent with
      * {@link org.elasticsearch.xpack.esql.analysis.Verifier#validateBinaryComparison(BinaryComparison)}
      *
-     * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
+     * @return TypeResolution.TYPE_RESOLVED if the types are compatible.  Otherwise, an appropriate type resolution error.
      */
     protected TypeResolution checkCompatibility() {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-
-        // Unsigned long is only interoperable with other unsigned longs
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
-            return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
-        }
-
-        if ((leftType.isNumeric() && rightType.isNumeric())
-            || (DataType.isString(leftType) && DataType.isString(rightType))
-            || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
-            || leftType.equals(rightType)
-            || DataType.isNull(leftType)
-            || DataType.isNull(rightType)) {
+        if (areTypesCompatible(leftType, rightType)) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
+        return new TypeResolution(formatIncompatibleTypesMessage(leftType, rightType, sourceText()));
+    }
+
+    /**
+     * Check if the two types are compatible for binary comparison.
+     *
+     * @param leftType  the left operand type
+     * @param rightType the right operand type
+     * @return true if the types are compatible for comparison
+     */
+    public static boolean areTypesCompatible(DataType leftType, DataType rightType) {
+        return DataType.isNull(leftType)
+            || DataType.isNull(rightType)
+            || (rightType == UNSIGNED_LONG && leftType == UNSIGNED_LONG)
+            || (leftType.isNumeric() && rightType.isNumeric() && leftType != UNSIGNED_LONG && rightType != UNSIGNED_LONG)
+            || (DataType.isString(leftType) && DataType.isString(rightType))
+            || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
+            || leftType.equals(rightType);
     }
 
     public static String formatIncompatibleTypesMessage(DataType leftType, DataType rightType, String sourceText) {

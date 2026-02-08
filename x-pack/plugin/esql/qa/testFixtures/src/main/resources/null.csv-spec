@@ -216,3 +216,148 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10021          | Ramzi              | Erde
 10022          | Shahaf             | Famili
 ;
+
+###############################################
+# Null comparison tests
+###############################################
+
+# Field compared with null returns empty result
+compareFieldWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no == null | KEEP emp_no, first_name | LIMIT 1
+;
+
+emp_no:integer | first_name:keyword
+;
+
+
+# ROW with null compared to string value
+rowNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "foo" | WHERE x == y | KEEP x, y
+;
+
+x:null | y:keyword
+;
+
+
+# null == integer evaluates to null
+rowNullEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null != integer evaluates to null
+rowNullNotEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x != y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null > integer evaluates to null
+rowNullGreaterThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x > y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null < integer evaluates to null
+rowNullLessThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x < y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null >= integer evaluates to null
+rowNullGreaterThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x >= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null <= integer evaluates to null
+rowNullLessThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x <= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Two nulls comparison evaluates to null
+rowTwoNullsComparison
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Value compared with null (null on right side)
+rowValueCompareWithNull
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with keyword
+rowNullCompareWithKeyword
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "test" | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with datetime
+rowNullCompareWithDatetime
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = now() | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;

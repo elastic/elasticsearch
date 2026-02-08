@@ -2017,6 +2017,13 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
 
         /**
+         * Fix null comparison type check in binary comparisons.
+         * Null should be compatible with any type in binary comparisons.
+         * https://github.com/elastic/elasticsearch/issues/140460
+         */
+        FIX_NULL_COMPARISON_TYPE_CHECK,
+
+        /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,

@@ -94,6 +94,10 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
     private int lastSliceIndex = -1;
 
+    // Cached boundary values
+    private DoubleArray cachedLowerBoundaryValues;
+    private DoubleArray cachedUpperBoundaryValues;
+
     public RateLongGroupingAggregatorFunction(
         List<Integer> channels,
         DriverContext driverContext,
@@ -402,7 +406,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
     @Override
     public void close() {
-        Releasables.close(reducedStates, rawBuffer, localCircuitBreakerService);
+        Releasables.close(reducedStates, cachedUpperBoundaryValues, cachedLowerBoundaryValues, rawBuffer, localCircuitBreakerService);
     }
 
     void flushRawBuffers() {
@@ -565,6 +569,11 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selected.getPositionCount();
         try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
+            cachedLowerBoundaryValues = bigArrays.newDoubleArray(selected.getPositionCount());
+            cachedLowerBoundaryValues.fill(0, selected.getPositionCount(), -1);
+            cachedUpperBoundaryValues = bigArrays.newDoubleArray(selected.getPositionCount());
+            cachedUpperBoundaryValues.fill(0, selected.getPositionCount(), -1);
+
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
@@ -718,7 +727,19 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
         } else {
-            firstValue = interpolateBetweenStates(previousState, state, tbucketStart, tbucketEnd, dateFactor, true);
+            double cached = cachedLowerBoundaryValues.get(group);
+            if (cached > 0) {
+                firstValue = cached;
+            } else {
+                firstValue = interpolateBetweenStates(previousState, state, tbucketStart, tbucketEnd, dateFactor, true);
+                double cachedValue = firstValue;
+                if (cachedValue < previousState.intervals[0].v1) {
+                    // Counter reset detected across the boundary, adjust the boundary value of the previous state
+                    // to use its last value as reference.
+                    cachedValue += previousState.intervals[0].v1;
+                }
+                cachedUpperBoundaryValues.set(previousGroupId, cachedValue);
+            }
         }
 
         int nextGroupId = tsContext.nextGroupId(group);
@@ -731,7 +752,19 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }
         } else {
-            lastValue = interpolateBetweenStates(state, nextState, tbucketStart, tbucketEnd, dateFactor, false) + state.resets;
+            double cached = cachedUpperBoundaryValues.get(group);
+            if (cached > 0) {
+                lastValue = cached + state.resets;
+            } else {
+                double boundaryValue = interpolateBetweenStates(state, nextState, tbucketStart, tbucketEnd, dateFactor, false);
+                double cachedValue = boundaryValue;
+                if (boundaryValue > nextState.intervals[nextState.intervals.length - 1].v2) {
+                    // Counter reset detected across the boundary, adjust the boundary value of the next state to use 0 as reference.
+                    cachedValue -= state.intervals[0].v1;
+                }
+                cachedLowerBoundaryValues.set(nextGroupId, cachedValue);
+                lastValue = boundaryValue + state.resets;
+            }
         }
 
         if (lastTsSec == firstTsSec) {

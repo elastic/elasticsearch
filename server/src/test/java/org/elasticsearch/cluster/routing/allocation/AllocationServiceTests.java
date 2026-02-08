@@ -151,6 +151,14 @@ public class AllocationServiceTests extends ESTestCase {
                 public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                     return ShardAllocationDecision.NOT_TAKEN;
                 }
+
+                @Override
+                public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                    Set<ShardRouting> shards,
+                    RoutingAllocation allocation
+                ) {
+                    return Map.of();
+                }
             },
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,

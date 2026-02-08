@@ -405,6 +405,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
+            }
         };
 
         // Make sure the computation takes at least a few iterations, where each iteration takes 1s (see {@code #shardsAllocator.allocate}).
@@ -866,6 +874,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             @Override
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
+            }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
             }
         };
 
@@ -1372,6 +1388,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             @Override
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
+            }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
             }
         };
     }

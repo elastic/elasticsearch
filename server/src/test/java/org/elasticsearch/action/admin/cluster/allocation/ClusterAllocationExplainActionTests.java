@@ -48,6 +48,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -376,6 +377,14 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                     } else {
                         throw new UnsupportedOperationException("cannot explain");
                     }
+                }
+
+                @Override
+                public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                    Set<ShardRouting> shards,
+                    RoutingAllocation allocation
+                ) {
+                    return Map.of();
                 }
             }, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );

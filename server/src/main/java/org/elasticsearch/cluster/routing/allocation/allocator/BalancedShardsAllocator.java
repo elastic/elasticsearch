@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -265,6 +266,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights
         );
+        return explainShardAllocation(shard, allocation, balancer);
+    }
+
+    @Override
+    public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(Set<ShardRouting> shards, RoutingAllocation allocation) {
+        Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancingWeightsFactory.create(),
+            balancerSettings.completeEarlyOnShardAssignmentChange()
+        );
+        return shards.stream()
+            .map(shardRouting -> Tuple.tuple(shardRouting, explainShardAllocation(shardRouting, allocation, balancer)))
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+    }
+
+    private ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation, Balancer balancer) {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         final ProjectIndex index = new ProjectIndex(allocation, shard);

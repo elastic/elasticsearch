@@ -1705,6 +1705,14 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("should not be called");
             }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
+            }
         }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new NoOpExistingShardsAllocator()));
         return allocationService;

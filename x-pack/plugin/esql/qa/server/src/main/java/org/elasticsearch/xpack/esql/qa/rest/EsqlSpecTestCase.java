@@ -376,6 +376,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
+        if (query.toUpperCase().startsWith("SET") == false) {
+            query = "SET unmapped_fields=\"load\"; " + query;
+        }
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {

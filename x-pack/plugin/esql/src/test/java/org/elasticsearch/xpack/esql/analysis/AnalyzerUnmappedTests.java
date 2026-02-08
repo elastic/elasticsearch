@@ -912,6 +912,17 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedLoad(query), failure);
     }
 
+    public void testFailStatsThenEvalExistingField() {
+        var query = """
+            FROM test
+            | STATS cnt = COUNT(*)
+            | EVAL x = emp_no
+            """;
+        var failure = "line 3:12: Unknown column [emp_no]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(does_not_exist_field{r}#18,true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#5]]
@@ -3193,6 +3204,17 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(rightRel.indexPattern(), is("languages_lookup"));
     }
 
+    public void testFailLookupJoinWithoutCast() {
+        String query = """
+            FROM test
+            | EVAL language_code = does_not_exist
+            | LOOKUP JOIN languages_lookup ON language_code
+            """;
+        var failure = "is incompatible with right field [language_code] of type [INTEGER]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Enrich[ANY,languages[KEYWORD],x{r}#5,{"match":{"indices":[],"match_field":"language_code",
@@ -3268,6 +3290,26 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(relation.indexPattern(), is("test"));
     }
 
+    public void testFailSemanticTextLoad() {
+        String query = """
+            FROM test
+            | WHERE KNN(does_not_exist, [0, 1, 2])
+            """;
+        var failure = "first argument of [KNN(does_not_exist, [0, 1, 2])] must be [dense_vector, null, text], "
+            + "found value [does_not_exist] type [keyword]";
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailRateLoad() {
+        String query = """
+            TS k8s
+            | STATS max(rate(does_not_exist))
+            """;
+        var failure = "first argument of [rate(does_not_exist)] must be [counter_long, counter_integer or counter_double], "
+            + "found value [does_not_exist] type [keyword]";
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[x{r}#4, does_not_exist_field1{r}#12, y{r}#8, does_not_exist_field2{r}#14]]
@@ -3315,6 +3357,17 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | DROP @timestamp
             | STATS max(rate(network.total_cost))
             """), "3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX);
+    }
+
+    // This test verifies that we do not allow an unmapped @timestamp fields in tbucket.
+    public void testFailNoUnmappedTimestamp() throws Exception {
+        String query = ("""
+            FROM employees
+            | STATS c = COUNT(*) BY tbucket(1 hour)
+            """);
+        var failure = "[tbucket(1 hour)] requires the [@timestamp] field";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

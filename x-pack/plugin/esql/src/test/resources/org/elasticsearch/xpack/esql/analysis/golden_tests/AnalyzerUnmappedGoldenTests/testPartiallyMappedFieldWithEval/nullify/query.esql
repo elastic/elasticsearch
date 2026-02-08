@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM sample_data, partial_mapping_sample_data
+| EVAL x = COALESCE(unmapped_message, "missing")
+| KEEP @timestamp, x, does_not_exist

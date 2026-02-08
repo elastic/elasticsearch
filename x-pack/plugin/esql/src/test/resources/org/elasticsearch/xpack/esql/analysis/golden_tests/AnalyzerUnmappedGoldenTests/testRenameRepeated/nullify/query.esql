@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| RENAME does_not_exist_field AS now_it_does, neither_does_this AS now_it_does, emp_no AS employee_number

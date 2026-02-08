@@ -1,0 +1,2 @@
+from all_types
+| stats count(*) where long > 10 by x = date_trunc(1 day, date)

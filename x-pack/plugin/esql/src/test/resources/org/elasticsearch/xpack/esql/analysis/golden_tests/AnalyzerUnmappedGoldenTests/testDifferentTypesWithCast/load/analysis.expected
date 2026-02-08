@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[ts{r}#0, message{f(KeywordEsField)}#1, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#2]]
+  \_Eval[[$$@timestamp$converted_to$keyword{f(MultiTypeEsField)$}#3 AS ts#0]]
+    \_EsRelation[sample_data,sample_data_ts_long][!@timestamp, client_ip{f}#4, event_duration{f}#5, message{f}#1, $$@timestamp$converted_to$keyword{f$}#3, does_not_exist{f}#2]

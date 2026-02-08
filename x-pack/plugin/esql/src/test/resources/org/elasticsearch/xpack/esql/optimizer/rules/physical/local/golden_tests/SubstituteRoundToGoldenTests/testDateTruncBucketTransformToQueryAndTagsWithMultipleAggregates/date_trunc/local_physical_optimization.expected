@@ -1,10 +1,10 @@
 LimitExec[1000[INTEGER],null]
-\_AggregateExec[[x{r}],[SUM(long{f},true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum(long), COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$sum(long)$sum{r}, $$sum(long)$seen{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
-  \_ExchangeExec[[x{r}, $$sum(long)$sum{r}, $$sum(long)$seen{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
-    \_AggregateExec[[x{r}],[SUM(long{f},true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum(long), COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],INITIAL,[x{r}, $$sum(long)$sum{r}, $$sum(long)$seen{r}, $$count(*)$count{r}, $$count(*)$seen{r}],24]
-      \_FieldExtractExec[long{f}]<[],[]>
-        \_EvalExec[[$$date$round_to$datetime{f} AS x]]
-          \_EsQueryExec[all_types], indexMode[standard], [_doc{f}, $$date$round_to$datetime{f}], limit[], sort[] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
+\_AggregateExec[[x{r}#0],[SUM(long{f(EsField)}#1,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum(long)#2, COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#3, x{r}#0],FINAL,[x{r}#0, $$sum(long)$sum{r}#4, $$sum(long)$seen{r}#5, $$count(*)$count{r}#6, $$count(*)$seen{r}#7],null]
+  \_ExchangeExec[[x{r}#0, $$sum(long)$sum{r}#4, $$sum(long)$seen{r}#5, $$count(*)$count{r}#6, $$count(*)$seen{r}#7],true]
+    \_AggregateExec[[x{r}#0],[SUM(long{f(EsField)}#1,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum(long)#2, COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#3, x{r}#0],INITIAL,[x{r}#0, $$sum(long)$sum{r}#8, $$sum(long)$seen{r}#9, $$count(*)$count{r}#10, $$count(*)$seen{r}#11],24]
+      \_FieldExtractExec[long{f}#1]<[],[]>
+        \_EvalExec[[$$date$round_to$datetime{f(EsField)}#12 AS x#0]]
+          \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#13, $$date$round_to$datetime{f}#12], limit[], sort[] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "date",
     "next" : {

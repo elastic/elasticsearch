@@ -1,0 +1,6 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[TOLONG(does_not_exist{f}#0) > 0[INTEGER]]
+  \_LookupJoin[LEFT,[language_code{r}#1],[language_code{f(EsField)}#2],false,null]
+    |_Eval[[languages{f(EsField)}#3 AS language_code#1]]
+    | \_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#6, first_name{f}#7, gender{f}#8, height{f}#9, height.float{f}#10, height.half_float{f}#11, height.scaled_float{f}#12, hire_date{f}#13, is_rehired{f}#14, job_positions{f}#15, languages{f}#3, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#20, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25, does_not_exist{f}#0]
+    \_EsRelation[languages_lookup][LOOKUP][language_code{f}#2, language_name{f}#26]

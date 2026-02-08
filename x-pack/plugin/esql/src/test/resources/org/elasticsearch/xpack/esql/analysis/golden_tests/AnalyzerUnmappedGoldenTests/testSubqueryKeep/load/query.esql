@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; SET unmapped_fields="load"; FROM employees, (FROM languages | KEEP emp_no)
+| KEEP emp_no, language_code
+| WHERE emp_no > 0

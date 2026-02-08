@@ -1,0 +1,5 @@
+ExchangeSinkExec[[emp_no{f(EsField)}#0, hire_date{f(DateEsField)}#1, salary{f(EsField)}#2],false]
+\_ProjectExec[[emp_no{f(EsField)}#0, hire_date{f(DateEsField)}#1, salary{f(EsField)}#2]]
+  \_FieldExtractExec[emp_no{f}#0]<[],[]>
+    \_TopNExec[[Order[hire_date{f(DateEsField)}#1,ASC,LAST]],20[INTEGER],36]
+      \_ExchangeSourceExec[[_doc{f(EsField)}#3, salary{f(EsField)}#2, hire_date{f(DateEsField)}#1],false]

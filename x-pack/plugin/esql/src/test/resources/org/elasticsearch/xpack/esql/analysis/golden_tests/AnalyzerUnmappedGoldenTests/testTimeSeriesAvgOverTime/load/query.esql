@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; TS k8s
+| WHERE does_not_exist::LONG > 0
+| STATS a = AVG_OVER_TIME(network.eth0.rx) BY tbucket(1 hour)

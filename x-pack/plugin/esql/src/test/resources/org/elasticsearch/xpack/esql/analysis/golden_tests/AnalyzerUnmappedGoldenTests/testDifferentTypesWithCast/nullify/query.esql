@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM sample_data, sample_data_ts_long, employees
+| EVAL ts = @timestamp::STRING
+| KEEP ts, message, does_not_exist

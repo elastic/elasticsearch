@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[event_duration{f(EsField)}#0]]
+  \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f}#1, client_ip{f}#2, event_duration{f}#0, message{f}#3]

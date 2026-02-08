@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees
+| eval x = does_not_exist_field :: version
+| keep x

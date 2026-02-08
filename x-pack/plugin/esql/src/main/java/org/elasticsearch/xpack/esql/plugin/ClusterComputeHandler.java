@@ -303,6 +303,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    NodeReduceLocalPhysicalOptimization.ENABLED,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

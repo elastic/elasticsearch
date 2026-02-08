@@ -267,6 +267,8 @@ public class PlannerUtils {
             return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
 
+        // TODO add a test assertion for the consistency checker (see
+        // https://github.com/elastic/elasticsearch/pull/141082/changes#r2745334028);
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
 
         return resultPlan;

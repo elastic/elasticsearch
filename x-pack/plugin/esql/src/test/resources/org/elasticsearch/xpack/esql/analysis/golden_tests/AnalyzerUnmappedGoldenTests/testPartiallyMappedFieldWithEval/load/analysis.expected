@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[@timestamp{f(DateEsField)}#0, x{r}#1, does_not_exist{f(PotentiallyUnmappedKeywordEsField)}#2]]
+  \_Eval[[COALESCE(unmapped_message{f(PotentiallyUnmappedKeywordEsField)}#3,missing[KEYWORD]) AS x#1]]
+    \_EsRelation[sample_data,partial_mapping_sample_data][@timestamp{f}#0, client_ip{f}#4, event_duration{f}#5, message{f}#6, unmapped_message{f}#3, does_not_exist{f}#2]

@@ -1,0 +1,4 @@
+Limit[1000000[INTEGER],false,false]
+\_TimeSeriesAggregate[[_timeseries{f}#0, TBUCKET(PT1H[TIME_DURATION],@timestamp{f}#1) AS tbucket(1 hour)#2],[VALUES(MAXOVERTIME(network.eth0.tx{f}#3,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#4, tbucket(1 hour){r}#2],null,@timestamp{f}#1]
+  \_Eval[[TODOUBLE(does_not_exist{f}#5) + 1[INTEGER] AS x#6]]
+    \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1, client.ip{f}#7, cluster{f}#8, event{f}#9, event_city{f}#10, event_city_boundary{f}#11, event_location{f}#12, event_log{f}#13, event_shape{f}#14, events_received{f}#15, network.bytes_in{f}#16, network.cost{f}#17, network.eth0.currently_connected_clients{f}#18, network.eth0.firmware_version{f}#19, network.eth0.last_up{f}#20, network.eth0.rx{f}#21, network.eth0.tx{f}#3, network.eth0.up{f}#22, network.total_bytes_in{f}#23, network.total_bytes_out{f}#24, network.total_cost{f}#25, pod{f}#26, region{f}#27, _timeseries{f}#0, does_not_exist{f}#5]

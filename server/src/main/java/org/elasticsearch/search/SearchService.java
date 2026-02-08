@@ -1297,7 +1297,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return findReaderContext(contextId, request);
             } catch (SearchContextMissingException e) {
                 logger.debug("failed to find active reader context [id: {}]", contextId);
-                if (contextId.isRetryable() == false) {
+                if (retryThisContext(contextId) == false) {
                     throw e;
                 }
                 // We retry creating a ReaderContext on this node if we can get a searcher with same searcher id as in the original
@@ -1311,8 +1311,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     throw e;
                 }
                 ReaderContext readerContext = null;
-                // don't handle contexts originating from the current SearchService session, they get added as normal temporary contexts
-                if (pitRelocationEnabled && sessionId.equals(contextId.getSessionId()) == false) {
+                if (pitRelocationEnabled) {
                     readerContext = createAndPutRelocatedPitContext(
                         contextId,
                         indexService,
@@ -1320,7 +1319,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         searcherSupplier,
                         getDefaultKeepAliveInMillis()
                     );
-                    logger.debug("Recreated reader context [{}]", readerContext.id());
+                    logger.debug("recreated reader context [{}]", readerContext.id());
                 } else {
                     readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
                 }
@@ -1336,6 +1335,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             shard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary()),
             keepAliveInMillis
         );
+    }
+
+    /**
+     * We try re-creating a PIT context only if it
+     *    - is retryable, based on the presence of a searchId which indicates a commit point that we check later to see if
+     *      re-opening is possible
+     *    - the context to re-try wasn't created in the same session as the running one. If that was the case, it means that the
+     *      context was close or timed out in this session once, and we shouldn't try again.
+     */
+    private boolean retryThisContext(ShardSearchContextId contextId) {
+        return contextId.isRetryable() && sessionId.equals(contextId.getSessionId()) == false;
     }
 
     final ReaderContext createAndPutReaderContext(

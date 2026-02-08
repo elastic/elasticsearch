@@ -1,0 +1,6 @@
+pr: 140004
+summary: "Adding ES|QL command URI_PART"
+area: ES|QL
+type: feature
+issues:
+ - 134885

@@ -603,6 +603,49 @@ public enum DataType implements Writeable {
 
     }
 
+    /**
+     * Infers the ES|QL DataType from a Java Class.
+     * This method mirrors the logic of {@link #fromJava(Object)} but operates on {@code Class<?>} types,
+     * handling both primitive and wrapper classes equivalently.
+     *
+     * @param classType The Java Class to infer the DataType from.
+     * @return The corresponding ES|QL DataType, or {@code null} if no direct mapping is found or can be reliably inferred.
+     */
+    public static DataType fromJavaType(Class<?> classType) {
+        if (classType == null || classType == Void.class) {
+            return NULL;
+        }
+
+        if (classType == int.class || classType == Integer.class) {
+            return INTEGER;
+        } else if (classType == long.class || classType == Long.class) {
+            return LONG;
+        } else if (classType == BigInteger.class) {
+            return UNSIGNED_LONG;
+        } else if (classType == boolean.class || classType == Boolean.class) {
+            return BOOLEAN;
+        } else if (classType == double.class || classType == Double.class) {
+            return DOUBLE;
+        } else if (classType == float.class || classType == Float.class) {
+            return FLOAT;
+        } else if (classType == byte.class || classType == Byte.class) {
+            return BYTE;
+        } else if (classType == short.class || classType == Short.class) {
+            return SHORT;
+        } else if (classType == ZonedDateTime.class) {
+            return DATETIME;
+        } else if (classType == String.class || classType == char.class || classType == Character.class || classType == BytesRef.class) {
+            // Note: BytesRef is an object, not a primitive or wrapper, so it's directly compared.
+            // char.class and Character.class map to KEYWORD
+            return KEYWORD;
+        } else if (List.class.isAssignableFrom(classType)) {
+            // Consistent with fromJava(Object) returning null for empty lists or lists with unknown element types.
+            return null;
+        }
+        // Fallback for any other Class<?> type not explicitly handled
+        return null;
+    }
+
     public static boolean isUnsupported(DataType from) {
         return from == UNSUPPORTED;
     }

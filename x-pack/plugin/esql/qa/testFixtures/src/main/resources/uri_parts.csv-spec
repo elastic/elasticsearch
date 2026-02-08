@@ -1,0 +1,148 @@
+basic
+required_capability: uri_parts_command
+
+// tag::basic[]
+ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
+| URI_PARTS_🐔 parts = uri
+| KEEP parts.*
+// end::basic[]
+;
+
+// tag::basic-result[]
+parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+www.example.com | fragment | /foo.gif | gif | 80 | key1=val1&key2=val2 | http | myusername:mypassword | myusername | mypassword
+// end::basic-result[]
+;
+
+
+rename
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS_🐔 parts = uri
+| KEEP parts.port, parts.scheme, parts.domain
+| RENAME parts.port AS port, parts.scheme AS scheme, parts.domain AS domain
+;
+
+port:integer | scheme:keyword | domain:keyword
+8080         | https          | www.example.com
+;
+
+
+testAfterFiltering
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE domain == "www.elastic.co"
+| URI_PARTS_🐔 p = uri
+| KEEP p.scheme, p.domain, p.path
+| SORT p.path
+;
+
+p.scheme:keyword     | p.domain:keyword       | p.path:keyword
+https                | www.elastic.co         | /downloads/elasticsearch
+https                | www.elastic.co         | /guide/en/elasticsearch/reference/current/esql.html
+;
+
+
+prefixSameAsInputFieldName
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| URI_PARTS_🐔 uri = uri
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+prefixSameAsInputFieldNameDropInputField
+required_capability: uri_parts_command
+
+FROM web_logs
+| URI_PARTS_🐔 uri = uri
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| DROP uri
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+prefixSameAsInputFieldNameEvalInputField
+required_capability: uri_parts_command
+
+FROM web_logs
+| URI_PARTS_🐔 uri = uri
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| EVAL uri = 5
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+testBeforeFiltering
+required_capability: uri_parts_command
+
+FROM web_logs
+| URI_PARTS_🐔 p = uri
+| WHERE p.domain == "www.elastic.co"
+| KEEP p.scheme, p.domain, p.path
+| SORT p.path DESC
+;
+
+p.scheme:keyword     | p.domain:keyword       | p.path:keyword
+https                | www.elastic.co         | /guide/en/elasticsearch/reference/current/esql.html
+https                | www.elastic.co         | /downloads/elasticsearch
+;
+
+
+testNonWebUri
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE domain == "files.internal"
+| URI_PARTS_🐔 p = uri
+| KEEP p.scheme, p.domain, p.path, p.username, p.password
+;
+
+p.scheme:keyword | p.domain:keyword     | p.path:keyword   | p.username:keyword | p.password:keyword
+ftp              | files.internal       | /data.zip        | user               | pass
+;
+
+
+testNoSchemeUri
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE domain == "app.example.com"
+| URI_PARTS_🐔 p = uri
+| KEEP p.scheme, p.domain, p.path, p.query
+;
+
+p.scheme:keyword | p.domain:keyword       | p.path:keyword | p.query:keyword
+null             | null                   | /app/login     | session=expired
+;
+
+
+testInvalidUri
+required_capability: uri_parts_command
+
+ROW uri = "not a valid uri"
+| URI_PARTS_🐔 parts = uri
+| KEEP parts.scheme, parts.domain, parts.path
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: unable to parse URI \[.*\]
+warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
+
+parts.scheme:keyword | parts.domain:keyword | parts.path:keyword
+null                 | null                 | null
+;

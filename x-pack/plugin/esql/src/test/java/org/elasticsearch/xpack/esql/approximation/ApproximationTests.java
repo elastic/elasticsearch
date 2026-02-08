@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -153,6 +154,11 @@ public class ApproximationTests extends ESTestCase {
         verify("FROM test | LIMIT 1000 | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no)");
         verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
+    }
+
+    public void testVerify_validQuery_devCommands() throws Exception {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        verify("FROM test | URI_PARTS_🐔 parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10");
     }
 
     public void testVerify_validQuery_queryProperties() throws Exception {

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -1651,6 +1653,15 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | grok unsupported "%{WORD:foo}"
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInUriParts() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | uri_parts_🐔 p = unsupported
             """, errorMsg);
     }
 
@@ -6081,6 +6092,31 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(2, metadata.size());
         verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
         verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testUriParts() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts_🐔 p = uri");
+
+        Limit limit = as(plan, Limit.class);
+        UriParts parts = as(limit.child(), UriParts.class);
+
+        Map<String, Class<?>> expectedColumns = UriPartsFunctionBridge.getAllOutputFields();
+        final List<Attribute> attributes = parts.generatedAttributes();
+        // verify that the attributes list is unmodifiable
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+        assertEquals(expectedColumns.size(), attributes.size());
+        expectedColumns.forEach((key, value) -> {
+            String expectedName = "p." + key;
+            DataType expectedType = DataType.fromJavaType(value);
+            Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
+            assertNotNull("Expected attribute " + expectedName + " not found", attr);
+            assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());
+        });
+
+        // Test invalid input type
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts_🐔 p = uri"));
+        assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

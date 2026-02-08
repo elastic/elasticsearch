@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -152,6 +153,7 @@ public class ApproximationSupportTests extends ESTestCase {
         UnaryPlan.class,
         BinaryPlan.class,
         InferencePlan.class,
+        CompoundOutputEval.class,
 
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,

@@ -370,7 +370,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (enabled) {
                 BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
                 if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext);
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, false);
+                } else if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS) {
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, true);
                 }
                 return new SourceFieldBlockLoader();
             }

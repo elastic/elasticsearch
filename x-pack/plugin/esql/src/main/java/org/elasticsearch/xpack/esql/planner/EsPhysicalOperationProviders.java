@@ -144,6 +144,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          */
         public abstract Query toQuery(QueryBuilder queryBuilder);
 
+        public abstract IndexSettings indexSettings();
+
+        public abstract MappingLookup mappingLookup();
+
         /**
          * Tuning parameter for deciding when to use the "merge" stored field loader.
          * Think of it as "how similar to a sequential block of documents do I have to
@@ -533,6 +537,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     .build();
             }
             return query;
+        }
+
+        @Override
+        public IndexSettings indexSettings() {
+            return ctx.getIndexSettings();
+        }
+
+        @Override
+        public MappingLookup mappingLookup() {
+            return ctx.getMappingLookup();
         }
 
         @Override

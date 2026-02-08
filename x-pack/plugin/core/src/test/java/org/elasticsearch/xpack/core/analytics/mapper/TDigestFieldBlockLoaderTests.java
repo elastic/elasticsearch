@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.xpack.core.analytics.mapper;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Types;
@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -33,7 +32,7 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new AnalyticsPlugin());
+        return List.of(new TestAnalyticsPlugin());
     }
 
     private static DataSourceHandler DATA_SOURCE_HANDLER = new DataSourceHandler() {

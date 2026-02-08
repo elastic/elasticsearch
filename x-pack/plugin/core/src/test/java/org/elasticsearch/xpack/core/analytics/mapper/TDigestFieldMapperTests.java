@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.xpack.core.analytics.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -49,7 +48,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new AnalyticsPlugin());
+        return List.of(new TestAnalyticsPlugin());
     }
 
     @Override
@@ -489,4 +488,5 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     protected boolean supportsDocValuesSkippers() {
         return false;
     }
+
 }

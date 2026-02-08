@@ -193,7 +193,7 @@ import static org.mockito.Mockito.mock;
  *         a real index are only guaranteed to emit a warning if the document would match all filters <strong>except</strong>
  *         it has a multivalue field.</li>
  *     <li>Sorting: This class emits values in the order they appear in the {@code .csv} files that power it. A real
- *         index emits documents a fair random order. Multi-shard and multi-node tests doubly so.</li>
+ *         index emits documents a fairly random order. Multi-shard and multi-node tests doubly so.</li>
  * </ul>
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")

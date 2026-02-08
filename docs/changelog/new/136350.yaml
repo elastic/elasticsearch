@@ -1,0 +1,89 @@
+﻿##### Required fields #####
+
+# title:
+#   A required string that is a short, user-facing headline.
+#   (Max 80 characters)
+
+# type:
+#   A required string that contains the type of change
+#   It can be one of:
+#   - breaking-change
+#   - bug-fix
+#   - deprecation
+#   - docs
+#   - enhancement
+#   - feature
+#   - known-issue
+#   - regression
+#   - security
+#   - other
+
+# products:
+#   A required array of objects that denote the affected products
+#   Each product object contains:
+#
+#   - product:
+#       A required string with a valid product ID.
+#       Valid values are defined in https://github.com/elastic/docs-builder/blob/main/config/products.yml
+#
+#     target:
+#       An optional string with the target version or date.
+#
+#     lifecycle:
+#       An optional string for new features or enhancements that have a specific availability.
+#       It can be one of:
+#       - preview
+#       - beta
+#       - ga
+
+##### Optional fields #####
+
+# action:
+#   An optional string that describes what users must do to mitigate
+#   the impact of a breaking change or known issue.
+
+# areas:
+#   An optional array of strings that denotes the parts/components/services
+#   of the product that are affected.
+
+# description:
+#   An optional string that provides additional information.
+#   (Max 600 characters).
+
+# feature-id:
+#   An optional string to associate a feature or enhanceent with a
+#   unique feature flag.
+
+# highlight:
+#   An optional boolean for items that should be included in release
+#   highlights or the UI to draw user attention.
+
+# impact:
+#   An optional string that describes how the user's environment is
+#   affected by a breaking change or known issue.
+
+# issues:
+#   An optional array of strings that contain the issues that are
+#   relevant to the PR.
+
+# pr:
+#   An optional string that contains the pull request number.
+
+# subtype:
+#   An optional string that applies only to breaking changes.
+#   It can be one of:
+#   - api
+#   - behavioral
+#   - configuration
+#   - dependency
+#   - subscription
+#   - plugin
+#   - security
+#   - other
+
+pr: "136350"
+type: bug-fix
+products:
+- product: elasticsearch
+  target: 9.3.0
+title: Prevent NPE when generating snapshot metrics before initial cluster state is set

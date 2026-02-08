@@ -8,6 +8,17 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+
+<!-- :::{include} _snippets/9.3.0/known-issues.md
+::: -->
+
+:::{changelog} /changelog/new/bundles
+:subsections:
+:type: known-issue
+:config: /changelog.yml
+:product: elasticsearch
+:::
+
 ## 9.2.4 [elasticsearch-9.2.4-known-issues]
 
 * Upgrading from 9.1.10 to 9.2.4 may cause the following error:

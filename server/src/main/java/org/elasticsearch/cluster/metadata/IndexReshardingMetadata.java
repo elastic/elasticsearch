@@ -101,19 +101,21 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
     private static final String NOOP_FIELD_NAME = "noop";
     private static final ParseField NOOP_FIELD = new ParseField(NOOP_FIELD_NAME);
 
+    private static final String START_TIME_MILLIS_FIELD_NAME = "start_time_millis";
+    private static final ParseField START_TIME_MILLIS_FIELD = new ParseField(START_TIME_MILLIS_FIELD_NAME);
+
     private static final ConstructingObjectParser<IndexReshardingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "index_resharding_metadata",
         args -> {
+            long startTimeMillis = (long) args[0];
             // the parser ensures exactly one argument will not be null
-            if (args[0] != null) {
-                return new IndexReshardingMetadata((IndexReshardingState) args[0]);
-            } else {
-                return new IndexReshardingMetadata((IndexReshardingState) args[1]);
-            }
+            IndexReshardingState state = args[1] != null ? (IndexReshardingState) args[1] : (IndexReshardingState) args[2];
+            return new IndexReshardingMetadata(startTimeMillis, state);
         }
     );
 
     static {
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), START_TIME_MILLIS_FIELD);
         PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (parser, c) -> IndexReshardingState.Split.fromXContent(parser),
@@ -130,14 +132,17 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         PARSER.declareRequiredFieldSet(SPLIT_FIELD.getPreferredName(), NOOP_FIELD.getPreferredName());
     }
 
+    private final long startTimeMillis;
     private final IndexReshardingState state;
 
     // visible for testing
-    IndexReshardingMetadata(IndexReshardingState state) {
+    IndexReshardingMetadata(long startTimeMillis, IndexReshardingState state) {
+        this.startTimeMillis = startTimeMillis;
         this.state = state;
     }
 
     public IndexReshardingMetadata(StreamInput in) throws IOException {
+        startTimeMillis = in.readLong();
         var stateName = in.readString();
 
         state = switch (stateName) {
@@ -152,12 +157,17 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         return state;
     }
 
+    public long getStartTimeMillis() {
+        return startTimeMillis;
+    }
+
     static IndexReshardingMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(START_TIME_MILLIS_FIELD_NAME, startTimeMillis);
         String name = switch (state) {
             case IndexReshardingState.Noop ignored -> NOOP_FIELD.getPreferredName();
             case IndexReshardingState.Split ignored -> SPLIT_FIELD.getPreferredName();
@@ -171,6 +181,7 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(startTimeMillis);
         String name = switch (state) {
             case IndexReshardingState.Noop ignored -> NOOP_FIELD.getPreferredName();
             case IndexReshardingState.Split ignored -> SPLIT_FIELD.getPreferredName();
@@ -189,12 +200,12 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         }
         IndexReshardingMetadata otherMetadata = (IndexReshardingMetadata) other;
 
-        return Objects.equals(state, otherMetadata.state);
+        return startTimeMillis == otherMetadata.startTimeMillis && Objects.equals(state, otherMetadata.state);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(state);
+        return Objects.hash(startTimeMillis, state);
     }
 
     public String toString() {
@@ -206,10 +217,11 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
      * Split only supports updating an index to a multiple of its current shard count
      * @param shardCount the number of shards in the index at the start of the operation
      * @param multiple the new shard count is shardCount * multiple
+     * @param startTimeMillis the start time of the reshard operation in milliseconds
      * @return resharding metadata representing the start of the requested split
      */
-    public static IndexReshardingMetadata newSplitByMultiple(int shardCount, int multiple) {
-        return new IndexReshardingMetadata(IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
+    public static IndexReshardingMetadata newSplitByMultiple(long startTimeMillis, int shardCount, int multiple) {
+        return new IndexReshardingMetadata(startTimeMillis, IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
     }
 
     public static boolean isSplitSource(ShardId shardId, @Nullable IndexReshardingMetadata reshardingMetadata) {
@@ -227,7 +239,7 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         assert state instanceof IndexReshardingState.Split;
         IndexReshardingState.Split.Builder builder = new IndexReshardingState.Split.Builder((IndexReshardingState.Split) state);
         builder.setTargetShardState(shardId.getId(), newTargetState);
-        return new IndexReshardingMetadata(builder.build());
+        return new IndexReshardingMetadata(startTimeMillis, builder.build());
     }
 
     public IndexReshardingMetadata transitionSplitSourceToNewState(
@@ -237,7 +249,7 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         assert state instanceof IndexReshardingState.Split;
         IndexReshardingState.Split.Builder builder = new IndexReshardingState.Split.Builder((IndexReshardingState.Split) state);
         builder.setSourceShardState(shardId.getId(), newSourceState);
-        return new IndexReshardingMetadata(builder.build());
+        return new IndexReshardingMetadata(startTimeMillis, builder.build());
     }
 
     /**

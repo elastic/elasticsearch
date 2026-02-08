@@ -24,7 +24,7 @@ public class IndexReshardServiceTests extends ESTestCase {
         var indexMetadata1 = IndexMetadata.builder(randomAlphaOfLength(5)).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         var indexMetadata2 = IndexMetadata.builder(indexMetadata1.getIndex().getName() + "2")
             .settings(indexSettings(IndexVersion.current(), 1, 0))
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, 1, 2))
             .build();
 
         var projectId = randomProjectIdOrDefault();
@@ -55,7 +55,7 @@ public class IndexReshardServiceTests extends ESTestCase {
 
         var withReshardingMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), 1, 0))
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, 1, 2))
             .build();
         assertTrue(IndexReshardService.isShardSnapshotImpactedByResharding(withReshardingMetadata, 0));
         // The shard doesn't matter if there is resharding metadata.

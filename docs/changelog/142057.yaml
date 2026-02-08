@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 142057
+summary: Don't hardcode action type in DLM request deduplicator
+type: bug

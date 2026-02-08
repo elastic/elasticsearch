@@ -1,0 +1,5 @@
+area: Cluster Coordination
+issues: []
+pr: 142042
+summary: Suppress success callback when failing master task
+type: bug

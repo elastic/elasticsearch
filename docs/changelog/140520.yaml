@@ -1,0 +1,5 @@
+pr: 140520
+summary: Add prefetching of the stored fields in the fetch phase
+area: Search
+type: enhancement
+issues: []

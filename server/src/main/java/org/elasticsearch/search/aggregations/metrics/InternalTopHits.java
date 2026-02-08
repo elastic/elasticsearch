@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortFieldValidation;
+import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -131,7 +132,19 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                     shardDocs = new TopFieldDocs[aggregations.size()];
                     maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
                     Sort sort = SortFieldValidation.validateAndMaybeRewrite(Arrays.asList(shardDocs), topFieldDocs.fields);
-                    reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+                    try {
+                        reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+                    } catch (ClassCastException e) {
+                        // This can happen during upgrades when sort field types are incompatible across shards
+                        // even after validation. Wrap in a more descriptive error message.
+                        throw new IllegalArgumentException(
+                            "Failed to merge top_hits aggregation results from different shards due to incompatible "
+                                + "sort field types. This can occur during upgrades when field mappings differ across shards. "
+                                + "Original error: "
+                                + e.getMessage(),
+                            e
+                        );
+                    }
                 } else {
                     shardDocs = new TopDocs[aggregations.size()];
                     maxScore = reduceAndFindMaxScore(aggregations, shardDocs);

@@ -39,6 +39,9 @@ public final class SortFieldValidation {
         SortField.Type[] firstTypes = null;
         boolean isFirstResult = true;
         Set<Integer> fieldIdsWithMixedIntAndLongSorts = new HashSet<>();
+        Set<Integer> fieldIdsWithMixedNumericSorts = new HashSet<>();
+        // Track which fields have floating point types to determine if we need DOUBLE conversion
+        Set<Integer> fieldIdsWithFloatingPointTypes = new HashSet<>();
         for (TopDocs topDocs : results) {
             // We don't actually merge in empty score docs, so ignore potentially mismatched types if there are no docs
             if (topDocs == null || topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
@@ -54,6 +57,10 @@ public final class SortFieldValidation {
                         // for custom types that we can't resolve, we can't do the check
                         return sort;
                     }
+                    // Track if this field has floating point types
+                    if (firstTypes[i] == SortField.Type.FLOAT || firstTypes[i] == SortField.Type.DOUBLE) {
+                        fieldIdsWithFloatingPointTypes.add(i);
+                    }
                 }
                 isFirstResult = false;
             } else {
@@ -64,8 +71,22 @@ public final class SortFieldValidation {
                             // for custom types that we can't resolve, we can't do the check
                             return sort;
                         }
+                        // Track if this field has floating point types
+                        if (curType == SortField.Type.FLOAT || curType == SortField.Type.DOUBLE) {
+                            fieldIdsWithFloatingPointTypes.add(i);
+                        }
+                        // Check if we are mixing INT and LONG sort types (without floating point)
                         if (mixIntAndLong(firstTypes[i], curType)) {
-                            fieldIdsWithMixedIntAndLongSorts.add(i);
+                            // Only add to INT/LONG mixing if there's no floating point type for this field
+                            if (fieldIdsWithFloatingPointTypes.contains(i) == false) {
+                                fieldIdsWithMixedIntAndLongSorts.add(i);
+                            } else {
+                                // If floating point exists, convert everything to DOUBLE
+                                fieldIdsWithMixedNumericSorts.add(i);
+                            }
+                        } else if (isNumericType(firstTypes[i]) && isNumericType(curType)) {
+                            // Mixing numeric types (FLOAT/LONG/DOUBLE) - convert to DOUBLE
+                            fieldIdsWithMixedNumericSorts.add(i);
                         } else {
                             throw new IllegalArgumentException(
                                 "Can't sort on field ["
@@ -81,8 +102,13 @@ public final class SortFieldValidation {
                 }
             }
         }
+        // Remove fields from INT/LONG mixing if they also need DOUBLE conversion
+        fieldIdsWithMixedIntAndLongSorts.removeAll(fieldIdsWithMixedNumericSorts);
         if (fieldIdsWithMixedIntAndLongSorts.isEmpty() == false) {
             sort = rewriteSortAndResultsToLong(sort, results, fieldIdsWithMixedIntAndLongSorts);
+        }
+        if (fieldIdsWithMixedNumericSorts.isEmpty() == false) {
+            sort = rewriteSortAndResultsToDouble(sort, results, fieldIdsWithMixedNumericSorts);
         }
         return sort;
     }
@@ -120,6 +146,45 @@ public final class SortFieldValidation {
             }
         }
         return new Sort(newSortFields);
+    }
+
+    /**
+     * Rewrite Sort objects and shard results for double sort for mixed numeric fields:
+     * convert Sort to Double sort and convert fields' values to Double values.
+     * This handles FLOAT/LONG/DOUBLE mixing by converting all to DOUBLE.
+     */
+    private static Sort rewriteSortAndResultsToDouble(
+        Sort sort,
+        Collection<? extends TopDocs> results,
+        Set<Integer> fieldIdsWithMixedNumericSorts
+    ) {
+        SortField[] newSortFields = sort.getSort();
+        for (int fieldIdx : fieldIdsWithMixedNumericSorts) {
+            // Rewrite the sort field to DOUBLE
+            SortField originalField = newSortFields[fieldIdx];
+            SortField doubleField = new SortField(originalField.getField(), SortField.Type.DOUBLE, originalField.getReverse());
+            doubleField.setMissingValue(originalField.getMissingValue());
+            newSortFields[fieldIdx] = doubleField;
+
+            // Convert all sort values to Double
+            for (TopDocs topDocs : results) {
+                if (topDocs == null || topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
+                    continue;
+                }
+                for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                    FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                    Object value = fieldDoc.fields[fieldIdx];
+                    if (value != null && value instanceof Number) {
+                        fieldDoc.fields[fieldIdx] = ((Number) value).doubleValue();
+                    }
+                }
+            }
+        }
+        return new Sort(newSortFields);
+    }
+
+    private static boolean isNumericType(SortField.Type type) {
+        return type == SortField.Type.INT || type == SortField.Type.LONG || type == SortField.Type.FLOAT || type == SortField.Type.DOUBLE;
     }
 
     private static SortField.Type getType(SortField sortField) {

@@ -759,4 +759,4 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: status_exception }
   - contains: { error.reason: "[diversify] search failed" }
-  - match: { error.suppressed.0.type: illegal_argument_exception }
+  - match: { error.suppressed.0.type: status_exception }

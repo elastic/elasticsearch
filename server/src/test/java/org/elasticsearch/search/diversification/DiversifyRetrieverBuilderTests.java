@@ -19,7 +19,6 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -327,7 +325,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         retriever.doRewrite(queryRewriteContext);
 
         List<ScoreDoc[]> docs = new ArrayList<>();
-        ScoreDoc[] hits = getTestNonVectorSearchHits();
+        ScoreDoc[] hits = getTestSearchHitsWithNoValues();
         docs.add(hits);
 
         ElasticsearchStatusException badDocFieldEx = assertThrows(
@@ -341,33 +339,15 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         assertEquals(400, badDocFieldEx.status().getStatus());
 
         cleanDocsAndHits(docs, hits);
-
-        ScoreDoc[] hitsWithNoValues = getTestSearchHitsWithNoValues();
-        docs.add(hitsWithNoValues);
-
-        ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-            ElasticsearchStatusException.class,
-            () -> retriever.combineInnerRetrieverResults(docs, false)
-        );
-        assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
-            docsWithNoValuesEx.getMessage()
-        );
-        assertEquals(400, docsWithNoValuesEx.status().getStatus());
-
-        cleanDocsAndHits(docs, hitsWithNoValues);
     }
 
     private void cleanDocsAndHits(List<ScoreDoc[]> docs, ScoreDoc[] hits) {
         docs.clear();
-        for (ScoreDoc hit : hits) {
-            ((DiversifyRetrieverBuilder.RankDocWithSearchHit) hit).hit().decRef();
-        }
         Arrays.fill(hits, null);
     }
 
     private ScoreDoc[] getTestSearchHits() {
-        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+        return new DiversifyRetrieverBuilder.RankDocWithDenseVector[] {
             getTestSearchHit(1, 1, 2.0f, new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
             getTestSearchHit(2, 2, 1.8f, new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
             getTestSearchHit(3, 0, 1.8f, new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
@@ -376,40 +356,26 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getTestSearchHit(6, 1, 0.8f, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
     }
 
-    private ScoreDoc[] getTestNonVectorSearchHits() {
-        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            getTestNonVectorSearchHit(1, 1, 2.0f),
-            getTestNonVectorSearchHit(2, 2, 1.8f),
-            getTestNonVectorSearchHit(3, 1, 1.8f) };
-    }
-
     private ScoreDoc[] getTestSearchHitsWithNoValues() {
-        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+        return new DiversifyRetrieverBuilder.RankDocWithDenseVector[] {
             getTestSearchHitWithNoValue(1, 1, 2.0f),
             getTestSearchHitWithNoValue(2, 1, 1.8f),
             getTestSearchHitWithNoValue(3, 1, 1.8f) };
     }
 
-    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int rank, int docId, float score, float[] value) {
-        SearchHit hit = new SearchHit(docId);
-        hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
-        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+    private DiversifyRetrieverBuilder.RankDocWithDenseVector getTestSearchHit(int rank, int docId, float score, float[] value) {
+        DiversifyRetrieverBuilder.RankDocWithDenseVector doc = new DiversifyRetrieverBuilder.RankDocWithDenseVector(
+            docId,
+            score,
+            1,
+            new VectorData(value)
+        );
         doc.rank = rank;
         return doc;
     }
 
-    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestNonVectorSearchHit(int rank, int docId, float score) {
-        SearchHit hit = new SearchHit(docId);
-        Object value = randomBoolean() ? randomAlphanumericOfLength(16) : generateRandomStringArray(8, 16, false);
-        hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
-        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
-        doc.rank = rank;
-        return doc;
-    }
-
-    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHitWithNoValue(int rank, int docId, float score) {
-        SearchHit hit = new SearchHit(docId);
-        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+    private DiversifyRetrieverBuilder.RankDocWithDenseVector getTestSearchHitWithNoValue(int rank, int docId, float score) {
+        DiversifyRetrieverBuilder.RankDocWithDenseVector doc = new DiversifyRetrieverBuilder.RankDocWithDenseVector(docId, score, 1, null);
         doc.rank = rank;
         return doc;
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.common.chunks;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -27,12 +28,14 @@ import org.elasticsearch.ElasticsearchException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Utility class for scoring pre-determined chunks using an in-memory Lucene index.
  */
 public class MemoryIndexChunkScorer {
 
+    private static final String CHUNK_INDEX_FIELD = "chunk_index";
     private static final String CONTENT_FIELD = "content";
 
     private final StandardAnalyzer analyzer;
@@ -60,10 +63,13 @@ public class MemoryIndexChunkScorer {
         try (Directory directory = new ByteBuffersDirectory()) {
             IndexWriterConfig config = new IndexWriterConfig(analyzer);
             try (IndexWriter writer = new IndexWriter(directory, config)) {
+                int chunkIndex = 0;
                 for (String chunk : chunks) {
                     Document doc = new Document();
+                    doc.add(new IntField(CHUNK_INDEX_FIELD, chunkIndex, Field.Store.YES));
                     doc.add(new TextField(CONTENT_FIELD, chunk, Field.Store.YES));
                     writer.addDocument(doc);
+                    chunkIndex++;
                 }
                 writer.commit();
             }
@@ -79,12 +85,15 @@ public class MemoryIndexChunkScorer {
                 List<ScoredChunk> scoredChunks = new ArrayList<>();
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     Document doc = reader.storedFields().document(scoreDoc.doc);
+                    int chunkIndex = Integer.parseInt(doc.get(CHUNK_INDEX_FIELD));
                     String content = doc.get(CONTENT_FIELD);
-                    scoredChunks.add(new ScoredChunk(content, scoreDoc.score));
+                    scoredChunks.add(new ScoredChunk(chunkIndex, content, scoreDoc.score));
                 }
 
                 return backfillResults && scoredChunks.isEmpty()
-                    ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
+                    ? IntStream.range(0, Math.min(maxResults, chunks.size()))
+                        .mapToObj(i -> new ScoredChunk(i, chunks.get(i), 0.0f))
+                        .toList()
                     : scoredChunks;
             }
         } catch (IOException e) {

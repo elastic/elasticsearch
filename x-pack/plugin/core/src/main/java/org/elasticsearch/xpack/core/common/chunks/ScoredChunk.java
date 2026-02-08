@@ -10,4 +10,4 @@ package org.elasticsearch.xpack.core.common.chunks;
 /**
  * Represents a chunk with its relevance score.
  */
-public record ScoredChunk(String content, float score) {}
+public record ScoredChunk(int chunkIndex, String content, float score) {}

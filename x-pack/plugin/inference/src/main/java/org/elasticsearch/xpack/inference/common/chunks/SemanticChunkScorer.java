@@ -120,7 +120,7 @@ public class SemanticChunkScorer {
                         offsetAndScore,
                         nestedSources
                     );
-                    scoredChunks.add(new ScoredChunk(content, offsetAndScore.score()));
+                    scoredChunks.add(new ScoredChunk(j, content, offsetAndScore.score()));
                 }
             } else {
                 // Handle new format - extract using offsets
@@ -129,7 +129,7 @@ public class SemanticChunkScorer {
                     String key = offsetAndScore.offset().field();
                     String content = SemanticTextChunkUtils.extractContent(offsetAndScore, hit.field(key));
                     if (content != null) {
-                        scoredChunks.add(new ScoredChunk(content, offsetAndScore.score()));
+                        scoredChunks.add(new ScoredChunk(j, content, offsetAndScore.score()));
                     }
                 }
             }

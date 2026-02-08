@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.common.chunks;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -21,9 +22,12 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,6 +38,9 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -41,6 +48,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,10 +64,14 @@ public class SemanticTextChunkUtils {
     public record OffsetAndScore(int index, OffsetSourceFieldMapper.OffsetSource offset, float score) {}
 
     public static String extractContent(OffsetAndScore offsetAndScore, DocumentField docFieldContent) {
+        return extractContent(offsetAndScore.offset().start(), offsetAndScore.offset().end(), docFieldContent);
+    }
+
+    public static String extractContent(int startOffset, int endOffset, DocumentField docFieldContent) {
         String content = null;
         if (docFieldContent != null && docFieldContent.getValues().size() > 0) {
             String fullContent = docFieldContent.getValue().toString();
-            content = fullContent.substring(offsetAndScore.offset().start(), offsetAndScore.offset().end());
+            content = fullContent.substring(startOffset, endOffset);
         }
         return content;
     }
@@ -218,4 +230,123 @@ public class SemanticTextChunkUtils {
         return queries;
     }
 
+    public static int getSemanticTextFieldEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
+        return switch (elementType) {
+            case FLOAT, BFLOAT16, BYTE -> dimensions;
+            case BIT -> {
+                assert dimensions % Byte.SIZE == 0;
+                yield dimensions / Byte.SIZE;
+            }
+        };
+    }
+
+    public record ScoredChunkVector(VectorData vector, Float score) {}
+
+    public static List<ScoredChunkVector> getTopNSimilarVectorChunks(
+        int maxResults,
+        List<SemanticTextField.Chunk> chunks,
+        VectorData queryVector,
+        int embeddingLength,
+        XContentType contentType,
+        DenseVectorFieldMapper.ElementType elementType,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        boolean isFloat = queryVector.isFloat();
+
+        if (chunks == null || chunks.isEmpty()) {
+            return List.of();
+        }
+
+        List<ScoredChunkVector> chunkScores = new ArrayList<>();
+        for (SemanticTextField.Chunk chunk : chunks) {
+            VectorData vector = getTextEmbeddingVectorFromChunk(chunk, embeddingLength, contentType, elementType);
+            if (vector == null) {
+                continue;
+            }
+
+            float score = isFloat
+                ? similarityFunction.compare(vector.floatVector(), queryVector.floatVector())
+                : similarityFunction.compare(vector.byteVector(), queryVector.byteVector());
+            chunkScores.add(new ScoredChunkVector(vector, score));
+        }
+
+        if (chunkScores.isEmpty()) {
+            return List.of();
+        }
+
+        chunkScores.sort(new Comparator<ScoredChunkVector>() {
+            @Override
+            public int compare(ScoredChunkVector o1, ScoredChunkVector o2) {
+                if (o1.score > o2.score) {
+                    return -1;
+                }
+                if (o1.score < o2.score) {
+                    return 1;
+                }
+                return 0;
+            }
+        });
+
+        int numResults = Math.min(maxResults, chunkScores.size());
+        return chunkScores.subList(0, numResults);
+    }
+
+    public static VectorData getTextEmbeddingVectorFromChunk(
+        SemanticTextField.Chunk chunk,
+        int embeddingLength,
+        XContentType contentType,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        BytesReference embeddingsBytes = chunk.rawEmbeddings();
+        if (embeddingsBytes == null) {
+            return null;
+        }
+
+        double[] values = parseDenseVectorFromBytes(chunk.rawEmbeddings(), embeddingLength, contentType);
+        if (values == null) {
+            return null;
+        }
+
+        return switch (elementType) {
+            case FLOAT, BFLOAT16 -> new VectorData(floatArrayOf(values));
+            case BYTE, BIT -> new VectorData(byteArrayOf(values));
+        };
+    }
+
+    private static float[] floatArrayOf(double[] doublesArray) {
+        var floatArray = new float[doublesArray.length];
+        for (int i = 0; i < doublesArray.length; i++) {
+            floatArray[i] = (float) doublesArray[i];
+        }
+        return floatArray;
+    }
+
+    private static byte[] byteArrayOf(double[] doublesArray) {
+        // It's fine to not check if the double values are out of range here because if any are, equality assertions on the expected vs.
+        // actual chunks will fail downstream
+        byte[] byteArray = new byte[doublesArray.length];
+        for (int i = 0; i < doublesArray.length; i++) {
+            byteArray[i] = (byte) doublesArray[i];
+        }
+        return byteArray;
+    }
+
+    private static double[] parseDenseVectorFromBytes(BytesReference value, int numDims, XContentType contentType) {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, value, contentType)) {
+            parser.nextToken();
+            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+                return null;
+            }
+            double[] values = new double[numDims];
+            for (int i = 0; i < numDims; i++) {
+                if (parser.nextToken() == XContentParser.Token.END_ARRAY) {
+                    return values;
+                }
+                values[i] = parser.doubleValue();
+            }
+            return values;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

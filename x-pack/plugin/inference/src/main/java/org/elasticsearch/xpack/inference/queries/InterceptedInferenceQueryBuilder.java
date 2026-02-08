@@ -138,6 +138,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      */
     protected abstract String getQuery();
 
+    public T originalQuery() {
+        return originalQuery;
+    }
+
     /**
      * Rewrite to a backwards-compatible form of the query builder, depending on the value of
      * {@link QueryRewriteContext#getMinTransportVersion()}. If no rewrites are required, the implementation should return {@code this}.

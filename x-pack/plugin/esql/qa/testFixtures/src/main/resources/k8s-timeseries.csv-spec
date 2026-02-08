@@ -1233,58 +1233,58 @@ max_deriv:double                              | step:datetime            | pod:k
 
 DefaultMetricWithFrom
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_default_metric
+required_capability: aggregate_metric_double_avg_as_default_metric
 FROM k8s-downsampled
 | STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
 | sort pod
 ;
 
 max:double | std_dev:double | pod:keyword
-1060.0     | 331.5018947    | one
-824.0      | 151.9744943    | three
-1419.0     | 364.4118888    | two
+1060.0     | 275.6970067    | one
+824.0      | 184.1213952    | three
+1419.0     | 356.9865993    | two
 ;
 
 DefaultMetricWithTS
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_default_metric
+required_capability: aggregate_metric_double_avg_as_default_metric
 TS k8s-downsampled
 | STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
 | sort pod
 ;
 
 max:double | std_dev:double | pod:keyword
-1060.0     | 355.3786713    | one
-824.0      | 180.6918802    | three
-815.0      | 102.3469046    | two
+998.0      | 335.8395781    | one
+734.0      | 228.887527     | three
+576.0      | 58.4465568     | two
 ;
 
 DefaultMetricWithFromImplicitCasting
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_default_metric
+required_capability: aggregate_metric_double_avg_as_default_metric
 FROM k8s*
 | STATS min = min(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
 | sort pod
 ;
 
 min:double | std_dev:double | pod:keyword
-18.0       | 380.8643432    | one
-48.0       | 340.5483293    | three
-20.0       | 431.2070165    | two
+18.0       | 375.1480039    | one
+48.0       | 347.6778006    | three
+20.0       | 428.6422763    | two
 ;
 
 DefaultMetricWithTSImplicitCasting
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_default_metric
+required_capability: aggregate_metric_double_avg_as_default_metric
 TS k8s*
-| STATS min = min(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| STATS min = min(network.eth0.tx), max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
 | sort pod
 ;
 
-min:double | std_dev:double | pod:keyword
-193.0      | 427.9853269    | one
-715.0      | 208.6955678    | three
-602.0      | 375.7757842    | two
+min:double | max:double | std_dev:double | pod:keyword
+176.0      | 1380.0     | 428.6282305    | one
+239.0      | 1241.0     | 366.7649929    | three
+438.0      | 1716.0     | 450.5833552    | two
 ;
 
 Case statement for Aggregate Metric Double (Standard Mode)

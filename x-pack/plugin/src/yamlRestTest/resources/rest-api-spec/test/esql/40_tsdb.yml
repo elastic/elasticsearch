@@ -865,33 +865,52 @@ error on rename timestamp:
   - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
 
 ---
-Stats using min as default metric for aggregate metric double:
+Stats with partial submetrics for aggregate metric double with average as default:
   - requires:
       test_runner_features: [capabilities]
       capabilities:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_default_metric]
+          capabilities: [aggregate_metric_double_avg_as_default_metric]
       reason: "Default metric"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test4
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:53:04.467Z", "agg_metric": {"sum": 4910, "value_count": 5}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:54:04.467Z", "agg_metric": {"sum": 2019, "value_count": 9}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:50:04.467Z", "agg_metric": {"sum": 1, "value_count": 10}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), std_dev = round(std_dev(agg_metric), 5)'
+          query: 'FROM test4 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric), std_dev = round(std_dev(agg_metric), 5)'
 
   - length: {values: 1}
-  - length: {values.0: 3}
+  - length: {values.0: 5}
   - match: {columns.0.name: "max(agg_metric)"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "min(agg_metric)"}
   - match: {columns.1.type: "double"}
-  - match: {columns.2.name: "std_dev"}
+  - match: {columns.2.name: "sum(agg_metric)"}
   - match: {columns.2.type: "double"}
-  - match: {values.0.0: 17.0}
-  - match: {values.0.1: -3.0}
-  - match: {values.0.2: 2.62467}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "std_dev"}
+  - match: {columns.4.type: "double"}
+  - match: {values.0.0: null}
+  - match: {values.0.1: null}
+  - match: {values.0.2: 6930}
+  - match: {values.0.3: 24}
+  - match: {values.0.4: 420.11466}
 
 ---
 PromQL rate on counter field:

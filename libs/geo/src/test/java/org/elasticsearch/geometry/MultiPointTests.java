@@ -36,29 +36,20 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         GeometryValidator validator = GeographyValidator.instance(true);
-        assertEquals("MULTIPOINT (2.0 1.0)", WellKnownText.toWKT(new MultiPoint(Collections.singletonList(new Point(2, 1)))));
-        assertEquals(
-            new MultiPoint(Collections.singletonList(new Point(2, 1))),
-            WellKnownText.fromWKT(validator, true, "MULTIPOINT (2 1)")
+        assertSerialization(validator, true, "MULTIPOINT (2.0 1.0)", new MultiPoint(Collections.singletonList(new Point(2, 1))));
+        assertSerialization(
+            validator,
+            true,
+            "MULTIPOINT (2.0 1.0, 3.0 4.0)",
+            new MultiPoint(Arrays.asList(new Point(2, 1), new Point(3, 4)))
         );
-
-        assertEquals("MULTIPOINT (2.0 1.0, 3.0 4.0)", WellKnownText.toWKT(new MultiPoint(Arrays.asList(new Point(2, 1), new Point(3, 4)))));
-        assertEquals(
-            new MultiPoint(Arrays.asList(new Point(2, 1), new Point(3, 4))),
-            WellKnownText.fromWKT(validator, true, "MULTIPOINT (2 1, 3 4)")
-        );
-
-        assertEquals(
+        assertSerialization(
+            validator,
+            true,
             "MULTIPOINT (2.0 1.0 10.0, 3.0 4.0 20.0)",
-            WellKnownText.toWKT(new MultiPoint(Arrays.asList(new Point(2, 1, 10), new Point(3, 4, 20))))
+            new MultiPoint(Arrays.asList(new Point(2, 1, 10), new Point(3, 4, 20)))
         );
-        assertEquals(
-            new MultiPoint(Arrays.asList(new Point(2, 1, 10), new Point(3, 4, 20))),
-            WellKnownText.fromWKT(validator, true, "MULTIPOINT (2 1 10, 3 4 20)")
-        );
-
-        assertEquals("MULTIPOINT EMPTY", WellKnownText.toWKT(MultiPoint.EMPTY));
-        assertEquals(MultiPoint.EMPTY, WellKnownText.fromWKT(validator, true, "MULTIPOINT EMPTY)"));
+        assertSerialization(validator, true, "MULTIPOINT EMPTY", MultiPoint.EMPTY);
     }
 
     public void testValidation() {

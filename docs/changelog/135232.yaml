@@ -1,0 +1,6 @@
+pr: 135232
+summary: Skip force-merge if it would be a no-op
+area: Engine
+type: enhancement
+issues:
+ - 86013

@@ -1456,6 +1456,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             final String source = Strings.format("{\"f\":%d}", i * 2);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            // flush during indexing to create more segments
+            leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
         }
         leaderClient().prepareDelete("index1", "1").get();
         leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();

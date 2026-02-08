@@ -1578,6 +1578,14 @@ public abstract class Engine implements Closeable {
         throws EngineException, IOException;
 
     /**
+     * Checks whether any segments would be merged with the specified {@code maxNumSegments} and {@code onlyExpungeDeletes}.
+     * Returns {@code true} if no segments would be merged and a force-merge request can be considered a no-op.
+     * It only returns {@code true} under "trivial" conditions (i.e. no concurrent merges or incoming docs) where it can guarantee
+     * that no segments would be merged. In all other cases it returns {@code false}.
+     */
+    public abstract boolean preForceMergeNoOpCheck(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException;
+
+    /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
      *

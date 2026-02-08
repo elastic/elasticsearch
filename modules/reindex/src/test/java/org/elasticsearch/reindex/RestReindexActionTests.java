@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -43,7 +44,8 @@ public class RestReindexActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         action = new RestReindexAction(
-            nf -> nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled
+            nf -> nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled,
+            Settings.EMPTY
         );
         controller().registerHandler(action);
     }

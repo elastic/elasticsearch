@@ -89,7 +89,7 @@ public class AzureAiStudioRerankModel extends AzureAiStudioModel {
 
     @Override
     protected URI getEndpointUri() throws URISyntaxException {
-        return new URI(this.target + RERANK_URI_PATH);
+        return new URI(stripTrailingSlash(this.target) + RERANK_URI_PATH);
     }
 
     @Override

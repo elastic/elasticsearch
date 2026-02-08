@@ -41,11 +41,15 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     }
 
     public void testUriCreation() {
-        var url = "http://eis-gateway.com";
-        var model = createModel(url, "my-model-id", TaskType.COMPLETION);
+        var model = createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
 
-        var uri = model.uri();
-        assertThat(uri.toString(), is(url + "/api/v1/chat"));
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
+    }
+
+    public void testUriCreation_WithTrailingSlash() {
+        var model = createModel("http://eis-gateway.com/", "my-model-id", TaskType.COMPLETION);
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
     }
 
     public void testGetServiceSettings() {

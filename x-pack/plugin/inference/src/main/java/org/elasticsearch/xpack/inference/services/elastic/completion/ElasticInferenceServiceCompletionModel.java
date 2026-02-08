@@ -28,6 +28,8 @@ import java.util.Objects;
 
 public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceModel {
 
+    public static final String COMPLETION_PATH = "/api/v1/chat";
+
     public static ElasticInferenceServiceCompletionModel of(
         ElasticInferenceServiceCompletionModel model,
         UnifiedCompletionRequest request
@@ -114,7 +116,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat");
+            return getBaseURIBuilder().setPath(COMPLETION_PATH).build();
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

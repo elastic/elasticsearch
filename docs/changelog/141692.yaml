@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 141692
+summary: "[Inference API] Prevent trailing slashes from being included in URLs"
+type: bug

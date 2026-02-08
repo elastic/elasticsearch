@@ -682,6 +682,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 int currentDocId = -1;
                 long currentBlockId = -1;
+                int currentDocIdRunEnd = -1;
 
                 @Override
                 public int docID() {
@@ -703,7 +704,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     return lastDocId + 1;
                 }
 
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    if (currentDocIdRunEnd == -1) {
+                        return super.docIDRunEnd();
+                    } else {
+                        return currentDocIdRunEnd;
+                    }
+                }
+
                 int scanToTargetDocId(int target) throws IOException {
+                    // If target falls within the current known run of consecutive matches, return it directly
+                    if (target < currentDocIdRunEnd) {
+                        return currentDocId = target;
+                    }
+
                     for (long blockId = currentBlockId == -1 ? firstBlockId : currentBlockId; blockId <= endBlockId; blockId++) {
                         int blockStartDocId = (int) docOffsets.get(blockId);
                         int blockEndDocId = (int) docOffsets.get(blockId + 1);
@@ -729,13 +744,25 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             int length = uncompressedDocStarts[index + 1] - uncompressedDocStarts[index];
                             if (requestedLength == length) {
                                 currentBlockId = blockId;
-                                return currentDocId = docId;
+                                currentDocId = docId;
+                                // Look ahead for consecutive matching docs within the current block
+                                int runEnd = docId + 1;
+                                while (runEnd < endDocId) {
+                                    int runIndex = runEnd - blockStartDocId;
+                                    int runLength = uncompressedDocStarts[runIndex + 1] - uncompressedDocStarts[runIndex];
+                                    if (runLength != requestedLength) {
+                                        break;
+                                    }
+                                    runEnd++;
+                                }
+                                currentDocIdRunEnd = runEnd;
+                                return currentDocId;
                             }
                         }
                     }
 
                     currentBlockId = endBlockId;
-                    return currentDocId = DocIdSetIterator.NO_MORE_DOCS;
+                    return currentDocId = currentDocIdRunEnd = DocIdSetIterator.NO_MORE_DOCS;
                 }
             };
         }

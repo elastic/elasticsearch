@@ -125,7 +125,7 @@ public class MMRExec extends UnaryExec {
         return Objects.hash(super.hashCode(), diversifyField, limit, queryVectorExpression, options);
     }
 
-    private VectorData extractQueryVectorData(Expression queryVectorExpression) {
+    public static VectorData extractQueryVectorData(Expression queryVectorExpression) {
         if (queryVectorExpression == null) {
             return null;
         }

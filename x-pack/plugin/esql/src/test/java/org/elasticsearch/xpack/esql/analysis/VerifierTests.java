@@ -3571,6 +3571,12 @@ public class VerifierTests extends ESTestCase {
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
         );
 
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10");
+        query("""
+            row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | mmr TEXT_EMBEDDING("some text", "some model") on dense_embedding limit 10
+            """);
+
         assertThat(
             error(
                 "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"not_a_dense_vector\" on dense_embedding limit 10",

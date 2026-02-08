@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
 
@@ -55,7 +56,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
-        this.queryVector = queryVector;
+        this.queryVector = processQueryVector(queryVector);
         this.options = options;
     }
 
@@ -138,7 +139,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     @Override
     public void postAnalysisVerification(Failures failures) {
         if (false == hasLimitedInput(this)) {
-            failures.add(new Failure(this, "MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+            failures.add(fail(this, "MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
         }
 
         if (diversifyField.dataType() != DataType.DENSE_VECTOR) {
@@ -152,18 +153,20 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
 
         // ensure query_vector, if given, is resolved to a DENSE_VECTOR type
-        if (queryVector != null) {
-            boolean isValidQueryVector = queryVector.resolved()
-                && ((queryVector instanceof Literal
-                    && (queryVector.dataType() == DataType.DOUBLE || queryVector.dataType() == DataType.FLOAT))
-                    || queryVector.dataType() == DataType.DENSE_VECTOR);
-            if (isValidQueryVector == false) {
-                failures.add(fail(this, "MMR query vector must be resolved to a dense vector type"));
-            }
+        if (isValidQueryVector() == false) {
+            failures.add(fail(this, "MMR query vector must be resolved to a dense vector type"));
         }
 
         // ensure lambda, if given, is between 0.0 and 1.0
         postAnalysisOptionsVerification(failures);
+    }
+
+    private boolean isValidQueryVector() {
+        if (queryVector == null || queryVector.dataType() == DENSE_VECTOR) {
+            return true;
+        }
+
+        return queryVector.resolved() && queryVector.dataType().isNumeric();
     }
 
     private void postAnalysisOptionsVerification(Failures failures) {
@@ -226,5 +229,17 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
             return (Integer) litLimit.value();
         }
         return null;
+    }
+
+    private Expression processQueryVector(Expression queryVector) {
+        if (queryVector == null || queryVector.resolved() == false || queryVector.dataType() == DENSE_VECTOR) {
+            return queryVector;
+        }
+
+        if (queryVector.dataType().isNumeric()) {
+            return new ToDenseVector(queryVector.source(), queryVector);
+        }
+
+        return queryVector;
     }
 }

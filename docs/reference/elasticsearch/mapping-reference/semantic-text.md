@@ -15,17 +15,21 @@ The `semantic_text` field type simplifies [semantic search](docs-content://solut
 - Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or {{infer}} processors.
 - Handles chunking: Automatically chunks long text documents during indexing.
 
-## Basic `semantic_text` mapping example
+## `semantic_text` mapping example
 
 The following example creates an index mapping with a `semantic_text` field:
 
 ```console
-PUT semantic-embeddings 
+PUT semantic-embeddings
 {
-  "mappings": { 
+  "mappings": {
     "properties": {
-      "content": { 
-        "type": "semantic_text" <1>
+      "content": {
+        "type": "semantic_text", 
+        "inference_id": "my-inference-endpoint", <1>
+        "index_options": { <2>
+          "type": "bbq_disk"
+        }
       }
     }
   }
@@ -33,7 +37,11 @@ PUT semantic-embeddings
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
-1. In this example, the `semantic_text` field uses a [default {{infer}} endpoint](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints) because the `inference_id` parameter isn't specified.
+1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings for this field. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-and-preconfigured-endpoints).
+
+2. (Optional) Controls how vectors are indexed for kNN search. In this example, `bbq_disk` enables [disk-based binary quantization](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk), which can significantly reduce memory usage for large vector datasets.
+If you don’t specify `index_options`, {{es}} automatically selects a default indexing strategy based on the vector type and dimensions.
+To learn more about available index options and how they affect vector quantization, refer to [Automatically quantize vectors for kNN search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization).
 
 :::{tip}
 For a complete example, refer to the [Semantic search with `semantic_text`](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial.

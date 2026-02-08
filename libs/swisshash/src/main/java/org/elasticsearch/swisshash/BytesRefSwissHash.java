@@ -27,6 +27,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.zip.CRC32C;
 
 /**
  * Assigns {@code int} ids to {@code BytesRef}s, vending the ids in order they are added.
@@ -554,8 +555,12 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return (int) value;
     }
 
+    private final CRC32C crc = new CRC32C();
+
     int hash(BytesRef v) {
-        return BitMixer.mix32(v.hashCode());
+        crc.reset();
+        crc.update(v.bytes, v.offset, v.length);
+        return (int) crc.getValue();
     }
 
     int slot(int hash) {

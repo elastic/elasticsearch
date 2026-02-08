@@ -1,0 +1,6 @@
+pr: 140834
+summary: Resolve data types in multiple subqueries with mixed cluster versions more
+  consistently (option 2)
+area: ES|QL
+type: bug
+issues: []

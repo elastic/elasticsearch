@@ -23,6 +23,8 @@ import java.util.Map;
  */
 public class MutableAnalyzerContext extends AnalyzerContext {
     private TransportVersion currentVersion;
+    private boolean currentUseAggregateMetricDoubleWhenNotSupported;
+    private boolean currentUseDenseVectorWhenNotSupported;
 
     public MutableAnalyzerContext(
         Configuration configuration,
@@ -45,11 +47,23 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             unmappedResolution
         );
         this.currentVersion = minimumVersion;
+        this.currentUseAggregateMetricDoubleWhenNotSupported = false;
+        this.currentUseDenseVectorWhenNotSupported = false;
     }
 
     @Override
     public TransportVersion minimumVersion() {
         return currentVersion;
+    }
+
+    @Override
+    public boolean useAggregateMetricDoubleWhenNotSupported() {
+        return currentUseAggregateMetricDoubleWhenNotSupported;
+    }
+
+    @Override
+    public boolean useDenseVectorWhenNotSupported() {
+        return currentUseDenseVectorWhenNotSupported;
     }
 
     /**
@@ -62,7 +76,31 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         TransportVersion oldVersion = this.currentVersion;
         // Set to a random version between minVersion and current
         this.currentVersion = TransportVersionUtils.randomVersionSupporting(minVersion);
-        return new RestoreTransportVersion(oldVersion);
+        return new RestoreTransportVersion(
+            oldVersion,
+            this.currentUseAggregateMetricDoubleWhenNotSupported,
+            this.currentUseDenseVectorWhenNotSupported
+        );
+    }
+
+    public RestoreTransportVersion setTemporaryTransportVersion(
+        TransportVersion transportVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
+        TransportVersion originalVersion = this.currentVersion;
+        boolean originalUseAggregateMetricDoubleWhenNotSupported = this.currentUseAggregateMetricDoubleWhenNotSupported;
+        boolean originalUseDenseVectorWhenNotSupported = this.currentUseDenseVectorWhenNotSupported;
+
+        this.currentVersion = transportVersion;
+        this.currentUseAggregateMetricDoubleWhenNotSupported = useAggregateMetricDoubleWhenNotSupported;
+        this.currentUseDenseVectorWhenNotSupported = useDenseVectorWhenNotSupported;
+
+        return new RestoreTransportVersion(
+            originalVersion,
+            originalUseAggregateMetricDoubleWhenNotSupported,
+            originalUseDenseVectorWhenNotSupported
+        );
     }
 
     /**
@@ -70,14 +108,24 @@ public class MutableAnalyzerContext extends AnalyzerContext {
      */
     public class RestoreTransportVersion implements AutoCloseable {
         private final TransportVersion originalVersion;
+        private final boolean originalUseAggregateMetricDoubleWhenNotSupported;
+        private final boolean originalUseDenseVectorWhenNotSupported;
 
-        private RestoreTransportVersion(TransportVersion originalVersion) {
+        private RestoreTransportVersion(
+            TransportVersion originalVersion,
+            boolean originalUseAggregateMetricDoubleWhenNotSupported,
+            boolean originalUseDenseVectorWhenNotSupported
+        ) {
             this.originalVersion = originalVersion;
+            this.originalUseAggregateMetricDoubleWhenNotSupported = originalUseAggregateMetricDoubleWhenNotSupported;
+            this.originalUseDenseVectorWhenNotSupported = originalUseDenseVectorWhenNotSupported;
         }
 
         @Override
         public void close() {
             MutableAnalyzerContext.this.currentVersion = originalVersion;
+            MutableAnalyzerContext.this.currentUseAggregateMetricDoubleWhenNotSupported = originalUseAggregateMetricDoubleWhenNotSupported;
+            MutableAnalyzerContext.this.currentUseDenseVectorWhenNotSupported = originalUseDenseVectorWhenNotSupported;
         }
     }
 }

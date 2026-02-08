@@ -356,6 +356,36 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         return logicalOptimizer.optimize(analyzed);
     }
 
+    protected LogicalPlan planTypes(String query, TransportVersion minimumVersion) {
+        if (analyzerTypes.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(minimumVersion)) {
+                return logicalOptimizer.optimize(analyzerTypes.analyze(parser.parseQuery(query)));
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
+    }
+
+    protected LogicalPlan planMetrics(String query, TransportVersion minimumVersion) {
+        if (metricsAnalyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(minimumVersion)) {
+                return logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
+    }
+
+    protected LogicalPlan planSubquery(String query, TransportVersion minimumVersion) {
+        if (subqueryAnalyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(minimumVersion)) {
+                return logicalOptimizer.optimize(subqueryAnalyzer.analyze(parser.parseQuery(query)));
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());

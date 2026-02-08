@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -145,6 +146,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeOnTransportVersionSupportAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeOnTransportVersionSupportDenseVector;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
@@ -162,6 +165,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
@@ -2411,7 +2418,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
             """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2424,7 +2431,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorCastingHexKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
             """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2437,7 +2444,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorEvalCastingKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
             """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2457,9 +2464,14 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, ?query_vector)
-            """, fieldName), DENSE_VECTOR_MAPPING_FILE, new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+        var plan = analyze(
+            String.format(Locale.ROOT, """
+                from test | where knn(%s, ?query_vector)
+                """, fieldName),
+            DENSE_VECTOR_MAPPING_FILE,
+            new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2493,7 +2505,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | eval similarity = %s
             """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2528,7 +2540,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyzeOnTransportVersionSupportDenseVector(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
             """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
@@ -2554,7 +2566,10 @@ public class AnalyzerTests extends ESTestCase {
 
     private void checkVectorFunctionHexImplicitCastingError(String clause) {
         var query = "from test | " + clause;
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, DENSE_VECTOR_MAPPING_FILE));
+        VerificationException error = expectThrows(
+            VerificationException.class,
+            () -> analyzeOnTransportVersionSupportDenseVector(query, DENSE_VECTOR_MAPPING_FILE)
+        );
         assertThat(
             error.getMessage(),
             containsString(
@@ -2567,7 +2582,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
         assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
 
-        var plan = analyze("""
+        var plan = analyzeOnTransportVersionSupportDenseVector("""
             from test | eval scalar = v_magnitude([1, 2, 3])
             """, DENSE_VECTOR_MAPPING_FILE);
 
@@ -3335,6 +3350,12 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveDenseVector() {
+        // find a transport version that does not support dense_vector
+        boolean isSnapshot = Build.current().isSnapshot();
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(
+            isSnapshot ? ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION : ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
+
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
                 List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
@@ -3344,10 +3365,11 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, randomBoolean(), true),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            // force to support dense_vector
+            var plan = analyze("FROM foo", resolution, transportVersion, randomBoolean(), true);
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
@@ -3355,16 +3377,22 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, randomBoolean(), false),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyze("FROM foo", resolution, transportVersion, randomBoolean(), false);
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
     }
 
     public void testResolveAggregateMetricDouble() {
+        // find a transport version that does not support aggregate_metric_double
+        boolean isSnapshot = Build.current().isSnapshot();
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(
+            isSnapshot ? COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED : ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION
+        );
+
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
                 List.of(
@@ -3379,10 +3407,11 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, true, randomBoolean()),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            // force to support aggregate_metric_double
+            var plan = analyze("FROM foo", resolution, transportVersion, true, randomBoolean());
             assertThat(plan.output(), hasSize(1));
             assertThat(
                 plan.output().getFirst().dataType(),
@@ -3393,10 +3422,10 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                new IndexResolver.FieldsInfo(caps, transportVersion, isSnapshot, false, randomBoolean()),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyze("FROM foo", resolution, transportVersion, false, randomBoolean());
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
@@ -3831,6 +3860,11 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(error));
     }
 
+    private void assertErrorOnTransportVersionSupportDenseVector(String query, String mapping, QueryParams params, String error) {
+        Throwable e = expectThrows(VerificationException.class, () -> analyze(query, mapping, params, ESQL_DENSE_VECTOR_CREATED_VERSION));
+        assertThat(e.getMessage(), containsString(error));
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
@@ -3935,7 +3969,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testKnnFunctionWithTextEmbedding() {
-        LogicalPlan plan = analyze(
+        LogicalPlan plan = analyzeOnTransportVersionSupportDenseVector(
             String.format(Locale.ROOT, """
                 from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),
             DENSE_VECTOR_MAPPING_FILE
@@ -4176,7 +4210,7 @@ public class AnalyzerTests extends ESTestCase {
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
-            assertError(
+            assertErrorOnTransportVersionSupportDenseVector(
                 "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
                     + fieldName
                     + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
@@ -5543,7 +5577,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        // require a transport version that supports AggregateMetricDouble type
+        LogicalPlan plan = analyzeOnTransportVersionSupportAggregateMetricDouble("""
             FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
             | WHERE @timestamp > "2025-10-07"
             """, "k8s-downsampled-mappings.json");
@@ -5580,7 +5615,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        // require a transport version that supports AggregateMetricDouble type
+        LogicalPlan plan = analyzeOnTransportVersionSupportAggregateMetricDouble("""
             FROM sample_data,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
@@ -5622,7 +5658,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQueryAndSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        // require a transport version that supports AggregateMetricDouble type
+        LogicalPlan plan = analyzeOnTransportVersionSupportAggregateMetricDouble("""
             FROM k8s,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
@@ -5860,6 +5897,55 @@ public class AnalyzerTests extends ESTestCase {
         subquery = as(subqueryProject.child(), Subquery.class);
         subqueryIndex = as(subquery.child(), EsRelation.class);
         assertEquals("empty_index", subqueryIndex.indexPattern());
+    }
+
+    public void testSubqueryInFromWithNewDataTypes() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = analyzeOnTransportVersionSupportDenseVector("""
+            FROM
+              (FROM colors metadata _score | WHERE knn(rgb_vector, "007800")),
+              (FROM languages)
+              metadata _score
+            | where knn(rgb_vector, "007800")
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, "mapping-colors.json");
+
+        // TODO why the data type of rgb_vector after unionall is correct??
+        Limit limit = as(plan, Limit.class);
+        limit = as(limit.child(), Limit.class);
+        Project project = as(limit.child(), Project.class);
+        OrderBy orderBy = as(project.child(), OrderBy.class);
+        Filter filter = as(orderBy.child(), Filter.class);
+        Knn knn = as(filter.condition(), Knn.class);
+        ReferenceAttribute rgb_vector = as(knn.field(), ReferenceAttribute.class);
+        assertEquals("rgb_vector", rgb_vector.name());
+        assertEquals(DENSE_VECTOR, rgb_vector.dataType());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        knn = as(filter.condition(), Knn.class);
+        FieldAttribute rgb_vector_field = as(knn.field(), FieldAttribute.class);
+        assertEquals("rgb_vector", rgb_vector_field.name());
+        assertEquals(DENSE_VECTOR, rgb_vector_field.dataType());
+        EsRelation subqueryIndex = as(filter.child(), EsRelation.class);
+        assertEquals("colors", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        subquery = as(subqueryEval.child(), Subquery.class);
+        EsRelation subqueryIndex2 = as(subquery.child(), EsRelation.class);
+        assertEquals("languages", subqueryIndex2.indexPattern());
     }
 
     public void testLookupJoinOnFieldNotAnywhereElse() {

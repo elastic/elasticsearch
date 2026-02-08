@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -51,6 +52,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 public final class AnalyzerTestUtils {
@@ -199,11 +202,85 @@ public final class AnalyzerTestUtils {
         return analyzed;
     }
 
+    /*
+     * Analyze a query with a transport version on or after the specified version
+     */
     public static LogicalPlan analyze(String query, TransportVersion transportVersion) {
         Analyzer baseAnalyzer = expandedDefaultAnalyzer();
-        if (baseAnalyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+        return analyze(query, baseAnalyzer, new QueryParams(), transportVersion);
+    }
+
+    /*
+     * Analyze a query with a transport version that supports dense_vector
+     */
+    public static LogicalPlan analyzeOnTransportVersionSupportDenseVector(String query, String mapping) {
+        return analyze(query, mapping, new QueryParams(), ESQL_DENSE_VECTOR_CREATED_VERSION);
+    }
+
+    /*
+     * Analyze a query with a transport version that supports aggregate_metric_double
+     */
+    public static LogicalPlan analyzeOnTransportVersionSupportAggregateMetricDouble(String query, String mapping) {
+        return analyze(query, mapping, new QueryParams(), ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION);
+    }
+
+    /*
+     * Analyze a query with params with a transport version on or after the specified version
+     */
+    public static LogicalPlan analyze(String query, String mapping, QueryParams params, TransportVersion transportVersion) {
+        IndexResolution indexResolution = loadMapping(mapping, indexFromQuery(query));
+        Analyzer analyzer = analyzer(indexResolution);
+        return analyze(query, analyzer, params, transportVersion);
+    }
+
+    /*
+     *  Analyze a parsed query with a transport version on or after the specified version
+     */
+    public static LogicalPlan analyze(LogicalPlan parsed, Analyzer analyzer, TransportVersion transportVersion) {
+        if (analyzer.context() instanceof MutableAnalyzerContext mutableContext) {
             try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
-                return analyze(query, baseAnalyzer);
+                return analyzer.analyze(parsed);
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
+    }
+
+    /*
+     *  Analyze a query with params with a transport version on or after the specified version
+     */
+    public static LogicalPlan analyze(String query, Analyzer analyzer, QueryParams params, TransportVersion transportVersion) {
+        if (analyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+                var parsed = params.size() > 0 ? EsqlParser.INSTANCE.parseQuery(query, params) : EsqlParser.INSTANCE.parseQuery(query);
+                return analyzer.analyze(parsed);
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
+    }
+
+    /*
+     * Analyze a query with a transport version that does not support AggregateMetricDouble or DenseVector,
+     * but force to support them if the query references them.
+     */
+    public static LogicalPlan analyze(
+        String query,
+        IndexResolution indexResolution,
+        TransportVersion transportVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
+        Analyzer analyzer = analyzer(indexResolution, TEST_VERIFIER);
+        if (analyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (
+                var restore = mutableContext.setTemporaryTransportVersion(
+                    transportVersion,
+                    useAggregateMetricDoubleWhenNotSupported,
+                    useDenseVectorWhenNotSupported
+                )
+            ) {
+                return analyze(query, analyzer);
             }
         } else {
             throw new UnsupportedOperationException("Analyzer Context is not mutable");
@@ -487,5 +564,40 @@ public final class AnalyzerTestUtils {
             Set.of()
         );
         return IndexResolution.valid(index);
+    }
+
+    /*
+     * Checks whether the plan uses dense_vector fields in a parsed plan
+     */
+    public static boolean referencesDenseVector(LogicalPlan plan) {
+        return plan.forEachDownMayReturnEarly((p, useDenseVector) -> p.forEachExpression(UnresolvedFunction.class, fn -> {
+            if (fn.name().equalsIgnoreCase("knn")
+                || fn.name().equalsIgnoreCase("to_dense_vector")
+                || fn.name().equalsIgnoreCase("v_cosine")
+                || fn.name().equalsIgnoreCase("v_hamming")
+                || fn.name().equalsIgnoreCase("v_l1_norm")
+                || fn.name().equalsIgnoreCase("v_l2_norm")
+                || fn.name().equalsIgnoreCase("v_dot_product")
+                || fn.name().equalsIgnoreCase("v_magnitude")) {
+                useDenseVector.set(true);
+            }
+        }));
+    }
+
+    /*
+     * Checks whether the plan uses aggregate_metric_double fields in a parsed plan
+     */
+    public static boolean referencesAggregateMetricDouble(LogicalPlan plan) {
+        return plan.forEachDownMayReturnEarly((p, useAggregateMetricDouble) -> {
+            if (p instanceof UnresolvedRelation relation && relation.indexMode() == IndexMode.TIME_SERIES) {
+                useAggregateMetricDouble.set(true);
+            } else {
+                p.forEachExpression(UnresolvedFunction.class, fn -> {
+                    if (fn.name().equalsIgnoreCase("to_aggregate_metric_double")) {
+                        useAggregateMetricDouble.set(true);
+                    }
+                });
+            }
+        });
     }
 }

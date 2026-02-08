@@ -38,6 +38,7 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.test.ByteSizeEqualsMatcher.byteSizeEquals;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSerializationTests<ExchangeSinkExec> {
@@ -215,7 +216,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     }
 
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
-        List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
+        List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping(), randomMinimumVersion(), false, false);
         List<Attribute> keepAttributes = keepAllFields || allAttributes.isEmpty() ? allAttributes : List.of(allAttributes.getFirst());
         EsRelation relation = new EsRelation(
             randomSource(),

@@ -200,6 +200,9 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResol
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_TDIGEST_TECH_PREVIEW;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -4558,6 +4561,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         return message.substring(index + pattern.length());
     }
 
+    private String typesErrorWithMinimumTransportVersion(String query, TransportVersion minimumTransportVersion) {
+        VerificationException e = expectThrows(VerificationException.class, () -> planTypes(query, minimumTransportVersion));
+        String message = e.getMessage();
+        assertTrue(message.startsWith("Found "));
+        String pattern = "\nline ";
+        int index = message.indexOf(pattern);
+        return message.substring(index + pattern.length());
+    }
+
     /**
      * Expects
      * <pre>{@code
@@ -8190,7 +8202,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var plan = planMetrics(query, ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION);
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -8221,7 +8233,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var plan = planMetrics(query, ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION);
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -8253,7 +8265,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var plan = planMetrics(query, ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION);
         var project = as(plan, Project.class);
         var percentileExtractionEval = as(project.child(), Eval.class);
         var limit = as(percentileExtractionEval.child(), Limit.class);
@@ -8285,7 +8297,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var plan = planMetrics(query, ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION);
         var project = as(plan, Project.class);
         var percentileExtractionEval = as(project.child(), Eval.class);
         var limit = as(percentileExtractionEval.child(), Limit.class);
@@ -8318,7 +8330,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS tdigest_timeseries_index | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var plan = planMetrics(query, ESQL_TDIGEST_TECH_PREVIEW);
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -8349,7 +8361,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS tdigest_timeseries_index | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var plan = planMetrics(query, ESQL_TDIGEST_TECH_PREVIEW);
         var project = as(plan, Project.class);
         var percentileExtractionEval = as(project.child(), Eval.class);
         var limit = as(percentileExtractionEval.child(), Limit.class);
@@ -9227,7 +9239,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9247,7 +9259,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where integer > 10
             | where keyword == "test"
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9266,7 +9278,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where knn(dense_vector, [0, 1, 2]) or integer > 10
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9294,7 +9306,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where
                  ((knn(dense_vector, [0, 1, 2]) or integer > 10) and keyword == "test") and ((short < 5) or (double > 5.0))
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9327,7 +9339,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where
                  ((knn(dense_vector, [0, 1, 2]) and integer > 10) or keyword == "test") or ((short < 5) and (double > 5.0))
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9353,7 +9365,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9385,7 +9397,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where knn(dense_vector, [0, 1, 2])
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9399,7 +9411,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where knn(dense_vector, [0, 1, 2])
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -9414,7 +9426,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort _score desc
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var topN = as(optimized, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -9430,7 +9442,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort _score desc
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var topN = as(optimized, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -9447,7 +9459,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | limit 20
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var limit = as(optimized, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
@@ -9464,7 +9476,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort _score
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var topN = as(optimized, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -9479,7 +9491,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testKnnWithStats() {
         assertThat(
-            typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
+            typesErrorWithMinimumTransportVersion(
+                "from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)",
+                ESQL_DENSE_VECTOR_CREATED_VERSION
+            ),
             containsString("Knn function must be used with a LIMIT clause")
         );
     }
@@ -9491,7 +9506,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
             """;
 
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var rerank = as(optimized, Rerank.class);
         var limit = as(rerank.child(), Limit.class);
@@ -9509,7 +9524,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | limit 100
             """;
 
-        var optimized = planTypes(query);
+        var optimized = planTypes(query, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         var rerank = as(optimized, Rerank.class);
         var limit = as(rerank.child(), Limit.class);

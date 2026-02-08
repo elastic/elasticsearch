@@ -10,17 +10,22 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
@@ -43,9 +48,11 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -750,6 +757,233 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(localDocs.size(), localIndex));
         // we depend on the code in like_on_index_fields to serialize an ExpressionQueryBuilder
         assertResultMapWithCapabilities(includeCCSMetadata, result, columns, values, false, List.of("like_on_index_fields"));
+    }
+
+    /*
+     * Test subquery in FROM clause where one cluster supports a new data type (dense_vector), the other cluster does not,
+     * and the new data type is not referenced by any function checked in {@code PreAnalyzer} that uses it.
+     */
+    public void testSubqueryInFromWithNewDataTypeNotReferencedByNewFunctions() throws IOException {
+        // local cluster supports subquery in from command and new data type
+        assumeTrue(
+            "local cluster has subquery_in_from capability",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("subquery_in_from_command")).orElse(false)
+        );
+        assumeTrue(
+            "local cluster dense_vector_field_type_released capability",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("dense_vector_field_type_released")).orElse(false)
+        );
+        // remote cluster does not support new data type
+        assumeTrue("remote cluster is on 9.0 with no dense_vector capability", doesNotSupportDenseVector(Clusters.remoteClusterVersion()));
+
+        String localIndexWithNewDataType = "new-data-type-index";
+        try {
+            setupIndexForSubquery(localIndexWithNewDataType);
+
+            // subqueries reference different cluster versions, one cluster supports the new data type,
+            // however the other cluster does not, verifier will fail the query
+            String query = LoggerMessageFormat.format(null, """
+                FROM
+                    (FROM {}),
+                    (FROM {}:{}),
+                    (FROM {}, {})
+                | WHERE float_vector IS NOT NULL
+                | STATS total = COUNT(*)
+                """, localIndexWithNewDataType, REMOTE_CLUSTER_NAME, remoteIndex, localIndex, localIndexWithNewDataType);
+
+            assertErrorMessage(query, List.of("[float_vector] has conflicting or unsupported data types in subqueries: [dense_vector,"));
+
+            // two fields with new data type, one field is a mixed(dense_vector and keyword) typed field
+            query = LoggerMessageFormat.format(null, """
+                FROM
+                    (FROM {}),
+                    (FROM {}:{}),
+                    (FROM {}, {})
+                | WHERE float_vector IS NOT NULL AND color IS NOT NULL
+                | KEEP float_vector, color
+                """, localIndexWithNewDataType, REMOTE_CLUSTER_NAME, remoteIndex, localIndex, localIndexWithNewDataType);
+
+            assertErrorMessage(
+                query,
+                List.of(
+                    "[float_vector] has conflicting or unsupported data types in subqueries: [dense_vector,",
+                    "[color] has conflicting or unsupported data types in subqueries: [dense_vector,"
+                )
+            );
+
+            query = LoggerMessageFormat.format(
+                null,
+                """
+                    FROM
+                        (FROM {}),
+                        (FROM {}:{}, {}),
+                        (FROM {}, {})
+                    | STATS total = COUNT(float_vector)
+                    """,
+                localIndexWithNewDataType,
+                REMOTE_CLUSTER_NAME,
+                remoteIndex,
+                localIndexWithNewDataType,
+                localIndex,
+                localIndexWithNewDataType
+            );
+
+            assertErrorMessage(query, List.of("[float_vector] has conflicting or unsupported data types in subqueries: [dense_vector,"));
+        } finally {
+            deleteIndex(client(), localIndexWithNewDataType);
+        }
+    }
+
+    /*
+     * Test subquery in FROM clause where one cluster supports a new data type (dense_vector)
+     * and the other cluster does not, and the new data type is referenced by functions that use it.
+     * When {@code PreAnalyzer} sees these functions, it allows these fields to have supported data types,
+     * regardless whether all clusters support the data type or not
+     */
+    public void testSubqueryInFromWithNewDataTypeReferencedByNewFunctions() throws IOException {
+        // local cluster supports subquery in from command and new data type
+        assumeTrue(
+            "local cluster has subquery_in_from capability",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("subquery_in_from_command")).orElse(false)
+        );
+        assumeTrue(
+            "local cluster dense_vector_field_type_released capability",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("dense_vector_field_type_released")).orElse(false)
+        );
+        // remote cluster does not support new data type
+        assumeTrue("remote cluster is on 9.0 with no dense_vector capability", doesNotSupportDenseVector(Clusters.remoteClusterVersion()));
+
+        String localIndexWithNewDataType = "new-data-type-index";
+        try {
+            setupIndexForSubquery(localIndexWithNewDataType);
+
+            // the dense_vector field is referenced by knn function inside the subquery
+            String query = LoggerMessageFormat.format(null, """
+                FROM
+                    (FROM {} | WHERE knn(float_vector, [1.0, 2.0, 3.0])),
+                    (FROM {}:{}),
+                    (FROM {} | WHERE knn(float_vector, [1.0, 2.0, 3.0]))
+                | WHERE float_vector IS NOT NULL
+                | KEEP float_vector
+                """, localIndexWithNewDataType, REMOTE_CLUSTER_NAME, remoteIndex, localIndexWithNewDataType);
+
+            Map<String, Object> result = run(query, false);
+            verifyResultsWithDenseVector(result);
+
+            // the dense_vector field is referenced by knn function outside the subquery
+            query = LoggerMessageFormat.format(null, """
+                FROM
+                    (FROM {}),
+                    (FROM {}:{}),
+                    (FROM {}, {})
+                | WHERE knn(float_vector, [1.0, 2.0, 3.0])
+                | KEEP float_vector
+                """, localIndexWithNewDataType, REMOTE_CLUSTER_NAME, remoteIndex, localIndex, localIndexWithNewDataType);
+            result = run(query, false);
+            verifyResultsWithDenseVector(result);
+
+            // color is not a good candidate for the knn function here, as it has mixed data types(dense_vector and keyword)
+            // across different subqueries and clusters, explicit casting does not support casting between dense_vector and keyword types.
+            query = LoggerMessageFormat.format(null, """
+                FROM
+                    (FROM {}),
+                    (FROM {}:{}),
+                    (FROM {}, {})
+                | WHERE knn(float_vector, [1.0, 2.0, 3.0]) AND knn(color, [4.0, 5.0, 6.0])
+                | KEEP float_vector, color
+                """, localIndexWithNewDataType, REMOTE_CLUSTER_NAME, remoteIndex, localIndex, localIndexWithNewDataType);
+
+            assertErrorMessage(query, List.of("[color] has conflicting or unsupported data types in subqueries: [dense_vector, keyword"));
+        } finally {
+            deleteIndex(client(), localIndexWithNewDataType);
+        }
+    }
+
+    private boolean doesNotSupportDenseVector(Version version) {
+        return version.onOrAfter(Version.V_9_0_0) && version.before(Version.V_9_1_0);
+    }
+
+    private static void setupIndexForSubquery(String indexName) throws IOException {
+        RestClient client = client();
+        // create an index on local cluster with dense_vector type
+        String mappingForSubquery = """
+            "properties": {
+                "float_vector": {
+                    "type" : "dense_vector",
+                    "similarity": "l2_norm",
+                    "index_options": {
+                        "type": "hnsw",
+                        "m": 16,
+                        "ef_construction": 100
+                     }
+                },
+                "color": {
+                    "type" : "dense_vector",
+                    "similarity": "l2_norm",
+                    "index_options": {
+                        "type": "hnsw",
+                        "m": 16,
+                        "ef_construction": 100
+                     }
+                }
+            }
+            """;
+        createIndex(
+            client,
+            indexName,
+            Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)).build(),
+            mappingForSubquery,
+            null
+        );
+
+        XContentBuilder doc = JsonXContent.contentBuilder().startObject();
+        doc.startArray("float_vector");
+        doc.value(1.0);
+        doc.value(2.0);
+        doc.value(3.0);
+        doc.endArray();
+        doc.startArray("color");
+        doc.value(4.0);
+        doc.value(5.0);
+        doc.value(6.0);
+        doc.endArray();
+        doc.endObject();
+        Request createDoc = new Request("POST", "/" + indexName + "/_doc");
+        createDoc.addParameter("refresh", "true");
+        createDoc.setJsonEntity(Strings.toString(doc));
+        assertOK(client.performRequest(createDoc));
+        refresh(client, indexName);
+    }
+
+    private void assertErrorMessage(String query, List<String> errorMessages) throws IOException {
+        ResponseException re = expectThrows(ResponseException.class, () -> run(query, false));
+        String errorMessage = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        errorMessages.forEach(s -> assertThat(errorMessage, containsString(s)));
+    }
+
+    private static void verifyResultsWithDenseVector(Map<String, Object> result) {
+        var columns = List.of(Map.of("name", "float_vector", "type", "dense_vector"));
+        var floatVector = List.of(1.0, 2.0, 3.0);
+        assertEquals(columns, result.get("columns"));
+        var actualValues = as(result.get("values"), List.class);
+        assertEquals(2, actualValues.size());
+        for (Object actualValue : actualValues) {
+            var actualRowRaw = as(actualValue, List.class);
+            var actualFloatVector = as(actualRowRaw.getFirst(), List.class);
+            // sometimes the dense_vector values are returned as Float, sometimes as Double, cast them to double to stabilize the tests
+            List<Double> actualRow = valuesAsDoubles(actualFloatVector);
+            assertEquals(floatVector, actualRow);
+        }
+    }
+
+    private static List<Double> valuesAsDoubles(List<?> actual) {
+        List<Double> doubles = new ArrayList<>(actual.size());
+        for (var number : actual) {
+            Number n = as(number, Number.class);
+            doubles.add(n.doubleValue());
+        }
+        return doubles;
     }
 
     private RestClient remoteClusterClient() throws IOException {

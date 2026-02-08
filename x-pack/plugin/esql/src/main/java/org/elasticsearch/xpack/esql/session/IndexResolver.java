@@ -433,12 +433,13 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        boolean typeSupported = type.supportedVersion().supportedOn(fieldsInfo.minTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
-            || switch (type) {
-                case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
-                case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
-                default -> false;
-            };
+        boolean typeSupported = dataTypeSupported(
+            type,
+            fieldsInfo.minTransportVersion(),
+            fieldsInfo.currentBuildIsSnapshot,
+            fieldsInfo.useAggregateMetricDoubleWhenNotSupported,
+            fieldsInfo.useDenseVectorWhenNotSupported
+        );
         if (false == typeSupported) {
             type = UNSUPPORTED;
         }
@@ -549,4 +550,22 @@ public class IndexResolver {
     }
 
     public static final OriginalIndexExtractor DO_NOT_GROUP = (indexPattern, fieldCapabilitiesResponse) -> Map.of();
+
+    // Public for Analyzer to reuse it, keep the check against minimum transport version here as MultiClusterSpecIT on enrich relies on it.
+    // otherwise enrich.EnrichDecadesStats fails.
+    // newToOld: the enrich policy cannot be resolved if there is mismatched data types within the policy
+    // oldToNew: new data types like date_range cannot be sent to old nodes
+    public static boolean dataTypeSupported(
+        DataType dataType,
+        TransportVersion minTransportVersion,
+        boolean currentBuildIsSnapshot,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
+        return dataType.supportedVersion().supportedOn(minTransportVersion, currentBuildIsSnapshot) || switch (dataType) {
+            case AGGREGATE_METRIC_DOUBLE -> useAggregateMetricDoubleWhenNotSupported;
+            case DENSE_VECTOR -> useDenseVectorWhenNotSupported;
+            default -> false;
+        };
+    }
 }

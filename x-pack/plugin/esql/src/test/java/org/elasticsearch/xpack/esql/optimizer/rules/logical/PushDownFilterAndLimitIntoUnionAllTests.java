@@ -43,6 +43,7 @@ import org.junit.Before;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
@@ -1078,7 +1079,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             | sort _score desc, color asc
             | keep color, rgb_vector, language_name
             | limit 10
-            """);
+            """, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);

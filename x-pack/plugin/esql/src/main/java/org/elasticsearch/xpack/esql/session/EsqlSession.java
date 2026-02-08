@@ -661,7 +661,11 @@ public class EsqlSession {
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
         PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+            .withMinimumTransportVersion(localClusterMinimumVersion)
+            .withAggregateMetricDoubleDenseVectorWhenNotSupported(
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported()
+            );
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -1278,7 +1282,9 @@ public class EsqlSession {
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        TransportVersion minimumTransportVersion
+        TransportVersion minimumTransportVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
@@ -1289,7 +1295,9 @@ public class EsqlSession {
                 new HashMap<>(),
                 null,
                 InferenceResolution.EMPTY,
-                TransportVersion.current()
+                TransportVersion.current(),
+                false,
+                false
             );
         }
 
@@ -1311,7 +1319,9 @@ public class EsqlSession {
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported
             );
         }
 
@@ -1323,7 +1333,9 @@ public class EsqlSession {
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported
             );
         }
 
@@ -1341,7 +1353,26 @@ public class EsqlSession {
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported
+            );
+        }
+
+        PreAnalysisResult withAggregateMetricDoubleDenseVectorWhenNotSupported(
+            boolean useAggregateMetricDoubleWhenNotSupported,
+            boolean useDenseVectorWhenNotSupported
+        ) {
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indexResolution,
+                lookupIndices,
+                enrichResolution,
+                inferenceResolution,
+                minimumTransportVersion,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported
             );
         }
     }

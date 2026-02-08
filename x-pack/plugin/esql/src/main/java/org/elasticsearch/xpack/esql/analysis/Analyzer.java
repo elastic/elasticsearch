@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -203,6 +204,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.dataTypeSupported;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -335,8 +337,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = indexResolution.get();
-
-            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            var attributes = mappingAsAttributes(
+                plan.source(),
+                esIndex.mapping(),
+                context.minimumVersion(),
+                context.useAggregateMetricDoubleWhenNotSupported(),
+                context.useDenseVectorWhenNotSupported()
+            );
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
             return new EsRelation(
                 plan.source(),
@@ -403,22 +410,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *     Public for testing.
      * </p>
      */
-    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(
+        Source source,
+        Map<String, EsField> mapping,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
         var list = new ArrayList<Attribute>();
-        mappingAsAttributes(list, source, null, mapping);
+        mappingAsAttributes(
+            list,
+            source,
+            null,
+            mapping,
+            minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported
+        );
         list.sort(Comparator.comparing(Attribute::name));
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(
+        List<Attribute> list,
+        Source source,
+        String parentName,
+        Map<String, EsField> mapping,
+        TransportVersion minimumVersion,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
-
             if (t != null) {
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
-                var type = t.getDataType().widenSmallNumeric();
+                DataType type = t.getDataType();
+                type = type.widenSmallNumeric();
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
                 if (type != t.getDataType()) {
@@ -428,13 +457,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
                     ? new UnsupportedAttribute(source, name, uef)
                     : new FieldAttribute(source, parentName, null, name, t);
+
+                // check data type against minimum transport version
+                boolean typeSupported = dataTypeSupported(
+                    type,
+                    minimumVersion,
+                    Build.current().isSnapshot(),
+                    useAggregateMetricDoubleWhenNotSupported,
+                    useDenseVectorWhenNotSupported
+                );
+                if (typeSupported == false) {
+                    // this data type is not supported by the minimum transport version
+                    type = UNSUPPORTED;
+
+                    UnsupportedEsField unsupportedEsField = new UnsupportedEsField(
+                        t.getName(),
+                        List.of(t.getDataType().esType()),
+                        parentName,  // qualifier is not supported yet, this is the parent name of the nested field
+                        t.getProperties(),
+                        t.getTimeSeriesFieldType()
+                    );
+                    attribute = new UnsupportedAttribute(source, name, unsupportedEsField);
+                }
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown
+                // nested fields have non-empty properties
                 if (fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, attribute.name(), fieldProperties);
+                    mappingAsAttributes(
+                        list,
+                        source,
+                        attribute.name(),
+                        fieldProperties,
+                        minimumVersion,
+                        useAggregateMetricDoubleWhenNotSupported,
+                        useDenseVectorWhenNotSupported
+                    );
                 }
             }
         }
@@ -458,7 +518,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolved.mapping()),
+                    mappingAsAttributes(
+                        plan.source(),
+                        resolved.mapping(),
+                        context.minimumVersion(),
+                        context.useAggregateMetricDoubleWhenNotSupported(),
+                        context.useDenseVectorWhenNotSupported()
+                    ),
                     plan.enrichFields(),
                     policy
                 );
@@ -987,7 +1053,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         missing.add(attr);
                     }
                 }
-
                 List<Alias> aliases = missing.stream().map(attr -> {
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
@@ -3051,7 +3116,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<Integer, DataType> indexToCommonType,
             Configuration configuration
         ) {
-            if (targetType == null) {
+            if (targetType == null || targetType == UNSUPPORTED) {
                 return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, indexToCommonType);
             }
 
@@ -3079,7 +3144,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<Integer, DataType> indexToCommonType
         ) {
             Attribute unionAttr = unionAll.output().get(columnIndex);
-
             if (outputToPlans.containsKey(unionAttr)) {
                 // Unsupported attribute
                 List<String> dataTypes = collectIncompatibleTypes(columnIndex, outputs);
@@ -3087,7 +3151,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     oldAttr.source(),
                     oldAttr.name(),
                     new UnsupportedEsField(oldAttr.name(), dataTypes),
-                    "Column [" + oldAttr.name() + "] has conflicting data types in subqueries: " + dataTypes,
+                    "Column [" + oldAttr.name() + "] has conflicting or unsupported data types in subqueries: " + dataTypes,
                     oldAttr.id()
                 );
                 newAliases.add(new Alias(oldAttr.source(), oldAttr.name(), unsupported));
@@ -3106,8 +3170,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> dataTypes = new ArrayList<>();
             for (List<Attribute> out : outputs) {
                 Attribute attr = out.get(columnIndex);
-                if (attr instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                    dataTypes.addAll(imf.types().stream().map(DataType::typeName).toList());
+                if (attr instanceof FieldAttribute fa) {
+                    if (fa.field() instanceof InvalidMappedField invalidMappedField) {
+                        dataTypes.addAll(invalidMappedField.types().stream().map(DataType::typeName).toList());
+                    } else if (fa.field() instanceof UnsupportedEsField unsupportedEsField) {
+                        dataTypes.addAll(unsupportedEsField.getOriginalTypes());
+                    } else {
+                        dataTypes.add(attr.dataType().typeName());
+                    }
                 } else {
                     dataTypes.add(attr.dataType().typeName());
                 }

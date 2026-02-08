@@ -514,4 +514,9 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         }
         return maxScore;
     }
+
+    @Override
+    public void close() {
+        // no-op - nothing to close
+    }
 }

@@ -567,4 +567,9 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         }
         return maxScore;
     }
+
+    @Override
+    public void close() {
+        // no-op - nothing to close
+    }
 }

@@ -7,15 +7,22 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -41,6 +48,37 @@ public final class DocVector extends AbstractVector implements Vector {
     private final IntVector docs;
 
     /**
+     * Reference counting for the {@link IndexReader}s that can do things with
+     * these doc ids. We aggressively close the readers when we don't reference
+     * them anymore.
+     */
+    private final IndexedByShardId<? extends RefCounted> refCounteds;
+
+    /**
+     * Can this vector reference duplicate documents? Some {@link BlockLoader}s will
+     * run more slowly if this is {@code true}. These {@linkplain BlockLoader}s will
+     * return incorrect results if there are duplicates and this is {@code false}.
+     * This exists because of a hierarchy of speeds:
+     * <ul>
+     *     <li>
+     *         We can better optimize some {@link BlockLoader}s when they receive
+     *         {@linkplain DocVector}s that don't contain duplicates.
+     *     </li>
+     *     <li>
+     *         It's rare that we want to load from duplicate doc ids. We don't need
+     *         to spend that much time optimizing it.
+     *     </li>
+     *     <li>
+     *         We sometimes really <strong>want</strong> to load from duplicate
+     *         doc ids to minimize total amount of loading we have to do in fairly
+     *         specific cases like resolving dimension values after time series
+     *         aggregations.
+     *     </li>
+     * </ul>
+     */
+    private final boolean mayContainDuplicates;
+
+    /**
      * Are the docs in this vector all in one segment and non-decreasing? If
      * so we can load doc values via a fast path.
      */
@@ -56,10 +94,11 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
-    private final IndexedByShardId<? extends RefCounted> refCounteds;
-
-    public RefCounted shardRefCounted(int position) {
-        return refCounteds.get(shards.getInt(position));
+    /**
+     * Fancy wrapper around the ctor for {@link DocVector}.
+     */
+    public static Config config() {
+        return new Config();
     }
 
     public DocVector(
@@ -67,34 +106,16 @@ public final class DocVector extends AbstractVector implements Vector {
         IntVector shards,
         IntVector segments,
         IntVector docs,
-        Boolean singleSegmentNonDecreasing
-    ) {
-        this(refCounteds, shards, segments, docs, singleSegmentNonDecreasing, true);
-    }
-
-    public static DocVector withoutIncrementingShardRefCounts(
-        IndexedByShardId<? extends RefCounted> refCounteds,
-        IntVector shards,
-        IntVector segments,
-        IntVector docs
-    ) {
-        return new DocVector(refCounteds, shards, segments, docs, null, false);
-    }
-
-    private DocVector(
-        IndexedByShardId<? extends RefCounted> refCounteds,
-        IntVector shards,
-        IntVector segments,
-        IntVector docs,
-        Boolean singleSegmentNonDecreasing,
-        boolean incrementShardRefCounts
+        Config config
     ) {
         super(shards.getPositionCount(), shards.blockFactory());
         this.refCounteds = refCounteds;
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;
-        this.singleSegmentNonDecreasing = singleSegmentNonDecreasing;
+        this.singleSegmentNonDecreasing = config.singleSegmentNonDecreasing;
+        this.mayContainDuplicates = config.mayContainDuplicates;
+
         if (shards.getPositionCount() != segments.getPositionCount()) {
             throw new IllegalArgumentException(
                 "invalid position count [" + shards.getPositionCount() + " != " + segments.getPositionCount() + "]"
@@ -105,24 +126,14 @@ public final class DocVector extends AbstractVector implements Vector {
                 "invalid position count [" + shards.getPositionCount() + " != " + docs.getPositionCount() + "]"
             );
         }
+        if (Assertions.ENABLED && mayContainDuplicates == false) {
+            assertNoDupes();
+        }
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
 
-        if (incrementShardRefCounts) {
+        if (config.incrementShardRefCounts) {
             forEachShardRefCounter(RefCounted::mustIncRef);
         }
-    }
-
-    public DocVector(
-        IndexedByShardId<? extends RefCounted> refCounteds,
-        IntVector shards,
-        IntVector segments,
-        IntVector docs,
-        int[] docMapForwards,
-        int[] docMapBackwards
-    ) {
-        this(refCounteds, shards, segments, docs, null);
-        this.shardSegmentDocMapForwards = docMapForwards;
-        this.shardSegmentDocMapBackwards = docMapBackwards;
     }
 
     public IntVector shards() {
@@ -142,6 +153,32 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     public boolean singleSegment() {
         return shards.isConstant() && segments.isConstant();
+    }
+
+    /**
+     * Can this vector reference duplicate documents? Some {@link BlockLoader}s will
+     * run more slowly if this is {@code true}. These {@linkplain BlockLoader}s will
+     * return incorrect results if there are duplicates and this is {@code false}.
+     * This exists because of a hierarchy of speeds:
+     * <ul>
+     *     <li>
+     *         We can better optimize some {@link BlockLoader}s when they receive
+     *         {@linkplain DocVector}s that don't contain duplicates.
+     *     </li>
+     *     <li>
+     *         It's rare that we want to load from duplicate doc ids. We don't need
+     *         to spend that much time optimizing it.
+     *     </li>
+     *     <li>
+     *         We sometimes really <strong>want</strong> to load from duplicate
+     *         doc ids to minimize total amount of loading we have to do in fairly
+     *         specific cases like resolving dimension values after time series
+     *         aggregations.
+     *     </li>
+     * </ul>
+     */
+    public boolean mayContainDuplicates() {
+        return mayContainDuplicates;
     }
 
     /**
@@ -296,7 +333,11 @@ public final class DocVector extends AbstractVector implements Vector {
             filteredShards = shards.filter(positions);
             filteredSegments = segments.filter(positions);
             filteredDocs = docs.filter(positions);
-            result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, null);
+            Config config = config();
+            // TODO accept another parameter to say "I might be passed duplicate positions"
+            // Without that parameter we *always* may contain duplicates
+            config.mayContainDuplicates();
+            result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, config);
             return result;
         } finally {
             if (result == null) {
@@ -315,7 +356,11 @@ public final class DocVector extends AbstractVector implements Vector {
             filteredShards = shards.deepCopy(blockFactory);
             filteredSegments = segments.deepCopy(blockFactory);
             filteredDocs = docs.deepCopy(blockFactory);
-            result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, null);
+            Config config = config();
+            if (mayContainDuplicates) {
+                config.mayContainDuplicates();
+            }
+            result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, config);
             return result;
         } finally {
             if (result == null) {
@@ -407,6 +452,10 @@ public final class DocVector extends AbstractVector implements Vector {
         forEachShardRefCounter(RefCounted::decRef);
     }
 
+    public RefCounted shardRefCounted(int position) {
+        return refCounteds.get(shards.getInt(position));
+    }
+
     private void forEachShardRefCounter(Consumer<RefCounted> consumer) {
         switch (shards) {
             case ConstantIntVector constantIntVector -> consumer.accept(refCounteds.get(constantIntVector.getInt(0)));
@@ -418,6 +467,110 @@ public final class DocVector extends AbstractVector implements Vector {
                     consumer.accept(refCounteds.get(shards.getInt(i)));
                 }
             }
+        }
+    }
+
+    /**
+     * Builds a doc vector with a fixed length {@link DocBlock}.
+     */
+    public static FixedBuilder newFixedBuilder(BlockFactory blockFactory, int estimatedSize) {
+        return new FixedBuilder(blockFactory, estimatedSize);
+    }
+
+    private void assertNoDupes() {
+        record Doc(int shard, int segment, int doc) {}
+        Set<Doc> set = new HashSet<>(getPositionCount());
+        for (int i = 0; i < getPositionCount(); i++) {
+            Doc doc = new Doc(shards.getInt(i), segments.getInt(i), docs.getInt(i));
+            boolean firstTime = set.add(doc);
+            if (firstTime == false) {
+                throw new IllegalStateException("configured not to contain duplicates but " + doc + " was duplicated");
+            }
+        }
+    }
+
+    public static class FixedBuilder implements Releasable {
+        private final IntVector.FixedBuilder shards;
+        private final IntVector.FixedBuilder segments;
+        private final IntVector.FixedBuilder docs;
+        private IndexedByShardId<? extends RefCounted> shardRefCounters = AlwaysReferencedIndexedByShardId.INSTANCE;
+
+        private FixedBuilder(BlockFactory blockFactory, int size) {
+            IntVector.FixedBuilder shards = null;
+            IntVector.FixedBuilder segments = null;
+            IntVector.FixedBuilder docs = null;
+            try {
+                shards = blockFactory.newIntVectorFixedBuilder(size);
+                segments = blockFactory.newIntVectorFixedBuilder(size);
+                docs = blockFactory.newIntVectorFixedBuilder(size);
+            } finally {
+                if (docs == null) {
+                    Releasables.closeExpectNoException(shards, segments);
+                }
+            }
+            // TODO it'd be nice to detect constant shards and segments.
+            this.shards = shards;
+            this.segments = segments;
+            this.docs = docs;
+        }
+
+        public FixedBuilder append(int shard, int segment, int doc) {
+            shards.appendInt(shard);
+            segments.appendInt(segment);
+            docs.appendInt(doc);
+            return this;
+        }
+
+        public FixedBuilder shardRefCounters(IndexedByShardId<? extends RefCounted> shardRefCounters) {
+            this.shardRefCounters = shardRefCounters;
+            return this;
+        }
+
+        public DocVector build(Config config) {
+            // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
+            IntVector shards = null;
+            IntVector segments = null;
+            IntVector docs = null;
+            DocVector result = null;
+            try {
+                shards = this.shards.build();
+                segments = this.segments.build();
+                docs = this.docs.build();
+                result = new DocVector(shardRefCounters, shards, segments, docs, config);
+                return result;
+            } finally {
+                if (result == null) {
+                    Releasables.closeExpectNoException(shards, segments, docs);
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(shards, segments, docs);
+        }
+    }
+
+    public static class Config {
+        private Boolean singleSegmentNonDecreasing;
+        private boolean incrementShardRefCounts = true;
+        private boolean mayContainDuplicates = false;
+
+        private Config() {}
+
+        public Config singleSegmentNonDecreasing(boolean singleSegmentNonDecreasing) {
+            this.singleSegmentNonDecreasing = singleSegmentNonDecreasing;
+            return this;
+        }
+
+        public Config dontIncrementShardRefCounts() {
+            this.incrementShardRefCounts = false;
+            return this;
+        }
+
+        public Config mayContainDuplicates() {
+            this.mayContainDuplicates = true;
+            return this;
         }
     }
 }

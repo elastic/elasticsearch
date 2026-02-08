@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -33,18 +34,28 @@ import java.nio.ByteOrder;
  * Trying to understand what this class does without having read the paper is considered adventurous.
  *
  * The HyperLogLogPlusPlus contains two algorithms, one for linear counting and the HyperLogLog algorithm. Initially hashes added to the
- * data structure are processed using the linear counting until a threshold defined by the precision is reached where the data is replayed
- * to the HyperLogLog algorithm and then this is used.
+ * data structure are processed using a small array and then linear counting until a threshold defined by the precision is reached where
+ * the data is replayed to the HyperLogLog algorithm and then this is used. The small array delays allocating the full hash/HLL backing
+ * bytes until a bucket shows meaningful cardinality.
  *
  * It supports storing several HyperLogLogPlusPlus structures which are identified by a bucket number.
  */
 public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private static final float MAX_LOAD_FACTOR = 0.75f;
+    private static final int SMALL_ARRAY_SIZE = 16;
 
     public static final int DEFAULT_PRECISION = 14;
 
+    private final BigArrays bigArrays;
     private final BitArray algorithm;
+    // Maps bucket ord to dense ord + 1 (0 means array tier / no dense slot).
+    // Dense ords index into the shared runLens backing storage so memory grows with promoted buckets, not max bucket ord.
+    private IntArray denseOrds;
+    private long denseCount;
+    private long maxBucketOrd;
+    private final int arrayLimit;
+    private final SmallLinearCounting smallLc;
     private final HyperLogLog hll;
     private final LinearCounting lc;
 
@@ -70,33 +81,55 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         super(precision);
         HyperLogLog hll = null;
         LinearCounting lc = null;
+        SmallLinearCounting smallLc = null;
+        IntArray denseOrds = null;
         BitArray algorithm = null;
+        int arrayLimit;
         boolean success = false;
         try {
-            hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
-            lc = new LinearCounting(bigArrays, initialBucketCount, precision, hll);
+            hll = new HyperLogLog(bigArrays, 0, precision);
+            lc = new LinearCounting(bigArrays, 0, precision, hll);
+            // Keep the array tier small and below the hash LC threshold to avoid immediate promotion.
+            arrayLimit = Math.min(SMALL_ARRAY_SIZE, lc.threshold);
+            smallLc = new SmallLinearCounting(precision, bigArrays, initialBucketCount, arrayLimit);
+            denseOrds = bigArrays.newIntArray(initialBucketCount);
             algorithm = new BitArray(1, bigArrays);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(hll, lc, algorithm);
+                Releasables.close(hll, lc, smallLc, denseOrds, algorithm);
             }
         }
+        this.bigArrays = bigArrays;
         this.hll = hll;
         this.lc = lc;
+        this.smallLc = smallLc;
+        this.denseOrds = denseOrds;
         this.algorithm = algorithm;
+        this.arrayLimit = arrayLimit;
+        this.maxBucketOrd = 0;
+        this.denseCount = 0;
     }
 
     public long maxOrd() {
-        return hll.maxOrd();
+        return maxBucketOrd;
     }
 
     @Override
     public long cardinality(long bucketOrd) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
-            return lc.cardinality(bucketOrd);
+            final int denseOrd = denseOrd(bucketOrd);
+            if (denseOrd < 0) {
+                return smallLc.cardinality(bucketOrd);
+            }
+            return lc.cardinality(denseOrd);
         } else {
-            return hll.cardinality(bucketOrd);
+            final int denseOrd = denseOrd(bucketOrd);
+            assert denseOrd >= 0;
+            if (denseOrd < 0) {
+                return 0;
+            }
+            return hll.cardinality(denseOrd);
         }
     }
 
@@ -107,58 +140,128 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
-        return lc.values(bucketOrd);
+        final int denseOrd = denseOrd(bucketOrd);
+        if (denseOrd < 0) {
+            return smallLc.values(bucketOrd);
+        }
+        return lc.values(denseOrd);
     }
 
     @Override
     protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
-        return hll.getRunLens(bucketOrd);
+        final int denseOrd = denseOrd(bucketOrd);
+        if (denseOrd < 0) {
+            throw new IllegalStateException("Missing dense ord for bucket " + bucketOrd);
+        }
+        return hll.getRunLens(denseOrd);
     }
 
     @Override
     public void collect(long bucket, long hash) {
-        hll.ensureCapacity(bucket + 1);
+        updateMaxBucketOrd(bucket);
         if (algorithm.get(bucket) == LINEAR_COUNTING) {
-            final int newSize = lc.collect(bucket, hash);
-            if (newSize > lc.threshold) {
-                upgradeToHll(bucket);
+            int denseOrd = denseOrd(bucket);
+            if (denseOrd < 0) {
+                final int newSize = smallLc.collect(bucket, hash);
+                if (newSize > arrayLimit) {
+                    denseOrd = promoteArrayToHash(bucket);
+                    if (lc.size(denseOrd) > lc.threshold) {
+                        upgradeToHll(bucket);
+                    }
+                }
+            } else {
+                final int newSize = lc.collect(denseOrd, hash);
+                if (newSize > lc.threshold) {
+                    upgradeToHll(bucket);
+                }
             }
         } else {
-            hll.collect(bucket, hash);
+            hll.collect(ensureDenseOrd(bucket), hash);
         }
     }
 
     @Override
     public void close() {
-        Releasables.close(algorithm, hll, lc);
+        Releasables.close(algorithm, hll, lc, smallLc, denseOrds);
+    }
+
+    private void updateMaxBucketOrd(long bucketOrd) {
+        final long next = bucketOrd + 1;
+        if (next > maxBucketOrd) {
+            maxBucketOrd = next;
+        }
+    }
+
+    private int denseOrd(long bucketOrd) {
+        if (bucketOrd >= denseOrds.size()) {
+            return -1;
+        }
+        final int value = denseOrds.get(bucketOrd);
+        return value == 0 ? -1 : value - 1;
+    }
+
+    private int ensureDenseOrd(long bucketOrd) {
+        // Ensure backing storage is grown before publishing the mapping so breaker failures do not leave
+        // a bucket pointing at a dense ord without allocated backing bytes.
+        denseOrds = bigArrays.grow(denseOrds, bucketOrd + 1);
+        final int value = denseOrds.get(bucketOrd);
+        if (value != 0) {
+            return value - 1;
+        }
+        final long newDenseCount = denseCount + 1;
+        lc.ensureCapacity(newDenseCount);
+        hll.ensureCapacity(newDenseCount);
+        final int ord = Math.toIntExact(denseCount);
+        denseOrds.set(bucketOrd, ord + 1);
+        denseCount = newDenseCount;
+        return ord;
+    }
+
+    private int promoteArrayToHash(long bucketOrd) {
+        final int denseOrd = ensureDenseOrd(bucketOrd);
+        final AbstractLinearCounting.HashesIterator hashes = smallLc.values(bucketOrd);
+        while (hashes.next()) {
+            lc.addEncoded(denseOrd, hashes.value());
+        }
+        smallLc.clear(bucketOrd);
+        return denseOrd;
     }
 
     protected void addRunLen(long bucketOrd, int register, int runLen) {
+        updateMaxBucketOrd(bucketOrd);
         if (algorithm.get(bucketOrd) == LINEAR_COUNTING) {
             upgradeToHll(bucketOrd);
         }
-        hll.addRunLen(0, register, runLen);
+        hll.addRunLen(ensureDenseOrd(bucketOrd), register, runLen);
     }
 
     void upgradeToHll(long bucketOrd) {
-        // We need to copy values into an arrays as we will override
-        // the values on the buffer
-        hll.ensureCapacity(bucketOrd + 1);
-        // It's safe to reuse lc's readSpare because we're single threaded.
-        final AbstractLinearCounting.HashesIterator hashes = new LinearCountingIterator(lc, lc.readSpare, bucketOrd);
-        final IntArray values = lc.bigArrays.newIntArray(hashes.size());
+        // We need to copy values into an array since we will override buffers.
+        final int existingDenseOrd = denseOrd(bucketOrd);
+        final AbstractLinearCounting.HashesIterator hashes;
+        if (existingDenseOrd >= 0) {
+            // It's safe to reuse lc's readSpare because we're single threaded.
+            hashes = new LinearCountingIterator(lc, lc.readSpare, existingDenseOrd);
+        } else {
+            hashes = smallLc.values(bucketOrd);
+        }
+        final int denseOrd = ensureDenseOrd(bucketOrd);
+        final IntArray values = bigArrays.newIntArray(hashes.size());
         try {
             int i = 0;
             while (hashes.next()) {
                 values.set(i++, hashes.value());
             }
             assert i == hashes.size();
-            hll.reset(bucketOrd);
+            hll.reset(denseOrd);
             for (long j = 0; j < values.size(); ++j) {
                 final int encoded = values.get(j);
-                hll.collectEncoded(bucketOrd, encoded);
+                hll.collectEncoded(denseOrd, encoded);
             }
             algorithm.set(bucketOrd);
+            if (existingDenseOrd < 0) {
+                smallLc.clear(bucketOrd);
+            }
         } finally {
             Releasables.close(values);
         }
@@ -168,7 +271,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (precision() != other.precision()) {
             throw new IllegalArgumentException();
         }
-        hll.ensureCapacity(thisBucket + 1);
+        updateMaxBucketOrd(thisBucket);
         if (other.getAlgorithm(otherBucket) == LINEAR_COUNTING) {
             merge(thisBucket, other.getLinearCounting(otherBucket));
         } else {
@@ -180,12 +283,23 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         while (values.next()) {
             final int encoded = values.value();
             if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
-                final int newSize = lc.addEncoded(thisBucket, encoded);
-                if (newSize > lc.threshold) {
-                    upgradeToHll(thisBucket);
+                int denseOrd = denseOrd(thisBucket);
+                if (denseOrd < 0) {
+                    final int newSize = smallLc.addEncoded(thisBucket, encoded);
+                    if (newSize > arrayLimit) {
+                        denseOrd = promoteArrayToHash(thisBucket);
+                        if (lc.size(denseOrd) > lc.threshold) {
+                            upgradeToHll(thisBucket);
+                        }
+                    }
+                } else {
+                    final int newSize = lc.addEncoded(denseOrd, encoded);
+                    if (newSize > lc.threshold) {
+                        upgradeToHll(thisBucket);
+                    }
                 }
             } else {
-                hll.collectEncoded(thisBucket, encoded);
+                hll.collectEncoded(ensureDenseOrd(thisBucket), encoded);
             }
         }
     }
@@ -194,9 +308,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (algorithm.get(thisBucket) != HYPERLOGLOG) {
             upgradeToHll(thisBucket);
         }
+        final int denseOrd = ensureDenseOrd(thisBucket);
         for (int i = 0; i < hll.m; ++i) {
             runLens.next();
-            hll.addRunLen(thisBucket, i, runLens.value());
+            hll.addRunLen(denseOrd, i, runLens.value());
         }
     }
 
@@ -205,9 +320,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         // array for holding the runlens.
         private ByteArray runLens;
 
-        HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
+        HyperLogLog(BigArrays bigArrays, long initialDenseCount, int precision) {
             super(precision);
-            this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
+            this.runLens = bigArrays.newByteArray(initialDenseCount << precision);
             this.bigArrays = bigArrays;
         }
 
@@ -268,7 +383,129 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    private static class SmallLinearCounting extends AbstractLinearCounting implements Releasable {
+
+        private final BigArrays bigArrays;
+        private final int arrayLimit;
+        private ObjectArray<IntArray> values;
+        private IntArray sizes;
+
+        SmallLinearCounting(int p, BigArrays bigArrays, long initialBuckets, int arrayLimit) {
+            super(p);
+            this.bigArrays = bigArrays;
+            this.arrayLimit = arrayLimit;
+            ObjectArray<IntArray> values = null;
+            IntArray sizes = null;
+            boolean success = false;
+            try {
+                values = bigArrays.newObjectArray(initialBuckets);
+                sizes = bigArrays.newIntArray(initialBuckets);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(values, sizes);
+                }
+            }
+            this.values = values;
+            this.sizes = sizes;
+        }
+
+        @Override
+        protected int addEncoded(long bucketOrd, int encoded) {
+            assert encoded != 0;
+            values = bigArrays.grow(values, bucketOrd + 1);
+            sizes = bigArrays.grow(sizes, bucketOrd + 1);
+            IntArray array = values.get(bucketOrd);
+            if (array == null) {
+                array = bigArrays.newIntArray(arrayLimit + 1);
+                values.set(bucketOrd, array);
+            }
+            int size = sizes.get(bucketOrd);
+            for (int i = 0; i < size; ++i) {
+                if (array.get(i) == encoded) {
+                    return -1;
+                }
+            }
+            if (size >= array.size()) {
+                array = bigArrays.grow(array, size + 1);
+                values.set(bucketOrd, array);
+            }
+            array.set(size, encoded);
+            return sizes.increment(bucketOrd, 1);
+        }
+
+        @Override
+        protected int size(long bucketOrd) {
+            if (bucketOrd >= sizes.size()) {
+                return 0;
+            }
+            return sizes.get(bucketOrd);
+        }
+
+        private HashesIterator values(long bucketOrd) {
+            if (bucketOrd >= values.size()) {
+                return new SmallLinearCountingIterator(null, 0);
+            }
+            return new SmallLinearCountingIterator(values.get(bucketOrd), size(bucketOrd));
+        }
+
+        private void clear(long bucketOrd) {
+            if (bucketOrd >= values.size()) {
+                return;
+            }
+            IntArray array = values.get(bucketOrd);
+            if (array != null) {
+                Releasables.close(array);
+                values.set(bucketOrd, null);
+            }
+            if (bucketOrd < sizes.size()) {
+                sizes.set(bucketOrd, 0);
+            }
+        }
+
+        @Override
+        public void close() {
+            for (int i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            Releasables.close(values, sizes);
+        }
+    }
+
+    private static class SmallLinearCountingIterator implements AbstractLinearCounting.HashesIterator {
+
+        private final IntArray values;
+        private final int size;
+        private int value;
+        private long pos;
+
+        SmallLinearCountingIterator(IntArray values, int size) {
+            this.values = values;
+            this.size = size;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public boolean next() {
+            if (values == null || pos >= size) {
+                return false;
+            }
+            value = values.get(pos++);
+            return true;
+        }
+
+        @Override
+        public int value() {
+            return value;
+        }
+    }
+
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
+        // bucketOrd parameters are dense ords in this implementation.
 
         protected final int threshold;
         private final int mask;
@@ -278,7 +515,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         // We are actually using HyperLogLog's runLens array but interpreting it as a hash set for linear counting.
         private final HyperLogLog hll;
         private final int capacity;
-        // Number of elements stored.
+        // Number of elements stored (keyed by dense ord).
         private IntArray sizes;
 
         LinearCounting(BigArrays bigArrays, long initialBucketCount, int p, HyperLogLog hll) {
@@ -354,6 +591,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         public void close() {
             Releasables.close(sizes);
+        }
+
+        private void ensureCapacity(long numBuckets) {
+            sizes = bigArrays.grow(sizes, numBuckets);
         }
     }
 

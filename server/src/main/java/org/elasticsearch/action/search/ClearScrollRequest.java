@@ -60,6 +60,11 @@ public class ClearScrollRequest extends LegacyActionRequest implements ToXConten
     }
 
     @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (scrollIds == null || scrollIds.isEmpty()) {

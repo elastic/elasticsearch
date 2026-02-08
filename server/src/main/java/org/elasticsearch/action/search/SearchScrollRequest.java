@@ -92,6 +92,11 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
     }
 
     @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::getDescription, parentTaskId, headers);
     }

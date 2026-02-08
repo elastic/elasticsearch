@@ -1,0 +1,391 @@
+---
+"match_only_text with doc_values enabled":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "match_only_text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_mot_docvalues
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_docvalues
+        id: "1"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_mot_docvalues
+        id: "2"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_mot_docvalues
+        id: "3"
+        body: { "text_field": "baz qux" }
+
+  - do:
+      indices.refresh: {}
+
+  # Verify terms aggregation works with doc_values
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            text_terms:
+              terms:
+                field: text_field
+
+  - match: { hits.total: 3 }
+  - length: { aggregations.text_terms.buckets: 2 }
+  - match: { aggregations.text_terms.buckets.0.key: "foo bar" }
+  - match: { aggregations.text_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.text_terms.buckets.1.key: "baz qux" }
+  - match: { aggregations.text_terms.buckets.1.doc_count: 1 }
+
+---
+"match_only_text with doc_values - multi value":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "match_only_text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_mot_docvalues_multi
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_docvalues_multi
+        id: "1"
+        body:
+          text_field: [ "value one", "value two" ]
+
+  - do:
+      index:
+        index: test_mot_docvalues_multi
+        id: "2"
+        body:
+          text_field: [ "value one", "value three", "value four" ]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            text_terms:
+              terms:
+                field: text_field
+
+  - match: { hits.total: 2 }
+  - length: { aggregations.text_terms.buckets: 4 }
+  - match: { aggregations.text_terms.buckets.0.key: "value one" }
+  - match: { aggregations.text_terms.buckets.0.doc_count: 2 }
+
+---
+"match_only_text with doc_values - phrase query still works":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "match_only_text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_mot_docvalues_phrase
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_docvalues_phrase
+        id: "1"
+        body: { "text_field": "the quick brown fox" }
+
+  - do:
+      index:
+        index: test_mot_docvalues_phrase
+        id: "2"
+        body: { "text_field": "the slow brown dog" }
+
+  - do:
+      indices.refresh: {}
+
+  # Verify phrase query works with doc_values enabled
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_mot_docvalues_phrase
+        body:
+          query:
+            match_phrase:
+              text_field: "quick brown"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"match_only_text with doc_values - match query":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "match_only_text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_mot_docvalues_match
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_docvalues_match
+        id: "1"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_mot_docvalues_match
+        id: "2"
+        body: { "text_field": "baz qux" }
+
+  - do:
+      indices.refresh: {}
+
+  # Verify match query works (uses the index)
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_mot_docvalues_match
+        body:
+          query:
+            match:
+              text_field: "foo"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"match_only_text with doc_values - synthetic source":
+  - requires:
+      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      reason: "match_only_text doc_values and synthetic source support required"
+
+  - do:
+      indices.create:
+        index: test_mot_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_synthetic
+        id: "1"
+        body:
+          text_field: "the quick brown fox"
+
+  - do:
+      index:
+        index: test_mot_synthetic
+        id: "2"
+        body:
+          text_field: null
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test_mot_synthetic
+        id: "1"
+
+  - match: { _source.text_field: "the quick brown fox" }
+
+  - do:
+      get:
+        index: test_mot_synthetic
+        id: "2"
+
+  - match: { _source.text_field: null }
+
+---
+"match_only_text with doc_values - synthetic source multi-value":
+  - requires:
+      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      reason: "match_only_text doc_values and synthetic source support required"
+
+  - do:
+      indices.create:
+        index: test_mot_synthetic_multi
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_synthetic_multi
+        id: "1"
+        body:
+          text_field: ["value one", "value two", "value three"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test_mot_synthetic_multi
+        id: "1"
+
+  # Note: values are sorted in synthetic source
+  - match: { _source.text_field: ["value one", "value three", "value two"] }
+
+---
+"match_only_text with doc_values - synthetic source search":
+  - requires:
+      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      reason: "match_only_text doc_values and synthetic source support required"
+
+  - do:
+      indices.create:
+        index: test_mot_synthetic_search
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_synthetic_search
+        id: "1"
+        refresh: true
+        body:
+          text_field: "foo bar baz"
+
+  - do:
+      search:
+        index: test_mot_synthetic_search
+        body:
+          query:
+            ids:
+              values: ["1"]
+
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        text_field: "foo bar baz"
+
+---
+"match_only_text with doc_values - synthetic source aggregation":
+  - requires:
+      cluster_features: ["mapper.text.doc_values", "mapper.source.mode_from_index_setting"]
+      reason: "match_only_text doc_values and synthetic source support required"
+
+  - do:
+      indices.create:
+        index: test_mot_synthetic_agg
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              text_field:
+                type: match_only_text
+                doc_values: true
+
+  - do:
+      index:
+        index: test_mot_synthetic_agg
+        id: "1"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_mot_synthetic_agg
+        id: "2"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_mot_synthetic_agg
+        id: "3"
+        body: { "text_field": "baz qux" }
+
+  - do:
+      indices.refresh: {}
+
+  # Verify terms aggregation works with synthetic source
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            text_terms:
+              terms:
+                field: text_field
+
+  - match: { hits.total: 3 }
+  - length: { aggregations.text_terms.buckets: 2 }
+  - match: { aggregations.text_terms.buckets.0.key: "foo bar" }
+  - match: { aggregations.text_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.text_terms.buckets.1.key: "baz qux" }
+  - match: { aggregations.text_terms.buckets.1.doc_count: 1 }
+
+  # Verify source reconstruction works
+  - do:
+      get:
+        index: test_mot_synthetic_agg
+        id: "1"
+
+  - match: { _source.text_field: "foo bar" }

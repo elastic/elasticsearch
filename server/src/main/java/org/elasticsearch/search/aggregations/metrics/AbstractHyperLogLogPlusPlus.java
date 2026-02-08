@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.IntConsumer;
 
 /**
  * Base class for HLL++ algorithms.
@@ -38,8 +39,22 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     /** Algorithm used in the given bucket */
     protected abstract boolean getAlgorithm(long bucketOrd);
 
-    /** Get linear counting algorithm */
-    protected abstract AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd);
+    protected interface LinearCountingView {
+        int size();
+
+        void forEachEncoded(IntConsumer consumer);
+
+        void writeTo(StreamOutput out) throws IOException;
+    }
+
+    /**
+     * Returns a bucket-bound view of linear counting values.
+     *
+     * The returned view is mutable and reused between calls, so callers must not
+     * retain it or use it after another call to {@link #linearCountingView(long)}.
+     * Not thread-safe.
+     */
+    protected abstract LinearCountingView linearCountingView(long bucketOrd);
 
     /** Get HyperLogLog algorithm */
     protected abstract AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd);
@@ -51,13 +66,12 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     public AbstractHyperLogLogPlusPlus clone(long bucketOrd, BigArrays bigArrays) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
-            AbstractLinearCounting.HashesIterator iterator = getLinearCounting(bucketOrd);
-            int size = Math.toIntExact(iterator.size());
+            // View is reused; consume immediately.
+            LinearCountingView lc = linearCountingView(bucketOrd);
+            int size = lc.size();
             HyperLogLogPlusPlusSparse clone = new HyperLogLogPlusPlusSparse(precision(), bigArrays, 1);
             clone.ensureCapacity(0, size);
-            while (iterator.next()) {
-                clone.addEncoded(0, iterator.value());
-            }
+            lc.forEachEncoded(value -> clone.addEncoded(0, value));
             return clone;
         } else {
             HyperLogLogPlusPlus clone = new HyperLogLogPlusPlus(precision(), bigArrays, 1);
@@ -69,10 +83,8 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     private Object getComparableData(long bucketOrd) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             Set<Integer> values = new HashSet<>();
-            AbstractLinearCounting.HashesIterator iteratorValues = getLinearCounting(bucketOrd);
-            while (iteratorValues.next()) {
-                values.add(iteratorValues.value());
-            }
+            // View is reused; consume immediately.
+            linearCountingView(bucketOrd).forEachEncoded(values::add);
             return values;
         } else {
             Map<Byte, Integer> values = new HashMap<>();
@@ -89,11 +101,11 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         out.writeVInt(precision());
         if (getAlgorithm(bucket) == LINEAR_COUNTING) {
             out.writeBoolean(LINEAR_COUNTING);
-            AbstractLinearCounting.HashesIterator hashes = getLinearCounting(bucket);
-            out.writeVLong(hashes.size());
-            while (hashes.next()) {
-                out.writeInt(hashes.value());
-            }
+            // View is reused; consume immediately.
+            LinearCountingView lc = linearCountingView(bucket);
+            int size = lc.size();
+            out.writeVLong(size);
+            lc.writeTo(out);
         } else {
             out.writeBoolean(HYPERLOGLOG);
             AbstractHyperLogLog.RunLenIterator iterator = getHyperLogLog(bucket);

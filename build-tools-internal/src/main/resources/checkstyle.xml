@@ -187,18 +187,6 @@
       <message key="descendant.token.max" value="Do not check for equality with 'true', since it is implied" />
     </module>
 
-    <!-- Forbid using '!' for logical negations in favour of checking against 'false' explicitly. -->
-    <!-- This is only reported in the IDE for now because there are many violations -->
-    <module name="DescendantToken">
-        <property name="id" value="BooleanNegation" />
-        <property name="tokens" value="EXPR"/>
-        <property name="limitedTokens" value="LNOT"/>
-        <property name="maximumNumber" value="0"/>
-        <message
-            key="descendant.token.max"
-            value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
-    </module>
-
     <module name="NeedBraces">
         <!-- We have many generated equals classes with LITERAL_IF and no braces, so we don't check IF or ELSE -->
         <property name="tokens" value="LITERAL_DO,LITERAL_FOR,LITERAL_WHILE"/>

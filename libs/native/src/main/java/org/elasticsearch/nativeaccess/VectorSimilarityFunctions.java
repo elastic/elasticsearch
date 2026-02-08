@@ -130,4 +130,10 @@ public interface VectorSimilarityFunctions {
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);
 
     MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
+
+    MethodHandle applyCorrectionsEuclideanBulk();
+
+    MethodHandle applyCorrectionsMaxInnerProductBulk();
+
+    MethodHandle applyCorrectionsDotProductBulk();
 }

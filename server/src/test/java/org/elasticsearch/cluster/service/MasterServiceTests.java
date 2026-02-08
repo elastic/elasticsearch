@@ -889,6 +889,7 @@ public class MasterServiceTests extends ESTestCase {
         final ThreadContext threadContext = threadPool.getThreadContext();
         final int taskCount = between(1, 10);
         final CountDownLatch taskCountDown = new CountDownLatch(taskCount);
+        final String expectedExceptionMessage = randomIdentifier("simulated-exception-");
 
         class Task implements ClusterStateTaskListener {
 
@@ -901,18 +902,63 @@ public class MasterServiceTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, instanceOf(RuntimeException.class));
-                assertThat(e.getMessage(), equalTo("simulated"));
+                assertThat(e.getMessage(), equalTo(expectedExceptionMessage));
                 assertThat(threadContext.getHeader(testContextHeaderName), equalTo(expectedHeaderValue));
                 taskCountDown.countDown();
             }
         }
 
+        final ClusterStateAckListener neverCalledAckListener = new ClusterStateAckListener() {
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return fail(null, "should not call mustAck");
+            }
+
+            @Override
+            public void onAllNodesAcked() {
+                fail("should not call onAllNodesAcked");
+            }
+
+            @Override
+            public void onAckFailure(Exception e) {
+                fail("should not call onAckFailure");
+            }
+
+            @Override
+            public void onAckTimeout() {
+                fail("should not call onAckTimeout");
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return fail(null, "should not call ackTimeout");
+            }
+        };
+
         final ClusterStateTaskExecutor<Task> executor = batchExecutionContext -> {
             if (randomBoolean()) {
-                throw new RuntimeException("simulated");
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    // might have marked some, but not necessarily all, tasks as complete, but none of that matters
+                    switch (between(1, 10)) {
+                        case 1 -> taskContext.success(() -> fail("should not call plain success callback"));
+                        case 2 -> taskContext.success(neverCalledAckListener);
+                        case 3 -> taskContext.success(ignoredClusterState -> fail("should not call success callback"));
+                        case 4 -> taskContext.success(() -> fail("should not call success callback"), neverCalledAckListener);
+                        case 5 -> taskContext.success(
+                            ignoredClusterState -> fail("should not call success callback"),
+                            neverCalledAckListener
+                        );
+                        case 6 -> taskContext.onFailure(
+                            new RuntimeException(randomValueOtherThan(expectedExceptionMessage, ESTestCase::randomIdentifier))
+                        );
+                        default -> {
+                        }
+                    }
+                }
+                throw new RuntimeException(expectedExceptionMessage);
             } else {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
-                    taskContext.onFailure(new RuntimeException("simulated"));
+                    taskContext.onFailure(new RuntimeException(expectedExceptionMessage));
                 }
                 return batchExecutionContext.initialState();
             }

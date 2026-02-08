@@ -15,6 +15,7 @@ import static org.elasticsearch.web.RegisteredDomain.parseRegisteredDomainInfo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESTestCase.WithoutEntitlements
 public class RegisteredDomainTests extends ESTestCase {
 
     public void testGetRegisteredDomain() {

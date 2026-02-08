@@ -82,15 +82,7 @@ public final class TestScopeResolver {
             if (callerClass.getPackageName().startsWith("org.bouncycastle")) {
                 scope = new PolicyScope(PLUGIN, "security", ALL_UNNAMED);
                 logger.debug("Assuming bouncycastle is part of the security plugin");
-            } else if (callerClass.getPackageName().startsWith("org.apache.httpcomponents")
-                || callerClass.getPackageName().startsWith("org.apache.http.conn")) {
-                    String moduleName = callerClass.getModule().getName();
-                    if (moduleName == null) {
-                        moduleName = ALL_UNNAMED;
-                    }
-                    scope = new PolicyScope(PLUGIN, "ingest-common/esql", moduleName);
-                    logger.debug("Assuming httpclient is related to the ingest-common and esql plugins for tests");
-                }
+            }
         }
         if (scope == null) {
             logger.warn("Cannot identify a scope for class [{}], location [{}]", callerClass.getName(), location);

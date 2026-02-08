@@ -95,7 +95,8 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
 import static org.elasticsearch.cluster.service.MasterService.maybeLimitMasterNodeTimeout;
-import static org.elasticsearch.cluster.service.MasterService.priorityNonemptyTimeMetricName;
+import static org.elasticsearch.cluster.service.MasterService.pendingTasksMetricName;
+import static org.elasticsearch.cluster.service.MasterService.priorityPendingTasksMetricName;
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -1924,9 +1925,19 @@ public class MasterServiceTests extends ESTestCase {
             final var tasksExecuted = new AtomicInteger();
             final var lastTaskExecutionTime = new AtomicLong();
             final var firstTaskExecutionTime = new AtomicLong(Long.MIN_VALUE);
+            final var lastTaskInsertionTime = new AtomicLong();
+
+            final EnumMap<Priority, Integer> batchSizePerPriority = new EnumMap<>(Priority.class);
+            final ClusterStateTaskExecutor<ClusterStateTaskListener> successExecutor = batchExecutionContext -> {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(() -> {});
+                }
+                return batchExecutionContext.initialState();
+            };
 
             for (final var priority : Priority.values()) {
                 if (priority == Priority.LANGUID) {
+                    batchSizePerPriority.put(priority, 0);
                     continue;
                 }
 
@@ -1936,11 +1947,12 @@ public class MasterServiceTests extends ESTestCase {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        final var nowMillis = deterministicTaskQueue.getCurrentTimeMillis();
                         if (priority.sameOrAfter(starvingPriority.get())) {
                             masterService.submitUnbatchedStateUpdateTask(taskName + " iteration " + (iteration++), this);
+                            lastTaskInsertionTime.set(nowMillis);
                         }
                         tasksExecuted.incrementAndGet();
-                        final var nowMillis = deterministicTaskQueue.getCurrentTimeMillis();
                         lastTaskExecutionTime.set(nowMillis);
                         firstTaskExecutionTime.compareAndSet(Long.MIN_VALUE, nowMillis);
                         return currentState;
@@ -1952,6 +1964,15 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 };
                 masterService.submitUnbatchedStateUpdateTask(taskName, loopingTask);
+
+                final var batchSize = randomIntBetween(1, 10);
+                final var batchQueue = masterService.createTaskQueue("success-noop-tasks-queue-" + priority, priority, successExecutor);
+                final var noopSuccessfulTask = new ExpectSuccessTask();
+
+                for (int i = 0; i < batchSize; i++) {
+                    batchQueue.submitTask("success-noop-task-" + priority + "-" + i, noopSuccessfulTask, null);
+                }
+                batchSizePerPriority.put(priority, batchSize);
             }
 
             final IntConsumer someTasksRunner = targetCount -> {
@@ -1962,44 +1983,76 @@ public class MasterServiceTests extends ESTestCase {
                 }
             };
 
-            someTasksRunner.accept(between(1, 5));
+            someTasksRunner.accept(between(2 /* make sure to run both the batch and looping task */, 10));
+
+            final var totalTaskCount = batchSizePerPriority.values().stream().mapToInt(Integer::intValue).sum() + 5;
             final var immediateStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
-            assertStarvationMetrics(meterRegistry, immediateStarvingDuration, ignored -> immediateStarvingDuration);
+            final var immediateStarvationTaskCount = totalTaskCount - batchSizePerPriority.get(Priority.IMMEDIATE);
+
+            assertStarvationMetrics(meterRegistry, "nonempty.time", immediateStarvingDuration, ignored -> immediateStarvingDuration);
+            assertStarvationMetrics(meterRegistry, "tasks.current", immediateStarvationTaskCount, priority -> switch (priority) {
+                case LANGUID -> 0L;
+                case IMMEDIATE -> 1L;
+                default -> 1L + batchSizePerPriority.get(priority);
+            });
+            assertStarvationMetrics(meterRegistry, "batches.current", 9L, priority -> switch (priority) {
+                case LANGUID -> 0L;
+                case IMMEDIATE -> 1L;
+                default -> 2L;
+            });
 
             starvingPriority.set(Priority.HIGH);
-            someTasksRunner.accept(2 /* must run the IMMEDIATE and URGENT tasks first */ + between(1, 5));
+            someTasksRunner.accept(2 /* must run the IMMEDIATE and URGENT tasks first */ + between(2, 10));
+
             final var highStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
             final var lastTaskDuration = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskExecutionTime.get();
+            final var highStarvationTaskCount = immediateStarvationTaskCount - batchSizePerPriority.get(Priority.URGENT)
+                - batchSizePerPriority.get(Priority.HIGH) - 2;
 
             assertStarvationMetrics(
                 meterRegistry,
+                "nonempty.time",
                 highStarvingDuration,
                 priority -> priority.sameOrAfter(Priority.HIGH) ? highStarvingDuration : lastTaskDuration
             );
+            assertStarvationMetrics(meterRegistry, "tasks.current", highStarvationTaskCount, priority -> switch (priority) {
+                case LANGUID, IMMEDIATE, URGENT -> 0L;
+                case HIGH -> 1L;
+                default -> 1L + batchSizePerPriority.get(priority);
+            });
+            assertStarvationMetrics(meterRegistry, "batches.current", 5L, priority -> switch (priority) {
+                case LANGUID, IMMEDIATE, URGENT -> 0L;
+                case HIGH -> 1L;
+                default -> 2L;
+            });
 
             starvingPriority.set(Priority.LANGUID); // no more starvation
             deterministicTaskQueue.runAllTasks();
 
-            assertStarvationMetrics(meterRegistry, 0L, ignored -> 0L);
+            assertStarvationMetrics(meterRegistry, "nonempty.time", 0L, ignored -> 0L);
+            assertStarvationMetrics(meterRegistry, "tasks.current", 0L, ignored -> 0L);
+            assertStarvationMetrics(meterRegistry, "batches.current", 0L, ignored -> 0L);
         }
     }
 
     private static void assertStarvationMetrics(
         RecordingMeterRegistry meterRegistry,
-        long overallNonemptyDuration,
-        ToLongFunction<Priority> perPriorityNonemptyDuration
+        String metricName,
+        long expectedValue,
+        ToLongFunction<Priority> expectedValuePerPriority
     ) {
         meterRegistry.getRecorder().resetCalls();
         meterRegistry.getRecorder().collect();
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
-            measures(overallNonemptyDuration)
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, pendingTasksMetricName(metricName)),
+            measures(expectedValue)
         );
         for (final var priority : Priority.values()) {
             assertThat(
                 priority.toString(),
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, priorityNonemptyTimeMetricName(priority)),
-                measures(perPriorityNonemptyDuration.applyAsLong(priority))
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
+                measures(expectedValuePerPriority.applyAsLong(priority))
             );
         }
     }

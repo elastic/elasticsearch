@@ -116,25 +116,29 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             Settings.EMPTY,
             Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
         );
-        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings)) {
+        var historyClient = new NoOpClient(threadPool);
+        try (
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings);
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(
+                historyClient,
+                clusterService,
+                threadPool,
+                item -> fail("should not have tried to store an item")
+            )
+        ) {
             VerifyingClient client = new VerifyingClient(threadPool, (a, r, l) -> {
                 fail("should not have tried to take a snapshot");
                 return null;
             });
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(
-                null,
-                clusterService,
-                item -> fail("should not have tried to store an item")
-            );
 
             SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
 
             // Trigger the event, but since the job name does not match, it should
             // not run the function to create a snapshot
             task.triggered(new SchedulerEngine.Event("nonexistent-job", System.currentTimeMillis(), System.currentTimeMillis()));
+        } finally {
+            terminate(threadPool);
         }
-
-        threadPool.shutdownNow();
     }
 
     public void testCreateSnapshotOnTrigger() throws Exception {
@@ -187,6 +191,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         final AtomicBoolean clientCalled = new AtomicBoolean(false);
         final SetOnce<String> snapshotName = new SetOnce<>();
+        final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings)) {
             // This verifying client will verify that we correctly invoked
             // client.admin().createSnapshot(...) with the appropriate
@@ -218,26 +223,32 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                     return null;
                 }
             });
-            final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
-                assertFalse(historyStoreCalled.getAndSet(true));
-                final SnapshotLifecyclePolicy policy = slpm.getPolicy();
-                assertEquals(policy.getId(), item.getPolicyId());
-                assertEquals(policy.getRepository(), item.getRepository());
-                assertEquals(policy.getConfig(), item.getSnapshotConfiguration());
-                assertEquals(snapshotName.get(), item.getSnapshotName());
-            });
+            var historyClient = new NoOpClient(threadPool);
+            try (
+                SnapshotHistoryStore historyStore = new VerifyingHistoryStore(historyClient, clusterService, threadPool, item -> {
+                    assertFalse(historyStoreCalled.getAndSet(true));
+                    final SnapshotLifecyclePolicy policy = slpm.getPolicy();
+                    assertEquals(policy.getId(), item.getPolicyId());
+                    assertEquals(policy.getRepository(), item.getRepository());
+                    assertEquals(policy.getConfig(), item.getSnapshotConfiguration());
+                    assertEquals(snapshotName.get(), item.getSnapshotName());
+                })
+            ) {
+                SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
+                // Trigger the event with a matching job name for the policy
+                task.triggered(
+                    new SchedulerEngine.Event(
+                        SnapshotLifecycleService.getJobId(slpm),
+                        System.currentTimeMillis(),
+                        System.currentTimeMillis()
+                    )
+                );
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
-            // Trigger the event with a matching job name for the policy
-            task.triggered(
-                new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm), System.currentTimeMillis(), System.currentTimeMillis())
-            );
-
-            assertBusy(() -> {
-                assertTrue("snapshot should be triggered once", clientCalled.get());
-                assertTrue("history store should be called once", historyStoreCalled.get());
-            });
+                assertBusy(() -> {
+                    assertTrue("snapshot should be triggered once", clientCalled.get());
+                    assertTrue("history store should be called once", historyStoreCalled.get());
+                });
+            }
         } finally {
             threadPool.shutdownNow();
         }
@@ -269,6 +280,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         );
         final AtomicBoolean clientCalled = new AtomicBoolean(false);
         final SetOnce<String> snapshotName = new SetOnce<>();
+        final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings)) {
             VerifyingClient client = new VerifyingClient(threadPool, (action, request, listener) -> {
                 assertFalse(clientCalled.getAndSet(true));
@@ -308,31 +320,37 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 );
             });
 
-            final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
-                assertFalse(historyStoreCalled.getAndSet(true));
-                final SnapshotLifecyclePolicy policy = slpm.getPolicy();
-                assertEquals(policy.getId(), item.getPolicyId());
-                assertEquals(policy.getRepository(), item.getRepository());
-                assertEquals(policy.getConfig(), item.getSnapshotConfiguration());
-                assertEquals(snapshotName.get(), item.getSnapshotName());
-                assertFalse("item should be a failure", item.isSuccess());
-                assertThat(
-                    item.getErrorDetails(),
-                    containsString("failed to create snapshot successfully, 1 out of 3 total shards failed")
+            var historyClient = new NoOpClient(threadPool);
+            try (
+                SnapshotHistoryStore historyStore = new VerifyingHistoryStore(historyClient, clusterService, threadPool, item -> {
+                    assertFalse(historyStoreCalled.getAndSet(true));
+                    final SnapshotLifecyclePolicy policy = slpm.getPolicy();
+                    assertEquals(policy.getId(), item.getPolicyId());
+                    assertEquals(policy.getRepository(), item.getRepository());
+                    assertEquals(policy.getConfig(), item.getSnapshotConfiguration());
+                    assertEquals(snapshotName.get(), item.getSnapshotName());
+                    assertFalse("item should be a failure", item.isSuccess());
+                    assertThat(
+                        item.getErrorDetails(),
+                        containsString("failed to create snapshot successfully, 1 out of 3 total shards failed")
+                    );
+                })
+            ) {
+                SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
+                // Trigger the event with a matching job name for the policy
+                task.triggered(
+                    new SchedulerEngine.Event(
+                        SnapshotLifecycleService.getJobId(slpm),
+                        System.currentTimeMillis(),
+                        System.currentTimeMillis()
+                    )
                 );
-            });
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(projectId, client, clusterService, historyStore);
-            // Trigger the event with a matching job name for the policy
-            task.triggered(
-                new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm), System.currentTimeMillis(), System.currentTimeMillis())
-            );
-
-            assertBusy(() -> {
-                assertTrue("snapshot should be triggered once", clientCalled.get());
-                assertTrue("history store should be called once", historyStoreCalled.get());
-            });
+                assertBusy(() -> {
+                    assertTrue("snapshot should be triggered once", clientCalled.get());
+                    assertTrue("history store should be called once", historyStoreCalled.get());
+                });
+            }
         } finally {
             threadPool.shutdownNow();
         }
@@ -724,8 +742,13 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         private final Consumer<SnapshotHistoryItem> verifier;
 
-        public VerifyingHistoryStore(Client client, ClusterService clusterService, Consumer<SnapshotHistoryItem> verifier) {
-            super(client, clusterService);
+        public VerifyingHistoryStore(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            Consumer<SnapshotHistoryItem> verifier
+        ) {
+            super(client, clusterService, threadPool);
             this.verifier = verifier;
         }
 

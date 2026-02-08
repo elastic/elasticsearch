@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.RangeMissingHandler;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.SourceInputStreamFactory;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1927,7 +1926,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final AtomicInteger position = new AtomicInteger(-1);
 
                 @Override
-                public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                public SourceInputStreamFactory sharedInputStreamFactory(SharedBlobCacheService.RegionGaps gaps) {
                     return dummyStreamFactory;
                 }
 

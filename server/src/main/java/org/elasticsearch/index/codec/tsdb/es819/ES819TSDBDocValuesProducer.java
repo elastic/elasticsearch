@@ -681,7 +681,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return new DocIdSetIterator() {
 
                 int currentDocId = -1;
-                long currentBlockId = firstBlockId;
+                long currentBlockId = -1;
 
                 @Override
                 public int docID() {
@@ -704,7 +704,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 int scanToTargetDocId(int target) throws IOException {
-                    for (long blockId = currentBlockId; blockId <= endBlockId; blockId++) {
+                    for (long blockId = currentBlockId == -1 ? firstBlockId : currentBlockId; blockId <= endBlockId; blockId++) {
                         int blockStartDocId = (int) docOffsets.get(blockId);
                         int blockEndDocId = (int) docOffsets.get(blockId + 1);
 

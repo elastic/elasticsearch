@@ -395,6 +395,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumTests
   method: testGroupingAggregate {TestCase=<random exponential histograms>}
   issue: https://github.com/elastic/elasticsearch/issues/142081
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/142087
 
 # Examples:
 #

@@ -2922,11 +2922,23 @@ public class VerifierTests extends ESTestCase {
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
 
-        assertThat(error("""
-            FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
-                 (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
-            | FUSE GROUP BY label
-            """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
+        assertThat(
+            error("FROM test | LIMIT 10 | FUSE"),
+            equalTo(
+                "1:24: FUSE requires a score column, default [_score] column not found.\n"
+                    + "line 1:24: FUSE requires a column to group by, default [_fork] column not found.\n"
+                    + "line 1:24: FUSE requires a key column, default [_id] column not found\n"
+                    + "line 1:24: FUSE requires a key column, default [_index] column not found"
+            )
+        );
+
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            assertThat(error("""
+                FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
+                     (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
+                | FUSE GROUP BY label
+                """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
+        }
     }
 
     public void testNoMetricInStatsByClause() {

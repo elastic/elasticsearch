@@ -786,7 +786,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.addToFieldNames(fieldType().name());
 
         // match only text isn't stored, so if synthetic source needs to be supported, we must find an alternative way of loading the field
-        if (fieldType().textFieldType.storeFieldForSyntheticSource(indexCreatedVersion)) {
+        if (fieldType().textFieldType.needsFallbackStorageForSyntheticSource(indexCreatedVersion)) {
             // check if we can use the delegate
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;

@@ -19,7 +19,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.foreign.ValueLayout;
 import java.nio.file.Files;
@@ -55,7 +54,10 @@ public class MemorySegmentUtilsTests extends ESTestCase {
 
                 var tempFilePath = MemorySegmentUtils.copyInputToTempFile(in, dir, "tests.bin");
 
-                assertThat(tempFilePath.toString(), startsWith(dir.getDirectory() + File.separator + "tests.bin"));
+                assertThat(
+                    tempFilePath.toString(),
+                    startsWith(dir.getDirectory() + tempFilePath.getFileSystem().getSeparator() + "tests.bin")
+                );
 
                 assertThat(initialPosition, equalTo(in.getFilePointer()));
                 assertArrayEquals(data, Files.readAllBytes(tempFilePath));
@@ -89,7 +91,10 @@ public class MemorySegmentUtilsTests extends ESTestCase {
 
                 var tempFilePath = MemorySegmentUtils.copyInputToTempFilePacked(in, dir, "tests.bin", rows, rowSize + paddingSize, rowSize);
 
-                assertThat(tempFilePath.toString(), startsWith(dir.getDirectory() + File.separator + "tests.bin"));
+                assertThat(
+                    tempFilePath.toString(),
+                    startsWith(dir.getDirectory() + tempFilePath.getFileSystem().getSeparator() + "tests.bin")
+                );
 
                 assertThat(initialPosition, equalTo(in.getFilePointer()));
                 assertArrayEquals(data, Files.readAllBytes(tempFilePath));
@@ -98,8 +103,7 @@ public class MemorySegmentUtilsTests extends ESTestCase {
     }
 
     public void testCreateFileBackedMemorySegment() throws IOException {
-
-        var tempFile = Files.createTempFile("test", "bin");
+        var tempFile = createTempFile("test", "bin");
         var data = randomByteArrayOfLength(randomIntBetween(10, 1024 * 1024));
         Files.write(tempFile, data);
 

@@ -13,7 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -70,7 +70,12 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                     }
                 };
 
-                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
+                return ConstantScoreScorerSupplier.fromIterator(
+                    TwoPhaseIterator.asDocIdSetIterator(iterator),
+                    score(),
+                    scoreMode,
+                    context.reader().maxDoc()
+                );
             }
 
             @Override

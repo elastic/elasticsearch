@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -76,7 +76,7 @@ public class ViewResolver {
     }
 
     protected boolean viewsFeatureEnabled() {
-        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
     }
 
     /**

@@ -661,7 +661,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsViews() {
         if (supportsViews == null) {
-            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching"));
+            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching", "views_crud_as_index_actions"));
         }
         return supportsViews;
     }

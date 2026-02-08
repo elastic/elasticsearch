@@ -28,11 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.HashMap;
@@ -140,6 +140,7 @@ public class ViewService {
      * Removes a view from the cluster state.
      */
     public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        // TODO this should support wildcard deletion if action.destructive_requires_name = false
         if (viewsFeatureEnabled() == false) {
             listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
             return;
@@ -223,6 +224,6 @@ public class ViewService {
     }
 
     protected boolean viewsFeatureEnabled() {
-        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
     }
 }

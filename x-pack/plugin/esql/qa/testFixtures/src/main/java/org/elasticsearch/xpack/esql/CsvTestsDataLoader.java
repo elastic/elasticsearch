@@ -935,7 +935,7 @@ public class CsvTestsDataLoader {
             logger.info("View listing error: {}", e.getMessage());
             int code = e.getResponse().getStatusLine().getStatusCode();
             // Different versions of Elasticsearch return different codes when views are not supported
-            if (code == 400 || code == 500 || code == 405) {
+            if (code == 410 || code == 400 || code == 500 || code == 405) {
                 return false;
             }
             throw e;

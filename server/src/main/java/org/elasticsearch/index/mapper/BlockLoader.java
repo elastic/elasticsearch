@@ -39,6 +39,11 @@ import java.util.Map;
  *     spent the past 40 years making them really really good at running tight loops over
  *     arrays of data. So we play along with the CPU and make arrays.
  * </p>
+ * <p>
+ *     Implementers will return non-null from either {@link #columnAtATimeReader} or
+ *     {@link #rowStrideReader}. As of 2026-2-4 many will return non-null from both
+ *     but that's deprecated and will be removed.
+ * </p>
  * <h2>How to implement</h2>
  * <p>
  *     There are a lot of interesting choices hiding in here to make getting those arrays
@@ -253,6 +258,11 @@ public interface BlockLoader {
         void read(int docId, StoredFields storedFields, Builder builder) throws IOException;
     }
 
+    /**
+     * @deprecated we no longer need to implement {@link RowStrideReader} when
+     *             storage prefers column-at-a-time
+     */
+    @Deprecated
     interface AllReader extends ColumnAtATimeReader, RowStrideReader {}
 
     interface StoredFields {
@@ -293,16 +303,17 @@ public interface BlockLoader {
      * Build a column-at-a-time reader. <strong>May</strong> return {@code null}
      * if the underlying storage needs to be loaded row-by-row. Callers should try
      * this first, only falling back to {@link #rowStrideReader} if this returns
-     * {@code null} or if they can't load column-at-a-time themselves.
+     * {@code null}. If this returns null then {@link #rowStrideReader} may not.
      */
     @Nullable
     IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
 
     /**
-     * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
-     * evan if the underlying storage prefers to be loaded column-at-a-time. Some
-     * callers simply can't load column-at-a-time so all implementations must support
-     * this method.
+     * Build a row-by-row reader. <strong>May</strong> return {@code null} if the
+     * underlying storage prefers to be loaded column-at-a-time. Callers should try
+     * {@link #columnAtATimeReader} first, only falling back to this if
+     * {@link #columnAtATimeReader} returns null. This may not return null if
+     * {@link #columnAtATimeReader} does.
      */
     RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
 
@@ -429,6 +440,30 @@ public interface BlockLoader {
         int count();
 
         int get(int i);
+
+        /**
+         * Can this vector reference duplicate documents? Some {@link BlockLoader}s will
+         * run more slowly if this is {@code true}. These {@linkplain BlockLoader}s will
+         * return incorrect results if there are duplicates and this is {@code false}.
+         * This exists because of a hierarchy of speeds:
+         * <ul>
+         *     <li>
+         *         We can better optimize some {@link BlockLoader}s when they receive
+         *         {@linkplain Docs}s that don't contain duplicates.
+         *     </li>
+         *     <li>
+         *         It's rare that we want to load from duplicate doc ids. We don't need
+         *         to spend that much time optimizing it.
+         *     </li>
+         *     <li>
+         *         We sometimes really <strong>want</strong> to load from duplicate
+         *         doc ids to minimize total amount of loading we have to do in fairly
+         *         specific cases like resolving dimension values after time series
+         *         aggregations.
+         *     </li>
+         * </ul>
+         */
+        boolean mayContainDuplicates();
     }
 
     /**

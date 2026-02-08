@@ -138,7 +138,7 @@ $elseif(boolean)$
 
 $endif$
     @Override
-    $Type$Block filter(int... positions);
+    $Type$Block filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

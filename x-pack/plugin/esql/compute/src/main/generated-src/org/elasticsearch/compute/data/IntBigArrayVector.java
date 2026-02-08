@@ -119,7 +119,7 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

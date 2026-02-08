@@ -84,7 +84,7 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     DoubleVector asVector();
 
     @Override
-    DoubleBlock filter(int... positions);
+    DoubleBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

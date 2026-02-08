@@ -92,7 +92,7 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
     }
 
     @Override
-    public DoubleBlock filter(int... positions) {
+    public DoubleBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newDoubleBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

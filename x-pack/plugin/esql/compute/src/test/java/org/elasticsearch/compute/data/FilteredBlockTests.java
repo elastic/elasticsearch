@@ -49,13 +49,13 @@ public class FilteredBlockTests extends ESTestCase {
     public void testFilterAllPositions() {
         var positionCount = 100;
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
-        var filteredVector = vector.filter();
+        var filteredVector = vector.filter(false);
 
         assertEquals(0, filteredVector.getPositionCount());
         expectThrows(ArrayIndexOutOfBoundsException.class, () -> filteredVector.getInt(0));
         filteredVector.close();
 
-        var filteredBlock = vector.asBlock().filter();
+        var filteredBlock = vector.asBlock().filter(false);
         assertEquals(0, filteredBlock.getPositionCount());
         expectThrows(ArrayIndexOutOfBoundsException.class, () -> filteredBlock.getInt(0));
         vector.close();
@@ -67,13 +67,13 @@ public class FilteredBlockTests extends ESTestCase {
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).toArray();
 
-        var filteredVector = vector.filter(positions);
+        var filteredVector = vector.filter(false, positions);
         assertEquals(positionCount, filteredVector.getPositionCount());
         var anyPosition = randomPosition(positionCount);
         assertEquals(anyPosition, filteredVector.getInt(anyPosition));
         filteredVector.close();
 
-        var filteredBlock = vector.filter(positions).asBlock();
+        var filteredBlock = vector.filter(false, positions).asBlock();
         assertEquals(positionCount, filteredBlock.getPositionCount());
         assertEquals(anyPosition, filteredBlock.getInt(anyPosition));
         Releasables.close(vector);
@@ -85,14 +85,14 @@ public class FilteredBlockTests extends ESTestCase {
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).filter(i -> i % 2 == 0).toArray();
 
-        var filteredVector = vector.filter(positions);
+        var filteredVector = vector.filter(false, positions);
         assertEquals(positionCount / 2, filteredVector.getPositionCount());
         var anyPosition = randomIntBetween(0, (positionCount / 2) - 1);
         assertEquals(anyPosition * 2, filteredVector.getInt(anyPosition));
         assertEquals(anyPosition * 2, filteredVector.asBlock().getInt(anyPosition));
         filteredVector.close();
 
-        var filteredBlock = vector.asBlock().filter(positions);
+        var filteredBlock = vector.asBlock().filter(false, positions);
         assertEquals(positionCount / 2, filteredBlock.getPositionCount());
         assertEquals(anyPosition * 2, filteredBlock.getInt(anyPosition));
         vector.close();
@@ -103,8 +103,8 @@ public class FilteredBlockTests extends ESTestCase {
         var positionCount = 100;
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
 
-        var filteredVector = vector.filter(IntStream.range(0, positionCount).filter(i1 -> i1 % 2 == 0).toArray());
-        var filteredTwice = filteredVector.filter(IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
+        var filteredVector = vector.filter(false, IntStream.range(0, positionCount).filter(i1 -> i1 % 2 == 0).toArray());
+        var filteredTwice = filteredVector.filter(false, IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
 
         assertEquals(positionCount / 4, filteredTwice.getPositionCount());
         var anyPosition = randomIntBetween(0, positionCount / 4 - 1);
@@ -128,7 +128,7 @@ public class FilteredBlockTests extends ESTestCase {
             block = blockBuilder.build();
         }
 
-        var filtered = block.filter(1, 2, 3);
+        var filtered = block.filter(false, 1, 2, 3);
 
         assertTrue(filtered.isNull(0));
         assertTrue(filtered.mayHaveNulls());
@@ -155,7 +155,7 @@ public class FilteredBlockTests extends ESTestCase {
             block = blockBuilder.build();
         }
 
-        var filtered = block.filter(1, 2, 3);
+        var filtered = block.filter(false, 1, 2, 3);
 
         assertTrue(filtered.isNull(0));
         assertTrue(filtered.mayHaveNulls());
@@ -177,7 +177,7 @@ public class FilteredBlockTests extends ESTestCase {
             blockBuilder.appendInt(40);
             block = blockBuilder.build();
         }
-        var filtered = block.filter(1, 2, 3);
+        var filtered = block.filter(false, 1, 2, 3);
 
         assertFalse(filtered.isNull(0));
         assertFalse(filtered.mayHaveNulls());
@@ -202,7 +202,11 @@ public class FilteredBlockTests extends ESTestCase {
             nulls,
             randomFrom(Block.MvOrdering.values())
         );
-        for (Releasable obj : List.of(boolVector.filter(0, 2), boolVector.asBlock().filter(0, 2), boolBlock.filter(0, 2))) {
+        for (Releasable obj : List.of(
+            boolVector.filter(false, 0, 2),
+            boolVector.asBlock().filter(false, 0, 2),
+            boolBlock.filter(false, 0, 2)
+        )) {
             String s = obj.toString();
             assertThat(s, containsString("[true, false]"));
             assertThat(s, containsString("positions=2"));
@@ -212,7 +216,11 @@ public class FilteredBlockTests extends ESTestCase {
 
         var intVector = blockFactory.newIntArrayVector(new int[] { 10, 20, 30, 40 }, 4);
         var intBlock = blockFactory.newIntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
-        for (Releasable obj : List.of(intVector.filter(0, 2), intVector.asBlock().filter(0, 2), intBlock.filter(0, 2))) {
+        for (Releasable obj : List.of(
+            intVector.filter(false, 0, 2),
+            intVector.asBlock().filter(false, 0, 2),
+            intBlock.filter(false, 0, 2)
+        )) {
             String s = obj.toString();
             assertThat(s, containsString("[10, 30]"));
             assertThat(s, containsString("positions=2"));
@@ -228,7 +236,11 @@ public class FilteredBlockTests extends ESTestCase {
             nulls,
             randomFrom(Block.MvOrdering.values())
         );
-        for (Releasable obj : List.of(longVector.filter(0, 2), longVector.asBlock().filter(0, 2), longBlock.filter(0, 2))) {
+        for (Releasable obj : List.of(
+            longVector.filter(false, 0, 2),
+            longVector.asBlock().filter(false, 0, 2),
+            longBlock.filter(false, 0, 2)
+        )) {
             String s = obj.toString();
             assertThat(s, containsString("[100, 300]"));
             assertThat(s, containsString("positions=2"));
@@ -245,7 +257,11 @@ public class FilteredBlockTests extends ESTestCase {
             nulls,
             randomFrom(Block.MvOrdering.values())
         );
-        for (Releasable obj : List.of(doubleVector.filter(0, 2), doubleVector.asBlock().filter(0, 2), doubleBlock.filter(0, 2))) {
+        for (Releasable obj : List.of(
+            doubleVector.filter(false, 0, 2),
+            doubleVector.asBlock().filter(false, 0, 2),
+            doubleBlock.filter(false, 0, 2)
+        )) {
             String s = obj.toString();
             assertThat(s, containsString("[1.1, 3.3]"));
             assertThat(s, containsString("positions=2"));
@@ -263,7 +279,11 @@ public class FilteredBlockTests extends ESTestCase {
             nulls,
             randomFrom(Block.MvOrdering.values())
         );
-        for (Releasable obj : List.of(bytesRefVector.filter(0, 2), bytesRefVector.asBlock().filter(0, 2), bytesRefBlock.filter(0, 2))) {
+        for (Releasable obj : List.of(
+            bytesRefVector.filter(false, 0, 2),
+            bytesRefVector.asBlock().filter(false, 0, 2),
+            bytesRefBlock.filter(false, 0, 2)
+        )) {
             assertThat(
                 obj.toString(),
                 either(equalTo("BytesRefArrayVector[positions=2]")).or(
@@ -281,7 +301,7 @@ public class FilteredBlockTests extends ESTestCase {
             new int[] { 10, 20, 30, 40 },
             4
         );
-        for (Releasable obj : List.of(aggregateMetricDoubleBlock.filter(0, 2))) {
+        for (Releasable obj : List.of(aggregateMetricDoubleBlock.filter(false, 0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[1.1, 3.3]"));
             assertThat(s, containsString("[5.5, 7.7]"));
@@ -300,7 +320,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendBoolean(false).appendBoolean(false).endPositionEntry();
             builder.beginPositionEntry().appendBoolean(false).appendBoolean(false).endPositionEntry();
             BooleanBlock block = builder.build();
-            var filter = block.filter(0, 1);
+            var filter = block.filter(false, 0, 1);
             assertThat(
                 filter.toString(),
                 containsString(
@@ -317,7 +337,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendInt(20).appendInt(50).endPositionEntry();
             builder.beginPositionEntry().appendInt(90).appendInt(1000).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(0, 1);
+            var filter = block.filter(false, 0, 1);
             assertThat(
                 filter.toString(),
                 containsString(
@@ -333,7 +353,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendLong(20).appendLong(50).endPositionEntry();
             builder.beginPositionEntry().appendLong(90).appendLong(1000).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(0, 1);
+            var filter = block.filter(false, 0, 1);
             assertThat(
                 filter.toString(),
                 containsString(
@@ -349,7 +369,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendDouble(0.002).appendDouble(10e8).endPositionEntry();
             builder.beginPositionEntry().appendDouble(90).appendDouble(1000).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(0, 1);
+            var filter = block.filter(false, 0, 1);
             assertThat(
                 filter.toString(),
                 containsString(
@@ -368,7 +388,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendBytesRef(new BytesRef("cat")).appendBytesRef(new BytesRef("dog")).endPositionEntry();
             builder.beginPositionEntry().appendBytesRef(new BytesRef("pig")).appendBytesRef(new BytesRef("chicken")).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(0, 1);
+            var filter = block.filter(false, 0, 1);
             assertThat(
                 filter.toString(),
                 containsString("BytesRefArrayBlock[positions=2, mvOrdering=UNORDERED, vector=BytesRefArrayVector[positions=4]]")
@@ -386,7 +406,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendBoolean(true).appendBoolean(false).endPositionEntry();
             builder.beginPositionEntry().appendBoolean(false).appendBoolean(true).endPositionEntry();
             BooleanBlock block = builder.build();
-            var filter = block.filter(1);
+            var filter = block.filter(false, 1);
             assertThat(filter.getPositionCount(), is(1));
             assertThat(filter.getValueCount(0), is(2));
             assertThat(filter.getBoolean(filter.getFirstValueIndex(0)), is(false));
@@ -399,7 +419,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendInt(0).appendInt(10).endPositionEntry();
             builder.beginPositionEntry().appendInt(20).appendInt(50).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(1);
+            var filter = block.filter(false, 1);
             assertThat(filter.getPositionCount(), is(1));
             assertThat(filter.getInt(filter.getFirstValueIndex(0)), is(20));
             assertThat(filter.getInt(filter.getFirstValueIndex(0) + 1), is(50));
@@ -412,7 +432,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendLong(0).appendLong(10).endPositionEntry();
             builder.beginPositionEntry().appendLong(20).appendLong(50).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(1);
+            var filter = block.filter(false, 1);
             assertThat(filter.getPositionCount(), is(1));
             assertThat(filter.getValueCount(0), is(2));
             assertThat(filter.getLong(filter.getFirstValueIndex(0)), is(20L));
@@ -425,7 +445,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendDouble(0).appendDouble(10).endPositionEntry();
             builder.beginPositionEntry().appendDouble(0.002).appendDouble(10e8).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(1);
+            var filter = block.filter(false, 1);
             assertThat(filter.getPositionCount(), is(1));
             assertThat(filter.getValueCount(0), is(2));
             assertThat(filter.getDouble(filter.getFirstValueIndex(0)), is(0.002));
@@ -438,7 +458,7 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendBytesRef(new BytesRef("cat")).appendBytesRef(new BytesRef("dog")).endPositionEntry();
             builder.beginPositionEntry().appendBytesRef(new BytesRef("pig")).appendBytesRef(new BytesRef("chicken")).endPositionEntry();
             var block = builder.build();
-            var filter = block.filter(1);
+            var filter = block.filter(false, 1);
             assertThat(filter.getPositionCount(), is(1));
             assertThat(filter.getValueCount(0), is(2));
             assertThat(filter.getBytesRef(filter.getFirstValueIndex(0), new BytesRef()), equalTo(new BytesRef("pig")));

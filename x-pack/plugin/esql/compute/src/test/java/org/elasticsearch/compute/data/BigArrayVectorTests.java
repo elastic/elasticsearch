@@ -51,7 +51,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertThat(positionCount, is(vector.getPositionCount()));
             IntStream.range(0, positionCount).forEach(i -> assertThat(vector.getBoolean(i), is(values[i])));
             assertThat(vector.isConstant(), is(false));
-            try (BooleanVector filtered = vector.filter(IntStream.range(0, positionCount).toArray())) {
+            try (BooleanVector filtered = vector.filter(false, IntStream.range(0, positionCount).toArray())) {
                 IntStream.range(0, positionCount).forEach(i -> assertThat(filtered.getBoolean(i), is(values[i])));
                 assertThat(filtered.isConstant(), is(false));
             }
@@ -62,7 +62,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.isNull(i), is(false));
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
-                try (BooleanBlock filter = block.filter(i)) {
+                try (BooleanBlock filter = block.filter(false, i)) {
                     assertThat(filter.getBoolean(0), is(values[i]));
                 }
             });
@@ -109,7 +109,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertThat(positionCount, is(vector.getPositionCount()));
             IntStream.range(0, positionCount).forEach(i -> assertThat(vector.getInt(i), is(values[i])));
             assertThat(vector.isConstant(), is(false));
-            try (IntVector filtered = vector.filter(IntStream.range(0, positionCount).toArray())) {
+            try (IntVector filtered = vector.filter(false, IntStream.range(0, positionCount).toArray())) {
                 IntStream.range(0, positionCount).forEach(i -> assertThat(filtered.getInt(i), is(values[i])));
                 assertThat(filtered.isConstant(), is(false));
             }
@@ -120,7 +120,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.isNull(i), is(false));
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
-                try (IntBlock filter = block.filter(i)) {
+                try (IntBlock filter = block.filter(false, i)) {
                     assertThat(filter.getInt(0), is(values[i]));
                 }
             });
@@ -151,7 +151,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertThat(positionCount, is(vector.getPositionCount()));
             IntStream.range(0, positionCount).forEach(i -> assertThat(vector.getLong(i), is(values[i])));
             assertThat(vector.isConstant(), is(false));
-            try (LongVector filtered = vector.filter(IntStream.range(0, positionCount).toArray())) {
+            try (LongVector filtered = vector.filter(false, IntStream.range(0, positionCount).toArray())) {
                 IntStream.range(0, positionCount).forEach(i -> assertThat(filtered.getLong(i), is(values[i])));
                 assertThat(filtered.isConstant(), is(false));
             }
@@ -162,7 +162,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.isNull(i), is(false));
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
-                try (LongBlock filter = block.filter(i)) {
+                try (LongBlock filter = block.filter(false, i)) {
                     assertThat(filter.getLong(0), is(values[i]));
                 }
             });
@@ -191,7 +191,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
             assertThat(positionCount, is(vector.getPositionCount()));
             IntStream.range(0, positionCount).forEach(i -> assertThat(vector.getDouble(i), is(values[i])));
             assertThat(vector.isConstant(), is(false));
-            try (DoubleVector filtered = vector.filter(IntStream.range(0, positionCount).toArray())) {
+            try (DoubleVector filtered = vector.filter(false, IntStream.range(0, positionCount).toArray())) {
                 IntStream.range(0, positionCount).forEach(i -> assertThat(filtered.getDouble(i), is(values[i])));
                 assertThat(filtered.isConstant(), is(false));
             }
@@ -202,7 +202,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.isNull(i), is(false));
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
-                try (DoubleBlock filter = block.filter(i)) {
+                try (DoubleBlock filter = block.filter(false, i)) {
                     assertThat(filter.getDouble(0), is(values[i]));
                 }
             });

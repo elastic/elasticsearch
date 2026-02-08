@@ -68,7 +68,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
             }
             positions = Arrays.copyOf(positions, rowCount);
 
-            return page.filter(positions);
+            return page.filter(false, positions);
         }
     }
 

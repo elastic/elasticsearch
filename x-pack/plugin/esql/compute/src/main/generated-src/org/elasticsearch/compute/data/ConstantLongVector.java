@@ -41,7 +41,7 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
-    public LongVector filter(int... positions) {
+    public LongVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantLongVector(value, positions.length);
     }
 

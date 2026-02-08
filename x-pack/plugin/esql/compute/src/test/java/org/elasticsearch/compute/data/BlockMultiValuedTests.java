@@ -213,7 +213,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
-            Block filtered = b.block().filter(positions);
+            Block filtered = b.block().filter(false, positions);
             try {
                 assertThat(filtered.getPositionCount(), equalTo(positions.length));
 
@@ -282,7 +282,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
-            assertExpanded(b.block().filter(positions));
+            assertExpanded(b.block().filter(false, positions));
         } finally {
             b.block().close();
         }

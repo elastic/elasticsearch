@@ -9,6 +9,9 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
+import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
+import org.elasticsearch.entitlement.bridge.InstrumentationRegistryHandle;
+
 public interface Instrumenter {
 
     /**
@@ -16,8 +19,8 @@ public interface Instrumenter {
      * The prologue:
      * <ol>
      * <li>
-     * gets the {@link org.elasticsearch.entitlement.bridge.EntitlementChecker} instance from the
-     * {@link org.elasticsearch.entitlement.bridge.EntitlementCheckerHandle} holder;
+     * gets the {@link InstrumentationRegistry} instance from the
+     * {@link InstrumentationRegistryHandle} holder;
      * </li>
      * <li>
      * identifies the caller class and pushes it onto the stack;
@@ -26,8 +29,7 @@ public interface Instrumenter {
      * forwards the instrumented function parameters;
      * </li>
      * <li>
-     * calls the {@link org.elasticsearch.entitlement.bridge.EntitlementChecker} method corresponding to the method it is injected into
-     * (e.g. {@code check$java_net_DatagramSocket$receive} for {@link java.net.DatagramSocket#receive}).
+     * calls the {@link InstrumentationRegistry#check$} method.
      * </li>
      * </ol>
      * @param className the name of the class to instrument

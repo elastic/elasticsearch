@@ -17,11 +17,16 @@ import com.sun.tools.attach.VirtualMachine;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -35,11 +40,12 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class EntitlementBootstrap {
+    public static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     /**
      * Main entry point that activates entitlement checking. Once this method returns,
      * calls to methods protected by entitlements from classes without a valid
-     * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
+     * policy will throw {@link org.elasticsearch.entitlement.bridge.NotEntitledException}.
      *
      * @param serverPolicyPatch            additional entitlements to patch the embedded server layer policy
      * @param pluginPolicies               maps each plugin name to the corresponding {@link Policy}
@@ -80,6 +86,7 @@ public class EntitlementBootstrap {
         if (EntitlementInitialization.initializeArgs != null) {
             throw new IllegalStateException("initialization data is already set");
         }
+
         PathLookupImpl pathLookup = new PathLookupImpl(
             getUserHome(),
             configDir,
@@ -94,11 +101,16 @@ public class EntitlementBootstrap {
             pidFile,
             settingResolver
         );
+        PolicyManager policyManager = createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths);
+        PolicyChecker policyChecker = createPolicyChecker(suppressFailureLogPackages, policyManager, pathLookup);
+        InternalInstrumentationRegistry instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
             pathLookup,
             suppressFailureLogPackages,
-            createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths)
+            policyChecker,
+            instrumentationRegistry
         );
+        registerEntitlementRules(instrumentationRegistry);
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
 
@@ -176,6 +188,18 @@ public class EntitlementBootstrap {
             pluginSourcePathsResolver::get,
             pathLookup
         );
+    }
+
+    private static PolicyCheckerImpl createPolicyChecker(
+        Set<Package> suppressFailureLogPackages,
+        PolicyManager policyManager,
+        PathLookup pathLookup
+    ) {
+        return new PolicyCheckerImpl(suppressFailureLogPackages, ENTITLEMENTS_MODULE, policyManager, pathLookup);
+    }
+
+    private static void registerEntitlementRules(InternalInstrumentationRegistry instrumentationRegistry) {
+        new MainInstrumentationProvider().init(instrumentationRegistry);
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

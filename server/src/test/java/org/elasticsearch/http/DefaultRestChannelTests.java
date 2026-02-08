@@ -66,6 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,6 +79,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -256,7 +259,6 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertThat(headers.get(DefaultRestChannel.SET_COOKIE), hasItem("cookie2"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testReleaseInListener() throws IOException {
         final Settings settings = Settings.builder().build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
@@ -292,8 +294,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         channel.sendResponse(response);
-        Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
-        ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+        ArgumentCaptor<ActionListener<Void>> listenerCaptor = captureActionListener();
         verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
         ActionListener<Void> listener = listenerCaptor.getValue();
         if (randomBoolean()) {
@@ -304,7 +305,6 @@ public class DefaultRestChannelTests extends ESTestCase {
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
     }
 
-    @SuppressWarnings("unchecked")
     public void testConnectionClose() throws Exception {
         final Settings settings = Settings.builder().build();
         final HttpRequest httpRequest;
@@ -343,8 +343,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             tracer
         );
         channel.sendResponse(testRestResponse());
-        Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
-        ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+        ArgumentCaptor<ActionListener<Void>> listenerCaptor = captureActionListener();
         verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
         ActionListener<Void> listener = listenerCaptor.getValue();
         if (randomBoolean()) {
@@ -428,9 +427,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0), byteArray);
         channel.sendResponse(new RestResponse(RestStatus.METHOD_NOT_ALLOWED, RestResponse.TEXT_CONTENT_TYPE, content));
 
-        @SuppressWarnings("unchecked")
-        Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
-        ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+        ArgumentCaptor<ActionListener<Void>> listenerCaptor = captureActionListener();
         verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
         ActionListener<Void> listener = listenerCaptor.getValue();
         if (randomBoolean()) {
@@ -558,9 +555,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                     return RestResponse.TEXT_CONTENT_TYPE;
                 }
             }, () -> assertTrue(isClosed.compareAndSet(false, true))));
-            @SuppressWarnings("unchecked")
-            Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
-            ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+            ArgumentCaptor<ActionListener<Void>> listenerCaptor = captureActionListener();
             verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), listenerCaptor.capture());
             HttpResponse response = requestCaptor.getValue();
             assertThat(response, instanceOf(TestHttpResponse.class));
@@ -808,6 +803,85 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertTrue(isClosed.get());
     }
 
+    public void testReleaseRequestScopedResourcesOnSuccess() {
+        final TestHttpRequest httpRequest = spy(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"));
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            httpTracer,
+            tracer
+        );
+
+        channel.sendResponse(testRestResponse());
+
+        ArgumentCaptor<ActionListener<Void>> listenerCaptor = captureActionListener();
+        verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
+        ActionListener<Void> listener = listenerCaptor.getValue();
+
+        verify(httpRequest, never()).releaseRequestScopedResources();
+
+        listener.onResponse(null);
+
+        verify(httpRequest).releaseRequestScopedResources();
+    }
+
+    public void testReleaseRequestScopedResourcesOnFailure() {
+        final TestHttpRequest httpRequest = spy(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"));
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            httpTracer,
+            tracer
+        );
+
+        channel.sendResponse(testRestResponse());
+
+        ArgumentCaptor<ActionListener<Void>> listenerCaptor = captureActionListener();
+        verify(httpChannel).sendResponse(any(), listenerCaptor.capture());
+        ActionListener<Void> listener = listenerCaptor.getValue();
+
+        verify(httpRequest, never()).releaseRequestScopedResources();
+
+        listener.onFailure(new IOException("test failure"));
+
+        verify(httpRequest).releaseRequestScopedResources();
+    }
+
+    public void testReleaseRequestScopedResourcesOnException() {
+        final TestHttpRequest httpRequest = spy(new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/"));
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            httpTracer,
+            tracer
+        );
+
+        doAnswer(invocationOnMock -> { throw new RuntimeException("send response failed"); }).when(httpChannel)
+            .sendResponse(any(HttpResponse.class), anyActionListener());
+
+        expectThrows(RuntimeException.class, containsString("send response failed"), () -> channel.sendResponse(testRestResponse()));
+
+        verify(httpRequest).releaseRequestScopedResources();
+    }
+
     private TestHttpResponse executeRequest(final Settings settings, final String host) {
         return executeRequest(settings, null, host);
     }
@@ -842,5 +916,10 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     private static RestResponse testRestResponse() {
         return new RestResponse(RestStatus.OK, "content");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ArgumentCaptor<ActionListener<Void>> captureActionListener() {
+        return ArgumentCaptor.forClass((Class<ActionListener<Void>>) (Class<?>) ActionListener.class);
     }
 }

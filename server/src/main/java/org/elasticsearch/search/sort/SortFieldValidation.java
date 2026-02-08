@@ -184,10 +184,7 @@ public final class SortFieldValidation {
     }
 
     private static boolean isNumericType(SortField.Type type) {
-        return type == SortField.Type.INT
-            || type == SortField.Type.LONG
-            || type == SortField.Type.FLOAT
-            || type == SortField.Type.DOUBLE;
+        return type == SortField.Type.INT || type == SortField.Type.LONG || type == SortField.Type.FLOAT || type == SortField.Type.DOUBLE;
     }
 
     private static SortField.Type getType(SortField sortField) {

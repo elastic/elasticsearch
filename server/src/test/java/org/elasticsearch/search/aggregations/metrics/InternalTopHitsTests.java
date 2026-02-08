@@ -328,11 +328,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SearchHit hit = SearchHit.unpooled(0, "doc" + shardIndex);
         hit.score(1.0f);
         hit.sortValues(new Object[] { sortValue }, new DocValueFormat[] { DocValueFormat.RAW });
-        SearchHits searchHits = SearchHits.unpooled(
-            new SearchHit[] { hit },
-            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-            1.0f
-        );
+        SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
 
         TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topFieldDocs, 1.0f);
         return new InternalTopHits(name, 0, 1, topDocsAndMaxScore, searchHits, null);

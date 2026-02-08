@@ -140,7 +140,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                         throw new IllegalArgumentException(
                             "Failed to merge top_hits aggregation results from different shards due to incompatible "
                                 + "sort field types. This can occur during upgrades when field mappings differ across shards. "
-                                + "Original error: " + e.getMessage(),
+                                + "Original error: "
+                                + e.getMessage(),
                             e
                         );
                     }
@@ -201,7 +202,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         }
         return maxScore;
     }
-
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {

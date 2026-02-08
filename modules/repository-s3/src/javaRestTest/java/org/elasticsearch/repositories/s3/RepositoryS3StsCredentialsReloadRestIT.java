@@ -18,7 +18,6 @@ import fixture.s3.S3HttpFixture;
 import io.netty.handler.codec.http.HttpMethod;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -41,7 +40,6 @@ import static org.elasticsearch.repositories.s3.AbstractRepositoryS3RestTestCase
 import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3StsCredentialsRestIT");

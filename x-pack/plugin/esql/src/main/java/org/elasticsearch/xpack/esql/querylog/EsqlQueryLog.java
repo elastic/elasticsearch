@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.esql.querylog;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.LogMessage;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
@@ -78,7 +78,7 @@ public final class EsqlQueryLog {
         log(() -> Message.of(query, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
     }
 
-    private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
+    private void log(Supplier<LogMessage> logProducer, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
             queryLogger.warn(logProducer.get());
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
@@ -113,20 +113,20 @@ public final class EsqlQueryLog {
             return new String(sourceEscaped, StandardCharsets.UTF_8);
         }
 
-        public static ESLogMessage of(Result esqlResult, String query, Map<String, String> additionalFields) {
+        public static LogMessage of(Result esqlResult, String query, Map<String, String> additionalFields) {
             Map<String, Object> jsonFields = new HashMap<>();
             jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, true);
             addResultFields(jsonFields, esqlResult);
-            return new ESLogMessage().withFields(jsonFields);
+            return queryLogger.newMessage(jsonFields);
         }
 
-        public static ESLogMessage of(String query, long took, Exception exception, Map<String, String> additionalFields) {
+        public static LogMessage of(String query, long took, Exception exception, Map<String, String> additionalFields) {
             Map<String, Object> jsonFields = new HashMap<>();
             jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, false);
             addErrorFields(jsonFields, took, exception);
-            return new ESLogMessage().withFields(jsonFields);
+            return queryLogger.newMessage(jsonFields);
         }
 
         private static void addGenericFields(Map<String, Object> fieldMap, String query, boolean success) {

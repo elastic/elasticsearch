@@ -16,13 +16,13 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogMessage;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -250,8 +250,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogHasJsonFields() throws IOException {
         IndexService index = createIndex("foo");
         try (SearchContext searchContext = searchContextWithSourceAndTask(index)) {
-            ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
-
+            LogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
             assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo][0]"));
             assertThat(p.get("elasticsearch.slowlog.took"), equalTo("10nanos"));
             assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo("0"));
@@ -266,7 +265,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogHasAdditionalFields() throws IOException {
         IndexService index = createIndex("foo");
         try (SearchContext searchContext = searchContextWithSourceAndTask(index)) {
-            ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of("field1", "value1", "field2", "value2"), searchContext, 10);
+            LogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of("field1", "value1", "field2", "value2"), searchContext, 10);
             assertThat(p.get("field1"), equalTo("value1"));
             assertThat(p.get("field2"), equalTo("value2"));
             assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo][0]"));
@@ -289,7 +288,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id"))
             );
 
-            ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
+            LogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
             assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[\\\"group1\\\"]"));
         }
 
@@ -299,7 +298,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             searchContext.setTask(
                 new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id"))
             );
-            ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
+            LogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
             assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
         }
     }
@@ -307,10 +306,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         try (SearchContext searchContext = searchContextWithSourceAndTask(index)) {
-            ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
+            LogMessage p = SearchSlowLog.SearchSlowLogMessage.of(Map.of(), searchContext, 10);
             assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo][0]"));
             // Makes sure that output doesn't contain any new lines
-            assertThat(p.get("elasticsearch.slowlog.source"), not(containsString("\n")));
+            assertThat(p.get("elasticsearch.slowlog.source").toString(), not(containsString("\n")));
             assertThat(p.get("elasticsearch.slowlog.id"), equalTo("my_id"));
         }
     }

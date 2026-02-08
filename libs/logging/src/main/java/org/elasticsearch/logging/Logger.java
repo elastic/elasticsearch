@@ -9,6 +9,7 @@
 
 package org.elasticsearch.logging;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -35,6 +36,8 @@ public interface Logger {
      * @param throwable       A Throwable associated with the log message.
      */
     void log(Level level, Supplier<String> messageSupplier, Throwable throwable);
+
+    void log(Level level, LogMessage message);
 
     /**
      * Gets the logger name.
@@ -144,6 +147,13 @@ public interface Logger {
      */
     void fatal(String message, Object... params);
 
+    /**
+     * Logs a message at the {@link org.elasticsearch.logging.Level#FATAL FATAL} level.
+     *
+     * @param message the message string to be logged
+     */
+    void fatal(LogMessage message);
+
     // -- error
 
     /**
@@ -186,6 +196,12 @@ public interface Logger {
      */
     void error(String message, Object... params);
 
+    /**
+     * Logs a message at the {@link org.elasticsearch.logging.Level#ERROR ERROR} level.
+     *
+     * @param message the message string to be logged
+     */
+    void error(LogMessage message);
     // -- warn
 
     /**
@@ -228,6 +244,12 @@ public interface Logger {
      */
     void warn(String message, Object... params);
 
+    /**
+     * Logs a message at the {@link org.elasticsearch.logging.Level#WARN WARN} level.
+     *
+     * @param message the message string to be logged
+     */
+    void warn(LogMessage message);
     // -- info
 
     /**
@@ -270,6 +292,12 @@ public interface Logger {
      */
     void info(String message, Object... params);
 
+    /**
+     * Logs a message at the {@link org.elasticsearch.logging.Level#INFO INFO} level.
+     *
+     * @param message the message string to be logged
+     */
+    void info(LogMessage message);
     // -- debug
 
     /**
@@ -312,6 +340,12 @@ public interface Logger {
      */
     void debug(String message, Object... params);
 
+    /**
+     * Logs a message at the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} level.
+     *
+     * @param message the message string to be logged
+     */
+    void debug(LogMessage message);
     // -- trace
 
     /**
@@ -354,4 +388,20 @@ public interface Logger {
      */
     void trace(String message, Object... params);
 
+    /**
+     * Logs a message at the {@link org.elasticsearch.logging.Level#TRACE TRACE} level.
+     *
+     * @param message the message string to be logged
+     */
+    void trace(LogMessage message);
+
+    /**
+     * Create a new {@link org.elasticsearch.logging.LogMessage} instance specific for this logger.
+     */
+    LogMessage newMessage();
+
+    /**
+     * Create a new {@link org.elasticsearch.logging.LogMessage} instance specific for this logger, using given fields.
+     */
+    LogMessage newMessage(Map<String, Object> fields);
 }

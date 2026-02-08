@@ -9,8 +9,10 @@
 
 package org.elasticsearch.common.logging.internal;
 
+import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogMessage;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
@@ -99,6 +101,36 @@ public class LoggerImplMappingTests extends ESTestCase {
         verify(log4jLogger).trace(msgSupplierCaptor.capture(), exceptionCaptor.capture());
 
         assertArguments();
+    }
+
+    public void testLogMessageMethods() {
+        LogMessage logMessage = Mockito.mock(LogMessage.class);
+        esLogger.fatal(logMessage);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.FATAL, logMessage);
+        esLogger.error(logMessage);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.ERROR, logMessage);
+        esLogger.warn(logMessage);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.WARN, logMessage);
+        esLogger.info(logMessage);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.INFO, logMessage);
+        esLogger.debug(logMessage);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.DEBUG, logMessage);
+        esLogger.trace(logMessage);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.TRACE, logMessage);
+
+        Message message = Mockito.mock(Message.class, Mockito.withSettings().extraInterfaces(LogMessage.class));
+        esLogger.fatal((LogMessage) message);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.FATAL, message);
+        esLogger.error((LogMessage) message);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.ERROR, message);
+        esLogger.warn((LogMessage) message);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.WARN, message);
+        esLogger.info((LogMessage) message);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.INFO, message);
+        esLogger.debug((LogMessage) message);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.DEBUG, message);
+        esLogger.trace((LogMessage) message);
+        verify(log4jLogger).log(org.apache.logging.log4j.Level.TRACE, message);
     }
 
     public void testLogMethodsDelegationAndLevelMapping() {

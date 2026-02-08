@@ -52,6 +52,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `gauge`
    * `aggregate_metric_double`
    * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+   * `tdigest` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
 
 
 ### Unsupported types [_unsupported_types]

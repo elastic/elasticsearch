@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * Shared Lucene slices between Lucene operators.
@@ -78,6 +79,7 @@ public final class LuceneSliceQueue {
     public static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
     public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
 
+    private final IntFunction<ShardContext> shardContexts;
     private final int totalSlices;
     private final Map<String, PartitioningStrategy> partitioningStrategies;
 
@@ -106,7 +108,12 @@ public final class LuceneSliceQueue {
      */
     private final Queue<Integer> stealableSlices;
 
-    LuceneSliceQueue(List<LuceneSlice> sliceList, Map<String, PartitioningStrategy> partitioningStrategies) {
+    LuceneSliceQueue(
+        IntFunction<ShardContext> shardContexts,
+        List<LuceneSlice> sliceList,
+        Map<String, PartitioningStrategy> partitioningStrategies
+    ) {
+        this.shardContexts = shardContexts;
         this.totalSlices = sliceList.size();
         this.slices = new AtomicReferenceArray<>(sliceList.size());
         for (int i = 0; i < sliceList.size(); i++) {
@@ -125,6 +132,10 @@ public final class LuceneSliceQueue {
                 stealableSlices.add(slice.slicePosition());
             }
         }
+    }
+
+    ShardContext getShardContext(int index) {
+        return shardContexts.apply(index);
     }
 
     /**
@@ -190,37 +201,49 @@ public final class LuceneSliceQueue {
 
         int nextSliceId = 0;
         for (ShardContext ctx : contexts.iterable()) {
-            for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
-                var scoreMode = scoreModeFunction.apply(ctx);
-                Query query = queryAndExtra.query;
-                query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-                /*
-                 * Rewrite the query on the local index so things like fully
-                 * overlapping range queries become match all. It's important
-                 * to do this before picking the partitioning strategy so we
-                 * can pick more aggressive strategies when the query rewrites
-                 * into MatchAll.
-                 */
-                try {
-                    query = ctx.searcher().rewrite(query);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
-                partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
-                List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
-                Weight weight = weight(ctx, query, scoreMode);
-                boolean queryHead = true;
-                for (List<PartialLeafReaderContext> group : groups) {
-                    if (group.isEmpty() == false) {
-                        final int slicePosition = nextSliceId++;
-                        slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, weight, queryAndExtra.tags));
-                        queryHead = false;
+            long startShard = System.nanoTime();
+            try {
+                for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
+                    var scoreMode = scoreModeFunction.apply(ctx);
+                    Query query = queryAndExtra.query;
+                    query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+                    /*
+                     * Rewrite the query on the local index so things like fully
+                     * overlapping range queries become match all. It's important
+                     * to do this before picking the partitioning strategy so we
+                     * can pick more aggressive strategies when the query rewrites
+                     * into MatchAll.
+                     */
+                    try {
+                        query = ctx.searcher().rewrite(query);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
+                    partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
+                    List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
+                    Weight weight = weight(ctx, query, scoreMode);
+                    boolean queryHead = true;
+                    for (List<PartialLeafReaderContext> group : groups) {
+                        if (group.isEmpty() == false) {
+                            final int slicePosition = nextSliceId++;
+                            slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, weight, queryAndExtra.tags));
+                            queryHead = false;
+                        }
                     }
                 }
+            } finally {
+                /*
+                 * Rewriting queries can execute searches and trigger disk reads on the local shard.
+                 * We account for the time spent rewriting and preparing queries here so that this
+                 * work is reflected in the shard's search load and contributes to the overall index
+                 * load attribution.
+                 */
+                long now = System.nanoTime();
+                ctx.stats().accumulateSearchLoad(now - startShard, now);
             }
         }
-        return new LuceneSliceQueue(slices, partitioningStrategies);
+        return new LuceneSliceQueue(contexts::get, slices, partitioningStrategies);
     }
 
     /**

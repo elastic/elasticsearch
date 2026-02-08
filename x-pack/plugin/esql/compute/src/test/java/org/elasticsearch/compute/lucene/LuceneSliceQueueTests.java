@@ -25,7 +25,9 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -39,14 +41,15 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.simpleReader;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Mockito.mock;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
     public void testBasics() {
-
+        var shardContext = new LuceneSourceOperatorTests.MockShardContext(null);
         LeafReaderContext leaf1 = new MockLeafReader(1000).getContext();
         LeafReaderContext leaf2 = new MockLeafReader(1000).getContext();
         LeafReaderContext leaf3 = new MockLeafReader(1000).getContext();
@@ -55,27 +58,27 @@ public class LuceneSliceQueueTests extends ESTestCase {
         List<Object> query2 = List.of("q2");
         List<LuceneSlice> sliceList = List.of(
             // query1: new segment
-            new LuceneSlice(0, true, null, List.of(new PartialLeafReaderContext(leaf1, 0, 10)), null, query1),
-            new LuceneSlice(1, false, null, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query1),
-            new LuceneSlice(2, false, null, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query1),
+            new LuceneSlice(0, true, shardContext, List.of(new PartialLeafReaderContext(leaf1, 0, 10)), null, query1),
+            new LuceneSlice(1, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query1),
+            new LuceneSlice(2, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query1),
             // query1: new segment
-            new LuceneSlice(3, false, null, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query1),
-            new LuceneSlice(4, false, null, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query1),
-            new LuceneSlice(5, false, null, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query1),
+            new LuceneSlice(3, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query1),
+            new LuceneSlice(4, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query1),
+            new LuceneSlice(5, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query1),
             // query1: new segment
-            new LuceneSlice(6, false, null, List.of(new PartialLeafReaderContext(leaf4, 0, 10)), null, query1),
-            new LuceneSlice(7, false, null, List.of(new PartialLeafReaderContext(leaf4, 10, 20)), null, query1),
+            new LuceneSlice(6, false, shardContext, List.of(new PartialLeafReaderContext(leaf4, 0, 10)), null, query1),
+            new LuceneSlice(7, false, shardContext, List.of(new PartialLeafReaderContext(leaf4, 10, 20)), null, query1),
             // query2: new segment
-            new LuceneSlice(8, true, null, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query2),
-            new LuceneSlice(9, false, null, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query2),
+            new LuceneSlice(8, true, shardContext, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query2),
+            new LuceneSlice(9, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query2),
             // query1: new segment
-            new LuceneSlice(10, false, null, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query2),
-            new LuceneSlice(11, false, null, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query2),
-            new LuceneSlice(12, false, null, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query2)
+            new LuceneSlice(10, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query2),
+            new LuceneSlice(11, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query2),
+            new LuceneSlice(12, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query2)
         );
         // single driver
         {
-            LuceneSliceQueue queue = new LuceneSliceQueue(sliceList, Map.of());
+            LuceneSliceQueue queue = new LuceneSliceQueue(index -> shardContext, sliceList, Map.of());
             LuceneSlice last = null;
             for (LuceneSlice slice : sliceList) {
                 last = queue.nextSlice(last);
@@ -85,7 +88,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
         // three drivers
         {
-            LuceneSliceQueue queue = new LuceneSliceQueue(sliceList, Map.of());
+            LuceneSliceQueue queue = new LuceneSliceQueue(index -> shardContext, sliceList, Map.of());
 
             LuceneSlice first = null;
             LuceneSlice second = null;
@@ -127,7 +130,10 @@ public class LuceneSliceQueueTests extends ESTestCase {
         List<LuceneSlice> sliceList = new ArrayList<>();
         int numShards = randomIntBetween(1, 10);
         int slicePosition = 0;
+        List<ShardContext> shardContexts = new ArrayList<>(numShards);
         for (int shard = 0; shard < numShards; shard++) {
+            var shardContext = new LuceneSourceOperatorTests.MockShardContext(null);
+            shardContexts.add(shardContext);
             int numSegments = randomIntBetween(1, 10);
             for (int segment = 0; segment < numSegments; segment++) {
                 int numSlices = between(10, 50);
@@ -138,7 +144,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     LuceneSlice slice = new LuceneSlice(
                         slicePosition++,
                         false,
-                        mock(ShardContext.class),
+                        shardContext,
                         List.of(new PartialLeafReaderContext(leafContext, minDoc, maxDoc)),
                         null,
                         null
@@ -147,7 +153,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                 }
             }
         }
-        LuceneSliceQueue queue = new LuceneSliceQueue(sliceList, Map.of());
+        LuceneSliceQueue queue = new LuceneSliceQueue(shardContexts::get, sliceList, Map.of());
         Queue<LuceneSlice> allProcessedSlices = ConcurrentCollections.newQueue();
         int numDrivers = randomIntBetween(1, 5);
         CyclicBarrier barrier = new CyclicBarrier(numDrivers + 1);
@@ -239,6 +245,38 @@ public class LuceneSliceQueueTests extends ESTestCase {
             assertThat(slice.getLast().maxDoc(), equalTo(Integer.MAX_VALUE));
         }
         assertThat(slices, hasSize(sliceOffset));
+    }
+
+    public void testCreateSlice() throws IOException {
+        try (var directory = newDirectory()) {
+            try (var reader = simpleReader(directory, 1, 1)) {
+                List<ShardContext> shardContexts = new ArrayList<>();
+                List<List<LuceneSliceQueue.QueryAndTags>> shardQueries = new ArrayList<>();
+                for (int shard = 0; shard < 10; shard++) {
+                    var shardContext = new LuceneSourceOperatorTests.MockShardContext(reader);
+                    shardContexts.add(shardContext);
+                    int querySize = randomIntBetween(1, 5);
+                    List<LuceneSliceQueue.QueryAndTags> queries = new ArrayList<>();
+                    for (int i = 0; i < querySize; i++) {
+                        queries.add(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
+                    }
+                    shardQueries.add(queries);
+
+                }
+                LuceneSliceQueue.create(
+                    new IndexedByShardIdFromList<>(shardContexts),
+                    context -> shardQueries.get(context.index()),
+                    DataPartitioning.SEGMENT,
+                    query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
+                    10,
+                    context -> ScoreMode.COMPLETE
+                );
+                for (int i = 0; i < shardContexts.size(); i++) {
+                    var shardContext = shardContexts.get(i);
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                }
+            }
+        }
     }
 
     static class MockLeafReader extends LeafReader {

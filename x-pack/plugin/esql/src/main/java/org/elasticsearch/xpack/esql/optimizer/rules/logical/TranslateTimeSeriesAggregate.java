@@ -261,35 +261,37 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         boolean[] packPositions = new boolean[aggregate.groupings().size()];
         for (int i = 0; i < aggregate.groupings().size(); i++) {
             var group = aggregate.groupings().get(i);
-            if (timeBucket != null && group instanceof Attribute g && g.id().equals(timeBucket.id())) {
-                var newFinalGroup = timeBucket.toAttribute();
-                firstPassGroupings.add(newFinalGroup);
-                secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
-            } else if (timeBucket != null && group instanceof Alias a && a.id().equals(timeBucket.id())) {
-                firstPassGroupings.add(timeBucket);
-                secondPassGroupings.add(new Alias(a.source(), a.name(), timeBucket.toAttribute(), a.id()));
-            } else if (group instanceof Attribute g) {
-                var valuesAgg = new Alias(g.source(), g.name(), valuesAggregate(context, g));
-                firstPassAggs.add(valuesAgg);
-                if (g.isDimension()) {
-                    Alias pack = new Alias(
-                        g.source(),
-                        internalNames.next("pack_" + g.name()),
-                        new PackDimension(g.source(), valuesAgg.toAttribute())
-                    );
-                    packDimensions.add(pack);
-                    Alias grouping = new Alias(g.source(), internalNames.next("group_" + g.name()), pack.toAttribute());
-                    secondPassGroupings.add(grouping);
-                    Alias unpack = new Alias(
-                        g.source(),
-                        g.name(),
-                        new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType().noText()),
-                        g.id()
-                    );
-                    unpackDimensions.add(unpack);
-                    packPositions[i] = true;
+            if (group instanceof Attribute || group instanceof Alias) {
+                NamedExpression g = (NamedExpression) group;
+                if (timeBucket != null && g.id().equals(timeBucket.id())) {
+                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
                 } else {
-                    secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
+                    var unwrapped = Alias.unwrap(g);
+                    if (unwrapped instanceof Attribute a) {
+                        addAttribute(
+                            a,
+                            firstPassAggs,
+                            secondPassGroupings,
+                            internalNames,
+                            context,
+                            packDimensions,
+                            unpackDimensions,
+                            packPositions,
+                            i
+                        );
+                    } else {
+                        assert g instanceof Alias : "g must be an Alias at this point";
+                        if (unwrapped instanceof Bucket && timeBucket == null) {
+                            throw new IllegalArgumentException(
+                                "Time-series aggregations require direct use of @timestamp which was not found. "
+                                    + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
+                            );
+                        } else {
+                            var valuesAgg = new Alias(g.source(), g.name(), new Values(g.source(), unwrapped));
+                            firstPassAggs.add(valuesAgg);
+                            secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
+                        }
+                    }
                 }
             } else {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
@@ -341,6 +343,51 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 }
             }
             return new Project(newChild.source(), unpackValues, projects);
+        }
+    }
+
+    private void addBucket(
+        NamedExpression timeBucket,
+        NamedExpression group,
+        List<Expression> firstPassGroupings,
+        List<Expression> secondPassGroupings
+    ) {
+        firstPassGroupings.add(timeBucket);
+        secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
+    }
+
+    private void addAttribute(
+        Attribute g,
+        List<NamedExpression> firstPassAggs,
+        List<Expression> secondPassGroupings,
+        InternalNames internalNames,
+        LogicalOptimizerContext context,
+        List<Alias> packDimensions,
+        List<Alias> unpackDimensions,
+        boolean[] packPositions,
+        int position
+    ) {
+        var valuesAgg = new Alias(g.source(), g.name(), valuesAggregate(context, g));
+        firstPassAggs.add(valuesAgg);
+        if (g.isDimension()) {
+            Alias pack = new Alias(
+                g.source(),
+                internalNames.next("pack_" + g.name()),
+                new PackDimension(g.source(), valuesAgg.toAttribute())
+            );
+            packDimensions.add(pack);
+            Alias grouping = new Alias(g.source(), internalNames.next("group_" + g.name()), pack.toAttribute());
+            secondPassGroupings.add(grouping);
+            Alias unpack = new Alias(
+                g.source(),
+                g.name(),
+                new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType().noText()),
+                g.id()
+            );
+            unpackDimensions.add(unpack);
+            packPositions[position] = true;
+        } else {
+            secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
         }
     }
 

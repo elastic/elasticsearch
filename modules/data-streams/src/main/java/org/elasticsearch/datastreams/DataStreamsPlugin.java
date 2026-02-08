@@ -63,6 +63,7 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
@@ -209,6 +210,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get()
             )
         );
+
+        // Register DLM actions here. Order matters - they will be executed in the order they are listed for a given index.
+        List<DlmAction> dlmActions = List.of();
+
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
@@ -220,7 +225,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings()
+                services.dataStreamGlobalRetentionSettings(),
+                dlmActions
             )
         );
         dataLifecycleInitialisationService.get().init();

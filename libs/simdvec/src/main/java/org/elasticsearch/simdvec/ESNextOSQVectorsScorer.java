@@ -236,11 +236,36 @@ public class ESNextOSQVectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
+        return scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
+    }
+
+    public float scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        assert bulkSize <= this.bulkSize : "supplied bulkSize > this scorer's bulkSize";
         quantizeScoreBulk(q, bulkSize, scores);
         in.readFloats(lowerIntervals, 0, bulkSize);
         in.readFloats(upperIntervals, 0, bulkSize);
         for (int i = 0; i < bulkSize; i++) {
-            targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
+            targetComponentSums[i] = in.readInt();
         }
         in.readFloats(additionalCorrections, 0, bulkSize);
         float maxScore = Float.NEGATIVE_INFINITY;

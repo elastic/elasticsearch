@@ -379,7 +379,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
                 )
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -414,11 +420,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                         // Pushed down function
                         matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
                         // Field
-                        matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                        matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
                     )
                     : List.of(matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1))
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneTopNSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -443,10 +455,19 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     // Pushed down function
                     matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
                     // TODO It should not load the field value on the data node, but just on the node_reduce phase
-                    matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                    matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
                 )
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("TopNOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 

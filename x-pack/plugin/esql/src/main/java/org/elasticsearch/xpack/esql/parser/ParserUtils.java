@@ -152,4 +152,12 @@ public final class ParserUtils {
             default -> EMPTY;
         };
     }
+
+    public static String unquoteIdString(String quotedString) {
+        return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
+    }
+
+    public static String quoteIdString(String unquotedString) {
+        return "`" + unquotedString.replace("`", "``") + "`";
+    }
 }

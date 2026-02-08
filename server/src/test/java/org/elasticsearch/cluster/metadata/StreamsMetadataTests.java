@@ -28,11 +28,11 @@ public class StreamsMetadataTests extends AbstractChunkedSerializingTestCase<Str
 
     @Override
     protected StreamsMetadata createTestInstance() {
-        return new StreamsMetadata(randomBoolean());
+        return new StreamsMetadata(randomBoolean(), randomBoolean(), randomBoolean());
     }
 
     @Override
     protected StreamsMetadata mutateInstance(StreamsMetadata instance) throws IOException {
-        return new StreamsMetadata(instance.logsEnabled == false);
+        return new StreamsMetadata(instance.logsEnabled == false, instance.logsECSEnabled == false, instance.logsOTelEnabled == false);
     }
 }

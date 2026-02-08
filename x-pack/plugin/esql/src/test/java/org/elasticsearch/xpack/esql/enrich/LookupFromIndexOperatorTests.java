@@ -447,8 +447,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
     private AbstractLookupService.LookupShardContextFactory lookupShardContextFactory() {
         return shardId -> {
-            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-            };
+            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
             String suffix = (operation == null) ? "" : ("_right");
             StringBuilder props = new StringBuilder();
             props.append(String.format(Locale.ROOT, "\"match0%s\": { \"type\": \"long\" }", suffix));
@@ -490,7 +489,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     @Override
-    public void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() throws Exception {
         // only test field based join and EQ to prevents timeouts in Ci
         if (operation == null || operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ)) {
             super.testSimpleCircuitBreaking();

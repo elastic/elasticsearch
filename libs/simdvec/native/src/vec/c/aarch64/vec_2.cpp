@@ -32,7 +32,7 @@ static inline svuint64_t dot_bit_sv(const svuint64_t a, const int8_t* b) {
     return svcnt_u64_x(svptrue_b64(), svand_u64_m(svptrue_b64(), q0, a));
 }
 
-static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
+static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
     int r = 0;
 
     // Init accumulator(s) with 0
@@ -72,12 +72,12 @@ static inline int64_t dot_int1_int4_inner(const int8_t* a, const int8_t* query, 
     return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
 }
 
-EXPORT int64_t vec_dot_int1_int4_2(const int8_t* a, const int8_t* query, const int32_t length) {
-    return dot_int1_int4_inner(a, query, length);
+EXPORT int64_t vec_dotd1q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
+    return dotd1q4_inner(a, query, length);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline void dot_int1_int4_inner_bulk(
+static inline void dotd1q4_inner_bulk(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -232,20 +232,20 @@ static inline void dot_int1_int4_inner_bulk(
 
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)dot_int1_int4_inner(a0, query, length);
+        results[c] = (f32_t)dotd1q4_inner(a0, query, length);
     }
 }
 
-EXPORT void vec_dot_int1_int4_bulk_2(
+EXPORT void vec_dotd1q4_bulk_2(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dot_int1_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd1q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
 }
 
-EXPORT void vec_dot_int1_int4_bulk_offsets_2(
+EXPORT void vec_dotd1q4_bulk_offsets_2(
     const int8_t* a,
     const int8_t* query,
     const int32_t length,
@@ -253,9 +253,8 @@ EXPORT void vec_dot_int1_int4_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd1q4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }
-
 
 #ifdef __clang__
 #pragma clang attribute pop

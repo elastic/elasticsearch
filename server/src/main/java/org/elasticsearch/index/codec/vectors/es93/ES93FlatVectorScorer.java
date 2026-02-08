@@ -54,7 +54,7 @@ public class ES93FlatVectorScorer implements FlatVectorsScorer {
         KnnVectorValues vectorValues,
         float[] target
     ) throws IOException {
-        if (FACTORY != null && vectorValues.getEncoding() == VectorEncoding.FLOAT32) {
+        if (FACTORY != null) {
             var scorer = FACTORY.getFloatVectorScorer(similarityFunction, (FloatVectorValues) vectorValues, target);
             if (scorer.isPresent()) {
                 return scorer.get();

@@ -209,7 +209,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             }
             docsVector = docsBuilder.build();
             page = new Page(
-                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, null).asBlock(),
+                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, DocVector.config().mayContainDuplicates()).asBlock(),
                 positionsVector.asBlock()
             );
         } finally {

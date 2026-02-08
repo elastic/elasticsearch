@@ -127,7 +127,7 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         return plan;
     }
 
-    private static boolean shouldReplace(AggregateFunction aggFunction) {
+    public static boolean shouldReplace(AggregateFunction aggFunction) {
         return hasFalseFilter(aggFunction) || DataType.isNull(aggFunction.field().dataType());
     }
 
@@ -135,7 +135,7 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         return aggFunction.hasFilter() && aggFunction.filter() instanceof Literal literal && Boolean.FALSE.equals(literal.value());
     }
 
-    private static Object mapNullToValue(AggregateFunction aggFunction) {
+    public static Object mapNullToValue(AggregateFunction aggFunction) {
         return switch (aggFunction) {
             case Count ignored -> 0L;
             case CountDistinct ignored -> 0L;

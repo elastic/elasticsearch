@@ -322,7 +322,13 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                 }
 
                 var refs = new FirstDocIdGroupingAggregatorFunction.MappedShardRefs<>(shardRefs);
-                DocVector docVector = new DocVector(refs, shardBuilder.build(), segmentBuilder.build(), docBuilder.build(), null);
+                DocVector docVector = new DocVector(
+                    refs,
+                    shardBuilder.build(),
+                    segmentBuilder.build(),
+                    docBuilder.build(),
+                    DocVector.config()
+                );
 
                 currentPosition += length;
                 return new Page(tsidBuilder.build(), timestampBuilder.build(), docVector.asBlock());

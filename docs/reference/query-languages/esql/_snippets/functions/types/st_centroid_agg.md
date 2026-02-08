@@ -5,5 +5,7 @@
 | field | result |
 | --- | --- |
 | cartesian_point | cartesian_point |
+| cartesian_shape | cartesian_point |
 | geo_point | geo_point |
+| geo_shape | geo_point |
 

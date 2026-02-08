@@ -99,7 +99,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * asserting both that this throws a {@link CircuitBreakingException} and releases
      * all pages.
      */
-    public void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() throws Exception {
         /*
          * Build the input before building `simple` to handle the rare
          * cases where `simple` need some state from the input - mostly

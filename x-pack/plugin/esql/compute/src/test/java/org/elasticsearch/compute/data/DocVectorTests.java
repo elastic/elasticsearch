@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,7 +43,7 @@ public class DocVectorTests extends ComputeTestCase {
             intRange(0, length),
             intRange(0, length),
             intRange(0, length),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         );
         assertTrue(docs.singleSegmentNonDecreasing());
     }
@@ -54,7 +55,7 @@ public class DocVectorTests extends ComputeTestCase {
             intRange(0, 2),
             intRange(0, 2),
             blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
-            false
+            DocVector.config().singleSegmentNonDecreasing(false)
         );
         assertFalse(docs.singleSegmentNonDecreasing());
         docs.close();
@@ -67,7 +68,7 @@ public class DocVectorTests extends ComputeTestCase {
             intRange(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             intRange(0, 2),
-            null
+            DocVector.config()
         );
         assertFalse(docs.singleSegmentNonDecreasing());
         docs.close();
@@ -80,7 +81,7 @@ public class DocVectorTests extends ComputeTestCase {
             blockFactory.newConstantIntVector(0, 2),
             intRange(0, 2),
             intRange(0, 2),
-            null
+            DocVector.config()
         );
         assertFalse(docs.singleSegmentNonDecreasing());
         docs.close();
@@ -93,7 +94,7 @@ public class DocVectorTests extends ComputeTestCase {
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2),
-            null
+            DocVector.config()
         );
         assertTrue(docs.singleSegmentNonDecreasing());
         docs.close();
@@ -106,7 +107,7 @@ public class DocVectorTests extends ComputeTestCase {
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 2, 2 }, 2),
-            null
+            DocVector.config().mayContainDuplicates()
         );
         assertTrue(docs.singleSegmentNonDecreasing());
         docs.close();
@@ -119,20 +120,31 @@ public class DocVectorTests extends ComputeTestCase {
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
-            null
+            DocVector.config()
         );
         assertFalse(docs.singleSegmentNonDecreasing());
         docs.close();
     }
 
-    public void testBuildBreaks() {
+    public void testBuildBreaks() throws Exception {
+        testBuildBreaks(blockFactory -> buildDocBlock(blockFactory).close());
+    }
+
+    public void testBuildFixedBreaks() throws Exception {
+        testBuildBreaks(blockFactory -> buildDocBlockFromFixed(blockFactory).close());
+    }
+
+    public void testBuildBreaks(Consumer<BlockFactory> build) throws Exception {
         var maxBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
-            BlockFactory blockFactory = blockFactory(limit);
-            buildDocBlock(blockFactory).close();
+            try {
+                build.accept(blockFactory(limit));
+            } finally {
+                allBreakersEmpty();
+            }
         });
         var limit = ByteSizeValue.ofBytes(randomLongBetween(0, maxBreakLimit.getBytes()));
         BlockFactory blockFactory = blockFactory(limit);
-        Exception e = expectThrows(CircuitBreakingException.class, () -> buildDocBlock(blockFactory).close());
+        Exception e = expectThrows(CircuitBreakingException.class, () -> build.accept(blockFactory));
         assertThat(e.getMessage(), equalTo("over test limit"));
         logger.info("break position", e);
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
@@ -144,9 +156,19 @@ public class DocVectorTests extends ComputeTestCase {
             for (int r = 0; r < size; r++) {
                 builder.appendShard(3 - r % 4);
                 builder.appendSegment(r % 10);
-                builder.appendDoc(size);
+                builder.appendDoc(r);
             }
             return builder.build();
+        }
+    }
+
+    private DocBlock buildDocBlockFromFixed(BlockFactory blockFactory) {
+        int size = 100;
+        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(blockFactory, size)) {
+            for (int r = 0; r < size; r++) {
+                builder.append(3 - r % 4, r % 10, r);
+            }
+            return builder.build(DocVector.config()).asBlock();
         }
     }
 
@@ -231,38 +253,33 @@ public class DocVectorTests extends ComputeTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testShardSegmentDocMapBreaks() {
+    public void testShardSegmentDocMapBreaks() throws Exception {
+        testShardSegmentDocMapBreaks(this::buildDocBlock);
+    }
+
+    public void testShardSegmentFromFixedDocMapBreaks() throws Exception {
+        testShardSegmentDocMapBreaks(this::buildDocBlockFromFixed);
+    }
+
+    private void testShardSegmentDocMapBreaks(Function<BlockFactory, DocBlock> build) throws Exception {
         ByteSizeValue buildBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
-            BlockFactory blockFactory = blockFactory(limit);
-            buildDocBlock(blockFactory).close();
-            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+            try (DocBlock docs = build.apply(blockFactory(limit))) {} finally {
+                allBreakersEmpty();
+            }
         });
         ByteSizeValue docMapBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
-            BlockFactory blockFactory = blockFactory(limit);
-            try (DocBlock docBlock = buildDocBlock(blockFactory)) {
+            try (DocBlock docBlock = build.apply(blockFactory(limit))) {
                 docBlock.asVector().shardSegmentDocMapForwards();
+            } finally {
+                allBreakersEmpty();
             }
-            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         });
         var limit = ByteSizeValue.ofBytes(randomLongBetween(buildBreakLimit.getBytes() + 1, docMapBreakLimit.getBytes()));
         BlockFactory blockFactory = blockFactory(limit);
-        testShardSegmentDocMapBreaks(blockFactory);
-        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
-    }
-
-    private void testShardSegmentDocMapBreaks(BlockFactory blockFactory) {
-        int size = 100;
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
-            for (int r = 0; r < size; r++) {
-                builder.appendShard(3 - r % 4);
-                builder.appendSegment(r % 10);
-                builder.appendDoc(size);
-            }
-            try (DocBlock docBlock = builder.build()) {
-                Exception e = expectThrows(CircuitBreakingException.class, docBlock.asVector()::shardSegmentDocMapForwards);
-                assertThat(e.getMessage(), equalTo("over test limit"));
-                logger.info("broke at", e);
-            }
+        try (DocBlock docBlock = build.apply(blockFactory)) {
+            Exception e = expectThrows(CircuitBreakingException.class, docBlock.asVector()::shardSegmentDocMapForwards);
+            assertThat(e.getMessage(), equalTo("over test limit"));
+            logger.info("broke at", e);
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
@@ -274,7 +291,7 @@ public class DocVectorTests extends ComputeTestCase {
             intRange(0, 2),
             blockFactory.newConstantIntBlockWith(0, 2).asVector(),
             intRange(0, 2),
-            null
+            DocVector.config()
         ).asBlock();
         assertThat(block.isReleased(), is(false));
         Page page = new Page(block);
@@ -299,7 +316,7 @@ public class DocVectorTests extends ComputeTestCase {
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             blockFactory.newConstantIntBlockWith(0, 1).asVector(),
-            false
+            DocVector.config().singleSegmentNonDecreasing(false)
         );
         assertThat(docs.singleSegmentNonDecreasing(), is(false));
         docs.ramBytesUsed(); // ensure non-singleSegmentNonDecreasing handles nulls in ramByteUsed
@@ -314,7 +331,7 @@ public class DocVectorTests extends ComputeTestCase {
                 factory.newConstantIntVector(0, 10),
                 factory.newConstantIntVector(0, 10),
                 factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
-                false
+                DocVector.config().singleSegmentNonDecreasing(false)
             );
             DocVector filtered = docs.filter(1, 2, 3);
             DocVector expected = new DocVector(
@@ -322,14 +339,14 @@ public class DocVectorTests extends ComputeTestCase {
                 factory.newConstantIntVector(0, 3),
                 factory.newConstantIntVector(0, 3),
                 factory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
-                false
+                DocVector.config().singleSegmentNonDecreasing(false)
             );
         ) {
             assertThat(filtered, equalTo(expected));
         }
     }
 
-    public void testFilterBreaks() {
+    public void testFilterBreaks() throws Exception {
         Function<BlockFactory, DocVector> buildDocVector = factory -> {
             IntVector shards = null;
             IntVector segments = null;
@@ -339,7 +356,13 @@ public class DocVectorTests extends ComputeTestCase {
                 shards = factory.newConstantIntVector(0, 10);
                 segments = factory.newConstantIntVector(0, 10);
                 docs = factory.newConstantIntVector(0, 10);
-                result = new DocVector(AlwaysReferencedIndexedByShardId.INSTANCE, shards, segments, docs, false);
+                result = new DocVector(
+                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                    shards,
+                    segments,
+                    docs,
+                    DocVector.config().singleSegmentNonDecreasing(false).mayContainDuplicates()
+                );
                 return result;
             } finally {
                 if (result == null) {

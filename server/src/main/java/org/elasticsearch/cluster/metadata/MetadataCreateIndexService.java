@@ -2025,7 +2025,7 @@ public class MetadataCreateIndexService {
     }
 
     public static boolean useRefreshBlock(Settings settings) {
-        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, false);
+        return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true);
     }
 
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
@@ -2037,6 +2037,7 @@ public class MetadataCreateIndexService {
             if (applyRefreshBlock(indexMetadata)) {
                 // Applies the INDEX_REFRESH_BLOCK to the index. This block will remain in cluster state until an unpromotable shard is
                 // started or a configurable delay is elapsed.
+                logger.debug("applying refresh block to {}", indexMetadata.getIndex().getName());
                 clusterBlocks.addIndexBlock(projectId, indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
             }
         };

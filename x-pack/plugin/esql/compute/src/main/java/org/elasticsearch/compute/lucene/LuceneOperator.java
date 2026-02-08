@@ -521,4 +521,8 @@ public abstract class LuceneOperator extends SourceOperator {
             return TransportVersion.minimumCompatible();
         }
     }
+
+    LuceneSliceQueue getSliceQueue() {
+        return sliceQueue;
+    }
 }

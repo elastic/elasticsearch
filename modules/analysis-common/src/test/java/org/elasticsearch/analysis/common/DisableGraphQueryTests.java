@@ -74,7 +74,6 @@ public class DisableGraphQueryTests extends ESSingleNodeTestCase {
         indexService = createIndex(
             "test",
             settings,
-            "t",
             "text_shingle",
             "type=text,analyzer=text_shingle",
             "text_shingle_unigram",

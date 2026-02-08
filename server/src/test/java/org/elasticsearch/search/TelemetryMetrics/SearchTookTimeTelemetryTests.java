@@ -104,7 +104,6 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, num_primaries)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build(),
-            "_doc",
             "@timestamp",
             "type=date_nanos"
         );

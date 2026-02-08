@@ -2072,6 +2072,14 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_GROUP_ON_ALIASES,
 
+        /**
+         * Temporary capability until the MMR operator is merged to pass the BWC CI tests
+         * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
+         * however, without the MMRExec to operator code in place, will fail on the snapshot
+         * TODO - remove this once the MMR operator is merged
+         */
+        TEMP_MMR_EXEC(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

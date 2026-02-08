@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "text_body": {
+      "type": "text"
+    },
+    "keyword_field": {
+      "type": "keyword"
+    },
+    "text_vector": {
+      "type": "dense_vector",
+      "dims": 3
+    }
+  }
+}

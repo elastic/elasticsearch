@@ -1,0 +1,12 @@
+text_body:text,text_vector:dense_vector,keyword_field:keyword
+first text,[0.4, 0.2, 0.4],test1
+second text,[0.4, 0.2, 0.3],test2
+second text duplicate,[0.4, 0.2, 0.3],test2_dup
+third text,[0.4, 0.1, 0.3],test3
+third text duplicate,[0.4, 0.1, 0.3],test3_dup
+fourth text,[0.9, 0.5, 0.6],test4
+fifth text,[0.1, 0.5, 0.9],test5
+sixth text,[0.1, 0.1, 0.1],test6
+seventh text,[0.1, 0.4, 0.9],test7
+eighth text,[0.1, 0.7, 0.9],test8
+ninth text,[0.2, 0.05, 0.05],test9

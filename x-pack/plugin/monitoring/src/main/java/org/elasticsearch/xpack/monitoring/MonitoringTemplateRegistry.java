@@ -304,7 +304,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
         BEATS_STACK_INDEX_TEMPLATE,
         ES_STACK_INDEX_TEMPLATE,
         KIBANA_STACK_INDEX_TEMPLATE,
@@ -314,7 +314,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return monitoringTemplatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Map.of();
+        return monitoringTemplatesEnabled ? composableIndexTemplates : Map.of();
     }
 
     @Override

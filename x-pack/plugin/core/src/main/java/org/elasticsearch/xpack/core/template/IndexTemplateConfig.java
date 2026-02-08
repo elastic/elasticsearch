@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.template;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Pattern;
 
 /**
  * Describes an index template to be loaded from a resource file for use with an {@link IndexTemplateRegistry}.
@@ -88,10 +88,15 @@ public class IndexTemplateConfig {
      * @return The template as a UTF-8 byte array.
      */
     public byte[] loadBytes() {
-        String template = TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionProperty, variables);
-        assert template != null && template.length() > 0;
-        assert Pattern.compile("\"version\"\\s*:\\s*" + version).matcher(template).find()
-            : "index template must have a version property set to the given version property";
+        String template = TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionProperty, variables, true);
         return template.getBytes(StandardCharsets.UTF_8);
     }
+
+    /**
+     * Loads and parses the template from disk using the provided template parser.
+     */
+    public <T> T load(TemplateUtils.TemplateParser<T> parser) throws IOException {
+        return TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionProperty, variables, true, parser);
+    }
+
 }

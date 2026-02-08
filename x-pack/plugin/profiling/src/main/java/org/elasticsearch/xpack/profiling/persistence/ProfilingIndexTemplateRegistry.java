@@ -17,8 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -26,9 +24,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -120,81 +116,69 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
     }
 
-    private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
-
-    static {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
-            new IndexTemplateConfig(
-                "profiling-events",
-                "/profiling/component-template/profiling-events.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE,
-                indexVersion("events", PROFILING_EVENTS_VERSION)
-            ),
-            new IndexTemplateConfig(
-                "profiling-executables",
-                "/profiling/component-template/profiling-executables.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE,
-                indexVersion("executables", PROFILING_EXECUTABLES_VERSION)
-            ),
-            new IndexTemplateConfig(
-                "profiling-ilm",
-                "/profiling/component-template/profiling-ilm.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                "profiling-hot-tier",
-                "/profiling/component-template/profiling-hot-tier.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                "profiling-metrics",
-                "/profiling/component-template/profiling-metrics.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE,
-                indexVersion("metrics", PROFILING_METRICS_VERSION)
-            ),
-            new IndexTemplateConfig(
-                "profiling-hosts",
-                "/profiling/component-template/profiling-hosts.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE,
-                indexVersion("hosts", PROFILING_HOSTS_VERSION)
-            ),
-            new IndexTemplateConfig(
-                "profiling-stackframes",
-                "/profiling/component-template/profiling-stackframes.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE,
-                indexVersion("stackframes", PROFILING_STACKFRAMES_VERSION)
-            ),
-            new IndexTemplateConfig(
-                "profiling-stacktraces",
-                "/profiling/component-template/profiling-stacktraces.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE,
-                indexVersion("stacktraces", PROFILING_STACKTRACES_VERSION)
-            ),
-            new IndexTemplateConfig(
-                "profiling-symbols",
-                "/profiling/component-template/profiling-symbols.json",
-                INDEX_TEMPLATE_VERSION,
-                PROFILING_TEMPLATE_VERSION_VARIABLE,
-                indexVersion("symbols", PROFILING_SYMBOLS_VERSION)
-            )
-        )) {
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
-                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        COMPONENT_TEMPLATE_CONFIGS = Collections.unmodifiableMap(componentTemplates);
-    }
+    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+        new IndexTemplateConfig(
+            "profiling-events",
+            "/profiling/component-template/profiling-events.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("events", PROFILING_EVENTS_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-executables",
+            "/profiling/component-template/profiling-executables.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("executables", PROFILING_EXECUTABLES_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-ilm",
+            "/profiling/component-template/profiling-ilm.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-hot-tier",
+            "/profiling/component-template/profiling-hot-tier.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-metrics",
+            "/profiling/component-template/profiling-metrics.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("metrics", PROFILING_METRICS_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-hosts",
+            "/profiling/component-template/profiling-hosts.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("hosts", PROFILING_HOSTS_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-stackframes",
+            "/profiling/component-template/profiling-stackframes.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("stackframes", PROFILING_STACKFRAMES_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-stacktraces",
+            "/profiling/component-template/profiling-stacktraces.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("stacktraces", PROFILING_STACKTRACES_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-symbols",
+            "/profiling/component-template/profiling-symbols.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("symbols", PROFILING_SYMBOLS_VERSION)
+        )
+    );
 
     private static Map<String, String> indexVersion(String index, int version) {
         return Map.of(String.format(Locale.ROOT, "xpack.profiling.index.%s.version", index), String.valueOf(version));
@@ -202,10 +186,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return templatesEnabled ? COMPONENT_TEMPLATE_CONFIGS : Collections.emptyMap();
+        return templatesEnabled ? componentTemplates : Collections.emptyMap();
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/index-template/profiling-events.json",
@@ -280,7 +264,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return templatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Collections.emptyMap();
+        return templatesEnabled ? composableIndexTemplates : Collections.emptyMap();
     }
 
     @Override
@@ -314,14 +298,14 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      * @param settings Current cluster settings.
      * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
      */
-    public static boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        for (String name : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
+    public boolean isAllResourcesCreated(ClusterState state, Settings settings) {
+        for (String name : componentTemplates.keySet()) {
             ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
             if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (String name : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
+        for (String name : composableIndexTemplates.keySet()) {
             ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
             if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;

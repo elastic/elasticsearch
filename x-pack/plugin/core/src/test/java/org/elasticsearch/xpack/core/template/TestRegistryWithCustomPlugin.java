@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
@@ -64,9 +62,7 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
         );
         ComponentTemplate componentTemplate = null;
         try {
-            componentTemplate = ComponentTemplate.parse(
-                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())
-            );
+            componentTemplate = config.load(ComponentTemplate::parse);
         } catch (IOException e) {
             throw new AssertionError(e);
         }

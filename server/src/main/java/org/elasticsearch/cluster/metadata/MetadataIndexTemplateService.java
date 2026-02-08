@@ -712,7 +712,7 @@ public class MetadataIndexTemplateService {
             // We may need to normalize index settings, so do that also
             Settings finalSettings = innerTemplate.settings();
             if (finalSettings != null) {
-                finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+                finalSettings = finalSettings.maybeNormalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             }
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated

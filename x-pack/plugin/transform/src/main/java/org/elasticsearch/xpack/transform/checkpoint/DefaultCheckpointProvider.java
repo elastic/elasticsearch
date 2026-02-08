@@ -10,35 +10,26 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointWithFanoutAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.transform.checkpoint.RemoteClusterResolver.ResolvedIndices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -101,119 +92,30 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
         try {
-            ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
-            ActionListener<Map<String, long[]>> groupedListener = listener;
-
-            if (resolvedIndexes.numClusters() == 0) {
-                var indices = String.join(",", transformConfig.getSource().getIndex());
-                listener.onFailure(new CheckpointException("No clusters exist for [{}]", indices));
-                return;
-            }
-
-            if (resolvedIndexes.numClusters() > 1) {
-                ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
-                    listener.onResponse(
-                        indexCheckpoints.stream()
-                            .flatMap(m -> m.entrySet().stream())
-                            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()))
-                    );
-                }, listener::onFailure);
-
-                groupedListener = new GroupedActionListener<>(resolvedIndexes.numClusters(), mergeMapsListener);
-            }
-
-            final var threadContext = client.threadPool().getThreadContext();
-
-            if (resolvedIndexes.getLocalIndices().isEmpty() == false) {
-                getCheckpointsFromOneCluster(
-                    threadContext,
-                    CheckpointClient.local(client),
-                    timeout,
-                    transformConfig.getHeaders(),
-                    resolvedIndexes.getLocalIndices().toArray(new String[0]),
-                    transformConfig.getSource().getQueryConfig().getQuery(),
-                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
-                    groupedListener
-                );
-            }
-
-            for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
-                String cluster = remoteIndex.getKey();
-                getCheckpointsFromOneCluster(
-                    threadContext,
-                    CheckpointClient.remote(
-                        client.getRemoteClusterClient(
-                            cluster,
-                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                        )
-                    ),
-                    timeout,
-                    transformConfig.getHeaders(),
-                    remoteIndex.getValue().toArray(new String[0]),
-                    transformConfig.getSource().getQueryConfig().getQuery(),
-                    cluster,
-                    groupedListener
-                );
-            }
+            IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+            GetCheckpointWithFanoutAction.Request request = new GetCheckpointWithFanoutAction.Request(
+                transformConfig.getSource().getIndex(),
+                indicesOptions,
+                transformConfig.getSource().getQueryConfig().getQuery(),
+                null,
+                timeout
+            );
+            ActionListener<GetCheckpointWithFanoutAction.Response> checkpointListener = listener.safeMap(
+                GetCheckpointWithFanoutAction.Response::getCheckpoints
+            );
+            ClientHelper.executeWithHeadersAsync(
+                transformConfig.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client,
+                GetCheckpointWithFanoutAction.INSTANCE,
+                request,
+                checkpointListener
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    private void getCheckpointsFromOneCluster(
-        ThreadContext threadContext,
-        CheckpointClient client,
-        TimeValue timeout,
-        Map<String, String> headers,
-        String[] indices,
-        QueryBuilder query,
-        String cluster,
-        ActionListener<Map<String, long[]>> responseListener
-    ) {
-        ActionListener<Map<String, long[]>> debugListener = logger.isDebugEnabled() ? responseListener.delegateFailure((l, r) -> {
-            logger.debug(
-                "[{}] Successfully retrieved checkpoints from cluster [{}] using transform checkpoint API",
-                transformConfig.getId(),
-                cluster
-            );
-            l.onResponse(r);
-        }) : responseListener;
-
-        GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(
-            indices,
-            IndicesOptions.LENIENT_EXPAND_OPEN,
-            query,
-            cluster,
-            timeout
-        );
-        ActionListener<GetCheckpointAction.Response> checkpointListener;
-        if (RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
-            checkpointListener = debugListener.safeMap(GetCheckpointAction.Response::getCheckpoints);
-        } else {
-            checkpointListener = debugListener.delegateFailure(
-                (l, checkpointResponse) -> l.onResponse(
-                    checkpointResponse.getCheckpoints()
-                        .entrySet()
-                        .stream()
-                        .collect(
-                            Collectors.toMap(
-                                entry -> cluster + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR + entry.getKey(),
-                                Map.Entry::getValue
-                            )
-                        )
-                )
-            );
-        }
-
-        ClientHelper.executeWithHeadersAsync(
-            threadContext,
-            headers,
-            ClientHelper.TRANSFORM_ORIGIN,
-            getCheckpointRequest,
-            checkpointListener,
-            client::getCheckpoint
-        );
     }
 
     @Override

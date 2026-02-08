@@ -20,6 +20,9 @@
         "m": 16,
         "ef_construction": 100
       }
+    },
+    "int_field": {
+      "type": "integer"
     }
   }
 }

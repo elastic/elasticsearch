@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.ann.DenseVectorEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -73,7 +74,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.SubFactory::new,
+            DenseVectorsEvaluator::getSubFactory,
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );
@@ -88,7 +89,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.SubFactory::new,
+            DenseVectorsEvaluator::getSubFactory,
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );
@@ -173,6 +174,36 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             */
             throw new DateTimeException("Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807");
         }
+    }
+
+    @DenseVectorEvaluator(extraName = "IntDenseVector", warnExceptions = { ArithmeticException.class })
+    static float processIntDenseVector(int lhs, float rhs) {
+        return NumericUtils.asFiniteNumber(lhs - rhs);
+    }
+
+    @DenseVectorEvaluator(extraName = "DenseVectorInt", warnExceptions = { ArithmeticException.class })
+    static float processDenseVectorInt(float lhs, int rhs) {
+        return NumericUtils.asFiniteNumber(lhs - rhs);
+    }
+
+    @DenseVectorEvaluator(extraName = "LongDenseVector", warnExceptions = { ArithmeticException.class })
+    static float processLongDenseVector(long lhs, float rhs) {
+        return NumericUtils.asFiniteNumber(lhs - rhs);
+    }
+
+    @DenseVectorEvaluator(extraName = "DenseVectorLong", warnExceptions = { ArithmeticException.class })
+    static float processDenseVectorLong(float lhs, long rhs) {
+        return NumericUtils.asFiniteNumber(lhs - rhs);
+    }
+
+    @DenseVectorEvaluator(extraName = "DoubleDenseVector", warnExceptions = { ArithmeticException.class })
+    static float processDoubleDenseVector(double lhs, float rhs) {
+        return NumericUtils.asFiniteNumber((float) (lhs - rhs));
+    }
+
+    @DenseVectorEvaluator(extraName = "DenseVectorDouble", warnExceptions = { ArithmeticException.class })
+    static float processDenseVectorDouble(float lhs, double rhs) {
+        return NumericUtils.asFiniteNumber((float) (lhs - rhs));
     }
 
     @Override

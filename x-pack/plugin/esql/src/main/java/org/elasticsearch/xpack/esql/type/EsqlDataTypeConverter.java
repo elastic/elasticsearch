@@ -486,6 +486,9 @@ public class EsqlDataTypeConverter {
             // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD
             return KEYWORD;
         }
+        if ((left == DENSE_VECTOR && right.isNumeric()) || (right == DENSE_VECTOR && left.isNumeric())) {
+            return DENSE_VECTOR;
+        }
         if (left.isNumeric() && right.isNumeric()) {
             int lsize = left.estimatedSize();
             int rsize = right.estimatedSize();

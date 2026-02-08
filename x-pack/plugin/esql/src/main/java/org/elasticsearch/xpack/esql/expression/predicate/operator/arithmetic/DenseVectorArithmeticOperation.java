@@ -17,13 +17,25 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrNumeric;
 
 /**
  * Adds support for dense_vector data types. Specifically provides the logic when either left or right type is a dense_vector.
  */
 public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOperation {
-    private final BinaryEvaluator denseVectors;
+    private final DenseVectorBinaryEvaluator denseVectors;
+
+    /** Arithmetic (quad) function. */
+    @FunctionalInterface
+    public interface DenseVectorBinaryEvaluator {
+        EvalOperator.ExpressionEvaluator.Factory apply(
+            Source source,
+            DataType lhsType,
+            DataType rhsType,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        );
+    }
 
     protected DenseVectorArithmeticOperation(
         Source source,
@@ -34,7 +46,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors
+        DenseVectorBinaryEvaluator denseVectors
     ) {
         super(source, left, right, op, ints, longs, ulongs, doubles);
         this.denseVectors = denseVectors;
@@ -47,7 +59,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors
+        DenseVectorBinaryEvaluator denseVectors
     ) throws IOException {
         super(in, op, ints, longs, ulongs, doubles);
         this.denseVectors = denseVectors;
@@ -71,7 +83,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
         if (leftType == DENSE_VECTOR || rightType == DENSE_VECTOR) {
-            if ((leftType == DENSE_VECTOR || leftType == NULL) && (rightType == DENSE_VECTOR || rightType == NULL)) {
+            if ((leftType == DENSE_VECTOR || isNullOrNumeric(leftType)) && (rightType == DENSE_VECTOR || isNullOrNumeric(rightType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
             return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
@@ -81,8 +93,15 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (dataType() == DENSE_VECTOR) {
-            return this.denseVectors.apply(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+        var commonType = dataType();
+        if (commonType == DENSE_VECTOR) {
+            return denseVectors.apply(
+                source(),
+                left().dataType(),
+                right().dataType(),
+                toEvaluator.apply(left()),
+                toEvaluator.apply(right())
+            );
         }
         return super.toEvaluator(toEvaluator);
     }

@@ -518,7 +518,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         int[] shuffleArray = shuffleList.stream().mapToInt(Integer::intValue).toArray();
         Block[] shuffledBlocks = new Block[source.getBlockCount()];
         for (int b = 0; b < shuffledBlocks.length; b++) {
-            shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
+            shuffledBlocks[b] = source.getBlock(b).filter(false, shuffleArray);
         }
         source = new Page(shuffledBlocks);
         loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);

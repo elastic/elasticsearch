@@ -271,7 +271,7 @@ public class BasicPageTests extends SerializationTestCase {
                 ),
                 10
             ),
-            toFilter.filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
+            toFilter.filter(false, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
         );
         toFilter.close();
         try {

@@ -41,7 +41,7 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantDoubleVector(value, positions.length);
     }
 

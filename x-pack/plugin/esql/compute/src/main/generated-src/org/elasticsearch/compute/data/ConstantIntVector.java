@@ -41,7 +41,7 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantIntVector(value, positions.length);
     }
 

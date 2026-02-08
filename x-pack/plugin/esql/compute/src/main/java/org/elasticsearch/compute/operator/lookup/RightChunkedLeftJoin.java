@@ -180,7 +180,7 @@ public class RightChunkedLeftJoin implements Releasable {
 
             int b = 0;
             while (b < leftHand.getBlockCount()) {
-                blocks[b] = leftHand.getBlock(b).filter(leftFilterArray);
+                blocks[b] = leftHand.getBlock(b).filter(true, leftFilterArray);
                 b++;
             }
             int rb = 1; // Skip the positions column
@@ -220,7 +220,7 @@ public class RightChunkedLeftJoin implements Releasable {
         try {
             int b = 0;
             while (b < leftHand.getBlockCount()) {
-                blocks[b] = leftHand.getBlock(b).filter(filter);
+                blocks[b] = leftHand.getBlock(b).filter(true, filter);
                 b++;
             }
             while (b < blocks.length) {

@@ -15,7 +15,7 @@ import org.elasticsearch.core.ReleasableIterator;
  */
 public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock, ConstantNullBlock {
     @Override
-    LongRangeBlock filter(int... positions);
+    LongRangeBlock filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     LongRangeBlock keepMask(BooleanVector mask);

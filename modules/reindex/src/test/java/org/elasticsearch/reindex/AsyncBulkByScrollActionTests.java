@@ -60,6 +60,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
@@ -88,6 +89,7 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
@@ -145,6 +147,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
         testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
+        testRequest.setEligibleForRelocationOnShutdown(true); // for relocation tests
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
@@ -906,6 +909,128 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
+    }
+
+    public void testNotifyDoneRelocatesWhenRequestedAndNodeAvailable() {
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final String expectedScrollId = scrollId();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(expectedScrollId);
+
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+            @Override
+            public ScrollableHitSource.Response response() {
+                return new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                fail("done() should not be called because it fetches more data");
+            }
+        });
+
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue(listener.isDone());
+        final BulkByScrollResponse response = listener.actionGet();
+        assertTrue(response.getTaskResumeInfo().isPresent());
+        final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
+        assertNotNull(resumeInfo.worker());
+        assertThat(resumeInfo.worker(), instanceOf(ResumeInfo.ScrollWorkerResumeInfo.class));
+        final ResumeInfo.ScrollWorkerResumeInfo scrollResumeInfo = (ResumeInfo.ScrollWorkerResumeInfo) resumeInfo.worker();
+        assertEquals(expectedScrollId, scrollResumeInfo.scrollId());
+        assertNull(scrollResumeInfo.remoteVersion());
+        // scroll should NOT be cleared - we need it for the relocated task
+        assertThat(client.scrollsCleared, empty());
+    }
+
+    public void testNotifyDoneContinuesWhenRelocationRequestedButNoNode() throws Exception {
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(Optional::empty);
+
+        final String expectedScrollId = scrollId();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(expectedScrollId);
+
+        final AtomicBoolean doneCalled = new AtomicBoolean();
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+            @Override
+            public ScrollableHitSource.Response response() {
+                return new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), expectedScrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                doneCalled.set(true);
+            }
+        });
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue("asyncResponse.done() should be called for normal flow", doneCalled.get());
+    }
+
+    public void testNotifyDoneIgnoresRelocationWhenNotRequested() throws Exception {
+        // do NOT call testTask.requestRelocation()
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final String expectedScrollId = scrollId();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(expectedScrollId);
+
+        final AtomicBoolean doneCalled = new AtomicBoolean();
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+            @Override
+            public ScrollableHitSource.Response response() {
+                return new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), expectedScrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                doneCalled.set(true);
+            }
+        });
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue("asyncResponse.done() should be called when relocation is not requested", doneCalled.get());
+    }
+
+    public void testNotifyDoneConsumesRemainingHitsBeforeRelocating() {
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final String expectedScrollId = scrollId();
+        final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            void onScrollResponse(final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse asyncResponse) {
+                onScrollResponseCalled.set(true);
+                // don't call super - continues ingesting and listener might complete before assertions
+            }
+        };
+        action.setScroll(expectedScrollId);
+
+        final List<ScrollableHitSource.Hit> hits = List.of(
+            new ScrollableHitSource.BasicHit("index", "id-1", -1),
+            new ScrollableHitSource.BasicHit("index", "id-2", -1)
+        );
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+            @Override
+            public ScrollableHitSource.Response response() {
+                return new ScrollableHitSource.Response(false, emptyList(), hits.size(), hits, expectedScrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                fail("done() should not be called when there are remaining hits to consume");
+            }
+        });
+
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertThat("should continue consuming remaining hits via onScrollResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 
     /**

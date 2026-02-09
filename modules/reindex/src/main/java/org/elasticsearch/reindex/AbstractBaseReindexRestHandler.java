@@ -9,6 +9,9 @@
 
 package org.elasticsearch.reindex;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -32,6 +35,8 @@ import java.util.Map;
 public abstract class AbstractBaseReindexRestHandler<
     Request extends AbstractBulkByScrollRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(AbstractBaseReindexRestHandler.class);
 
     private final A action;
 
@@ -70,7 +75,15 @@ public abstract class AbstractBaseReindexRestHandler<
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
-        responseListener.addListener(new LoggingTaskListener<>(task));
+        final ActionListener<BulkByScrollResponse> listener = new LoggingTaskListener<>(task);
+        responseListener.addListener(listener.delegateResponse((l, e) -> {
+            if (e instanceof TaskRelocatedException relocatedException) {
+                // LoggingTaskListener will log failure at WARN, which we don't want
+                logger.info(relocatedException.getMessage());
+            } else {
+                l.onFailure(e);
+            }
+        }));
         return sendTask(client.getLocalNodeId(), task);
     }
 

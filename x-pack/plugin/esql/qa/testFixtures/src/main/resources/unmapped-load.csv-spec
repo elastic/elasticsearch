@@ -766,3 +766,23 @@ no_mapping_sample_data | Connection error?
 no_mapping_sample_data | Connection error?
 no_mapping_sample_data | Connection error?
 ;
+
+sortOnPartiallyUnmappedField
+required_capability: index_metadata_field
+required_capability: unmapped_fields
+required_capability: optional_fields
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP _index, message
+| SORT message, _index
+| LIMIT 5
+;
+
+_index:keyword         | message:keyword
+no_mapping_sample_data | 42
+sample_data            | Connected to 10.1.0.1
+no_mapping_sample_data | Connected to 10.1.0.1!
+sample_data            | Connected to 10.1.0.2
+no_mapping_sample_data | Connected to 10.1.0.2!
+;

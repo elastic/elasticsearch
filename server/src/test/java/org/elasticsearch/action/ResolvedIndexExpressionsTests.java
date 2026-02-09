@@ -11,6 +11,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
@@ -18,7 +19,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class ResolvedIndexExpressionsTests extends ESTestCase {
 
@@ -72,11 +72,35 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
     }
 
     public void testEmptyExcludeIsNoOp() {
-        var expr = new ResolvedIndexExpression("e", new ResolvedIndexExpression.LocalExpressions(Set.of("a"), SUCCESS, null), Set.of());
         var b = ResolvedIndexExpressions.builder();
-        b.addExpression(expr);
+        b.addExpressions("e", Set.of("a"), SUCCESS, Set.of());
         b.excludeFromLocalExpressions(Set.of()); // no-op
-        assertThat(b.build().expressions().get(0), sameInstance(expr));
+        var result = b.build();
+        assertThat(result.expressions(), hasSize(1));
+        assertThat(result.getLocalIndicesList(), containsInAnyOrder("a"));
+    }
+
+    public void testBuildProducesImmutableExpressionsList() {
+        var b = ResolvedIndexExpressions.builder();
+        b.addExpressions("e", Set.of("a"), SUCCESS, Set.of());
+        var result = b.build();
+        expectThrows(UnsupportedOperationException.class, () -> result.expressions().add(null));
+    }
+
+    public void testBuildProducesImmutableLocalIndices() {
+        var b = ResolvedIndexExpressions.builder();
+        b.addExpressions("e", new HashSet<>(Set.of("a", "b")), SUCCESS, Set.of());
+        var result = b.build();
+        Set<String> indices = result.expressions().get(0).localExpressions().indices();
+        expectThrows(UnsupportedOperationException.class, () -> indices.add("c"));
+    }
+
+    public void testBuildProducesImmutableRemoteExpressions() {
+        var b = ResolvedIndexExpressions.builder();
+        b.addExpressions("e", Set.of(), SUCCESS, new HashSet<>(Set.of("remote:a")));
+        var result = b.build();
+        Set<String> remote = result.expressions().get(0).remoteExpressions();
+        expectThrows(UnsupportedOperationException.class, () -> remote.add("remote:b"));
     }
 
     public void testBuildIsRepeatable() {

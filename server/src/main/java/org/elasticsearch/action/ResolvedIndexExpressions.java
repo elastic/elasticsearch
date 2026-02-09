@@ -120,21 +120,19 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
                         }
                     }
                     expressions.add(
-                        indices == null
-                            ? e
-                            : new ResolvedIndexExpression(
-                                e.original(),
-                                new LocalExpressions(
-                                    indices,
-                                    e.localExpressions().localIndexResolutionResult(),
-                                    e.localExpressions().exception()
-                                ),
-                                e.remoteExpressions()
-                            )
+                        new ResolvedIndexExpression(
+                            e.original(),
+                            new LocalExpressions(
+                                Set.copyOf(indices == null ? e.localExpressions().indices() : indices),
+                                e.localExpressions().localIndexResolutionResult(),
+                                e.localExpressions().exception()
+                            ),
+                            Set.copyOf(e.remoteExpressions())
+                        )
                     );
                 }
             }
-            return new ResolvedIndexExpressions(expressions);
+            return new ResolvedIndexExpressions(List.copyOf(expressions));
         }
     }
 }

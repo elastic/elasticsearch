@@ -14,8 +14,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.blocksource.LongDoubleTupleBlockSourceOperator;
-import org.elasticsearch.compute.test.blocksource.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongDoubleTupleBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;

@@ -12,7 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.blocksource.SequenceFloatBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

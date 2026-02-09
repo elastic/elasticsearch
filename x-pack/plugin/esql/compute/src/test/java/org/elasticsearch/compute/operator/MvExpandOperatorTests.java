@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
-import org.elasticsearch.compute.test.blocksource.AbstractBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.Iterator;

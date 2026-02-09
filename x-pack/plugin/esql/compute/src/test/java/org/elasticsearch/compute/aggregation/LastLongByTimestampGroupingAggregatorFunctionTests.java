@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.blocksource.ListRowsBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 
 import java.util.HashSet;
 import java.util.List;

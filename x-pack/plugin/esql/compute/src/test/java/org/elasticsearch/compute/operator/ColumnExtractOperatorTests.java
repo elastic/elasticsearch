@@ -32,7 +32,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new org.elasticsearch.compute.test.blocksource.BytesRefBlockSourceOperator(blockFactory, input);
+        return new org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(int channelA) implements ColumnExtractOperator.Evaluator {

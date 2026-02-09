@@ -17,7 +17,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
-import org.elasticsearch.compute.test.blocksource.SequenceDoubleBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

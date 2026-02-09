@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
-import org.elasticsearch.compute.test.blocksource.SequenceExponentialHistogramBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceExponentialHistogramBlockSourceOperator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;

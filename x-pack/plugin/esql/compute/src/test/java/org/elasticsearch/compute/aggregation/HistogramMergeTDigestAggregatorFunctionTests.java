@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TDigestTestUtils;
-import org.elasticsearch.compute.test.blocksource.SequenceTDigestBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceTDigestBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.LongStream;

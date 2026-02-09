@@ -110,6 +110,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.engine.SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -715,6 +716,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
+            // Disable to avoid additional requests from search to index node before pre-warming
+            .put(STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
         final var masterName = startMasterOnlyNode(nodeSettings);
 

@@ -10,13 +10,16 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
@@ -30,7 +33,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<IbmWatsonxChatCompletionServiceSettings> {
-    private static final URI TEST_URI = URI.create("abc.com");
+
+    private static final URI TEST_URI = ServiceUtils.createUri("https://test-uri.com");
+    private static final URI INITIAL_TEST_URI = ServiceUtils.createUri("https://initial-test-uri.com");
+    private static final String TEST_API_VERSION = "test-api-version";
+    private static final String INITIAL_TEST_API_VERSION = "initial-test-api-version";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final String TEST_PROJECT_ID = "test-project-id";
+    private static final String INITIAL_TEST_PROJECT_ID = "initial-test-project-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
     private static IbmWatsonxChatCompletionServiceSettings createRandom() {
         return new IbmWatsonxChatCompletionServiceSettings(
@@ -44,6 +57,67 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
 
     private IbmWatsonxChatCompletionServiceSettings getServiceSettings(Map<String, String> map) {
         return IbmWatsonxChatCompletionServiceSettings.fromMap(new HashMap<>(map), ConfigurationParseContext.PERSISTENT);
+    }
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.URL,
+                TEST_URI.toString(),
+                IbmWatsonxServiceFields.API_VERSION,
+                TEST_API_VERSION,
+                ServiceFields.MODEL_ID,
+                TEST_MODEL_ID,
+                IbmWatsonxServiceFields.PROJECT_ID,
+                TEST_PROJECT_ID,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
+
+        var serviceSettings = new IbmWatsonxChatCompletionServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_API_VERSION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROJECT_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(settingsMap, TaskType.COMPLETION);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new IbmWatsonxChatCompletionServiceSettings(
+                    TEST_URI,
+                    TEST_API_VERSION,
+                    TEST_MODEL_ID,
+                    TEST_PROJECT_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = new IbmWatsonxChatCompletionServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_API_VERSION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROJECT_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(new HashMap<>(), TaskType.COMPLETION);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new IbmWatsonxChatCompletionServiceSettings(
+                    INITIAL_TEST_URI,
+                    INITIAL_TEST_API_VERSION,
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_PROJECT_ID,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
     }
 
     public void testFromMap_WithAllParameters_CreatesSettingsCorrectly() {

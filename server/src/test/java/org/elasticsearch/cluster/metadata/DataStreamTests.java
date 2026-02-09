@@ -52,12 +52,16 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.ALL;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.BACKING_INDICES;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.FAILURE_INDICES;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomIndexInstances;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomNonEmptyIndexInstances;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomSettings;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1454,7 +1458,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
             metadata.getProject()::index,
             () -> now,
-            TimeValue.timeValueSeconds(2500)
+            timeValueSeconds(2500),
+            ALL
         );
 
         // Expected: 2 old backing indices + 2 old failure indices (excluding write indices)
@@ -1499,7 +1504,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Metadata metadata = builder.build();
 
                 assertThat(
-                    dataStream.getIndicesOlderThan(metadata.getProject()::index, () -> now, TimeValue.ZERO, failureStore).isEmpty(),
+                    dataStream.getIndicesOlderThan(
+                        metadata.getProject()::index,
+                        () -> now,
+                        TimeValue.ZERO,
+                        failureStore ? FAILURE_INDICES : BACKING_INDICES
+                    ).isEmpty(),
                     is(true)
                 );
             }
@@ -1522,7 +1532,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(2500),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(2));
             for (int i = 0; i < indicesPastRetention.size(); i++) {
@@ -1536,7 +1547,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(4));
             for (int i = 0; i < indicesPastRetention.size(); i++) {
@@ -1550,7 +1562,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(6000),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }
@@ -1570,7 +1583,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 indexMetadataWithSomeLifecycleSupplier,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(1));
             assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(2).getName()));
@@ -1610,7 +1624,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Supplier<List<Index>> indicesSupplier = () -> failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
         {
             // no retention configured so we expect an empty list
-            assertThat(dataStream.getIndicesOlderThan(metadata.getProject()::index, () -> now, null, failureStore).isEmpty(), is(true));
+            assertThat(
+                dataStream.getIndicesOlderThan(
+                    metadata.getProject()::index,
+                    () -> now,
+                    null,
+                    failureStore ? FAILURE_INDICES : BACKING_INDICES
+                ).isEmpty(),
+                is(true)
+            );
         }
 
         {
@@ -1619,7 +1641,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(2500),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(3));
             assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(0).getName()));
@@ -1633,7 +1656,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(9000),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }

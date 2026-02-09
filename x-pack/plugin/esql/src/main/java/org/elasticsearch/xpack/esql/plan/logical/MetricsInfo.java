@@ -130,10 +130,22 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
         }
 
         child().forEachDown(p -> {
-            if (p instanceof TimeSeriesAggregate) {
-                failures.add(fail(this, "METRICS_INFO cannot be used after STATS command", this.sourceText(), p.sourceText()));
+            if (p instanceof PipelineBreaker) {
+                failures.add(fail(this, "METRICS_INFO cannot be used after {} command", pipelineBreakerCommandName(p)));
             }
         });
+    }
+
+    private static String pipelineBreakerCommandName(LogicalPlan plan) {
+        if (plan instanceof Aggregate) {
+            return "STATS";
+        } else if (plan instanceof Limit) {
+            return "LIMIT";
+        } else if (plan instanceof OrderBy) {
+            return "SORT";
+        } else {
+            return plan.nodeName();
+        }
     }
 
     private static List<Attribute> buildAttributes(Source source) {

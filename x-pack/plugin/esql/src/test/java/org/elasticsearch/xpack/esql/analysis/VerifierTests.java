@@ -3543,6 +3543,20 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMetricsInfoCannotBeUsedAfterLimit() {
+        assertThat(
+            error("TS k8s | LIMIT 10 | METRICS_INFO", k8s),
+            containsString("METRICS_INFO cannot be used after LIMIT command")
+        );
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterSort() {
+        assertThat(
+            error("TS k8s | SORT @timestamp | METRICS_INFO", k8s),
+            containsString("METRICS_INFO cannot be used after SORT command")
+        );
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

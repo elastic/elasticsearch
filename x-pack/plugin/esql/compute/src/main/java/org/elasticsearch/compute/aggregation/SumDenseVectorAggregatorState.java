@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 
 class SumDenseVectorAggregatorState implements AggregatorState {
@@ -17,20 +18,20 @@ class SumDenseVectorAggregatorState implements AggregatorState {
 
     SumDenseVectorAggregatorState() {}
 
-    void add(float[] vector) {
+    void add(FloatBlock vector, int startPosition, int dimensions) {
         if (vector == null) {
             return;
         }
         if (sum == null) {
-            sum = new float[vector.length];
+            sum = new float[dimensions];
         }
-        if (sum.length != vector.length) {
+        if (sum.length != dimensions) {
             throw new IllegalArgumentException(
-                "Cannot sum dense vectors with different dimensions: expected [" + sum.length + "] but got [" + vector.length + "]"
+                "Cannot sum dense vectors with different dimensions: expected [" + sum.length + "] but got [" + dimensions + "]"
             );
         }
-        for (int i = 0; i < sum.length; i++) {
-            sum[i] += vector[i];
+        for (int i = 0; i < dimensions; i++) {
+            sum[i] += vector.getFloat(startPosition + i);
         }
         seen = true;
     }

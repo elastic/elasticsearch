@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -22,12 +23,20 @@ import java.util.List;
  */
 public class SumDenseVectorAggregatorFunction implements AggregatorFunction {
 
+    private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
+        new IntermediateStateDesc("sum", ElementType.FLOAT, "dense_vector")
+    );
+
+    public static List<IntermediateStateDesc> intermediateStateDesc() {
+        return INTERMEDIATE_STATE_DESC;
+    }
+
     private final SumDenseVectorAggregatorState state;
     private final List<Integer> channels;
     private final DriverContext driverContext;
+    private float[] buffer;
 
     public SumDenseVectorAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-        assert channels.size() == 1;
         this.state = new SumDenseVectorAggregatorState();
         this.channels = channels;
         this.driverContext = driverContext;
@@ -57,12 +66,7 @@ public class SumDenseVectorAggregatorFunction implements AggregatorFunction {
     private void addDenseVector(FloatBlock block, int i) {
         if (block.isNull(i) == false) {
             int valueCount = block.getValueCount(i);
-            float[] vector = new float[valueCount];
-            int start = block.getFirstValueIndex(i);
-            for (int j = 0; j < valueCount; j++) {
-                vector[j] = block.getFloat(start + j);
-            }
-            state.add(vector);
+            state.add(block, block.getFirstValueIndex(i), valueCount);
         }
     }
 

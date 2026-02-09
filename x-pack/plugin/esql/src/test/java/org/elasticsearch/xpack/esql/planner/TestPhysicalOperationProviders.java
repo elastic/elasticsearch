@@ -366,7 +366,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private static void consumeIndexDoc(Consumer<DocBlock> indexDocConsumer, DocVector vector, @Nullable List<Integer> currentList) {
         if (currentList != null) {
-            try (DocVector indexDocVector = vector.filter(currentList.stream().mapToInt(Integer::intValue).toArray())) {
+            try (DocVector indexDocVector = vector.filter(false, currentList.stream().mapToInt(Integer::intValue).toArray())) {
                 indexDocConsumer.accept(indexDocVector.asBlock());
             }
         }

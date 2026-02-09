@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
@@ -31,7 +36,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -487,5 +494,33 @@ public final class AnalyzerTestUtils {
             Set.of()
         );
         return IndexResolution.valid(index);
+    }
+
+    public static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
+        String indexName,
+        Map<String, IndexFieldCapabilities> fields
+    ) {
+        String indexMappingHash = new String(
+            MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
+        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
+    }
+
+    public static Map<String, IndexFieldCapabilities> fieldResponseMap(String fieldName, String type) {
+        return Map.of(fieldName, new IndexFieldCapabilitiesBuilder(fieldName, type).build());
+    }
+
+    public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+    }
+
+    public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {
+        return IndexResolver.mergedMappings(
+            indexPattern,
+            false,
+            fieldsInfoOnCurrentVersion(caps),
+            IndexResolver.DO_NOT_GROUP
+        );
     }
 }

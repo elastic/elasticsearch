@@ -14,7 +14,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -115,7 +114,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -149,7 +147,11 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldsInfoOnCurrentVersion;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
@@ -3171,20 +3173,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
-                        fieldCapabilitiesIndexResponse("bar", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
 
         String query = "FROM foo, bar | INSIST_🐔 message";
         var plan = analyze(query, analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query)));
@@ -3198,20 +3194,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3226,21 +3216,15 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
+                fieldCapabilitiesIndexResponse("bazz", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3254,20 +3238,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexSameMapping_fieldIsMapped() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long"))
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3279,22 +3257,16 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
-                        fieldCapabilitiesIndexResponse("qux", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
+                fieldCapabilitiesIndexResponse("bazz", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("qux", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3308,21 +3280,15 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
+                fieldCapabilitiesIndexResponse("bazz", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         VerificationException e = expectThrows(
             VerificationException.class,
             () -> analyze("FROM foo, bar | INSIST_🐔 message | EVAL message = message :: keyword", analyzer(resolution, TEST_VERIFIER))
@@ -3772,22 +3738,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
 
-    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
-    private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
-        String indexName,
-        Map<String, IndexFieldCapabilities> fields
-    ) {
-        String indexMappingHash = new String(
-            MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
-            StandardCharsets.UTF_8
-        );
-        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
-    }
-
-    private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
-        return Map.of("message", new IndexFieldCapabilitiesBuilder("message", date).build());
-    }
-
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -3845,8 +3795,7 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", false, caps, IndexResolver.DO_NOT_GROUP);
+        IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -6110,9 +6059,5 @@ public class AnalyzerTests extends ESTestCase {
 
     static Literal literal(int value) {
         return new Literal(EMPTY, value, INTEGER);
-    }
-
-    static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
     }
 }

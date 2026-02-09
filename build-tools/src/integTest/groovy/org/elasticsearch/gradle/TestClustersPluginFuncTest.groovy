@@ -241,7 +241,6 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     @RestoreSystemProperties
-    @IgnoreRest
     def "override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities"() {
         given:
         buildFile << """
@@ -275,7 +274,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                 "8.10.4",
                 ElasticsearchDistribution.Platform.LINUX,
                 r,
-                { it.buildAndFail() }
+                { it.build() }
             )
         }, 17, "eclipse_adoptium")
 

@@ -80,6 +80,7 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
             } else {
                 try (
                     BooleanVector offsetMask = mask.filter(
+                        false,
                         IntStream.range(positionOffset, positionOffset + groupIds.getPositionCount()).toArray()
                     );
                     IntBlock filtered = groupIds.keepMask(offsetMask)

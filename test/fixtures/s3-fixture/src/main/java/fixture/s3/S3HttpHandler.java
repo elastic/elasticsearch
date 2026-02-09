@@ -14,7 +14,6 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -176,7 +175,7 @@ public class S3HttpHandler implements HttpHandler {
                             int start = Math.toIntExact(range.start());
                             int len = Math.toIntExact(range.end() - range.start() + 1);
                             var part = sourceBlob.slice(start, len);
-                            var etag = UUIDs.randomBase64UUID();
+                            var etag = ESTestCase.randomUUID();
                             upload.addPart(etag, part);
                             byte[] response = ("""
                                 <?xml version="1.0" encoding="UTF-8"?>
@@ -697,7 +696,7 @@ public class S3HttpHandler implements HttpHandler {
     }
 
     MultipartUpload putUpload(String path) {
-        final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), path);
+        final var upload = new MultipartUpload(ESTestCase.randomUUID(), path);
         synchronized (uploads) {
             assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
             return upload;

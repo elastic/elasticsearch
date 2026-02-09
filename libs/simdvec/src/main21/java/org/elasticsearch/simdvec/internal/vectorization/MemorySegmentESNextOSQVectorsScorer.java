@@ -16,12 +16,18 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
+
+import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsScorer {
@@ -171,6 +177,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
         static final float ONE_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[0];
+        static final float TWO_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[1];
         static final float FOUR_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[3];
 
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
@@ -250,5 +257,68 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             float[] scores,
             int bulkSize
         ) throws IOException;
+
+        protected float applyCorrectionsIndividually(
+            MemorySegment segment,
+            float queryAdditionalCorrection,
+            VectorSimilarityFunction similarityFunction,
+            float centroidDp,
+            float indexBitScale,
+            float[] scores,
+            int bulkSize,
+            int limit,
+            long offset,
+            float ay,
+            float ly,
+            float y1,
+            float maxScore
+        ) {
+            for (int j = limit; j < bulkSize; j++) {
+                float ax = segment.get(
+                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                    offset + (long) j * Float.BYTES
+                );
+
+                float lx = segment.get(
+                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                    offset + 4L * bulkSize + (long) j * Float.BYTES
+                );
+                lx = (lx - ax) * indexBitScale;
+
+                int targetComponentSum = segment.get(
+                    ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                    offset + 8L * bulkSize + (long) j * Integer.BYTES
+                );
+
+                float additionalCorrection = segment.get(
+                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
+                    offset + 12L * bulkSize + (long) j * Float.BYTES
+                );
+
+                float qcDist = scores[j];
+
+                float res = ax * ay * dimensions + lx * ay * targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
+
+                if (similarityFunction == EUCLIDEAN) {
+                    res = res * -2f + additionalCorrection + queryAdditionalCorrection + 1f;
+                    res = Math.max(1f / res, 0f);
+                    scores[j] = res;
+                    maxScore = Math.max(maxScore, res);
+                } else {
+                    res = res + queryAdditionalCorrection + additionalCorrection - centroidDp;
+
+                    if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                        res = VectorUtil.scaleMaxInnerProductScore(res);
+                        scores[j] = res;
+                        maxScore = Math.max(maxScore, res);
+                    } else {
+                        res = Math.max((res + 1f) * 0.5f, 0f);
+                        scores[j] = res;
+                        maxScore = Math.max(maxScore, res);
+                    }
+                }
+            }
+            return maxScore;
+        }
     }
 }

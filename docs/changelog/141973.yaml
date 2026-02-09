@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 139299
+pr: 141973
+summary: Fix handling empty collapse construct
+type: bug

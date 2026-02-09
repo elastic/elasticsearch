@@ -16,9 +16,10 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.format.csv.CsvFormatReader;
-import org.elasticsearch.xpack.esql.datasources.local.LocalStorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ import java.util.Map;
  */
 public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
-    public void testCreateOperatorWithLocalStorageAndCsv() throws IOException {
+    public void testCreateOperatorWithMockedStorageAndFormat() throws IOException {
         // Create a temporary CSV file
         Path tempFile = createTempFile("test", ".csv");
         String csvContent = """
@@ -46,13 +47,19 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
             """;
         Files.writeString(tempFile, csvContent);
 
-        // Create storage provider and format reader
-        LocalStorageProvider storageProvider = new LocalStorageProvider();
-        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
-        CsvFormatReader formatReader = new CsvFormatReader(blockFactory);
-
-        // Create storage path
+        // Create mock storage provider and format reader
+        StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
+        Mockito.when(storageProvider.supportedSchemes()).thenReturn(List.of("file"));
+        StorageObject storageObject = Mockito.mock(StorageObject.class);
         StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        Mockito.when(storageProvider.newObject(Mockito.any(StoragePath.class))).thenReturn(storageObject);
+
+        FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.formatName()).thenReturn("csv");
+        @SuppressWarnings("unchecked")
+        CloseableIterator<org.elasticsearch.compute.data.Page> emptyIterator = Mockito.mock(CloseableIterator.class);
+        Mockito.when(emptyIterator.hasNext()).thenReturn(false);
+        Mockito.when(formatReader.read(Mockito.any(), Mockito.any(), Mockito.anyInt())).thenReturn(emptyIterator);
 
         // Define attributes (schema)
         List<Attribute> attributes = List.of(
@@ -83,6 +90,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         );
 
         // Create a mock driver context
+        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
         DriverContext driverContext = Mockito.mock(DriverContext.class);
         Mockito.when(driverContext.blockFactory()).thenReturn(blockFactory);
 
@@ -92,15 +100,13 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         // Verify the factory description
         String description = factory.describe();
-        assertTrue(description.contains("LocalStorageProvider"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("file://"));
     }
 
     public void testFactoryValidation() {
-        LocalStorageProvider storageProvider = new LocalStorageProvider();
-        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
-        CsvFormatReader formatReader = new CsvFormatReader(blockFactory);
+        StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
+        FormatReader formatReader = Mockito.mock(FormatReader.class);
         StoragePath path = StoragePath.of("file:///tmp/test.csv");
         List<Attribute> attributes = List.of(
             new FieldAttribute(
@@ -144,9 +150,9 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     public void testDescribe() {
-        LocalStorageProvider storageProvider = new LocalStorageProvider();
-        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
-        CsvFormatReader formatReader = new CsvFormatReader(blockFactory);
+        StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
+        FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.formatName()).thenReturn("csv");
         StoragePath path = StoragePath.of("file:///tmp/data.csv");
         List<Attribute> attributes = List.of(
             new FieldAttribute(
@@ -160,7 +166,6 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         String description = factory.describe();
         assertTrue(description.contains("ExternalSourceOperator"));
-        assertTrue(description.contains("LocalStorageProvider"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("file:///tmp/data.csv"));
         assertTrue(description.contains("500"));

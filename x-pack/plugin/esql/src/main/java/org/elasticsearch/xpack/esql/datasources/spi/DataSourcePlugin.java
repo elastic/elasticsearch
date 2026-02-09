@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Extension point for data source implementations.
@@ -37,6 +38,10 @@ public interface DataSourcePlugin {
 
     default Map<String, StorageProviderFactory> storageProviders(Settings settings) {
         return Map.of();
+    }
+
+    default Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+        return storageProviders(settings);
     }
 
     default Map<String, FormatReaderFactory> formatReaders(Settings settings) {

@@ -85,7 +85,7 @@ public class ExternalSourceResolver {
                 // Use the StorageProviderRegistry from DataSourceModule
                 // This registry is populated with all discovered storage providers
                 StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
-                StorageManager storageManager = new StorageManager(registry);
+                StorageManager storageManager = new StorageManager(registry, settings);
 
                 try {
                     Map<String, ExternalSourceMetadata> resolved = new HashMap<>();
@@ -98,8 +98,9 @@ public class ExternalSourceResolver {
 
                         try {
                             SourceMetadata metadata = resolveSingleSource(path, config, storageManager);
-                            // Wrap SourceMetadata as ExternalSourceMetadata if needed
-                            ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata);
+                            // Wrap SourceMetadata as ExternalSourceMetadata, preserving the query-level
+                            // config (from WITH clause) so it flows to the execution phase
+                            ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
                             resolved.put(path, extMetadata);
                             LOGGER.info("Successfully resolved external source: {}", path);
                         } catch (Exception e) {
@@ -235,12 +236,19 @@ public class ExternalSourceResolver {
         return config;
     }
 
-    private ExternalSourceMetadata wrapAsExternalSourceMetadata(SourceMetadata metadata) {
+    private ExternalSourceMetadata wrapAsExternalSourceMetadata(SourceMetadata metadata, Map<String, Object> queryConfig) {
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
-            return extMetadata;
+            // If the metadata already carries config (e.g. from a TableCatalog), preserve it.
+            // Otherwise, overlay the query-level config (from WITH clause) so that connection
+            // parameters (endpoint, credentials) reach the execution phase.
+            if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
+                return extMetadata;
+            }
         }
 
-        // Create a wrapper that delegates to the SourceMetadata
+        // Create a wrapper that delegates to the SourceMetadata but uses the query-level
+        // config. This is scheme-agnostic: S3, HTTP, LOCAL, or any future backend — the
+        // config from the WITH clause is forwarded transparently to the execution phase.
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -264,7 +272,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> config() {
-                return metadata.config();
+                return queryConfig;
             }
         };
     }

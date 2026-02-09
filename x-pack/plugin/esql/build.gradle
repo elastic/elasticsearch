@@ -47,10 +47,6 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
-  
-  // Jackson CSV for CSV format reader
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-csv:${versions.jackson}"
-
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
@@ -95,7 +91,6 @@ tasks.named('splitPackagesAudit').configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /jackson-.*/, to: 'jackson'
 }
 
 

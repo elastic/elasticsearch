@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.esql.qa.iceberg;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils;
-import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.IcebergS3HttpFixture;
-import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -27,10 +28,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.ACCESS_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.BUCKET;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.SECRET_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.WAREHOUSE;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 
 /**
  * Interactive fixture runner for manual testing of ESQL External command with Parquet/S3.
@@ -70,6 +71,7 @@ import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.W
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 @TimeoutSuite(millis = 7 * 24 * 60 * 60 * 1000) // 7 days - effectively no timeout
+@AwaitsFix(bugUrl = "Iceberg integration tests disabled pending stabilization")
 public class InteractiveFixtureManual extends ESRestTestCase {
 
     /** Fixed port for Elasticsearch */
@@ -81,7 +83,7 @@ public class InteractiveFixtureManual extends ESRestTestCase {
     private static final PrintStream out = System.err;
 
     /** S3 HTTP fixture serving test data on fixed port */
-    public static IcebergS3HttpFixture s3Fixture = new IcebergS3HttpFixture(S3_FIXTURE_PORT);
+    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture(S3_FIXTURE_PORT);
 
     /** Elasticsearch cluster with S3 fixture for interactive testing on fixed port */
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

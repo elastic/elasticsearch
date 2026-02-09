@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Map;
+
 /**
  * Factory for creating {@link StorageProvider} instances.
  * This functional interface allows data source plugins to provide
@@ -17,11 +19,9 @@ import org.elasticsearch.common.settings.Settings;
 @FunctionalInterface
 public interface StorageProviderFactory {
 
-    /**
-     * Creates a new storage provider instance.
-     *
-     * @param settings Elasticsearch settings for configuration
-     * @return a new storage provider instance
-     */
     StorageProvider create(Settings settings);
+
+    default StorageProvider create(Settings settings, Map<String, Object> config) {
+        return create(settings);
+    }
 }

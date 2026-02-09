@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.xpack.esql.datasources.http.HttpConfiguration;
-import org.elasticsearch.xpack.esql.datasources.local.LocalStorageProvider;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -45,12 +47,15 @@ import java.util.Map;
  */
 public class StorageManager implements Closeable {
     private final StorageProviderRegistry registry;
+    private final Settings settings;
+    private final List<StorageProvider> perQueryProviders = new ArrayList<>();
 
-    public StorageManager(StorageProviderRegistry registry) {
+    public StorageManager(StorageProviderRegistry registry, Settings settings) {
         if (registry == null) {
             throw new IllegalArgumentException("registry cannot be null");
         }
         this.registry = registry;
+        this.settings = settings;
     }
 
     public StorageProvider provider(StoragePath path) {
@@ -88,71 +93,30 @@ public class StorageManager implements Closeable {
 
     @Override
     public void close() throws IOException {
-        // Providers created via registry are not tracked, so there's nothing to close.
-        // Providers created via newStorageObject with config are short-lived and not tracked.
-        // This method satisfies the Closeable interface but is effectively a no-op.
+        IOUtils.close(perQueryProviders);
     }
 
+    @SuppressWarnings("unchecked")
     private StorageProvider createProviderWithConfig(StoragePath path, String scheme, Object config) {
-        // Route S3 schemes (s3://, s3a://, s3n://) - check registry for S3 provider
-        if (scheme.equals("s3") || scheme.equals("s3a") || scheme.equals("s3n")) {
-            if (registry.hasProvider(scheme)) {
-                return registry.provider(path);
-            }
+        if (registry.hasProvider(scheme) == false) {
             throw new IllegalArgumentException(
-                "S3 storage provider not available. " + "Please install the S3 data source plugin to enable S3 support."
+                "Unsupported storage scheme: "
+                    + scheme
+                    + ". "
+                    + "No storage provider registered for this scheme. "
+                    + "Install the appropriate data source plugin (e.g., esql-datasource-http for http/https/file, "
+                    + "esql-datasource-s3 for s3)."
             );
         }
 
-        // Route HTTP schemes (http://, https://) to HttpStorageProvider
-        if (scheme.equals("http") || scheme.equals("https")) {
-            // If config is wrong type, try registry first
-            boolean isHttpConfig = config instanceof HttpConfiguration;
-            boolean isMapConfig = config instanceof Map;
-            if (config != null && isHttpConfig == false && isMapConfig == false) {
-                if (registry.hasProvider(scheme)) {
-                    // Use registry-based provider instead
-                    return registry.provider(path);
-                }
-                throw new IllegalArgumentException("HTTP scheme requires HttpConfiguration, got: " + config.getClass().getName());
-            }
-
-            // If config is null, HttpConfiguration, or Map, try registry first (preferred approach)
-            if (registry.hasProvider(scheme)) {
-                return registry.provider(path);
-            }
-
-            // HttpStorageProvider requires an ExecutorService, which we don't have here.
-            // This is a limitation - HttpStorageProvider should be registered in the registry
-            // with an executor rather than created via this method.
-            throw new IllegalArgumentException(
-                "HttpStorageProvider requires an ExecutorService. "
-                    + "Please register HttpStorageProvider in the registry with an executor, "
-                    + "or use newStorageObject(String) to use a registered provider."
-            );
+        // When config is provided, create a fresh provider with the per-query config
+        if (config instanceof Map<?, ?> configMap && configMap.isEmpty() == false) {
+            StorageProvider provider = registry.createProvider(scheme, settings, (Map<String, Object>) configMap);
+            perQueryProviders.add(provider);
+            return provider;
         }
 
-        // Route file:// scheme to LocalStorageProvider
-        if (scheme.equals("file")) {
-            boolean isMapConfig = config instanceof Map;
-            boolean isEmptyMap = isMapConfig && ((Map<?, ?>) config).isEmpty();
-            if (config != null && (isMapConfig == false || isEmptyMap == false)) {
-                throw new IllegalArgumentException("file:// scheme does not accept configuration, got: " + config.getClass().getName());
-            }
-            return new LocalStorageProvider();
-        }
-
-        // Unknown scheme - try registry as fallback
-        if (registry.hasProvider(scheme)) {
-            return registry.provider(path);
-        }
-
-        throw new IllegalArgumentException(
-            "Unsupported storage scheme: "
-                + scheme
-                + ". "
-                + "Supported schemes: http://, https://, file://. "
-                + "For S3 support, install the S3 data source plugin."
-        );
+        // Fall back to the default registered provider
+        return registry.provider(path);
     }
 }

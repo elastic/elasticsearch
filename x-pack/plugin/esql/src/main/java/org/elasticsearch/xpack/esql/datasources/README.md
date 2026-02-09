@@ -99,7 +99,7 @@ The `DataSourceModule` collects all plugins and populates the registries:
 ```java
 // In EsqlPlugin.createComponents()
 List<DataSourcePlugin> plugins = pluginsService.filterPlugins(DataSourcePlugin.class);
-DataSourceModule module = new DataSourceModule(plugins, settings, blockFactory);
+DataSourceModule module = new DataSourceModule(plugins, settings, blockFactory, executor);
 ```
 
 ## Core Interfaces

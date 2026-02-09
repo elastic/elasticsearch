@@ -61,6 +61,7 @@ dependencies {
   
   // The Iceberg datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-iceberg'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
 }
 
 // Test resources (iceberg-fixtures) are now local to this module

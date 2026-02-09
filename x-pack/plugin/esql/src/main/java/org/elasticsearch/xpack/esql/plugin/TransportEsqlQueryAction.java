@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -182,13 +183,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             new CrossProjectModeDecider(clusterService.getSettings())
         );
 
+        OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
+            .createOperatorFactoryRegistry(threadPool.executor(ThreadPool.Names.SEARCH));
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
             lookupFromIndexService,
             threadPool,
             bigArrays,
-            blockFactoryProvider.blockFactory()
+            blockFactoryProvider.blockFactory(),
+            operatorFactoryRegistry
         );
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());

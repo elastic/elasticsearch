@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -51,14 +52,17 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, TableCatalogFactory> tableCatalogs;
     private final Map<String, SourceOperatorFactoryProvider> operatorFactories;
     private final FilterPushdownRegistry filterPushdownRegistry;
+    private final Map<String, StorageProviderFactory> spiStorageFactories;
+    private final Settings settings;
     private final BlockFactory blockFactory;
 
-    public DataSourceModule(List<DataSourcePlugin> dataSourcePlugins, Settings settings, BlockFactory blockFactory) {
+    public DataSourceModule(List<DataSourcePlugin> dataSourcePlugins, Settings settings, BlockFactory blockFactory, ExecutorService executor) {
+        this.settings = settings;
         this.blockFactory = blockFactory;
         this.storageProviderRegistry = new StorageProviderRegistry();
         this.formatReaderRegistry = new FormatReaderRegistry();
 
-        Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageFactories = new HashMap<>();
+        Map<String, StorageProviderFactory> storageFactories = new HashMap<>();
         Map<String, FormatReaderFactory> formatFactories = new HashMap<>();
         Map<String, TableCatalogFactory> catalogFactories = new HashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -66,7 +70,7 @@ public final class DataSourceModule implements Closeable {
 
         for (DataSourcePlugin plugin : dataSourcePlugins) {
 
-            Map<String, StorageProviderFactory> newStorageTypes = plugin.storageProviders(settings);
+            Map<String, StorageProviderFactory> newStorageTypes = plugin.storageProviders(settings, executor);
             for (Map.Entry<String, StorageProviderFactory> entry : newStorageTypes.entrySet()) {
                 String scheme = entry.getKey();
                 if (storageFactories.put(scheme, entry.getValue()) != null) {
@@ -109,9 +113,9 @@ public final class DataSourceModule implements Closeable {
             }
         }
 
-        for (Map.Entry<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> entry : storageFactories.entrySet()) {
+        for (Map.Entry<String, StorageProviderFactory> entry : storageFactories.entrySet()) {
             String scheme = entry.getKey();
-            org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory spiFactory = entry.getValue();
+            StorageProviderFactory spiFactory = entry.getValue();
             StorageProvider provider = spiFactory.create(settings);
             // Use registerWithProvider to track the provider for proper cleanup
             storageProviderRegistry.registerWithProvider(scheme, provider);
@@ -123,6 +127,8 @@ public final class DataSourceModule implements Closeable {
             formatReaderRegistry.register(prototype);
         }
 
+        this.spiStorageFactories = Map.copyOf(storageFactories);
+        storageProviderRegistry.setSpiFactories(this.spiStorageFactories);
         this.tableCatalogs = Map.copyOf(catalogFactories);
         this.operatorFactories = Map.copyOf(operatorFactoryProviders);
         this.filterPushdownRegistry = new FilterPushdownRegistry(filterPushdownProviders);
@@ -135,6 +141,10 @@ public final class DataSourceModule implements Closeable {
 
     public StorageProviderRegistry storageProviderRegistry() {
         return storageProviderRegistry;
+    }
+
+    public Map<String, StorageProviderFactory> spiStorageFactories() {
+        return spiStorageFactories;
     }
 
     public FormatReaderRegistry formatReaderRegistry() {
@@ -150,7 +160,7 @@ public final class DataSourceModule implements Closeable {
     }
 
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
-        return new OperatorFactoryRegistry(operatorFactories, storageProviderRegistry, formatReaderRegistry, executor);
+        return new OperatorFactoryRegistry(operatorFactories, storageProviderRegistry, formatReaderRegistry, executor, settings);
     }
 
     public TableCatalog createTableCatalog(String catalogType, Settings settings) {

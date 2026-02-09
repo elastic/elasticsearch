@@ -10,7 +10,7 @@ import org.apache.iceberg.aws.s3.S3FileIO;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.BeforeClass;
 

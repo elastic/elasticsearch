@@ -21,6 +21,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -36,7 +37,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
-import org.elasticsearch.xpack.esql.datasources.builtin.BuiltInDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -140,7 +141,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // Create a minimal DataSourceModule for testing
         BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
         try (
-            DataSourceModule dataSourceModule = new DataSourceModule(List.of(new BuiltInDataSourcePlugin()), Settings.EMPTY, blockFactory)
+            DataSourceModule dataSourceModule = new DataSourceModule(
+                List.of(new DataSourcePlugin() {}),
+                Settings.EMPTY,
+                blockFactory,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            )
         ) {
             var planExecutor = new PlanExecutor(
                 indexResolver,

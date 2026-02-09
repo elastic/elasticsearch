@@ -156,4 +156,8 @@ public class PlanExecutor {
     public Metrics metrics() {
         return this.metrics;
     }
+
+    public DataSourceModule dataSourceModule() {
+        return dataSourceModule;
+    }
 }

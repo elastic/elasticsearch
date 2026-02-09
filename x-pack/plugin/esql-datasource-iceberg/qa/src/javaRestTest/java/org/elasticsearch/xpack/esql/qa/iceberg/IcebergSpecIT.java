@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.iceberg;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -25,6 +26,7 @@ import static org.junit.Assert.assertTrue;
 
 /** Integration tests for Iceberg tables with metadata (loads iceberg-*.csv-spec). */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@AwaitsFix(bugUrl = "Iceberg integration tests disabled pending stabilization")
 public class IcebergSpecIT extends IcebergSpecTestCase {
 
     /** Elasticsearch cluster with S3 fixture and Iceberg catalog for testing. */

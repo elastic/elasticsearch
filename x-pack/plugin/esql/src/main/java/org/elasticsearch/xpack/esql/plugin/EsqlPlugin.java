@@ -221,7 +221,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         }
 
         // Create DataSourceModule with all discovered plugins
-        DataSourceModule dataSourceModule = new DataSourceModule(allDataSourcePlugins, settings, blockFactoryProvider.blockFactory());
+        // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
+        DataSourceModule dataSourceModule = new DataSourceModule(
+            allDataSourcePlugins,
+            settings,
+            blockFactoryProvider.blockFactory(),
+            services.threadPool().executor(ThreadPool.Names.GENERIC)
+        );
 
         List<Object> components = new ArrayList<>(
             List.of(

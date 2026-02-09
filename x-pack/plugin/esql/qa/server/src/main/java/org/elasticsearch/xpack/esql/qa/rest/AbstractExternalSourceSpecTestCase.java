@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils;
-import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.IcebergS3HttpFixture;
-import org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -20,15 +21,19 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.ACCESS_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.BUCKET;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.SECRET_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.WAREHOUSE;
+import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 
 /**
  * Abstract base class for external source integration tests using S3HttpFixture.
@@ -64,8 +69,38 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         LOCAL
     }
 
+    private static final List<StorageBackend> BACKENDS = List.of(StorageBackend.S3, StorageBackend.HTTP, StorageBackend.LOCAL);
+
+    /**
+     * Load csv-spec files matching the given patterns and cross-product each test with all storage backends.
+     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 7 arguments:
+     * (fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend).
+     */
+    protected static List<Object[]> readExternalSpecTests(String... specPatterns) throws Exception {
+        List<URL> urls = new ArrayList<>();
+        for (String pattern : specPatterns) {
+            urls.addAll(classpathResources(pattern));
+        }
+        if (urls.isEmpty()) {
+            throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
+        }
+
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> parameterizedTests = new ArrayList<>();
+        for (Object[] baseTest : baseTests) {
+            for (StorageBackend backend : BACKENDS) {
+                int baseLength = baseTest.length;
+                Object[] parameterizedTest = new Object[baseLength + 1];
+                System.arraycopy(baseTest, 0, parameterizedTest, 0, baseLength);
+                parameterizedTest[baseLength] = backend;
+                parameterizedTests.add(parameterizedTest);
+            }
+        }
+        return parameterizedTests;
+    }
+
     @ClassRule
-    public static IcebergS3HttpFixture s3Fixture = new IcebergS3HttpFixture();
+    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     /** Cached path to local fixtures directory */
     private static Path localFixturesPath;

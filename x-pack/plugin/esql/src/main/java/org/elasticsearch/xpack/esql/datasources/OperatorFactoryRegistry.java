@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
@@ -44,12 +45,14 @@ public class OperatorFactoryRegistry {
     private final StorageProviderRegistry storageRegistry;
     private final FormatReaderRegistry formatRegistry;
     private final Executor executor;
+    private final Settings settings;
 
     public OperatorFactoryRegistry(
         Map<String, SourceOperatorFactoryProvider> pluginFactories,
         StorageProviderRegistry storageRegistry,
         FormatReaderRegistry formatRegistry,
-        Executor executor
+        Executor executor,
+        Settings settings
     ) {
         if (storageRegistry == null) {
             throw new IllegalArgumentException("storageRegistry cannot be null");
@@ -64,6 +67,7 @@ public class OperatorFactoryRegistry {
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
         this.executor = executor;
+        this.settings = settings != null ? settings : Settings.EMPTY;
     }
 
     public SourceOperator.SourceOperatorFactory factory(SourceOperatorContext context) {
@@ -76,7 +80,25 @@ public class OperatorFactoryRegistry {
 
         // 2. Otherwise: generic async factory (handles CSV, JSON, Parquet, etc.)
         StoragePath path = context.path();
-        StorageProvider storage = storageRegistry.provider(path);
+
+        // Resolve the storage provider.
+        // When the context carries per-query config (e.g. endpoint, credentials from WITH clause),
+        // create a fresh provider with that config. This is scheme-agnostic: S3, HTTP, LOCAL, or any
+        // future backend — the config is forwarded to the SPI factory's create(settings, config).
+        // Schemes that don't override that method simply ignore the config via the default delegation.
+        // TODO: Per-query providers created here via createProvider() are not closed after the operator
+        // finishes. Factories don't have a close lifecycle, and the provider must stay alive while
+        // StorageObject streams are active. Full lifecycle tracking would require plumbing a Releasable
+        // through the driver framework. For now this is acceptable because SPI-created providers
+        // (e.g. S3StorageProvider) typically wrap pooled/shared clients.
+        Map<String, Object> config = context.config();
+        StorageProvider storage;
+        if (config != null && config.isEmpty() == false) {
+            storage = storageRegistry.createProvider(path.scheme(), settings, config);
+        } else {
+            storage = storageRegistry.provider(path);
+        }
+
         FormatReader format = formatRegistry.byExtension(path.objectName());
 
         if (storage == null) {
@@ -113,38 +135,4 @@ public class OperatorFactoryRegistry {
         return executor;
     }
 
-    public static class Builder {
-        private Map<String, SourceOperatorFactoryProvider> pluginFactories;
-        private StorageProviderRegistry storageRegistry;
-        private FormatReaderRegistry formatRegistry;
-        private Executor executor;
-
-        public Builder pluginFactories(Map<String, SourceOperatorFactoryProvider> pluginFactories) {
-            this.pluginFactories = pluginFactories;
-            return this;
-        }
-
-        public Builder storageRegistry(StorageProviderRegistry storageRegistry) {
-            this.storageRegistry = storageRegistry;
-            return this;
-        }
-
-        public Builder formatRegistry(FormatReaderRegistry formatRegistry) {
-            this.formatRegistry = formatRegistry;
-            return this;
-        }
-
-        public Builder executor(Executor executor) {
-            this.executor = executor;
-            return this;
-        }
-
-        public OperatorFactoryRegistry build() {
-            return new OperatorFactoryRegistry(pluginFactories, storageRegistry, formatRegistry, executor);
-        }
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
 }

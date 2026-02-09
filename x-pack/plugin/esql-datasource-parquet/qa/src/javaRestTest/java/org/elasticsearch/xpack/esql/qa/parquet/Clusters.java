@@ -11,10 +11,13 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Paths;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.ACCESS_KEY;
-import static org.elasticsearch.xpack.esql.datasources.datalake.S3FixtureUtils.SECRET_KEY;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
 
 /**
  * Cluster configuration for Parquet integration tests.
@@ -24,6 +27,7 @@ public class Clusters {
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
+            .shared(true)
             // Enable S3 repository plugin for S3 access
             .module("repository-s3")
             // Basic cluster settings
@@ -31,6 +35,9 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")
+            // Allow the LOCAL storage backend to read fixture files from the test resources directory.
+            // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
+            .setting("path.repo", fixturesPath())
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings
@@ -55,5 +62,18 @@ public class Clusters {
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, config -> {});
+    }
+
+    private static String fixturesPath() {
+        URL resourceUrl = Clusters.class.getResource("/iceberg-fixtures");
+        if (resourceUrl != null && resourceUrl.getProtocol().equals("file")) {
+            try {
+                return Paths.get(resourceUrl.toURI()).toAbsolutePath().toString();
+            } catch (URISyntaxException e) {
+                throw new IllegalStateException("Failed to resolve fixtures path", e);
+            }
+        }
+        // Fall back to a safe default; LOCAL tests will fail gracefully
+        return "/tmp";
     }
 }

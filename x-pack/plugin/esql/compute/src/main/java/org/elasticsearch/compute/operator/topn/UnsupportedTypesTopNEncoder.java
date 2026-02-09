@@ -29,6 +29,11 @@ class UnsupportedTypesTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
+    public boolean decodeMutatesBytes() {
+        return false;
+    }
+
+    @Override
     public String toString() {
         return "UnsupportedTypesTopNEncoder";
     }

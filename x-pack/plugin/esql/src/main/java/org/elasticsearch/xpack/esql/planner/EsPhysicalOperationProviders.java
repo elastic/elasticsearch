@@ -303,10 +303,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         return ctx -> queryAndTagsFromEsQueryExec.stream().map(queryBuilderAndTags -> {
             QueryBuilder qb = queryBuilderAndTags.query();
-            return new LuceneSliceQueue.QueryAndTags(
-                shardContexts.get(ctx.index()).toQuery(qb == null ? QueryBuilders.matchAllQuery().boost(0.0f) : qb),
-                queryBuilderAndTags.tags()
-            );
+            Query query = shardContexts.get(ctx.index()).toQuery(qb == null ? QueryBuilders.matchAllQuery().boost(0.0f) : qb);
+            return new LuceneSliceQueue.QueryAndTags(query, queryBuilderAndTags.tags());
         }).toList();
     }
 

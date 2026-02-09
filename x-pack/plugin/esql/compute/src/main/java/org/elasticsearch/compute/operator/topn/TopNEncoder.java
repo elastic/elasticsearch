@@ -81,4 +81,9 @@ public interface TopNEncoder {
      * without making the encoded bytes sortable.
      */
     TopNEncoder toUnsortable();
+
+    /**
+     * Does decoding mutate the bytes?
+     */
+    boolean decodeMutatesBytes();
 }

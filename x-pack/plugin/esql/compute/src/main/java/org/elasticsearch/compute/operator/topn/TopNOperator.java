@@ -649,6 +649,20 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /**
+     * Returns the current minimum competitive row, or {@code null} if the
+     * queue is not yet full (meaning all rows are still competitive).
+     */
+    MinCompetitive minCompetitive() {
+        if (inputQueue == null || inputQueue.size() < inputQueue.topCount) {
+            return null;
+        }
+        if (encoders.get(sortOrders.getFirst().channel()).decodeMutatesBytes()) {
+            return null;
+        }
+        return new MinCompetitive(blockFactory, elementTypes, encoders, sortOrders, inputQueue.top());
+    }
+
+    /**
      * Build the result iterator. Moves all rows from the {@link #inputQueue} and
      * {@link #close}s it.
      */

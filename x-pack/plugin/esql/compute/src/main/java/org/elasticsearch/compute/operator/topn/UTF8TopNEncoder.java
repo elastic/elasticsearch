@@ -89,6 +89,11 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
+    public boolean decodeMutatesBytes() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         return "UTF8TopNEncoder";
     }

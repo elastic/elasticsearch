@@ -40,6 +40,11 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
+    public boolean decodeMutatesBytes() {
+        return false;
+    }
+
+    @Override
     public String toString() {
         return "FixedLengthTopNEncoder[" + length + "]";
     }

@@ -66,7 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -89,7 +89,6 @@ import static org.elasticsearch.compute.data.ElementType.TDIGEST;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
-import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
 import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
@@ -102,6 +101,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TopNOperatorTests extends OperatorTestCase {
     private final int pageSize = randomPageSize();
@@ -1422,21 +1422,18 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testRandomMultiValuesTopN() {
         DriverContext driverContext = driverContext();
-        int rows = randomIntBetween(50, 100);
-        int topCount = randomIntBetween(1, rows);
-        int blocksCount = randomIntBetween(20, 30);
-        int sortingByColumns = randomIntBetween(1, 10);
+        int pageCount = between(1, 100);
+        int rowsPerPage = between(50, 100);
+        int topCount = between(1, rowsPerPage * pageCount);
+        int blocksCount = between(20, 30);
+        int sortingByColumns = between(1, 10);
 
         Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
-        List<List<List<Object>>> expectedValues = new ArrayList<>(rows);
-        List<Block> blocks = new ArrayList<>(blocksCount);
+        List<List<List<Object>>> expectedValues = new ArrayList<>(rowsPerPage * pageCount);
+        List<Supplier<Object>> randomValueSuppliers = new ArrayList<>(blocksCount);
         boolean[] validSortKeys = new boolean[blocksCount];
         List<ElementType> elementTypes = new ArrayList<>(blocksCount);
         List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
-
-        for (int i = 0; i < rows; i++) {
-            expectedValues.add(new ArrayList<>(blocksCount));
-        }
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
@@ -1451,76 +1448,35 @@ public class TopNOperatorTests extends OperatorTestCase {
             );
             elementTypes.add(e);
             validSortKeys[type] = true;
-            try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
-                List<Object> previousValue = null;
-                Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
-                if (e == BYTES_REF) {
-                    if (rarely()) {
-                        randomValueSupplier = switch (randomInt(2)) {
-                            case 0 -> {
-                                // Simulate ips
-                                encoders.add(TopNEncoder.IP);
-                                yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                            }
-                            case 1 -> {
-                                // Simulate version fields
-                                encoders.add(TopNEncoder.VERSION);
-                                yield (blockType) -> randomVersion().toBytesRef();
-                            }
-                            case 2 -> {
-                                // Simulate geo_shape and geo_point
-                                encoders.add(DEFAULT_UNSORTABLE);
-                                validSortKeys[type] = false;
-                                yield (blockType) -> randomPointAsWKB();
-                            }
-                            default -> throw new UnsupportedOperationException();
-                        };
-                    } else {
-                        encoders.add(UTF8);
-                    }
+            Supplier<Object> randomValueSupplier = () -> randomValue(e);
+            if (e == BYTES_REF) {
+                if (rarely()) {
+                    randomValueSupplier = switch (randomInt(2)) {
+                        case 0 -> {
+                            // Simulate ips
+                            encoders.add(TopNEncoder.IP);
+                            yield () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                        }
+                        case 1 -> {
+                            // Simulate version fields
+                            encoders.add(TopNEncoder.VERSION);
+                            yield () -> randomVersion().toBytesRef();
+                        }
+                        case 2 -> {
+                            // Simulate geo_shape and geo_point
+                            encoders.add(DEFAULT_UNSORTABLE);
+                            validSortKeys[type] = false;
+                            yield TopNEncoderTests::randomPointAsWKB;
+                        }
+                        default -> throw new UnsupportedOperationException();
+                    };
                 } else {
-                    encoders.add(DEFAULT_SORTABLE);
+                    encoders.add(UTF8);
                 }
-
-                for (int i = 0; i < rows; i++) {
-                    List<Object> values = new ArrayList<>();
-                    // let's make things a bit more real for this TopN sorting: have some "equal" values in different rows for the same
-                    // block
-                    if (rarely() && previousValue != null) {
-                        values = previousValue;
-                    } else {
-                        if (e != ElementType.NULL && randomBoolean()) {
-                            // generate a multi-value block
-                            int mvCount = randomIntBetween(5, 10);
-                            for (int j = 0; j < mvCount; j++) {
-                                Object value = randomValueSupplier.apply(e);
-                                values.add(value);
-                            }
-                        } else {// null or single-valued value
-                            Object value = randomValueSupplier.apply(e);
-                            values.add(value);
-                        }
-
-                        if (usually() && randomBoolean()) {
-                            // let's remember the "previous" value, maybe we'll use it again in a different row
-                            previousValue = values;
-                        }
-                    }
-
-                    if (values.size() == 1) {
-                        append(builder, values.get(0));
-                    } else {
-                        builder.beginPositionEntry();
-                        for (Object o : values) {
-                            append(builder, o);
-                        }
-                        builder.endPositionEntry();
-                    }
-
-                    expectedValues.get(i).add(values);
-                }
-                blocks.add(builder.build());
+            } else {
+                encoders.add(DEFAULT_SORTABLE);
             }
+            randomValueSuppliers.add(randomValueSupplier);
         }
 
         /*
@@ -1535,31 +1491,101 @@ public class TopNOperatorTests extends OperatorTestCase {
             int column = randomValueOtherThanMany(c -> false == validSortKeys[c], () -> randomIntBetween(0, blocksCount - 1));
             uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
         }
+        NaiveTopNComparator comparator = new NaiveTopNComparator(uniqueOrders);
+        TopNOperator.SortOrder firstOrder = uniqueOrders.iterator().next();
+
+        TopNOperator operator = new TopNOperator(
+            driverContext.blockFactory(),
+            nonBreakingBigArrays().breakerService().getBreaker("request"),
+            topCount,
+            elementTypes,
+            encoders,
+            uniqueOrders.stream().toList(),
+            rowsPerPage,
+            InputOrdering.NOT_SORTED
+        );
+        for (int p = 0; p < pageCount; p++) {
+            assertThat(operator.needsInput(), equalTo(true));
+            assertThat(operator.isFinished(), equalTo(false));
+            assertThat(operator.getOutput(), nullValue());
+
+            for (int r = 0; r < rowsPerPage; r++) {
+                expectedValues.add(new ArrayList<>(blocksCount));
+            }
+            Block[] blocks = new Block[blocksCount];
+            for (int b = 0; b < blocksCount; b++) {
+                ElementType elementType = elementTypes.get(b);
+                try (Block.Builder builder = elementType.newBlockBuilder(rowsPerPage, driverContext().blockFactory())) {
+                    List<Object> previousValue = null;
+
+                    for (int r = 0; r < rowsPerPage; r++) {
+                        List<Object> values = new ArrayList<>();
+                        // let's make things a bit more real for this TopN sorting: have some "equal" values in different rows for the same
+                        // block
+                        if (rarely() && previousValue != null) {
+                            values = previousValue;
+                        } else {
+                            if (elementType != ElementType.NULL && randomBoolean()) {
+                                // generate a multi-value block
+                                int mvCount = randomIntBetween(5, 10);
+                                for (int j = 0; j < mvCount; j++) {
+                                    Object value = randomValueSuppliers.get(b).get();
+                                    values.add(value);
+                                }
+                            } else {// null or single-valued value
+                                Object value = randomValueSuppliers.get(b).get();
+                                values.add(value);
+                            }
+
+                            if (usually() && randomBoolean()) {
+                                // let's remember the "previous" value, maybe we'll use it again in a different row
+                                previousValue = values;
+                            }
+                        }
+
+                        if (values.size() == 1) {
+                            append(builder, values.get(0));
+                        } else {
+                            builder.beginPositionEntry();
+                            for (Object o : values) {
+                                append(builder, o);
+                            }
+                            builder.endPositionEntry();
+                        }
+
+                        expectedValues.get(p * rowsPerPage + r).add(values);
+                    }
+                    blocks[b] = builder.build();
+                }
+            }
+            operator.addInput(new Page(blocks));
+
+            // MinCompetitive minCompetitive = operator.minCompetitive();
+            // if ((p + 1) * rowsPerPage < topCount || encoders.getFirst() == UTF8) {
+            // assertThat(minCompetitive, nullValue());
+            // } else {
+            // List<List<Object>> minCompetitiveRow = expectedValues.stream().sorted(comparator).skip(topCount - 1).findFirst().get();
+            // List<Object> firstOrderColumn = minCompetitiveRow.get(firstOrder.channel());
+            // System.err.println("expecting " + firstOrderColumn + " " + encoders.getFirst());
+            // try (Block minBlock = minCompetitive.firstSortKey()) {
+            // Object actual = BlockUtils.toJavaObject(minBlock, 0);
+            // assertThat(actual, firstOrderColumn.getFirst() == null ? nullValue() : equalTo(firstOrderColumn));
+            // }
+            // }
+        }
+        operator.finish();
+        assertThat(operator.needsInput(), equalTo(false));
+        assertThat(operator.isFinished(), equalTo(false));
 
         List<List<List<Object>>> actualValues = new ArrayList<>();
-        List<Page> results = new TestDriverRunner().builder(driverContext)
-            .input(blocks)
-            .run(
-                new TopNOperator(
-                    driverContext.blockFactory(),
-                    nonBreakingBigArrays().breakerService().getBreaker("request"),
-                    topCount,
-                    elementTypes,
-                    encoders,
-                    uniqueOrders.stream().toList(),
-                    rows,
-                    InputOrdering.NOT_SORTED
-                )
-            );
-        for (Page p : results) {
-            readAsRows(actualValues, p);
-            p.releaseBlocks();
+        while (operator.isFinished() == false) {
+            try (Page p = operator.getOutput()) {
+                readAsRows(actualValues, p);
+                assertThat(operator.needsInput(), equalTo(false));
+            }
         }
 
-        List<List<List<Object>>> topNExpectedValues = expectedValues.stream()
-            .sorted(new NaiveTopNComparator(uniqueOrders))
-            .limit(topCount)
-            .toList();
+        List<List<List<Object>>> topNExpectedValues = expectedValues.stream().sorted(comparator).limit(topCount).toList();
         List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
         List<List<Object>> expectedReducedValues = extractAndReduceSortedValues(topNExpectedValues, uniqueOrders);
 
@@ -1979,25 +2005,21 @@ public class TopNOperatorTests extends OperatorTestCase {
         if (page.getBlockCount() == 0) {
             fail("No blocks returned!");
         }
-        if (values.isEmpty()) {
-            while (values.size() < page.getPositionCount()) {
-                values.add(new ArrayList<>());
-            }
-        } else {
-            if (values.size() != page.getPositionCount()) {
-                throw new IllegalArgumentException("Can't load values from blocks with different numbers of positions");
-            }
+        int start = values.size();
+        for (int r = 0; r < page.getPositionCount(); r++) {
+            values.add(new ArrayList<>());
         }
 
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            for (int p = 0; p < page.getBlock(i).getPositionCount(); p++) {
-                Object value = toJavaObject(page.getBlock(i), p);
+        for (int b = 0; b < page.getBlockCount(); b++) {
+            for (int r = 0; r < page.getBlock(b).getPositionCount(); r++) {
+                Object value = toJavaObject(page.getBlock(b), r);
+                List<List<Object>> v = values.get(start + r);
                 if (value instanceof List l) {
-                    values.get(p).add(l);
+                    v.add(l);
                 } else {
                     List<Object> valueAsList = new ArrayList<>(1); // list of null is also possible
                     valueAsList.add(value);
-                    values.get(p).add(valueAsList);
+                    v.add(valueAsList);
                 }
             }
         }

@@ -190,6 +190,13 @@ public class Querier {
         }));
     }
 
+    /**
+     * Refreshes the PIT ID on the search source with the new value returned in the response.
+     */
+    public static void refreshPointInTime(SearchResponse response, SearchSourceBuilder source) {
+        source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
+    }
+
     public static void closePointInTime(Client client, BytesReference pointInTimeId, ActionListener<Boolean> listener) {
         if (pointInTimeId != null) {
             // request should not be made with the parent task assigned because the parent task might already be canceled

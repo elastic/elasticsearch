@@ -1477,7 +1477,7 @@ public class BasicBlockTests extends ESTestCase {
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         ).asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
@@ -1519,7 +1519,7 @@ public class BasicBlockTests extends ESTestCase {
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         );
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(vector);

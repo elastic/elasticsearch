@@ -43,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -86,10 +87,10 @@ public class S3HttpHandler implements HttpHandler {
         this.basePath = Objects.requireNonNullElse(basePath, "");
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
         this.consistencyModel = consistencyModel;
-        // Per-thread random is based on the same seed so that they generate the same results across threads.
+        // Per-thread random is based on the same seed so that they generate the same sequence of results across threads.
         // To ensure unique UUIDs across threads, we store and share a single random across threads so that each invocation
         // generates different UUIDs.
-        final var random = ESTestCase.initTestSeed();
+        final var random = new Random(ESTestCase.randomLong());
         this.uuidGenerator = () -> UUIDs.randomBase64UUID(random);
     }
 

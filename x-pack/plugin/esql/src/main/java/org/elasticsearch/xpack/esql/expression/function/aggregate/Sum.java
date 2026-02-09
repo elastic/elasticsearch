@@ -180,7 +180,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
                 || dt == DataType.DENSE_VECTOR,
             sourceText(),
             DEFAULT,
-            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types or dense_vector"
+            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
         );
     }
 

@@ -5,6 +5,11 @@ stack: preview
 
 The `URI_PARTS` processing command parses a Uniform Resource Identifier (URI) string and extracts its components into new columns.
 
+::::{note}
+This command doesn't support multi-value inputs.
+::::
+
+
 **Syntax**
 
 ```esql

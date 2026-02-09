@@ -11,6 +11,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +27,28 @@ import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBri
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.USER_INFO;
 
 public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
+
+    private final Warnings WARNINGS = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
+        @Override
+        public int lineNumber() {
+            return 1;
+        }
+
+        @Override
+        public int columnNumber() {
+            return 2;
+        }
+
+        @Override
+        public String viewName() {
+            return null;
+        }
+
+        @Override
+        public String text() {
+            return "invalid_input";
+        }
+    });
 
     @Override
     protected CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector(List<String> requestedFields) {
@@ -55,27 +78,20 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         evaluateAndCompare(input, requestedFields, expected);
     }
 
-    /*public void testMultiValue() {
+    public void testMultiValue() {
         List<String> requestedFields = List.of(SCHEME, DOMAIN, PORT, PATH, EXTENSION, QUERY, FRAGMENT, USER_INFO, USERNAME, PASSWORD);
         List<String> input = List.of(
             "http://user:pass@example.com:8080/path/to/file.html?query=val#fragment",
             "https://elastic.co/downloads",
             "ftp://ftp.example.org/resource.txt"
         );
-        List<Object[]> expected = List.of(
-            new Object[] { "http", "https", "ftp" },
-            new Object[] { "example.com", "elastic.co", "ftp.example.org" },
-            new Object[] { 8080, null, null },
-            new Object[] { "/path/to/file.html", "/downloads", "/resource.txt" },
-            new Object[] { "html", null, "txt" },
-            new Object[] { "query=val", null, null },
-            new Object[] { "fragment", null, null },
-            new Object[] { "user:pass", null, null },
-            new Object[] { "user", null, null },
-            new Object[] { "pass", null, null }
+        List<Object[]> expected = Collections.nCopies(requestedFields.size(), new Object[] { null });
+        evaluateAndCompare(input, requestedFields, expected, WARNINGS);
+        assertCriticalWarnings(
+            "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
         );
-        evaluateAndCompare(input, requestedFields, expected);
-    }*/
+    }
 
     public void testPartialFieldsRequested() {
         List<String> requestedFields = List.of(DOMAIN, PORT);
@@ -114,28 +130,7 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         List<String> requestedFields = List.of(DOMAIN, PORT);
         List<String> input = List.of("not a valid url");
         List<Object[]> expected = List.of(new Object[] { null }, new Object[] { null });
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
-            @Override
-            public int lineNumber() {
-                return 1;
-            }
-
-            @Override
-            public int columnNumber() {
-                return 2;
-            }
-
-            @Override
-            public String viewName() {
-                return null;
-            }
-
-            @Override
-            public String text() {
-                return "invalid_input";
-            }
-        });
-        evaluateAndCompare(input, requestedFields, expected, warnings);
+        evaluateAndCompare(input, requestedFields, expected, WARNINGS);
         assertCriticalWarnings(
             "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"

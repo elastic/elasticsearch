@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -165,13 +164,14 @@ public class MapperUtils {
             return child;
         }
 
-        // Handle CompoundOutputEval
-        if (p instanceof CompoundOutputEval<?> coe) {
-            // Create the concrete physical plan based on the logical type
-            if (coe instanceof UriParts) {
-                return new UriPartsExec(coe.source(), child, coe.getInput(), coe.outputFieldNames(), coe.generatedAttributes());
-            }
-            throw new EsqlIllegalArgumentException("Unsupported CompoundOutputEval type [" + coe.getClass().getSimpleName() + "]");
+        if (p instanceof UriParts uriParts) {
+            return new UriPartsExec(
+                uriParts.source(),
+                child,
+                uriParts.getInput(),
+                uriParts.outputFieldNames(),
+                uriParts.generatedAttributes()
+            );
         }
 
         return unsupported(p);

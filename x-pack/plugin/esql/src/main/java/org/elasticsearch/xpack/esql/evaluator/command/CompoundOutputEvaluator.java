@@ -55,9 +55,13 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         try {
             if (input.isNull(row) == false) {
                 try {
-                    BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
-                    String inputAsString = getInputAsString(bytes, inputType);
-                    outputFieldsCollector.evaluate(inputAsString);
+                    if (input.getValueCount(row) == 1) {
+                        BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
+                        String inputAsString = getInputAsString(bytes, inputType);
+                        outputFieldsCollector.evaluate(inputAsString);
+                    } else {
+                        warnings.registerException(new IllegalArgumentException("This command doesn't support multi-value input"));
+                    }
                 } catch (IllegalArgumentException e) {
                     warnings.registerException(e);
                 }

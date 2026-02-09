@@ -2178,7 +2178,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         String query = """
             FROM test
-            | uri_parts_🐔 u = `constant_keyword-foo`
+            | uri_parts u = `constant_keyword-foo`
             | WHERE `constant_keyword-foo` == "foo"
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");

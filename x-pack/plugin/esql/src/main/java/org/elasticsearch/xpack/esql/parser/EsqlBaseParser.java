@@ -27,7 +27,7 @@ public class EsqlBaseParser extends ParserConfig {
   public static final int
     LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, ENRICH=5, DEV_EXPLAIN=6, 
     COMPLETION=7, DISSECT=8, EVAL=9, GROK=10, LIMIT=11, RERANK=12, ROW=13, 
-    SAMPLE=14, SORT=15, STATS=16, WHERE=17, DEV_URI_PARTS=18, FROM=19, TS=20, 
+    SAMPLE=14, SORT=15, STATS=16, WHERE=17, URI_PARTS=18, FROM=19, TS=20, 
     FORK=21, FUSE=22, INLINE=23, INLINESTATS=24, JOIN_LOOKUP=25, DEV_JOIN_FULL=26, 
     DEV_JOIN_LEFT=27, DEV_JOIN_RIGHT=28, DEV_LOOKUP=29, DEV_MMR=30, MV_EXPAND=31, 
     DROP=32, KEEP=33, DEV_INSIST=34, PROMQL=35, RENAME=36, SET=37, SHOW=38, 
@@ -130,21 +130,22 @@ public class EsqlBaseParser extends ParserConfig {
     return new String[] {
       null, null, null, null, "'change_point'", "'enrich'", null, "'completion'", 
       "'dissect'", "'eval'", "'grok'", "'limit'", "'rerank'", "'row'", "'sample'", 
-      "'sort'", null, "'where'", null, "'from'", "'ts'", "'fork'", "'fuse'", 
-      "'inline'", "'inlinestats'", "'lookup'", null, null, null, null, null, 
-      "'mv_expand'", "'drop'", "'keep'", null, "'promql'", "'rename'", "'set'", 
-      "'show'", null, null, null, null, null, null, null, null, null, null, 
-      null, null, null, null, "'|'", null, null, null, "'and'", "'asc'", "'='", 
-      "'by'", "'::'", "':'", "';'", "','", "'desc'", "'.'", "'false'", "'first'", 
-      "'in'", "'is'", "'last'", "'like'", "'not'", "'null'", "'nulls'", "'on'", 
-      "'or'", "'?'", "'rlike'", "'true'", "'with'", "'=='", "'=~'", "'!='", 
-      "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", "'{'", 
-      "'}'", "'??'", null, null, null, "']'", null, "')'", null, null, null, 
-      null, null, "'metadata'", null, null, null, null, null, null, null, "'group'", 
-      "'score'", "'key'", null, null, null, null, null, null, null, "'join'", 
-      "'USING'", null, null, null, null, null, null, null, null, null, null, 
+      "'sort'", null, "'where'", "'uri_parts'", "'from'", "'ts'", "'fork'", 
+      "'fuse'", "'inline'", "'inlinestats'", "'lookup'", null, null, null, 
+      null, null, "'mv_expand'", "'drop'", "'keep'", null, "'promql'", "'rename'", 
+      "'set'", "'show'", null, null, null, null, null, null, null, null, null, 
+      null, null, null, null, null, "'|'", null, null, null, "'and'", "'asc'", 
+      "'='", "'by'", "'::'", "':'", "';'", "','", "'desc'", "'.'", "'false'", 
+      "'first'", "'in'", "'is'", "'last'", "'like'", "'not'", "'null'", "'nulls'", 
+      "'on'", "'or'", "'?'", "'rlike'", "'true'", "'with'", "'=='", "'=~'", 
+      "'!='", "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", 
+      "'{'", "'}'", "'??'", null, null, null, "']'", null, "')'", null, null, 
+      null, null, null, "'metadata'", null, null, null, null, null, null, null, 
+      "'group'", "'score'", "'key'", null, null, null, null, null, null, null, 
+      "'join'", "'USING'", null, null, null, null, null, null, null, null, 
       null, null, null, null, null, null, null, null, null, null, null, null, 
-      null, null, null, null, "'as'", null, null, null, null, null, null, "'info'"
+      null, null, null, null, null, null, "'as'", null, null, null, null, null, 
+      null, "'info'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -152,7 +153,7 @@ public class EsqlBaseParser extends ParserConfig {
     return new String[] {
       null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "ENRICH", 
       "DEV_EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", "RERANK", 
-      "ROW", "SAMPLE", "SORT", "STATS", "WHERE", "DEV_URI_PARTS", "FROM", "TS", 
+      "ROW", "SAMPLE", "SORT", "STATS", "WHERE", "URI_PARTS", "FROM", "TS", 
       "FORK", "FUSE", "INLINE", "INLINESTATS", "JOIN_LOOKUP", "DEV_JOIN_FULL", 
       "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "DEV_MMR", "MV_EXPAND", 
       "DROP", "KEEP", "DEV_INSIST", "PROMQL", "RENAME", "SET", "SHOW", "UNKNOWN_CMD", 
@@ -5284,7 +5285,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class UriPartsCommandContext extends ParserRuleContext {
-    public TerminalNode DEV_URI_PARTS() { return getToken(EsqlBaseParser.DEV_URI_PARTS, 0); }
+    public TerminalNode URI_PARTS() { return getToken(EsqlBaseParser.URI_PARTS, 0); }
     public QualifiedNameContext qualifiedName() {
       return getRuleContext(QualifiedNameContext.class,0);
     }
@@ -5319,7 +5320,7 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(695);
-      match(DEV_URI_PARTS);
+      match(URI_PARTS);
       setState(696);
       qualifiedName();
       setState(697);

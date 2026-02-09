@@ -2409,7 +2409,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         String query = """
             FROM test
             | WHERE emp_no > 10000
-            | uri_parts_🐔 u = first_name
+            | uri_parts u = first_name
             | WHERE u.domain == "elastic.co" AND salary > 5000
             """;
         LogicalPlan plan = optimizedPlan(query);

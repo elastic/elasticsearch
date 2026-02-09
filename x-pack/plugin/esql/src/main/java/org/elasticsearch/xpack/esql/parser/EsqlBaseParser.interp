@@ -17,7 +17,7 @@ null
 'sort'
 null
 'where'
-null
+'uri_parts'
 'from'
 'ts'
 'fork'
@@ -184,7 +184,7 @@ SAMPLE
 SORT
 STATS
 WHERE
-DEV_URI_PARTS
+URI_PARTS
 FROM
 TS
 FORK

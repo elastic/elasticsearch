@@ -13,9 +13,8 @@ This command doesn't support multi-value inputs.
 **Syntax**
 
 ```esql
-URI_PARTS_🐔 prefix = expression
+URI_PARTS prefix = expression
 ```
-The _🐔 suffix is required as long as this command is in dev mode.
 
 **Parameters**
 
@@ -79,7 +78,7 @@ You can use the extracted parts in subsequent commands, for example to filter by
 
 ```esql
 FROM web_logs
-| URI_PARTS_🐔 p = uri
+| URI_PARTS p = uri
 | WHERE p.domain == "www.example.com"
 | STATS COUNT(*) BY p.path
 ```

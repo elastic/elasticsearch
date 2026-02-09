@@ -361,7 +361,7 @@ insistCommand
     ;
 
 uriPartsCommand
-    : DEV_URI_PARTS qualifiedName ASSIGN primaryExpression
+    : URI_PARTS qualifiedName ASSIGN primaryExpression
     ;
 
 setCommand

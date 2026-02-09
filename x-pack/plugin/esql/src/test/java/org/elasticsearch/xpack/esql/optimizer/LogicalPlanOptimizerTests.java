@@ -11335,7 +11335,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testPushDownSampleAndLimitThroughUriParts() {
         assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
-        var query = "FROM test | URI_PARTS_🐔 parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
+        var query = "FROM test | URI_PARTS parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
         var optimized = optimizedPlan(query);
         // UriParts should be above Sample and Limit
         var uriParts = as(optimized, UriParts.class);
@@ -11351,7 +11351,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | rename first_name as x
             | keep x
-            | uri_parts_🐔 u = x
+            | uri_parts u = x
             """;
         LogicalPlan plan = optimizedPlan(query);
 
@@ -11372,7 +11372,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         String query = """
             from test
             | sort emp_no
-            | uri_parts_🐔 u = first_name
+            | uri_parts u = first_name
             | sort u.domain
             """;
         LogicalPlan plan = optimizedPlan(query);

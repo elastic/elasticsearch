@@ -1661,7 +1661,7 @@ public class AnalyzerTests extends ESTestCase {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
-            | uri_parts_🐔 p = unsupported
+            | uri_parts p = unsupported
             """, errorMsg);
     }
 
@@ -6096,7 +6096,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUriParts() {
         assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts_🐔 p = uri");
+        LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts p = uri");
 
         Limit limit = as(plan, Limit.class);
         UriParts parts = as(limit.child(), UriParts.class);
@@ -6115,7 +6115,7 @@ public class AnalyzerTests extends ESTestCase {
         });
 
         // Test invalid input type
-        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts_🐔 p = uri"));
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts p = uri"));
         assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
     }
 

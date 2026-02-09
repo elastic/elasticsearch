@@ -3,7 +3,7 @@ required_capability: uri_parts_command
 
 // tag::basic[]
 ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
-| URI_PARTS_🐔 parts = uri
+| URI_PARTS parts = uri
 | KEEP parts.*
 // end::basic[]
 ;
@@ -19,7 +19,7 @@ rename
 required_capability: uri_parts_command
 
 ROW uri = "https://www.example.com:8080"
-| URI_PARTS_🐔 parts = uri
+| URI_PARTS parts = uri
 | KEEP parts.port, parts.scheme, parts.domain
 | RENAME parts.port AS port, parts.scheme AS scheme, parts.domain AS domain
 ;
@@ -34,7 +34,7 @@ required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE domain == "www.elastic.co"
-| URI_PARTS_🐔 p = uri
+| URI_PARTS p = uri
 | KEEP p.scheme, p.domain, p.path
 | SORT p.path
 ;
@@ -50,7 +50,7 @@ required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE timestamp == "2024-01-10T10:04:45.987Z"
-| URI_PARTS_🐔 uri = uri
+| URI_PARTS uri = uri
 | KEEP uri.scheme, uri.domain, uri.path
 ;
 
@@ -63,7 +63,7 @@ prefixSameAsInputFieldNameDropInputField
 required_capability: uri_parts_command
 
 FROM web_logs
-| URI_PARTS_🐔 uri = uri
+| URI_PARTS uri = uri
 | WHERE timestamp == "2024-01-10T10:04:45.987Z"
 | DROP uri
 | KEEP uri.scheme, uri.domain, uri.path
@@ -78,7 +78,7 @@ prefixSameAsInputFieldNameEvalInputField
 required_capability: uri_parts_command
 
 FROM web_logs
-| URI_PARTS_🐔 uri = uri
+| URI_PARTS uri = uri
 | WHERE timestamp == "2024-01-10T10:04:45.987Z"
 | EVAL uri = 5
 | KEEP uri.scheme, uri.domain, uri.path
@@ -93,7 +93,7 @@ testBeforeFiltering
 required_capability: uri_parts_command
 
 FROM web_logs
-| URI_PARTS_🐔 p = uri
+| URI_PARTS p = uri
 | WHERE p.domain == "www.elastic.co"
 | KEEP p.scheme, p.domain, p.path
 | SORT p.path DESC
@@ -110,7 +110,7 @@ required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE domain == "files.internal"
-| URI_PARTS_🐔 p = uri
+| URI_PARTS p = uri
 | KEEP p.scheme, p.domain, p.path, p.username, p.password
 ;
 
@@ -124,7 +124,7 @@ required_capability: uri_parts_command
 
 FROM web_logs
 | WHERE domain == "app.example.com"
-| URI_PARTS_🐔 p = uri
+| URI_PARTS p = uri
 | KEEP p.scheme, p.domain, p.path, p.query
 ;
 
@@ -137,7 +137,7 @@ testInvalidUri
 required_capability: uri_parts_command
 
 ROW uri = "not a valid uri"
-| URI_PARTS_🐔 parts = uri
+| URI_PARTS parts = uri
 | KEEP parts.scheme, parts.domain, parts.path
 ;
 warningregex: Line 2:3: java.lang.IllegalArgumentException: unable to parse URI \[.*\]

@@ -2,7 +2,7 @@
 
 ```esql
 ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
-| URI_PARTS_🐔 parts = uri
+| URI_PARTS parts = uri
 | KEEP parts.*
 ```
 

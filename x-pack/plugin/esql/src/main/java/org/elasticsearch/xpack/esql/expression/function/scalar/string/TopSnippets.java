@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -241,21 +243,29 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
 
         int firstValueIndex = field.getFirstValueIndex(position);
 
-        // Collect all snippets from all values in the multi-value field
-        java.util.ArrayList<String> allSnippets = new java.util.ArrayList<>();
+        // Collect scored chunks from all values and return the top N overall
+        ArrayList<ScoredChunk> allScoredChunks = new ArrayList<>();
 
         for (int i = 0; i < valueCount; i++) {
             BytesRef value = field.getBytesRef(firstValueIndex + i, new BytesRef());
             String content = value.utf8ToString();
 
             List<String> chunks = chunkText(content, chunkingSettings);
-            List<ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, queryString, numSnippets, false);
-            List<String> snippets = scoredChunks.stream().map(ScoredChunk::content).limit(numSnippets).toList();
-            allSnippets.addAll(snippets);
+            allScoredChunks.addAll(scorer.scoreChunks(chunks, queryString, Integer.MAX_VALUE, false));
         }
 
-        // Emit all snippets combined
-        emitChunks(builder, allSnippets);
+        List<String> snippets = allScoredChunks.stream()
+            .sorted(Comparator.comparing(ScoredChunk::score).reversed())
+            .map(ScoredChunk::content)
+            .limit(numSnippets)
+            .toList();
+
+        if (snippets.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+
+        emitChunks(builder, snippets);
     }
 
     @Override

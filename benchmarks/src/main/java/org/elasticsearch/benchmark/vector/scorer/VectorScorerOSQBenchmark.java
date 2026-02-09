@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -278,9 +279,11 @@ public class VectorScorerOSQBenchmark {
 
     @TearDown
     public void teardown() throws Exception {
-        IOUtils.close(directory, input, cacheService, nodeEnvironment);
+        IOUtils.close(scorer, directory, input, sharedBlobCacheService, clusterService, cacheService, nodeEnvironment);
         IOUtils.rm(tempDir);
-        threadPool.shutdownNow();
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+        }
     }
 
     @Benchmark
@@ -335,8 +338,10 @@ public class VectorScorerOSQBenchmark {
 
     // -- below here are all things related to searchable snapshots
 
-    ThreadPool threadPool = new TestThreadPool("tp", SearchableSnapshots.executorBuilders(Settings.EMPTY));
+    ThreadPool threadPool;
     CacheService cacheService;
+    ClusterService clusterService;
+    SharedBlobCacheService<CacheKey> sharedBlobCacheService;
     NodeEnvironment nodeEnvironment;
 
     static ClusterSettings clusterSettings() {
@@ -392,13 +397,14 @@ public class VectorScorerOSQBenchmark {
         Path shardDir = topDir.resolve(Path.of(Integer.toString(shardId.getId())));
         ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
         Path cacheDir = Files.createDirectories(CacheService.resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
+        threadPool = new TestThreadPool("tp", SearchableSnapshots.executorBuilders(Settings.EMPTY));
         nodeEnvironment = newNodeEnvironment(Settings.EMPTY, path);
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings());
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings());
 
         Settings.Builder cacheSettings = Settings.builder();
         cacheService = new CacheService(cacheSettings.build(), clusterService, threadPool, new PersistentCache(nodeEnvironment));
         cacheService.start();
-        final SharedBlobCacheService<CacheKey> sharedBlobCacheService = defaultFrozenCacheService(threadPool, nodeEnvironment, path);
+        sharedBlobCacheService = defaultFrozenCacheService(threadPool, nodeEnvironment, path);
 
         SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
             () -> blobContainer,

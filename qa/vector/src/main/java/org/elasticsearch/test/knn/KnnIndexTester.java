@@ -298,6 +298,9 @@ public class KnnIndexTester {
             System.out.println();
             System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
             System.out.println("Every combination of each parameter will be run.");
+            System.out.println();
+            System.out.println(TestConfiguration.formattedParameterHelp());
+            System.out.println();
             System.out.println(
                 "This example configuration runs 4 searches with different combinations of num_candidates and early_termination:"
             );

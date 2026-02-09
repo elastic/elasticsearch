@@ -99,7 +99,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * asserting both that this throws a {@link CircuitBreakingException} and releases
      * all pages.
      */
-    public void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() throws Exception {
         /*
          * Build the input before building `simple` to handle the rare
          * cases where `simple` need some state from the input - mostly
@@ -290,7 +290,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
     protected final String byteRefBlockHashSize() {
         if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
-            return "213112b";
+            return "213120b";
         }
         return "392b";
     }

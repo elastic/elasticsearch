@@ -200,9 +200,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     List.of(fieldTypedData, weightTypedData),
                     "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
                     DataType.DOUBLE,
-                    expected == null
-                        ? nullValue()
-                        : closeTo(expected, Math.abs(expected * 1e-10))
+                    expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
                 ).withWarnings(warnings);
             }
         );

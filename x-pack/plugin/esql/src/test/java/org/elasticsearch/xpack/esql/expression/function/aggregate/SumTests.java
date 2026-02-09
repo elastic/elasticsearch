@@ -156,9 +156,7 @@ public class SumTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
-                expected instanceof Double d
-                    ? closeTo(d, Math.abs(d * 1e-10))
-                    : equalTo(expected)
+                expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
             );
         });
     }

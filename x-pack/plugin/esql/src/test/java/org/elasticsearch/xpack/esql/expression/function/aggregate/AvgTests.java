@@ -189,9 +189,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 "Avg[field=Attribute[channel=0]]",
                 DataType.DOUBLE,
-                expected == null
-                    ? nullValue()
-                    : closeTo(expected, Math.abs(expected * 1e-10))
+                expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
             ).withWarnings(warnings);
         });
     }

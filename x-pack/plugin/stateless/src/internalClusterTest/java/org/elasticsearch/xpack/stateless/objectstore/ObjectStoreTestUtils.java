@@ -15,13 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.objectstore;
-
-import co.elastic.elasticsearch.stateless.StatelessMockRepository;
+package org.elasticsearch.xpack.stateless.objectstore;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepository;
 
 public final class ObjectStoreTestUtils {
 

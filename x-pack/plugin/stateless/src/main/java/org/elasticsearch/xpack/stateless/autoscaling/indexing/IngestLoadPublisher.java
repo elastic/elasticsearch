@@ -15,13 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
-
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import java.util.concurrent.atomic.AtomicLong;
 

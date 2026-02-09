@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.multiproject;
+package org.elasticsearch.xpack.stateless.multiproject;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;

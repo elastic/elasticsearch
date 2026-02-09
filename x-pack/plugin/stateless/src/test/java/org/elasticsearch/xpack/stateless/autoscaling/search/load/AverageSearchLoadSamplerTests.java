@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
@@ -29,14 +29,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SEARCH_EWMA_ALPHA;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SHARD_READ_EWMA_ALPHA;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.ensureRange;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SEARCH_EWMA_ALPHA;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SHARD_READ_EWMA_ALPHA;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler.ensureRange;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;
@@ -317,4 +317,56 @@ public class AverageSearchLoadSamplerTests extends ESTestCase {
             allOf(greaterThan(taskDuration.nanos()), lessThanOrEqualTo(maxThreadpoolSize * samplingFrequency.nanos()))
         );
     }
+
+    public void testQueueBacklogDurationTracking() throws Exception {
+        var threadpool = getThreadPool("test");
+        try {
+            var searchLoadSampler = new AverageSearchLoadSampler(threadpool, timeValueSeconds(1), DEFAULT_EWMA_ALPHA_VALUES, 4);
+
+            // Initially, queue backlog duration should be 0
+            searchLoadSampler.sample();
+            assertThat(searchLoadSampler.getExecutorLoadStats(SEARCH_EXECUTOR).queueBacklogDurationNanos(), equalTo(0L));
+            assertThat(searchLoadSampler.getExecutorLoadStats(SHARD_READ_EXECUTOR).queueBacklogDurationNanos(), equalTo(0L));
+
+            var searchExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadpool.executor(ThreadPool.Names.SEARCH);
+            int maxThreads = searchExecutor.getMaximumPoolSize();
+
+            // fill up the executor and queue to create backlog
+            var latch = new java.util.concurrent.CountDownLatch(1);
+            List<Runnable> tasks = new ArrayList<>();
+            for (int i = 0; i < maxThreads + 5; i++) {
+                tasks.add(() -> {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+            }
+            tasks.forEach(searchExecutor::execute);
+
+            assertBusy(() -> assertThat(searchExecutor.getCurrentQueueSize(), greaterThan(0)));
+
+            // queue is not empty so we should see backlog duration increasing over samples
+            searchLoadSampler.sample();
+            long firstSampleBacklog = searchLoadSampler.getExecutorLoadStats(SEARCH_EXECUTOR).queueBacklogDurationNanos();
+
+            // second sample should have higher backlog duration (using asserBusy to avoid flakiness due to timing)
+            assertBusy(() -> {
+                searchLoadSampler.sample();
+                long secondSampleBacklog = searchLoadSampler.getExecutorLoadStats(SEARCH_EXECUTOR).queueBacklogDurationNanos();
+                assertThat(secondSampleBacklog, greaterThan(firstSampleBacklog));
+            });
+
+            latch.countDown();
+            assertBusy(() -> assertThat(searchExecutor.getCurrentQueueSize(), equalTo(0)));
+
+            // sampling after clearing the queue resets backlog duration
+            searchLoadSampler.sample();
+            assertThat(searchLoadSampler.getExecutorLoadStats(SEARCH_EXECUTOR).queueBacklogDurationNanos(), equalTo(0L));
+        } finally {
+            terminate(threadpool);
+        }
+    }
+
 }

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.reshard;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;

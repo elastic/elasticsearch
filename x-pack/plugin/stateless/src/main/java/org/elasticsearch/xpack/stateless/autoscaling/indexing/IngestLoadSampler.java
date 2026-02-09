@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
-
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -33,6 +31,7 @@ import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import java.util.List;
 import java.util.Set;
@@ -41,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
+import static org.elasticsearch.xpack.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
 /**
  * This class takes care of sampling the node indexing load with a given frequency {@code SAMPLING_FREQUENCY_SETTING}

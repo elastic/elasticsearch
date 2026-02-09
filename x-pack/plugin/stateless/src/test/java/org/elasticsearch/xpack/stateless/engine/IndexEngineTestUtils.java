@@ -15,12 +15,11 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.Map;
 import java.util.Set;

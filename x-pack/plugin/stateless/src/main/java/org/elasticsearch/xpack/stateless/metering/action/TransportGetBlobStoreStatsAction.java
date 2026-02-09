@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.metering.action;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.StatelessComponents;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.metering.action;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -35,6 +31,9 @@ import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.StatelessComponents;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,7 +59,7 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
         RepositoriesService repositoriesService
     ) {
         super(
-            ServerlessStatelessPlugin.GET_BLOB_STORE_STATS_ACTION.name(),
+            StatelessPlugin.GET_BLOB_STORE_STATS_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
+package org.elasticsearch.xpack.stateless.allocation;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 
@@ -40,9 +40,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING;
 import static java.lang.Integer.parseInt;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.PER_INDEX_MAX_NUMBER_OF_SHARDS;
+import static org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;

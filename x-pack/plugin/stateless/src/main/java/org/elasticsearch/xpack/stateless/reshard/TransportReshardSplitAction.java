@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.reshard;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -137,26 +137,54 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
         )
             .<ActionResponse>andThen(
                 // Finally, initiate handoff.
-                (l, releasable) -> SubscribableListener.<ActionResponse>newForked(
-                    afterHandoff -> transportService.sendChildRequest(
+                (l, releasable) -> SubscribableListener.<ActionResponse>newForked(afterHandoff -> {
+                    logger.info("Source sending HANDOFF request to target {}", request.shardId);
+                    transportService.sendChildRequest(
                         request.targetNode,
                         SPLIT_HANDOFF_ACTION_NAME,
                         request,
                         task,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            ActionListener.runBefore(afterHandoff, () -> logger.debug("handoff to target {} complete", request.shardId)),
-                            in -> ActionResponse.Empty.INSTANCE,
-                            EsExecutors.DIRECT_EXECUTOR_SERVICE
-                        )
-                    )
-                ).addListener(ActionListener.runBefore(l, () -> {
-                    logger.debug("handoff attempt completed, releasing permits");
-                    releasable.close();
-                }))
+                        new ActionListenerResponseHandler<>(new ActionListener<>() {
+
+                            @Override
+                            public void onResponse(ActionResponse.Empty response) {
+                                logger.info("SPLIT_HANDOFF to target {} complete", request.shardId);
+                                afterHandoff.onResponse(response);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                // CUSTOM HANDOFF EXCEPTION HANDLING
+                                logger.error(Strings.format("SPLIT_HANDOFF to target {} FAILED, release permits", request.shardId), e);
+                                releasable.close();
+                                // propagate failure back up the async chain
+                                afterHandoff.onFailure(e);
+                            }
+                        }, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                    );
+                    // Make sure HANDOFF is observed on the source node before releasing permits. Otherwise,
+                    // requests can get routed incorrectly after target is actually in HANDOFF state.
+                }).andThen(afterHandoffObserved -> {
+                    logger.info("Source waiting to see HANDOFF state for target {}", request.shardId);
+                    splitSourceService.waitForTargetShardHandoff(request.shardId, ActionListener.wrap(ignored -> {
+                        logger.debug("Cluster state indicates HANDOFF complete; releasing permits for {}", request.shardId);
+                        releasable.close();
+                        afterHandoffObserved.onResponse(null);
+                    }, e -> {
+                        logger.error(Strings.format("Failed while waiting to see HANDOFF state for {}", request.shardId), e);
+                        releasable.close();
+                        afterHandoffObserved.onFailure(e);
+                    }));
+                }).addListener(l.map(ignored -> ActionResponse.Empty.INSTANCE))
             )
             // we are only interested in success/failure, the response is empty
-            .addListener(listener.map(ignored -> ActionResponse.Empty.INSTANCE));
+            .addListener(
+                ActionListener.runBefore(
+                    listener.map(ignored -> ActionResponse.Empty.INSTANCE),
+                    () -> logger.debug("START_SPLIT complete on source")
+                )
+            );
     }
 
     private void handleSplitHandoffOnTarget(Request request, ActionListener<Void> listener) {

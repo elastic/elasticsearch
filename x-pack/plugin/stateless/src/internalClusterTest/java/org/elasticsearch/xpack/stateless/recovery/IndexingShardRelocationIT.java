@@ -15,19 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.recovery;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
@@ -57,12 +45,14 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -87,12 +77,25 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,16 +117,16 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -135,7 +138,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class IndexingShardRelocationIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -145,7 +148,7 @@ public class IndexingShardRelocationIT extends AbstractServerlessStatelessPlugin
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(DisableWarmOnUploadPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
@@ -1046,7 +1049,7 @@ public class IndexingShardRelocationIT extends AbstractServerlessStatelessPlugin
         ensureGreen(indexName);
     }
 
-    public static class DisableWarmOnUploadPlugin extends ServerlessStatelessPlugin {
+    public static class DisableWarmOnUploadPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         static final Setting<Boolean> ENABLED_WARMING = Setting.boolSetting(
             "test.stateless.warm_on_upload_enabled",
@@ -1068,25 +1071,26 @@ public class IndexingShardRelocationIT extends AbstractServerlessStatelessPlugin
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            Settings settings
+            ClusterSettings clusterSettings
         ) {
-            if (ENABLED_WARMING.get(settings)) {
-                return super.createSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings);
+            if (clusterSettings.get(ENABLED_WARMING)) {
+                return super.createSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings);
             }
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
                 @Override
                 protected void warmCacheRecovery(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    @Nullable Map<BlobFile, Integer> regionsToWarm,
                     ActionListener<Void> listener
                 ) {
                     // Makes sure recovery warming is completed before continuing with the shard recovery, so that when the test checks
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCacheRecovery(type, indexShard, commit, directory, subscribableListener);
+                    super.warmCacheRecovery(type, indexShard, commit, directory, regionsToWarm, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }
@@ -1195,7 +1199,7 @@ public class IndexingShardRelocationIT extends AbstractServerlessStatelessPlugin
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNode))));
         ensureGreen(indexName);
 
-        var cacheService = internalCluster().getInstance(ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
+        var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         // Hollow shard force flushes a second BCC and results in two writes on the cache instead of 1.
         long expectedWritesAndMissesCount = hollowEnabled ? 2L : 1L;
         assertThat(cacheService.getStats().writeCount(), equalTo(expectedWritesAndMissesCount));

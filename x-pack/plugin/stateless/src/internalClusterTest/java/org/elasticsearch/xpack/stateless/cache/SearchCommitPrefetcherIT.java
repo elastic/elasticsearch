@@ -15,30 +15,17 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
-import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
-import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.SearchEngine;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -53,30 +40,45 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkResponse;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
+import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toPageAlignedSize;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -85,7 +87,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -95,8 +97,8 @@ public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginI
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPluginNoRecoveryPrewarming.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPluginNoRecoveryPrewarming.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
@@ -191,7 +193,12 @@ public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginI
         // testing that the first commit notification received after the search node started is used as the
         // lower bound of things to prefetch (put another way, we won't donwload files from commits that were created in previous
         // generations)
-        var nodeSettings = Settings.builder().put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false).build();
+        var nodeSettings = Settings.builder()
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
+            // TODO fix this test to work with this randomized
+            // TODO this does more reading & caching because it reads all referenced CCs
+            .put(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            .build();
         startMasterAndIndexNode(nodeSettings);
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -341,6 +348,9 @@ public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginI
         var prefetchNonUploadedCommits = randomBoolean();
         var nodeSettings = Settings.builder()
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
+            // TODO fix this test to work with this randomized
+            // TODO this does more reading & caching because it reads all referenced CCs
+            .put(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
@@ -416,7 +426,12 @@ public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginI
     }
 
     public void testOnNonUploadedCommitNotificationsTryToPrefetchUploadedData() throws Exception {
-        var nodeSettings = Settings.builder().put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false).build();
+        var nodeSettings = Settings.builder()
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
+            // TODO fix this test to work with this randomized
+            // TODO this does more reading & caching because it reads all referenced CCs
+            .put(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
         var indexName = randomIdentifier();
@@ -735,9 +750,9 @@ public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginI
         return bytesReadFromBlobStore;
     }
 
-    public static final class TestServerlessStatelessPluginNoRecoveryPrewarming extends ServerlessStatelessPlugin {
+    public static final class TestStatelessPluginNoRecoveryPrewarming extends TestUtils.StatelessPluginWithTrialLicense {
 
-        public TestServerlessStatelessPluginNoRecoveryPrewarming(Settings settings) {
+        public TestStatelessPluginNoRecoveryPrewarming(Settings settings) {
             super(settings);
         }
 
@@ -746,16 +761,17 @@ public class SearchCommitPrefetcherIT extends AbstractServerlessStatelessPluginI
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            Settings settings
+            ClusterSettings clusterSettings
         ) {
             // no-op the warming on shard recovery so we do not introduce noise in the testing
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
                 @Override
                 public void warmCacheForShardRecovery(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
-                    BlobStoreCacheDirectory directory
+                    BlobStoreCacheDirectory directory,
+                    @Nullable Map<BlobFile, Integer> regionsToWarm
                 ) {}
             };
         }

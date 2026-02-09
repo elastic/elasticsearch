@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -55,11 +55,11 @@ import java.util.Map;
  * <p>
  * To use this class in -IT (integration) tests, first make a custom {@link StatelessMockRepositoryStrategy} implementation. Then add the
  * {@link StatelessMockRepositoryPlugin} to the node plugins -- usually via overriding
- * {@link AbstractServerlessStatelessPluginIntegTestCase#nodePlugins()}.
+ * {@link AbstractStatelessPluginIntegTestCase#nodePlugins()}.
  * A particular strategy implementation can then be set and fetched via helper methods
- * {@link AbstractServerlessStatelessPluginIntegTestCase#setNodeRepositoryStrategy(String, StatelessMockRepositoryStrategy)} and
- * {@link AbstractServerlessStatelessPluginIntegTestCase#getNodeRepositoryStrategy(String)} (cast to the strategy implementation),and
- * helpers like {@link AbstractServerlessStatelessPluginIntegTestCase#startMasterOnlyNode(StatelessMockRepositoryStrategy)} can be added.
+ * {@link AbstractStatelessPluginIntegTestCase#setNodeRepositoryStrategy(String, StatelessMockRepositoryStrategy)} and
+ * {@link AbstractStatelessPluginIntegTestCase#getNodeRepositoryStrategy(String)} (cast to the strategy implementation),and
+ * helpers like {@link AbstractStatelessPluginIntegTestCase#startMasterOnlyNode(StatelessMockRepositoryStrategy)} can be added.
  *
  * <p>
  * The interfaces of this class, or one of its internal classes, and {@link StatelessMockRepositoryStrategy} should be extended with more

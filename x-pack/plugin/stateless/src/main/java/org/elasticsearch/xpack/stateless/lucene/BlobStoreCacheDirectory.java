@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
-
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,9 +38,11 @@ import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -78,20 +77,24 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     protected volatile long currentDataSetSizeInBytes = 0L;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
-        this(cacheService, shardId, new LongAdder(), new LongAdder());
+        this(cacheService, shardId, new LongAdder(), new LongAdder(), null);
     }
 
     protected BlobStoreCacheDirectory(
         StatelessSharedBlobCacheService cacheService,
         ShardId shardId,
         LongAdder totalBytesRead,
-        LongAdder totalBytesWarmed
+        LongAdder totalBytesWarmed,
+        @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
         this.totalBytesReadFromObjectStore = totalBytesRead;
         this.totalBytesWarmedFromObjectStore = totalBytesWarmed;
+        if (blobContainerFunction != null) {
+            setBlobContainer(blobContainerFunction);
+        }
     }
 
     @Override
@@ -295,7 +298,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     ) {
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
-            getCacheBlobReader(name, blobFileRanges.blobLocation()),
+            getCacheBlobReader(name, blobFileRanges.blobLocation().blobFile()),
             blobFileRanges,
             blobCacheMetrics,
             cacheService.getThreadPool().relativeTimeInMillisSupplier()
@@ -319,20 +322,19 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * Returns a CacheBlobReader for reading a specific file from the blob store.
      *
      * @param fileName the name of the file to be read
-     * @param blobLocation the location of the blob containing the file
+     * @param blobFile the blob file
      * @return a CacheBlobReader for reading the specified file
      */
-    protected abstract CacheBlobReader getCacheBlobReader(String fileName, BlobLocation blobLocation);
+    protected abstract CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile);
 
     /**
      * Returns a CacheBlobReader for reading a specific file from the blob store
      * for warming purposes.
      *
-     * @param fileName the name of the file to be read
-     * @param blobLocation the location of the blob containing the file
+     * @param blobFile the blob file
      * @return a CacheBlobReader for reading the specified file
      */
-    public abstract CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation blobLocation);
+    public abstract CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile);
 
     @Override
     public void close() throws IOException {
@@ -378,9 +380,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * @return the {@link BlobStoreCacheDirectory} to use for pre-warming, warming or reading BCC purpose.
      * Note: the bytes read using this instance are always added to {@link #totalBytesWarmedFromObjectStore}.
      */
-    public BlobStoreCacheDirectory createNewInstance() {
-        return this;
-    }
+    public abstract BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming();
 
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";

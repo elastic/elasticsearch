@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster.coordination;
-
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -38,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,9 +50,9 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static co.elastic.elasticsearch.stateless.cluster.coordination.StatelessLease.LEGACY_FORMAT_VERSION;
-import static co.elastic.elasticsearch.stateless.cluster.coordination.StatelessLease.V1_FORMAT_VERSION;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessLease.LEGACY_FORMAT_VERSION;
+import static org.elasticsearch.xpack.stateless.cluster.coordination.StatelessLease.V1_FORMAT_VERSION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

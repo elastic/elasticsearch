@@ -13,13 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
-
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -56,6 +52,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -71,10 +68,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
+import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -105,7 +102,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             IndexDirectory indexDirectory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
                 new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
-                null
+                null,
+                true
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -176,7 +174,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             IndexDirectory indexDirectory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
                 new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
-                null
+                null,
+                true
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);

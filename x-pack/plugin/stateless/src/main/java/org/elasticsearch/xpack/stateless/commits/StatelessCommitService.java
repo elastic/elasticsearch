@@ -13,17 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,23 +74,15 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.AbstractBatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
-import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
-import org.elasticsearch.xpack.stateless.commits.IndexEngineLocalReaderListener;
-import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
-import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsTracker;
-import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
-import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
-import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 
 import java.io.IOException;

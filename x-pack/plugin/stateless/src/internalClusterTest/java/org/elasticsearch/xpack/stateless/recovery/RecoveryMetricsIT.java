@@ -15,15 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.recovery;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
-import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
+package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -36,6 +28,13 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -44,17 +43,17 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RecoveryMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

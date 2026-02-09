@@ -15,15 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -100,9 +92,16 @@ import org.elasticsearch.xpack.shutdown.GetShutdownStatusAction;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -127,13 +126,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -150,7 +149,7 @@ import static org.hamcrest.Matchers.oneOf;
 // Disabling WindowsFS because it prevents file deletions and ExtrasFS because it adds unnecessary files in Lucene index and tests in this
 // class verify the content of Lucene directories
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
-public class StatelessIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -207,7 +206,7 @@ public class StatelessIT extends AbstractServerlessStatelessPluginIntegTestCase 
         ensureStableCluster(numIndexNodes + 1);
 
         var plugins = StreamSupport.stream(internalCluster().getInstances(PluginsService.class).spliterator(), false)
-            .flatMap(ps -> ps.filterPlugins(ServerlessStatelessPlugin.class))
+            .flatMap(ps -> ps.filterPlugins(StatelessPlugin.class))
             .toList();
         assertThat(plugins.size(), greaterThan(0));
     }
@@ -372,10 +371,11 @@ public class StatelessIT extends AbstractServerlessStatelessPluginIntegTestCase 
         // Ensure that an automatic flush cannot clean translog
         ObjectStoreService objectStoreService = getObjectStoreService(indexNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+        repository.setRandomIOExceptionPattern(".*translog.*");
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-        repository.setRandomIOExceptionPattern(".*translog.*");
 
         var bulkRequest = client().prepareBulk();
         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
@@ -445,10 +445,11 @@ public class StatelessIT extends AbstractServerlessStatelessPluginIntegTestCase 
         for (String indexingNode : indexingNodes) {
             ObjectStoreService objectStoreService = getObjectStoreService(indexingNode);
             MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+            // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+            repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
             repository.setRandomControlIOExceptionRate(1.0);
             repository.setRandomDataFileIOExceptionRate(1.0);
             repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-            repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
         }
 
         final int iters = randomIntBetween(1, 20);

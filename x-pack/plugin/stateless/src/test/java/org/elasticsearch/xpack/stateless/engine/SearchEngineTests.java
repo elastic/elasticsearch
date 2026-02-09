@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
@@ -33,16 +30,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.engine.Engine.SearcherSupplier;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
+import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
-import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.mockito.Mockito;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -681,6 +684,112 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             try (var ignored = searchEngine.acquireSearcher(randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE))) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentTimeMillis()));
             }
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testSetLastSearcherIsOnlyUpdatedWhenNewer() throws IOException {
+        final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
+        final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(0L));
+
+            searchEngine.setLastSearcherAcquiredTime(10L);
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(10L));
+
+            searchEngine.setLastSearcherAcquiredTime(5L);
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(10L));
+        }
+
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    /**
+     * Check that we can get a searcher for a specific commit from a segment file name and associated metadata.
+     * This is used for PIT relocation and should also take into account the searcher wrapper
+     */
+    public void testAcquiredSearcherForCommit() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            int numDocs = between(0, 100);
+            for (int i = 0; i < numDocs; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+            }
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            Engine.IndexCommitRef commit1 = searchEngine.acquireLastIndexCommit(false);
+            Map<String, BlobLocation> metadata = null;
+            try (DirectoryReader reader = DirectoryReader.open(commit1.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(numDocs));
+                SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
+                metadata = searchDirectory.getBlobLocationForFiles(commit1.getIndexCommit().getFileNames());
+            }
+            String segmentsFileName = commit1.getIndexCommit().getSegmentsFileName();
+
+            int moreDocs = between(0, 100);
+            for (int i = 0; i < moreDocs; i++) {
+                indexEngine.index(randomDoc("more-" + i));
+            }
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            Engine.IndexCommitRef commit2 = searchEngine.acquireLastIndexCommit(false);
+            try (DirectoryReader reader = DirectoryReader.open(commit2.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(numDocs + moreDocs));
+            }
+
+            PlainActionFuture<Boolean> wrapperCalled = new PlainActionFuture<>();
+            PlainActionFuture<Boolean> searcherClosed = new PlainActionFuture<>();
+            Function<Searcher, Searcher> wrapper = s -> {
+                wrapperCalled.onResponse(Boolean.TRUE);
+                return new Searcher(
+                    "my_wrapper",
+                    s.getDirectoryReader(),
+                    s.getSimilarity(),
+                    s.getQueryCache(),
+                    s.getQueryCachingPolicy(),
+                    new Closeable() {
+                        @Override
+                        public void close() throws IOException {
+                            s.close();
+                            searcherClosed.onResponse(Boolean.TRUE);
+                        }
+                    }
+                );
+            }; // no-op wrapper
+
+            ActionListener<SearcherSupplier> listener = ActionListener.wrap(supplier -> {
+                try (Searcher searcher = supplier.acquireSearcher("test")) {
+                    assertEquals("my_wrapper", searcher.source());
+                    assertThat(searcher.getDirectoryReader().numDocs(), equalTo(numDocs));
+                }
+            }, e -> { fail("listener should not have failed: " + e.getMessage()); });
+
+            // try getting a searcher for commit1
+            searchEngine.acquireSearcherForCommit(segmentsFileName, metadata, wrapper, listener);
+            searchTaskQueue.runAllRunnableTasks();
+            assertTrue(wrapperCalled.actionGet(TimeValue.timeValueSeconds(1L)));
+            assertTrue(searcherClosed.actionGet(TimeValue.timeValueSeconds(1L)));
+
+            IOUtils.close(commit1, commit2);
         }
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "

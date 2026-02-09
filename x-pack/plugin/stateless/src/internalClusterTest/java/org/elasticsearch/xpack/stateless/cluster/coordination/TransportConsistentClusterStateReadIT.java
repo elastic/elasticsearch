@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster.coordination;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +28,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -47,7 +46,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TransportConsistentClusterStateReadIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class TransportConsistentClusterStateReadIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testConsistentClusterStateRead() throws Exception {
         var masterNode = startMasterOnlyNode();

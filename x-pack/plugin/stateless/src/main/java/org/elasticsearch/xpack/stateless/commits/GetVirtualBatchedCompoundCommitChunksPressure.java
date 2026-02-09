@@ -13,15 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,6 +29,9 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -49,7 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * Note that there are a couple more safeguards that should help avoid reaching the limit in the first place. First, search nodes should be
  * typically sending requests with lengths of size up to 128KiB (see chunk size setting of {@link CacheBlobReaderService}). Second,
- * the VBCC chunk thread pool of {@link ServerlessStatelessPlugin} that services this action, has a limited max size even on larger
+ * the VBCC chunk thread pool of {@link StatelessPlugin} that services this action, has a limited max size even on larger
  * servers. For this latter point, keep in mind that responses are sent from the transport threads, and the pressure mechanism is also
  * useful for this, as a preventive mechanism to avoid having too many responses sitting in memory.
  */

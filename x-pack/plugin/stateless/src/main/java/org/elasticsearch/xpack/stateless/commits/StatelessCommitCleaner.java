@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
@@ -36,7 +33,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.ArrayList;
 import java.util.Collections;

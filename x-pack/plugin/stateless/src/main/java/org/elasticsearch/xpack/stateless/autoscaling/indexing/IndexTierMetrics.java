@@ -15,16 +15,15 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
-
-import co.elastic.elasticsearch.stateless.autoscaling.AbstractBaseTierMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.stateless.autoscaling.AbstractBaseTierMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.AutoscalingMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetrics;
 
 import java.io.IOException;
 import java.util.List;

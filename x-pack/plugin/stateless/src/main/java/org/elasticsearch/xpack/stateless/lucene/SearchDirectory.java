@@ -13,25 +13,21 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
-
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -39,6 +35,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -54,6 +54,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
@@ -150,11 +152,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /**
      * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
-     *
-     * @param newCommit map of file name to store metadata
-     * @return true if this update advanced the commit tracked by this directory
+     * This allows overriding the commit file ranges.
      */
-    public boolean updateCommit(StatelessCompoundCommit newCommit) {
+    public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRanges) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
@@ -163,29 +163,29 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             final var updatedMetadata = new HashMap<>(currentMetadata);
             PrimaryTermAndGeneration generationalFilesTermAndGen = null;
             long commitSize = 0L;
-            for (var entry : newCommit.commitFiles().entrySet()) {
+            for (var entry : commitFilesRanges.entrySet()) {
                 var fileName = entry.getKey();
-                var blobLocation = entry.getValue();
+                var commitFileRanges = entry.getValue();
                 if (isGenerationalFile(fileName)) {
                     // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
                     // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
                     // instances).
-                    updatedMetadata.putIfAbsent(fileName, new BlobFileRanges(blobLocation));
+                    updatedMetadata.putIfAbsent(fileName, commitFileRanges);
                     if (generationalFilesTermAndGen == null) {
-                        generationalFilesTermAndGen = blobLocation.getBatchedCompoundCommitTermAndGeneration();
+                        generationalFilesTermAndGen = commitFileRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
-                    assert blobLocation.getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
+                    assert commitFileRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
                         : "Because they are either new or copied, generational files should all belong to the same BCC, but "
                             + fileName
                             + " has location "
-                            + blobLocation
+                            + commitFileRanges.blobLocation()
                             + " which is different from "
                             + generationalFilesTermAndGen;
                 } else {
-                    updatedMetadata.put(fileName, new BlobFileRanges(blobLocation));
+                    updatedMetadata.put(fileName, commitFileRanges);
                 }
-                commitSize += blobLocation.fileLength();
+                commitSize += commitFileRanges.blobLocation().fileLength();
             }
             // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
             // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted
@@ -220,6 +220,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
             }
         }
+    }
+
+    /**
+     * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
+     * The file metadata does NOT take advantage of the replicated headers and footers in the CC headers.
+     *
+     * @param newCommit map of file name to store metadata
+     * @return true if this update advanced the commit tracked by this directory
+     */
+    public boolean updateCommit(StatelessCompoundCommit newCommit) {
+        return updateCommit(
+            newCommit,
+            newCommit.commitFiles()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> new BlobFileRanges(entry.getValue())))
+        );
     }
 
     /**
@@ -269,21 +286,21 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReader(String fileName, BlobLocation blobLocation) {
+    public CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
         return getCacheBlobReader(
             fileName,
-            blobLocation,
+            blobFile,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
             cacheService.getShardReadThreadPoolExecutor()
         );
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation blobLocation) {
+    public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         return getCacheBlobReader(
-            fileName,
-            blobLocation,
+            blobFile.blobName(),
+            blobFile,
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -293,18 +310,17 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * Returns a CacheBlobReader for reading a specific file from the blob store
      * for search online prewarming purposes (i.e. as a result of an incoming
      * search request targeting this shard)
-     *
+     * <p>
      * We allow creating this reader from any thread but the actual downloading of
      * bytes will happen on the stateless_prewarm pool.
      *
-     * @param fileName the name of the file to be read
-     * @param blobLocation the location of the blob containing the file
+     * @param blobFile the blob file
      * @return a CacheBlobReader for reading the specified file
      */
-    public CacheBlobReader getCacheBlobReaderForSearchOnlineWarming(String fileName, BlobLocation blobLocation) {
+    public CacheBlobReader getCacheBlobReaderForSearchOnlineWarming(BlobFile blobFile) {
         return getCacheBlobReader(
-            fileName,
-            blobLocation,
+            blobFile.blobName(),
+            blobFile,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -314,18 +330,17 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * Returns a CacheBlobReader for reading a specific file from the blob store
      * for proactive commit prefetching purposes (i.e. triggered by commit notifications
      * to improve future search performance)
-     *
+     * <p>
      * We allow creating this reader from any thread but the actual downloading of
      * bytes will happen on the stateless_prewarm pool.
      *
-     * @param fileName the name of the file to be read
-     * @param blobLocation the location of the blob containing the file
+     * @param blobFile blob file
      * @return a CacheBlobReader for reading the specified file
      */
-    public CacheBlobReader getCacheBlobReaderForPreFetching(String fileName, BlobLocation blobLocation) {
+    public CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile) {
         return getCacheBlobReader(
-            fileName,
-            blobLocation,
+            blobFile.blobName(),
+            blobFile,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -333,14 +348,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     private CacheBlobReader getCacheBlobReader(
         String fileName,
-        BlobLocation blobLocation,
+        BlobFile blobFile,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         Executor executor
     ) {
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
-            blobLocation,
+            blobFile,
             objectStoreUploadTracker,
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
@@ -348,6 +363,41 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             executor,
             fileName
         );
+    }
+
+    @Override
+    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
+        return createNewInstance(blobContainer.get());
+    }
+
+    private BlobStoreCacheDirectory createNewInstance(@Nullable LongFunction<BlobContainer> blobContainerFunction) {
+        return new BlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore,
+            blobContainerFunction
+        ) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                return SearchDirectory.this.getCacheBlobReader(
+                    fileName,
+                    blobFile,
+                    BlobCacheMetrics.CachePopulationReason.Warming,
+                    getCacheService().getShardReadThreadPoolExecutor()
+                );
+            }
+
+            @Override
+            public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
+                return getCacheBlobReader(blobFile.blobName(), blobFile);
+            }
+
+            @Override
+            public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
+                return SearchDirectory.this.createNewInstance(this::getBlobContainer);
+            }
+        };
     }
 
     public long totalBytesReadFromIndexing() {
@@ -414,5 +464,43 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
         }
         super.close();
+    }
+
+    /**
+     * Get the current metadata for the specified files.
+     * We e.g. use this during PIT context transfer between nodes in Serverless.
+     */
+    public Map<String, BlobLocation> getBlobLocationForFiles(Collection<String> fileNames) {
+        Map<String, BlobLocation> metadata = new HashMap<>(fileNames.size());
+        for (String fileName : fileNames) {
+            BlobFileRanges blobFileRanges = currentMetadata.get(fileName);
+            if (blobFileRanges != null) {
+                metadata.put(fileName, blobFileRanges.blobLocation());
+            }
+        }
+        assert fileNames.size() == metadata.size()
+            : "We should find the blob file range for all the requested files but found filenames ["
+                + fileNames
+                + "] and metadata keys ["
+                + metadata.keySet()
+                + "]";
+        return metadata;
+    }
+
+    /**
+     * Merge the incoming metadata into the current metadata.
+     * This is used to merge file metadata from other PIT contexts coming from other nodes.
+     */
+    public void mergeMetadata(Map<String, BlobLocation> incomingMetadata) {
+        final var updated = new HashMap<>(currentMetadata);
+        for (Map.Entry<String, BlobLocation> entry : incomingMetadata.entrySet()) {
+            String fileName = entry.getKey();
+            if (currentMetadata.containsKey(fileName)) {
+                assert currentMetadata.get(fileName).blobLocation().equals(entry.getValue());
+            } else {
+                updated.put(fileName, new BlobFileRanges(entry.getValue()));
+            }
+        }
+        currentMetadata = updated;
     }
 }

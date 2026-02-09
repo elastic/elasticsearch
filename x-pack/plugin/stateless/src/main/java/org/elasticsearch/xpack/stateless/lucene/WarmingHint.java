@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.lucene.store.IOContext;
 

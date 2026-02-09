@@ -13,16 +13,13 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.cache.reader;
-
-import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
+package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.InputStream;
 

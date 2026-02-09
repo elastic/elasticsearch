@@ -15,15 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.recovery;
-
-import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -51,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -72,6 +65,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
@@ -93,19 +93,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     public static final String START_RELOCATION_ACTION_NAME = TYPE.name() + "/start";
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = TYPE.name() + "/primary_context_handoff";
-
-    public static final Setting<TimeValue> SLOW_SECONDARY_FLUSH_THRESHOLD_SETTING = Setting.timeSetting(
-        "serverless.cluster.primary_relocation.slow_secondary_flush_threshold",
-        TimeValue.timeValueSeconds(3),
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-    public static final Setting<TimeValue> SLOW_HANDOFF_WARMING_THRESHOLD_SETTING = Setting.timeSetting(
-        "serverless.cluster.primary_relocation.slow_handoff_warming_threshold",
-        TimeValue.timeValueSeconds(5),
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
         "serverless.cluster.primary_relocation.slow_handoff_warning_threshold",
@@ -296,10 +283,16 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         // The block will be removed when the source shard is successfully relocated and closed,
                         // or will remain in place if the relocation fails until the shard is unhollowed.
                         logger.debug(() -> "hollowing index engine for shard " + shardId);
-                        // We prewarm, because the new HollowIndexEngine potentially needs to read referenced .si files, and prewarming
-                        // brings them in the cache in parallel, rather than the engine fetching them on-demand sequentially.
-                        // TODO: remove prewarming if and when we optimize reading .si files (ES-11204)
-                        indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.HOLLOWING);
+
+                        final var idxVersion = indexShard.indexSettings().getIndexVersionCreated();
+                        if (idxVersion.before(IndexVersions.READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS)) {
+                            // The HollowIndexEngine potentially needs to read referenced .si files.
+                            // On or after the READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS index version those files wil be read from
+                            // memory but before that version, we should prewarm to brings them in the cache in parallel, rather than
+                            // letting the engine fetch them on-demand sequentially.
+                            indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.HOLLOWING);
+                        }
+
                         long startTime = threadPool.relativeTimeInMillisSupplier().getAsLong();
                         try {
                             indexShard.resetEngine(newEngine -> {
@@ -367,7 +360,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
                         boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
                         if (aboveThreshold || logger.isDebugEnabled()) {
-
+                            final var indexingStats = indexShard.indexingStats().getTotal();
                             final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
                             final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
                             final var message = new ESLogMessage(
@@ -396,7 +389,13 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                     "elasticsearch.primary.relocation.second_flush_duration",
                                     secondFlushDuration.millis(),
                                     "elasticsearch.primary.relocation.handoff_duration",
-                                    handOffDuration.millis()
+                                    handOffDuration.millis(),
+                                    "elasticsearch.primary.write_load",
+                                    indexingStats.getWriteLoad(),
+                                    "elasticsearch.primary.recent_write_load",
+                                    indexingStats.getRecentWriteLoad(),
+                                    "elasticsearch.primary.peak_write_load",
+                                    indexingStats.getPeakWriteLoad()
                                 )
                             );
                             logger.log(Level.INFO, message);

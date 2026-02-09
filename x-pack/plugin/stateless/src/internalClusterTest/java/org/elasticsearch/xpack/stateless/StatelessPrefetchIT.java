@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.Settings;
@@ -28,14 +25,16 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.Collection;
 import java.util.Locale;
 
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 
-public class StatelessPrefetchIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessPrefetchIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {

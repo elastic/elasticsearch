@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.multiproject;
-
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.multiproject;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +41,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 import org.hamcrest.Matchers;
 
@@ -52,8 +51,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 
 public class ProjectLifeCycleServiceTests extends ESTestCase {
 

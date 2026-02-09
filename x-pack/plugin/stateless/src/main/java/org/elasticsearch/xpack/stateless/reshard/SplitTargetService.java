@@ -15,21 +15,25 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.reshard;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -43,18 +47,38 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class SplitTargetService {
     public static final Setting<TimeValue> RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT = Setting.positiveTimeSetting(
         "reshard.split.search_shards_online_timeout",
         TimeValue.timeValueSeconds(30),
+        Setting.Property.NodeScope
+    );
+
+    // Refresh is blocked while we are awaiting SPLIT state application on all cluster members.
+    // This is needed since otherwise a successful refresh can be performed by a coordinator aware of SPLIT
+    // followed a search performed by a coordinator that is not.
+    // Such a search would not contain documents that were just successfully refreshed from the clients point of view.
+    // The chance of observing this decreases as the time passes
+    // since we get the chance to propagate the updated cluster state and kick out stragglers.
+    // This timeout balances between this chance and the impact of refresh block on client operations.
+    // It does mean that in current implementation this situation can still happen once we reach this timeout and give up,
+    // we are just trying to minimize the possibility.
+    // In practice though nodes that are not applying cluster state updates should be kicked out of the cluster
+    // unblocking us.
+    public static final Setting<TimeValue> RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT = Setting.positiveTimeSetting(
+        "reshard.split.split_state_applied_timeout",
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
     );
 
@@ -64,14 +88,16 @@ public class SplitTargetService {
     private final ClusterService clusterService;
     private final ReshardIndexService reshardIndexService;
     private final TimeValue searchShardsOnlineTimeout;
+    private final TimeValue splitStateAppliedTimeout;
 
     private final ConcurrentHashMap<IndexShard, StateMachine> onGoingSplits = new ConcurrentHashMap<>();
 
     public SplitTargetService(Settings settings, Client client, ClusterService clusterService, ReshardIndexService reshardIndexService) {
         this.client = client;
         this.clusterService = clusterService;
-        this.searchShardsOnlineTimeout = RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.get(settings);
         this.reshardIndexService = reshardIndexService;
+        this.searchShardsOnlineTimeout = RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.get(settings);
+        this.splitStateAppliedTimeout = RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT.get(settings);
     }
 
     public void startSplitTargetShardRecovery(IndexShard indexShard, IndexMetadata indexMetadata, ActionListener<Void> recoveryListener) {
@@ -197,7 +223,7 @@ public class SplitTargetService {
             this.currentState = newState;
 
             // TODO relax logging once implementation is stable
-            logger.info("Advancing split target shard state machine for shard " + shard.shardId() + " to " + newState);
+            logger.info("Advancing split target shard state machine for shard {} to {}", shard.shardId(), newState);
 
             switch (newState) {
                 case State.Clone clone -> {
@@ -224,10 +250,10 @@ public class SplitTargetService {
                 case State.StartSplitRpcComplete startSplitRpcComplete -> {
                     // Now that the handoff is complete and we know that all needed data is present,
                     // we can proceed with recovery and start this shard.
-                    // We fork recovery and then for the shard to be started
+                    // We fork recovery and then wait for the shard to be started
                     // so that it is ready for the next steps.
                     clusterService.threadPool().generic().submit(() -> startSplitRpcComplete.recoveryListener.onResponse(null));
-                    waitForShardStarted(new State.Handoff());
+                    waitForShardStarted(new StateAdvancingListener<>(new State.Handoff()));
                 }
                 case State.Handoff ignored -> {
                     waitUntilSearchShardsAreOnline();
@@ -236,6 +262,11 @@ public class SplitTargetService {
                     changeStateToSplit();
                 }
                 case State.Split ignored -> {
+                    awaitSplitApplied(new StateAdvancingListener<>(new State.SplitApplied()));
+                }
+                case State.SplitApplied splitApplied -> {
+                    logger.info("notifying of split completion for target shard {}", shard.shardId());
+                    reshardIndexService.notifySplitCompletion(shard.shardId());
                     deleteUnownedData();
                 }
                 case State.UnownedDataDeleted ignored -> {
@@ -247,10 +278,18 @@ public class SplitTargetService {
                 }
 
                 case State.RecoveringInHandoff ignored -> {
-                    waitForShardStarted(new State.Handoff());
+                    waitForShardStarted(new StateAdvancingListener<>(new State.Handoff()));
                 }
                 case State.RecoveringInSplit ignored -> {
-                    waitForShardStarted(new State.Split());
+                    /// We need to confirm that coordinators are aware of SPLIT state before proceeding further.
+                    /// If they are not we can return stale search results from the source shard
+                    /// after a successful write to the target shard and refresh.
+                    /// Note that we'll automatically apply a refresh block since the current state is SPLIT,
+                    /// see [ReshardIndexService#maybeAwaitSplit].
+                    /// As such it's okay to have the shard start here before awaiting SPLIT application.
+                    SubscribableListener.newForked(this::waitForShardStarted)
+                        .andThen(this::awaitSplitApplied)
+                        .addListener(new StateAdvancingListener<>(new State.SplitApplied()));
                 }
 
                 case State.FailedInRecovery failedInRecovery -> {
@@ -262,6 +301,20 @@ public class SplitTargetService {
                     }
 
                     logger.warn("Failed to complete split target shard sequence", failed.exception);
+
+                    if (failed.destinationState instanceof State.Split) {
+                        reshardIndexService.notifySplitFailure(shard.shardId(), failed.exception);
+                        /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
+                        /// due to the `notifySplitFailure` call above.
+                        /// There is nothing we can really do at this point to recover so we hope we can figure this out on recovery.
+                        /// Note that this is technically impossible in the existing implementation since we retry all failures
+                        /// until the shard is closed in [ChangeState#shouldRetry].
+                        /// That logic may change though and then this becomes relevant.
+                        /// For example if we discover that the primary term of the shard advanced when we tried to update state,
+                        /// there is no reason to retry since we will never succeed.
+                        shard.failShard("Failed to transition split target shard to SPLIT state", failed.exception);
+                    }
+
                     // TODO consider failing shard here when appropriate
                     // currently we assume that if the split flow has failed, the engine failed as well.
                 }
@@ -288,15 +341,25 @@ public class SplitTargetService {
                 put(State.StartSplitRpcComplete.class, Set.of(State.HandoffReceived.class));
                 put(State.Handoff.class, Set.of(State.StartSplitRpcComplete.class, State.RecoveringInHandoff.class));
                 put(State.SearchShardsOnline.class, Set.of(State.Handoff.class));
-                put(State.Split.class, Set.of(State.SearchShardsOnline.class, State.RecoveringInSplit.class));
-                put(State.UnownedDataDeleted.class, Set.of(State.Split.class));
+                put(State.Split.class, Set.of(State.SearchShardsOnline.class));
+                put(State.SplitApplied.class, Set.of(State.Split.class, State.RecoveringInSplit.class));
+                put(State.UnownedDataDeleted.class, Set.of(State.SplitApplied.class));
                 put(State.Done.class, Set.of(State.UnownedDataDeleted.class));
 
                 put(State.RecoveringInHandoff.class, Set.of(State.RecoveringInHandoff.class));
                 put(State.RecoveringInSplit.class, Set.of(State.RecoveringInSplit.class));
 
                 put(State.FailedInRecovery.class, Set.of(State.WaitingForHandoff.class, State.HandoffReceived.class));
-                put(State.Failed.class, Set.of(State.SearchShardsOnline.class, State.Split.class, State.UnownedDataDeleted.class));
+                put(
+                    State.Failed.class,
+                    Set.of(
+                        State.SearchShardsOnline.class,
+                        State.Split.class,
+                        State.SplitApplied.class,
+                        State.UnownedDataDeleted.class,
+                        State.RecoveringInSplit.class
+                    )
+                );
             }
         };
 
@@ -304,8 +367,8 @@ public class SplitTargetService {
         /// State transitions are always performed in the order of definition except for the failure states.
         /// E.g.  we always transition SearchShardsOnline -> Split.
         sealed interface State permits State.Clone, State.WaitingForHandoff, State.HandoffReceived, State.StartSplitRpcComplete,
-            State.Handoff, State.SearchShardsOnline, State.Split, State.UnownedDataDeleted, State.Done, State.RecoveringInHandoff,
-            State.RecoveringInSplit, State.FailedInRecovery, State.Failed {
+            State.Handoff, State.SearchShardsOnline, State.Split, State.SplitApplied, State.UnownedDataDeleted, State.Done,
+            State.RecoveringInHandoff, State.RecoveringInSplit, State.FailedInRecovery, State.Failed {
             // Corresponds to CLONE state of a target shard.
             record Clone(ActionListener<Void> recoveryListener) implements State {}
 
@@ -320,8 +383,11 @@ public class SplitTargetService {
 
             record SearchShardsOnline() implements State {}
 
-            // Corresponds to SPLIT state of a target shard.
+            // SPLIT state was applied on the master node.
+            // It is not necessarily applied on other nodes in the cluster.
             record Split() implements State {}
+
+            record SplitApplied() implements State {}
 
             record UnownedDataDeleted() implements State {}
 
@@ -344,7 +410,8 @@ public class SplitTargetService {
             // (it's not started during recovery) and failure handling is different as a result.
             record FailedInRecovery(Exception exception, ActionListener<Void> recoveryListener) implements State {}
 
-            record Failed(Exception exception) implements State {}
+            /// @param destinationState next state that we attempted to transition to but failed
+            record Failed(Exception exception, State destinationState) implements State {}
         }
 
         void acceptHandoff(Split splitFromRequest, ActionListener<Void> handoffRpcListener) {
@@ -388,7 +455,7 @@ public class SplitTargetService {
             // We could model this as an explicit state, but it doesn't really improve anything.
             // It can be done if the logic becomes more complex than simply chaining two operations.
             client.execute(
-                TransportUpdateSplitStateAction.TYPE,
+                TransportUpdateSplitTargetShardStateAction.TYPE,
                 splitStateRequest,
                 handoffReceived.handoffRpcListener.map(ignored -> null)
             );
@@ -438,24 +505,79 @@ public class SplitTargetService {
                 split,
                 IndexReshardingState.Split.TargetShardState.SPLIT,
                 cancelled,
-                // this is likely to be called on the transport thread, so offload to generic thread pool
-                new ThreadedActionListener<>(clusterService.threadPool().generic(), new ActionListener<>() {
-                    @Override
-                    public void onResponse(ActionResponse actionResponse) {
-                        // TODO is it cleaner to have this in main state handling logic?
-                        logger.info("notifying of split completion for target shard {}", shard.shardId());
-                        reshardIndexService.notifySplitCompletion(shard.shardId());
-                        advance(new State.Split());
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        reshardIndexService.notifySplitFailure(shard.shardId(), e);
-                        advance(new State.Failed(e));
-                    }
-                })
+                new StateAdvancingListener<>(new State.Split())
             );
             changeState.run();
+        }
+
+        private void awaitSplitApplied(ActionListener<Void> listener) {
+            SubscribableListener.<ClusterState>newForked(
+                l -> ClusterStateObserver.waitForState(
+                    clusterService,
+                    clusterService.threadPool().getThreadContext(),
+                    new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            if (cancelled.get()) {
+                                l.onFailure(new CancellationException());
+                                return;
+                            }
+
+                            Optional<IndexReshardingMetadata> reshardingMetadata = getReshardingMetadata(state, split.shardId);
+                            if (reshardingMetadata.isEmpty()) {
+                                // If there is no metadata anymore, there is nothing for us to do.
+                                // An example situation is a relocation that happens during final steps of the workflow
+                                // (e.g. moving to DONE).
+                                // The relocated shard is able to move to DONE since the primary term doesn't change during relocation.
+                                // Then during recovery of the relocation target shard we'll see that there is no metadata.
+                                // TODO this will be fixed with the grace period before moving source shards to DONE.
+                                l.onFailure(new CancellationException());
+                            } else {
+                                l.onResponse(state);
+                            }
+                        }
+
+                        @Override
+                        public void onClusterServiceClose() {
+                            // Nothing to do, shard will be closed when the node closes.
+                        }
+
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            // There is no timeout.
+                        }
+                    },
+                    state -> {
+                        if (cancelled.get()) {
+                            return true;
+                        }
+
+                        // If the index is deleted or this split has completed concurrently
+                        // (maybe we've received a batch of cluster state updates) we need to exit.
+                        Optional<IndexReshardingMetadata> reshardingMetadata = getReshardingMetadata(state, split.shardId);
+                        return reshardingMetadata.isEmpty()
+                            || reshardingMetadata.get()
+                                .getSplit()
+                                .targetStateAtLeast(split.shardId.id(), IndexReshardingState.Split.TargetShardState.SPLIT);
+                    },
+                    // No timeout.
+                    // We know we have just submitted this cluster state update,
+                    // so we will either see it shortly or we are not in the cluster anymore
+                    // and there is probably another instance of the shard being allocated.
+                    // In the latter case we may as well wait since we are not blocking any user operations.
+                    null,
+                    logger
+                )
+            ).<Void>andThen((l, state) -> {
+                var awaitSplitStateApplied = new AwaitSplitStateAppliedAction(state, l);
+                awaitSplitStateApplied.run();
+            }).addListener(listener);
+        }
+
+        private static Optional<IndexReshardingMetadata> getReshardingMetadata(ClusterState state, ShardId shardId) {
+            return state.metadata()
+                .findIndex(shardId.getIndex())
+                .flatMap(indexMetadata -> Optional.ofNullable(indexMetadata.getReshardingMetadata()));
         }
 
         private void deleteUnownedData() {
@@ -481,7 +603,7 @@ public class SplitTargetService {
             changeState.run();
         }
 
-        private void waitForShardStarted(State nextState) {
+        private void waitForShardStarted(ActionListener<Void> listener) {
             Predicate<ClusterState> predicate = state -> {
                 if (cancelled.get()) {
                     return true;
@@ -502,7 +624,7 @@ public class SplitTargetService {
                             return;
                         }
 
-                        advance(nextState);
+                        listener.onResponse(null);
                     }
 
                     @Override
@@ -522,20 +644,20 @@ public class SplitTargetService {
         }
 
         private class StateAdvancingListener<T> implements ActionListener<T> {
-            private final State successState;
+            private final State nextState;
 
-            private StateAdvancingListener(State successState) {
-                this.successState = successState;
+            private StateAdvancingListener(State nextState) {
+                this.nextState = nextState;
             }
 
             @Override
             public void onResponse(T t) {
-                advance(successState);
+                advance(nextState);
             }
 
             @Override
             public void onFailure(Exception e) {
-                advance(new State.Failed(e));
+                advance(new State.Failed(e, nextState));
             }
         }
     }
@@ -577,7 +699,7 @@ public class SplitTargetService {
             }
 
             var request = new SplitStateRequest(split.shardId(), state, split.sourcePrimaryTerm(), split.targetPrimaryTerm());
-            client.execute(TransportUpdateSplitStateAction.TYPE, request, listener);
+            client.execute(TransportUpdateSplitTargetShardStateAction.TYPE, request, listener);
         }
 
         @Override
@@ -588,6 +710,94 @@ public class SplitTargetService {
             boolean isCancelled = cancelled.get();
             return isCancelled == false;
         }
+    }
+
+    // visible for tests
+    RetryableAction<Void> createAwaitSplitStateAppliedAction(ClusterState stateWithSplitApplied, ActionListener<Void> listener) {
+        return new AwaitSplitStateAppliedAction(stateWithSplitApplied, listener);
+    }
+
+    private class AwaitSplitStateAppliedAction extends RetryableAction<Void> {
+        private final long clusterStateVersion;
+        private final ActionListener<Void> finalListener;
+
+        private HashSet<DiscoveryNode> nodes;
+
+        AwaitSplitStateAppliedAction(ClusterState stateWithSplitApplied, ActionListener<Void> listener) {
+            super(
+                logger,
+                clusterService.threadPool(),
+                // We are fairly aggressive because the refresh is blocked at this point.
+                TimeValue.timeValueMillis(200), // initialDelay
+                TimeValue.timeValueSeconds(1), // maxDelayBound
+                ///  See [RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT].
+                splitStateAppliedTimeout, // timeoutValue
+                ///  See [#onFinished()].
+                ActionListener.noop(),
+                clusterService.threadPool().generic()
+            );
+
+            this.clusterStateVersion = stateWithSplitApplied.version();
+            this.finalListener = listener;
+            this.nodes = new HashSet<>(stateWithSplitApplied.nodes().getAllNodes());
+        }
+
+        @Override
+        public void tryAction(ActionListener<Void> listener) {
+            client.execute(
+                TransportAwaitClusterStateVersionAppliedAction.TYPE,
+                new AwaitClusterStateVersionAppliedRequest(
+                    clusterStateVersion,
+                    splitStateAppliedTimeout,
+                    nodes.toArray(new DiscoveryNode[0])
+                ),
+                listener.delegateFailure((l, response) -> {
+                    if (response.hasFailures()) {
+                        // We only need to retry on the nodes that had failures.
+                        // But also these nodes may be gone and there may be new nodes in the cluster.
+                        // We expect new nodes joining the cluster to get a fresh version of the cluster state before serving requests.
+                        // But in some cases that is not true (e.g. a node drops from the cluster and re-joins)
+                        // so we'll include new nodes for completeness.
+                        // Note that this is still best-effort since a node can be added right after this line.
+                        // This should be rare though.
+                        // A proper fix would be to not allow nodes that don't have a recent enough cluster state
+                        // to execute searches.
+                        var state = clusterService.state();
+
+                        var failedNodes = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.toSet());
+                        var newNodes = new HashSet<DiscoveryNode>();
+
+                        // By iterating though the new state we'll automatically skip nodes that were present
+                        // in the previous cluster state but are not in this one.
+                        for (var node : state.nodes().getAllNodes()) {
+                            if (nodes.contains(node) == false || failedNodes.contains(node.getId())) {
+                                newNodes.add(node);
+                            }
+                        }
+
+                        nodes = newNodes;
+
+                        l.onFailure(new PartialFailureException());
+                    } else {
+                        l.onResponse(null);
+                    }
+                })
+            );
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            return true;
+        }
+
+        @Override
+        public void onFinished() {
+            // We use `RetryableAction` only to perform retries.
+            // We proceed even if there were failures since we don't want to block refreshes for a long time.
+            finalListener.onResponse(null);
+        }
+
+        private static class PartialFailureException extends RuntimeException {}
     }
 
     // We need retries for things like relocations that can impact delete unowned logic

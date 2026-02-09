@@ -15,16 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
-
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -43,7 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -56,36 +49,43 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
-import org.elasticsearch.xpack.stateless.commits.BlobFileRangesTestUtils;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
-import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
-import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
-import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -201,6 +201,143 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
+    public void testReadReferencedCompoundCommitsFromCacheAfterSearchShardWarming() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        // very small cache region and cache range sizes in order to verify independent cache prefetching calls
+        // for the individual CC headers inside BCC blobs (we need to avoid that the first cache prefetch populates everything)
+        long regionSizeInBytes = SharedBytes.PAGE_SIZE * randomLongBetween(1, 3);
+        long rangeSizeInBytes = regionSizeInBytes + SharedBytes.PAGE_SIZE * randomFrom(0L, 1L, 2L);
+        AtomicBoolean isObjectStoreAccessible = new AtomicBoolean(true);
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                recordingMeterRegistry
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    Settings settings = super.nodeSettings();
+                    return Settings.builder()
+                        .put(settings)
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
+                        // this test explicitly covers the "offline warming" search shard recovery path
+                        .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
+                        .put(
+                            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
+                            ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
+                        )
+                        .build();
+                }
+
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                        @Override
+                        public CacheBlobReader getCacheBlobReader(
+                            ShardId shardId,
+                            LongFunction<BlobContainer> blobContainer,
+                            BlobFile blobFile,
+                            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                            LongConsumer totalBytesReadFromObjectStore,
+                            LongConsumer totalBytesReadFromIndexing,
+                            BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                            Executor objectStoreFetchExecutor,
+                            String fileName
+                        ) {
+                            return new ObjectStoreCacheBlobReader(
+                                blobContainer.apply(blobFile.primaryTerm()),
+                                blobFile.blobName(),
+                                cacheService.getRangeSize(),
+                                objectStoreFetchExecutor
+                            ) {
+                                @Override
+                                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                                    if (isObjectStoreAccessible.get() == false) {
+                                        listener.onFailure(new Exception("Unexpected invocation after cache population"));
+                                    } else {
+                                        super.getRangeInputStream(position, length, listener);
+                                    }
+                                }
+                            };
+                        }
+                    };
+                }
+            }
+        ) {
+            int bccCount = randomIntBetween(1, 16);
+            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+            VirtualBatchedCompoundCommit vbcc = null;
+            for (int i = 0; i < bccCount; i++) {
+                var indexCommits = fakeNode.generateIndexCommits(
+                    randomIntBetween(1, 16),
+                    randomBoolean(),
+                    randomBoolean(),
+                    generation -> {}
+                );
+                vbcc = new VirtualBatchedCompoundCommit(
+                    fakeNode.shardId,
+                    "fake-node-id",
+                    primaryTerm,
+                    indexCommits.get(0).getGeneration(),
+                    fileName -> uploadedBlobLocations.get(fileName),
+                    ESTestCase::randomNonNegativeLong,
+                    fakeNode.sharedCacheService.getRegionSize(),
+                    randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+                );
+                for (StatelessCommitRef ref : indexCommits) {
+                    assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+                }
+                vbcc.freeze();
+                // upload vbcc
+                var indexBlobContainer = fakeNode.getShardContainer();
+                try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                    indexBlobContainer.writeBlobAtomic(
+                        OperationPurpose.INDICES,
+                        vbcc.getBlobName(),
+                        vbccInputStream,
+                        vbcc.getTotalSizeInBytes(),
+                        true
+                    );
+                }
+                uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+            }
+            var lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
+            fakeNode.searchDirectory.updateCommit(lastCommit);
+            // test harness to be able to call `warmingService.warmCache`
+            var indexShard = mockIndexShard(fakeNode);
+            PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmCacheRecovery(
+                SEARCH,
+                indexShard,
+                lastCommit,
+                fakeNode.searchDirectory,
+                null,
+                refillCacheCompletionListener
+            );
+            safeGet(refillCacheCompletionListener);
+            // make the object store inaccessible
+            isObjectStoreAccessible.set(false);
+            // this read should be served up entirely from the cache
+            PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();
+            ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                lastCommit,
+                null,
+                fakeNode.searchDirectory,
+                randomFrom(IOContext.DEFAULT, BlobCacheIndexInput.WARMING),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                referencedCC -> {},
+                readReferencedCommitsListener
+            );
+            safeGet(readReferencedCommitsListener);
+        }
+    }
+
     public void testPopulateCacheWithSharedSourceInputStreamFactory() throws Exception {
 
         var actualRangeInputStreamPosition = new SetOnce<Long>();
@@ -224,6 +361,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         .put(settings)
                         .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
                         .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(512))
+                        .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean())
                         .build();
                 }
 
@@ -234,7 +372,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BlobLocation location,
+                            BlobFile blobFile,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -243,8 +381,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             String fileName
                         ) {
                             return new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(location.primaryTerm()),
-                                location.blobName(),
+                                blobContainer.apply(blobFile.primaryTerm()),
+                                blobFile.blobName(),
                                 cacheService.getRangeSize(),
                                 objectStoreFetchExecutor
                             ) {
@@ -348,6 +486,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 frozenBcc.lastCompoundCommit(),
                 fakeNode.searchDirectory,
+                null,
                 refillCacheCompletionListener
             );
             safeGet(refillCacheCompletionListener);
@@ -397,47 +536,15 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 primaryTermAndGeneration
             );
 
-            long fileOffset = 0;
-            List<InternalFileReplicatedRange> replicatedRanges = new ArrayList<>();
-            Map<String, BlobLocation> commitFiles = new HashMap<>();
-
-            long files = Math.min(
-                randomIntBetween(1, 10),
-                Math.floorDiv(regionSize.getBytes(), REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) // ensures all ranges fit in the first region
-            );
-            for (int i = 0; i < files; i++) {
-                var file = "_" + i + ".cfs";
-                var size = randomIntBetween(256, 10240);
-                if (size < REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) {
-                    replicatedRanges.add(new InternalFileReplicatedRange(fileOffset, (short) size));
-                } else {
-                    replicatedRanges.add(new InternalFileReplicatedRange(fileOffset, (short) 1024));
-                    replicatedRanges.add(new InternalFileReplicatedRange(fileOffset + size - 16, (short) 16));
-                }
-                commitFiles.put(file, new BlobLocation(blobFile, fileOffset, size));
-                fileOffset += size;
-            }
-            InternalFilesReplicatedRanges ranges = InternalFilesReplicatedRanges.from(replicatedRanges);
-            commitFiles = Maps.transformValues(
-                commitFiles,
-                location -> new BlobLocation(location.blobFile(), ranges.dataSizeInBytes() + location.offset(), location.fileLength())
-            );
-
-            final var commit = new StatelessCompoundCommit(
+            var commit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
                 node.shardId,
-                primaryTermAndGeneration,
-                1L,
+                blobFile,
                 node.node.getEphemeralId(),
-                commitFiles,
                 0,
-                commitFiles.keySet(),
-                0L,
-                ranges,
-                Map.of(),
-                null
+                regionSize.getBytes()
             );
 
-            var blobFileRanges = BlobFileRangesTestUtils.computeBlobFileRanges(true, commit, 0, commit.internalFiles());
+            var blobFileRanges = BlobFileRanges.computeBlobFileRanges(true, commit, 0, commit.internalFiles());
             node.indexingDirectory.getBlobStoreCacheDirectory().updateMetadata(blobFileRanges, randomNonNegativeLong());
 
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -446,6 +553,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 mockIndexShard(node),
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
+                null,
                 future
             );
             safeGet(future);
@@ -497,6 +605,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     indexShard,
                     commit,
                     node.indexingDirectory.getBlobStoreCacheDirectory(),
+                    null,
                     future
                 );
                 safeGet(future);
@@ -557,6 +666,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
+                null,
                 future
             );
             safeGet(future);
@@ -623,6 +733,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSize))
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSize))
                     .put(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), ByteSizeValue.ofBytes(stepSize))
+                    // this test is designed to cover warming of commit files headers & footers but offline warming works differently
+                    // and is out of scope for this test
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), "false")
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), "false")
                     .build();
             }
 

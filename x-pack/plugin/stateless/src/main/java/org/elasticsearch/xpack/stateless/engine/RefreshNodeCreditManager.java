@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,8 +24,8 @@ import org.elasticsearch.core.TimeValue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-import static co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService.BUDGET_INTERVAL;
-import static co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
+import static org.elasticsearch.xpack.stateless.engine.RefreshThrottlingService.BUDGET_INTERVAL;
+import static org.elasticsearch.xpack.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
 
 /**
  * A credit manager that can be shared by multiple {@link RefreshBurstableThrottler} shard throttlers. Whenever the credits are consumed,

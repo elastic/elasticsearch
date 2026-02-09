@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import java.util.Arrays;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher.getPendingRangesToPrefetch;
+import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.getPendingRangesToPrefetch;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;

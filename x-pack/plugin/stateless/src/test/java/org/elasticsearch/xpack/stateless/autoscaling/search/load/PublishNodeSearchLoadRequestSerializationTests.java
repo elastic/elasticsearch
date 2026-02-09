@@ -15,14 +15,13 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
-
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
 
 public class PublishNodeSearchLoadRequestSerializationTests extends AbstractWireSerializingTestCase<PublishNodeSearchLoadRequest> {
 

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache.reader;
+package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;

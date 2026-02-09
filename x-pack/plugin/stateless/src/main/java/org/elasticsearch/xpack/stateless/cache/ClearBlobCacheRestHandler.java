@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -26,6 +23,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 
 import java.util.List;
 
@@ -49,7 +48,7 @@ public class ClearBlobCacheRestHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         return restChannel -> client.execute(
-            ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION,
+            StatelessPlugin.CLEAR_BLOB_CACHE_ACTION,
             new ClearBlobCacheNodesRequest(),
             new RestChunkedToXContentListener<>(restChannel)
         );

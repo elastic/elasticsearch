@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+package org.elasticsearch.xpack.stateless.engine;
 
 public final class SearchEngineTestUtils {
 

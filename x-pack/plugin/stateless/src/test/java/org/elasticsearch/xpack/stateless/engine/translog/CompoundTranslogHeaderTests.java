@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine.translog;
+package org.elasticsearch.xpack.stateless.engine.translog;
 
 import junit.framework.AssertionFailedError;
 
@@ -37,7 +37,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.engine.translog.CompoundTranslogHeader.PINNED_TRANSPORT_VERSION;
+import static org.elasticsearch.xpack.stateless.engine.translog.CompoundTranslogHeader.PINNED_TRANSPORT_VERSION;
 
 public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase<
     CompoundTranslogHeaderTests.WritableCompoundTranslogHeader> {

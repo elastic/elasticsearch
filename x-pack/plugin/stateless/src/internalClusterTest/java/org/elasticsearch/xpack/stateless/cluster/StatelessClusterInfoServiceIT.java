@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.PublishHeapMemoryMetricsRequest;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
+package org.elasticsearch.xpack.stateless.cluster;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -31,6 +27,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.PublishHeapMemoryMetricsRequest;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 
 import java.util.Collection;
 import java.util.Map;
@@ -41,7 +40,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class StatelessClusterInfoServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessClusterInfoServiceIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

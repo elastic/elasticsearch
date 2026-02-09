@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
@@ -36,7 +33,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
 import org.elasticsearch.xpack.stateless.commits.IndexEngineLocalReaderListener;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.junit.After;
 import org.junit.Before;
 
@@ -54,11 +53,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.LongStream;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -68,19 +68,19 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
-public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
      * A testing stateless plugin that registers an {@link Engine.IndexCommitListener} that captures created and deleted commits.
      */
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         private final Map<ShardId, Map<Long, Engine.IndexCommitRef>> retainedCommits = new HashMap<>();
         private final Map<ShardId, Set<Long>> deletedCommits = new HashMap<>();
         private final Object mutex = new Object();
         private final AtomicBoolean throwOnNewCommitNotification = new AtomicBoolean();
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -224,8 +224,8 @@ public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessP
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         return List.copyOf(plugins);
     }
 
@@ -422,16 +422,22 @@ public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessP
         try {
             indexDocs(indexName, scaledRandomIntBetween(10, 100));
             plugin.throwOnNewCommitNotification();
-            indicesAdmin().prepareFlush(indexName).get();
-        } finally {
+            var flushResponse = indicesAdmin().prepareFlush(indexName).get();
+            assertThat(flushResponse.getFailedShards(), is(greaterThan(0)));
             plugin.doNotThrowOnNewCommitNotification();
-            releaseCommit(plugin.listRetainedCommits(shardId).getLast());
+            ensureRed(indexName);
+            plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
+            // Wait until the shard is marked as failed and then reallocated so we can
+            // release the new commits once it becomes green again.
+            ensureGreen(indexName);
+        } finally {
+            plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
         }
     }
 
-    private TestServerlessStatelessPlugin getStatelessPluginInstance() {
+    private TestStatelessPlugin getStatelessPluginInstance() {
         var plugin = internalCluster().getInstance(PluginsService.class, indexNode)
-            .filterPlugins(TestServerlessStatelessPlugin.class)
+            .filterPlugins(TestStatelessPlugin.class)
             .findFirst()
             .get();
         assertThat("TestStateless plugin not found on node " + indexNode, plugin, notNullValue());

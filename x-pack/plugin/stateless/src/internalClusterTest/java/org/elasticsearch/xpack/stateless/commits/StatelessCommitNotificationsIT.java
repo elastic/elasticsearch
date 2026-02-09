@@ -15,18 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.client.internal.Client;
@@ -49,9 +38,19 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,20 +68,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class StatelessCommitNotificationsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessCommitNotificationsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         return plugins;
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         public final AtomicReference<CyclicBarrier> afterFlushBarrierRef = new AtomicReference<>();
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -237,7 +236,7 @@ public class StatelessCommitNotificationsIT extends AbstractServerlessStatelessP
         indexDocs(indexName, between(10, 20));
         refresh(indexName);
 
-        final TestServerlessStatelessPlugin testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
+        final TestStatelessPlugin testStateless = findPlugin(indexNode, TestStatelessPlugin.class);
         final CyclicBarrier afterFlushBarrier = new CyclicBarrier(2);
         testStateless.afterFlushBarrierRef.set(afterFlushBarrier);
 

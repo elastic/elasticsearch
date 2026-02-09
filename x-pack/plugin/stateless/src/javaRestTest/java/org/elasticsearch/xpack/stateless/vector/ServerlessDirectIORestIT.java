@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.vector;
+package org.elasticsearch.xpack.stateless.vector;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;

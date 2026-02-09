@@ -15,15 +15,10 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
@@ -54,6 +49,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -65,9 +65,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -88,6 +88,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
     private SearchMetricsService service;
 
     private MemoryMetricsService memoryMetricsService;
+    private ClusterSettings clusterSettings;
 
     @Override
     public void setUp() throws Exception {
@@ -95,8 +96,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
         currentRelativeTimeInNanos = new AtomicLong(1L);
         memoryMetricsService = mock(MemoryMetricsService.class);
         when(memoryMetricsService.getSearchTierMemoryMetrics()).thenReturn(FIXED_MEMORY_METRICS);
+        clusterSettings = createClusterSettings();
         service = new SearchMetricsService(
-            createClusterSettings(),
+            clusterSettings,
             currentRelativeTimeInNanos::get,
             memoryMetricsService,
             TelemetryProvider.NOOP.getMeterRegistry()
@@ -106,11 +108,19 @@ public class SearchMetricsServiceTests extends ESTestCase {
     public void testExposesCompleteMetrics() {
 
         var indexMetadata = createIndex(1, 1);
+        int spMin = between(1, 1000);
+        int spMax = between(spMin, 1000);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(1))
             .metadata(Metadata.builder().put(indexMetadata, false))
             .build();
 
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), spMin)
+                .put(ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING.getKey(), spMax)
+                .build()
+        );
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, 0, 0)))
@@ -128,7 +138,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     List.of(
                         new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
                         new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
-                    )
+                    ),
+                    spMin,
+                    spMax
                 )
             )
         );
@@ -165,7 +177,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     List.of(
                         new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
                         new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
-                    )
+                    ),
+                    100,
+                    100
                 )
             )
         );
@@ -250,7 +264,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     List.of(
                         new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
                         new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
-                    )
+                    ),
+                    100,
+                    100
                 )
             )
         );
@@ -296,7 +312,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     List.of(
                         new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
                         new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
-                    )
+                    ),
+                    100,
+                    100
                 )
             )
         );
@@ -329,7 +347,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     List.of(
                         new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.MINIMUM),
                         new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.MINIMUM)
-                    )
+                    ),
+                    100,
+                    100
                 )
             )
         );
@@ -348,7 +368,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     List.of(
                         new NodeSearchLoadSnapshot("search_node_1", 5.0, MetricQuality.EXACT),
                         new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.MINIMUM)
-                    )
+                    ),
+                    100,
+                    100
                 )
             )
         );
@@ -422,7 +444,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.EXACT),
                     new StorageMetrics(0, 0, 0, MetricQuality.EXACT),
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -443,7 +467,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.MINIMUM),
                     new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM),
-                    List.of()
+                    List.of(),
+                    100,
+                    100
                 )
             )
         );
@@ -459,7 +485,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.MINIMUM),
                     new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM),
-                    List.of()
+                    List.of(),
+                    100,
+                    100
                 )
             )
         );
@@ -480,7 +508,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
                     new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM),
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -502,7 +532,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
                     new StorageMetrics(0, 0, 0, MetricQuality.EXACT),
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -533,7 +565,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
                     new StorageMetrics(1024, 1024, 2048, MetricQuality.MINIMUM),
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -560,7 +594,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(5, MetricQuality.EXACT),
                     new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -588,7 +624,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
                     storageMetrics,
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -606,7 +644,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(2, MetricQuality.EXACT),
                     storageMetrics,
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -643,7 +683,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
             List.of(
                 new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING),
                 new NodeSearchLoadSnapshot("search_node_2", 0.0, MetricQuality.MISSING)
-            )
+            ),
+            100,
+            100
         );
         assertThat(service.getSearchTierMetrics(), equalTo(expectedSearchTierMetrics));
 
@@ -698,7 +740,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.EXACT),
                     new StorageMetrics(0, 0, 0, MetricQuality.EXACT),
-                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING)),
+                    100,
+                    100
                 )
             )
         );
@@ -759,7 +803,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 "search_node_1",
                 Map.of(new ShardId(indexMetadata2.getIndex(), 0), new ShardSize(1024, 1024, 1, 3))
             ),
-            new PublishShardSizesRequest(
+            new org.elasticsearch.xpack.stateless.autoscaling.search.PublishShardSizesRequest(
                 "search_node_1",
                 Map.of(new ShardId(indexMetadata2.getIndex(), 1), new ShardSize(1024, 1024, 1, 4))
             )
@@ -838,7 +882,9 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
                     new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
-                    nodeLoads
+                    nodeLoads,
+                    100,
+                    100
                 )
             )
         );

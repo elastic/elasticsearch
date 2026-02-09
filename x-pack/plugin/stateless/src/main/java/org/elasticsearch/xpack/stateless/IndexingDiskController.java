@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +37,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 
 import java.io.IOException;
 import java.util.Comparator;

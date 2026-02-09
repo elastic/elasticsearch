@@ -15,11 +15,10 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
-
-import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReaderTestUtils;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReaderTestUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 

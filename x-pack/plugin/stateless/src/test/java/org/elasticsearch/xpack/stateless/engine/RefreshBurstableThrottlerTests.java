@@ -15,15 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import co.elastic.elasticsearch.stateless.engine.RefreshThrottler.Request;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.engine.RefreshThrottler.Request;
 import org.mockito.ArgumentCaptor;
 
 import java.util.concurrent.Executor;
@@ -31,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-import static co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
+import static org.elasticsearch.xpack.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;

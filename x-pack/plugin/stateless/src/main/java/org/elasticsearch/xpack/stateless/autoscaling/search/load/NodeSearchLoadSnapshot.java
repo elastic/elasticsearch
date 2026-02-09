@@ -15,14 +15,13 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
-
-import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.stateless.autoscaling.AutoscalingMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
 
 import java.io.IOException;
 

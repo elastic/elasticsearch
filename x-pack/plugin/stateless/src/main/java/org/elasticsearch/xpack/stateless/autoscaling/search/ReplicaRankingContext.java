@@ -15,8 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -28,11 +29,15 @@ import java.util.stream.Collectors;
 
 class ReplicaRankingContext {
 
+    public static final int DEFAULT_NUMBER_OF_REPLICAS = 1;
+
     private final Map<String, IndexReplicationRanker.IndexRankingProperties> rankingProperties = new HashMap<>();
 
     private final long allIndicesInteractiveSize;
 
     private final int searchPowerMin;
+
+    private final int totalReplicas;
 
     ReplicaRankingContext(
         Map<Index, SearchMetricsService.IndexProperties> indicesMap,
@@ -41,9 +46,11 @@ class ReplicaRankingContext {
     ) {
         this.searchPowerMin = searchPowerMin;
         long allIndicesInteractiveSize = 0;
+        int totalReplicas = 0;
         for (Map.Entry<Index, SearchMetricsService.IndexProperties> entry : indicesMap.entrySet()) {
             Index index = entry.getKey();
             SearchMetricsService.IndexProperties indexProperties = entry.getValue();
+            totalReplicas += indexProperties.replicas();
             long totalIndexInteractiveSize = 0;
             for (int i = 0; i < indexProperties.shards(); i++) {
                 SearchMetricsService.ShardMetrics shardMetrics = shardMetricsMap.get(new ShardId(index, i));
@@ -62,6 +69,7 @@ class ReplicaRankingContext {
             allIndicesInteractiveSize += totalIndexInteractiveSize;
 
         }
+        this.totalReplicas = totalReplicas;
         this.allIndicesInteractiveSize = allIndicesInteractiveSize;
     }
 
@@ -73,6 +81,11 @@ class ReplicaRankingContext {
         return rankingProperties.values();
     }
 
+    @Nullable
+    IndexReplicationRanker.IndexRankingProperties rankingProperties(String indexName) {
+        return rankingProperties.get(indexName);
+    }
+
     long getThreshold() {
         return allIndicesInteractiveSize * Math.max(0, searchPowerMin - ReplicasUpdaterService.SEARCH_POWER_MIN_NO_REPLICATION)
             / (ReplicasUpdaterService.SEARCH_POWER_MIN_FULL_REPLICATION - ReplicasUpdaterService.SEARCH_POWER_MIN_NO_REPLICATION);
@@ -80,6 +93,10 @@ class ReplicaRankingContext {
 
     public int getSearchPowerMin() {
         return searchPowerMin;
+    }
+
+    public int getTotalReplicas() {
+        return totalReplicas;
     }
 
     /**
@@ -145,6 +162,18 @@ class ReplicaRankingContext {
             replicationSizeOveruse = ((double) sumTwoReplicasInteractiveSize - getThreshold()) / this.allIndicesInteractiveSize;
         }
         return replicationSizeOveruse;
+    }
+
+    /**
+     * Sums the (interactive size) * (number of replicas) over all indices.
+     * @return the sum
+     */
+    public long getSumOfReplicasInteractiveSizes() {
+        long sum = 0;
+        for (IndexReplicationRanker.IndexRankingProperties properties : rankingProperties.values()) {
+            sum += properties.interactiveSize() * properties.indexProperties().replicas();
+        }
+        return sum;
     }
 
     public long getAllIndicesInteractiveSize() {

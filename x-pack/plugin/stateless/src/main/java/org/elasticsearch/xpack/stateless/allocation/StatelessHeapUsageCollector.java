@@ -15,26 +15,25 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService;
 
 import java.util.Map;
 
 public class StatelessHeapUsageCollector implements EstimatedHeapUsageCollector {
 
-    private final ServerlessStatelessPlugin stateless;
+    private final StatelessPlugin stateless;
 
     public StatelessHeapUsageCollector() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
     }
 
-    public StatelessHeapUsageCollector(ServerlessStatelessPlugin stateless) {
+    public StatelessHeapUsageCollector(StatelessPlugin stateless) {
         this.stateless = stateless;
     }
 

@@ -15,22 +15,22 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling;
+package org.elasticsearch.xpack.stateless.autoscaling;
 
 import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AutoscalingDesiredTopologyContextIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class AutoscalingDesiredTopologyContextIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

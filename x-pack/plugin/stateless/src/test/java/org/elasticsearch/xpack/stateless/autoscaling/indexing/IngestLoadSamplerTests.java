@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
-
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -30,6 +27,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.metering;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
+package org.elasticsearch.xpack.stateless.metering;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -27,6 +24,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodesRequest;
 
 import java.util.List;
 
@@ -51,7 +50,7 @@ public class GetBlobStoreStatsRestHandler extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         return restChannel -> client.execute(
-            ServerlessStatelessPlugin.GET_BLOB_STORE_STATS_ACTION,
+            StatelessPlugin.GET_BLOB_STORE_STATS_ACTION,
             new GetBlobStoreStatsNodesRequest(),
             new RestActions.NodesResponseRestListener<>(restChannel)
         );

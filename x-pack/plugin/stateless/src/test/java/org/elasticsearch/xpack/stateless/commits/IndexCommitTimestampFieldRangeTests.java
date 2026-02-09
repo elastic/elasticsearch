@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -50,11 +47,9 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -66,7 +61,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommitTests.deserializeBatchedCompoundCommit;
+import static org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTests.deserializeBatchedCompoundCommit;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {

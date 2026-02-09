@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling;
+package org.elasticsearch.xpack.stateless.autoscaling;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -27,7 +27,7 @@ import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.DesiredClusterTopologyTestUtils.randomDesiredClusterTopology;
+import static org.elasticsearch.xpack.stateless.autoscaling.DesiredClusterTopologyTestUtils.randomDesiredClusterTopology;
 
 public class DesiredToplogyContextTests extends ESTestCase {
 

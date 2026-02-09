@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.MergePolicy;
@@ -38,7 +34,9 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,16 +47,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
-import static co.elastic.elasticsearch.stateless.StatelessMergeIT.blockMergePool;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.StatelessMergeIT.blockMergePool;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 
-public class StatelessMergePreWarmingIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -68,16 +66,16 @@ public class StatelessMergePreWarmingIT extends AbstractServerlessStatelessPlugi
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(DeterministicMergesServerlessStatelessPluginTestPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(DeterministicMergesStatelessPluginTestPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
 
-    public static class DeterministicMergesServerlessStatelessPluginTestPlugin extends ServerlessStatelessPlugin {
+    public static class DeterministicMergesStatelessPluginTestPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         private static AtomicReference<MergeFinder> mergeFinderRef = new AtomicReference<>();
 
-        public DeterministicMergesServerlessStatelessPluginTestPlugin(Settings settings) {
+        public DeterministicMergesStatelessPluginTestPlugin(Settings settings) {
             super(settings);
         }
 
@@ -129,7 +127,7 @@ public class StatelessMergePreWarmingIT extends AbstractServerlessStatelessPlugi
 
         var segmentCountMergedTogether = 2;
         var mergeScheduled = new AtomicBoolean(false);
-        DeterministicMergesServerlessStatelessPluginTestPlugin.setTestMergeFinder((segmentInfos, mergeContext) -> {
+        DeterministicMergesStatelessPluginTestPlugin.setTestMergeFinder((segmentInfos, mergeContext) -> {
             var mergeCandidates = segmentInfos.asList()
                 .stream()
                 .filter(segmentCommitInfo -> mergeContext.getMergingSegments().contains(segmentCommitInfo) == false)

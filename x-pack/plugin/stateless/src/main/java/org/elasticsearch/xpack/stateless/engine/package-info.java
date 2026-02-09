@@ -51,9 +51,9 @@
  * The lifecycle of the entries kept in the LVM are controlled by refreshes. While all refreshes in Stateful ES are local to the node,
  * Stateless ES refreshes are a distributed operation involving both the indexing and the search nodes. Some refreshes performed on the
  * indexing node are converted to a flush to commit the data
- * (see {@link co.elastic.elasticsearch.stateless.engine.IndexEngine#refreshInternalSearcher} and
- * {@link co.elastic.elasticsearch.stateless.engine.IndexEngine}#doExternalRefresh). Upon commit, in order to refresh the unpromotable
- * shards, the indexing node sends a notification ({@link co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction})
+ * (see {@link org.elasticsearch.xpack.stateless.engine.IndexEngine#refreshInternalSearcher} and
+ * {@link org.elasticsearch.xpack.stateless.engine.IndexEngine}#doExternalRefresh). Upon commit, in order to refresh the unpromotable
+ * shards, the indexing node sends a notification ({@link org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction})
  * to the search nodes to notify them of the new commit that is available
  * (see {@link org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction}).
  *
@@ -87,7 +87,7 @@
  * <p>
  * The StatelessLiveVersionMapArchive is notified when the unpromotable replicas are refreshed (step 4), and this leads to pruning
  * the entries kept in the archive
- * (see {@link co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive#afterUnpromotablesRefreshed}).
+ * (see {@link org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapArchive#afterUnpromotablesRefreshed}).
  *
  */
-package co.elastic.elasticsearch.stateless.engine;
+package org.elasticsearch.xpack.stateless.engine;

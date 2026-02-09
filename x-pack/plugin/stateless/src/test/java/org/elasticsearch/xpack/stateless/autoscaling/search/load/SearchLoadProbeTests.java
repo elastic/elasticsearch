@@ -15,41 +15,80 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.SHARD_READ_LOAD_THRESHOLD_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe.calculateSearchLoadForExecutor;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.threadpool.ThreadPool.searchOrGetThreadPoolSize;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe.DEFAULT_SCALING_FACTOR;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe.SEARCH_LOAD_SCALING_FACTOR;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe.SHARD_READ_LOAD_THRESHOLD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe.calculateSearchLoadForExecutor;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 public class SearchLoadProbeTests extends ESTestCase {
 
     public void testCalculateSearchLoadForExecutor() {
         final TimeValue maxTimeToClearQueue = TimeValue.timeValueSeconds(10);
+        long queueBacklogDuration = randomLongBetween(0L, TimeValue.timeValueSeconds(9).nanos());
         // Initially average task execution time is 0.0.
         double randomQueueContribution = randomDoubleBetween(0.1, 100.0, true);
-        assertThat(calculateSearchLoadForExecutor(0.0, 0.0, 0, maxTimeToClearQueue, randomQueueContribution, 2, 2), closeTo(0.0, 1e-3));
+        assertThat(
+            calculateSearchLoadForExecutor(
+                0.0,
+                0.0,
+                0,
+                maxTimeToClearQueue,
+                queueBacklogDuration,
+                randomQueueContribution,
+                2,
+                2,
+                (metrics) -> {}
+            ),
+            closeTo(0.0, 1e-3)
+        );
         // We should return the search load for just the thread pool when the maxTimeToClearQueue is 0.
         assertThat(
-            calculateSearchLoadForExecutor(1.0, 1.0, 1, TimeValue.timeValueSeconds(0), randomQueueContribution, 2, 2),
+            calculateSearchLoadForExecutor(
+                1.0,
+                1.0,
+                1,
+                TimeValue.timeValueSeconds(0),
+                queueBacklogDuration,
+                randomQueueContribution,
+                2,
+                2,
+                (metrics) -> {}
+            ),
             closeTo(1.0, 1e-3)
         );
         // When there is nothing in the queue, we'd still want to keep up with average load
         assertThat(
-            calculateSearchLoadForExecutor(1.0, timeValueMillis(100).nanos(), 0, maxTimeToClearQueue, randomQueueContribution, 2, 2),
+            calculateSearchLoadForExecutor(
+                1.0,
+                timeValueMillis(100).nanos(),
+                0,
+                maxTimeToClearQueue,
+                queueBacklogDuration,
+                randomQueueContribution,
+                2,
+                2,
+                (metrics) -> {}
+            ),
             closeTo(1.0, 1e-3)
         );
         // A threadpool of 2 with average task time of 100ms can run 200 tasks per 10 seconds.
@@ -59,9 +98,11 @@ public class SearchLoadProbeTests extends ESTestCase {
                 timeValueMillis(100).nanos(),
                 100,
                 maxTimeToClearQueue,
+                queueBacklogDuration,
                 randomDoubleBetween(1.0, 100.0, true),
                 2,
-                2
+                2,
+                (metrics) -> {}
             ),
             closeTo(1.00, 1e-3)
         );
@@ -73,9 +114,11 @@ public class SearchLoadProbeTests extends ESTestCase {
                 timeValueMillis(100).nanos(),
                 1,
                 maxTimeToClearQueue,
+                queueBacklogDuration,
                 randomDoubleBetween(0.01, 100, true),
                 2,
-                2
+                2,
+                (metrics) -> {}
             ),
             closeTo(1.01, 1e-3)
         );
@@ -85,9 +128,11 @@ public class SearchLoadProbeTests extends ESTestCase {
                 timeValueMillis(100).nanos(),
                 100,
                 maxTimeToClearQueue,
+                queueBacklogDuration,
                 randomDoubleBetween(1.00, 100, true),
                 2,
-                2
+                2,
+                (metrics) -> {}
             ),
             closeTo(2.00, 1e-3)
         );
@@ -97,9 +142,11 @@ public class SearchLoadProbeTests extends ESTestCase {
                 timeValueMillis(100).nanos(),
                 200,
                 maxTimeToClearQueue,
-                randomDoubleBetween(2.00, 100, true),
+                queueBacklogDuration,
+                13.0,
                 2,
-                2
+                2,
+                (metrics) -> {}
             ),
             closeTo(4.00, 1e-3)
         );
@@ -109,9 +156,11 @@ public class SearchLoadProbeTests extends ESTestCase {
                 timeValueMillis(100).nanos(),
                 400,
                 maxTimeToClearQueue,
+                queueBacklogDuration,
                 randomDoubleBetween(4.00, 100, true),
                 2,
-                2
+                2,
+                (metrics) -> {}
             ),
             closeTo(6.0, 1e-3)
         );
@@ -121,43 +170,93 @@ public class SearchLoadProbeTests extends ESTestCase {
                 timeValueMillis(100).nanos(),
                 1000,
                 maxTimeToClearQueue,
+                queueBacklogDuration,
                 randomDoubleBetween(10.00, 100, true),
                 2,
-                2
+                2,
+                (metrics) -> {}
             ),
             closeTo(12.0, 1e-3)
         );
         assertThat(
-            calculateSearchLoadForExecutor(2.0, timeValueMillis(100).nanos(), 1000, maxTimeToClearQueue, 4.00, 2, 2),
+            calculateSearchLoadForExecutor(
+                2.0,
+                timeValueMillis(100).nanos(),
+                1000,
+                maxTimeToClearQueue,
+                queueBacklogDuration,
+                4.00,
+                2,
+                2,
+                (metrics) -> {}
+            ),
             closeTo(6.0, 1e-3)
+        );
+    }
+
+    public void testCalculateSearchLoadReportsMetrics() {
+        calculateSearchLoadForExecutor(
+            12.0,
+            timeValueMillis(300).nanos(), // average execution time ewma
+            60, // current queue size
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(60).nanos(), // we had items queued continuously for 1 minute
+            3 * 13.0,
+            4,
+            13,
+            (metrics) -> {
+                assertThat(metrics.threadsUsed(), is(12.0));
+                assertThat(metrics.lastQueueBacklogDurationNanos(), is(TimeValue.timeValueSeconds(60).nanos()));
+                assertThat(metrics.averageTaskExecutionTime(), is((double) timeValueMillis(300).nanos()));
+                assertThat(metrics.queueLoad(), greaterThanOrEqualTo(0.1));
+                assertThat(metrics.threadPoolLoad(), greaterThanOrEqualTo(0.1));
+                assertThat(metrics.queueThreadsNeeded(), greaterThanOrEqualTo(0.1));
+            }
         );
     }
 
     public void testGetSearchLoad() {
         Map<String, ExecutorLoadStats> statsPerExecutor = new HashMap<>();
+        Settings.Builder settingsBuilder = Settings.builder();
+        // configure the scaling factor explicitly sometimes, otherwise rely on the default
+        boolean configureScalingFactorExplicitly = randomBoolean();
+        double randomScalingFactor = randomDoubleBetween(1.00, 10.0, true);
+        if (configureScalingFactorExplicitly) {
+            settingsBuilder.put(SEARCH_LOAD_SCALING_FACTOR.getKey(), randomScalingFactor);
+        }
+
+        Settings settings = settingsBuilder.build();
+
         var searchLoadProbe = new SearchLoadProbe(
             new ClusterSettings(
-                Settings.EMPTY,
+                settings,
                 Sets.addToCopy(
                     ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                     MAX_TIME_TO_CLEAR_QUEUE,
                     MAX_QUEUE_CONTRIBUTION_FACTOR,
-                    SHARD_READ_LOAD_THRESHOLD_SETTING
+                    SHARD_READ_LOAD_THRESHOLD_SETTING,
+                    SEARCH_LOAD_SCALING_FACTOR
                 )
             ),
-            statsPerExecutor::get
+            statsPerExecutor::get,
+            MeterRegistry.NOOP
         );
 
-        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(3.0, timeValueMillis(200).nanos(), 0, 10, 10));
-        assertThat(searchLoadProbe.getSearchLoad(), closeTo(3.0, 1e-3));
+        double scalingFactorUnderTest = configureScalingFactorExplicitly ? randomScalingFactor : DEFAULT_SCALING_FACTOR;
+        assertThat(searchLoadProbe.searchLoadScalingFactor(), is(scalingFactorUnderTest));
+        long queueBacklogDuration = randomLongBetween(0L, TimeValue.timeValueSeconds(9).nanos());
+
+        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(3.0, timeValueMillis(200).nanos(), 0, 10, 10, queueBacklogDuration));
+        double searchLoadScalingFactor = searchLoadProbe.searchLoadScalingFactor();
+        assertThat(searchLoadProbe.getSearchLoad(), closeTo(scalingFactorUnderTest * 3.0, 1e-3));
 
         statsPerExecutor.clear();
-        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(1.0, timeValueMillis(200).nanos(), 0, 1, 1));
-        assertThat(searchLoadProbe.getSearchLoad(), closeTo(1.0, 1e-3));
+        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(1.0, timeValueMillis(200).nanos(), 0, 1, 1, queueBacklogDuration));
+        assertThat(searchLoadProbe.getSearchLoad(), closeTo(scalingFactorUnderTest * 1.0, 1e-3));
 
         statsPerExecutor.clear();
-        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(1.0, timeValueMillis(200).nanos(), 0, 1, 2));
-        assertThat(searchLoadProbe.getSearchLoad(), closeTo(2.0, 1e-3));
+        statsPerExecutor.put(Names.SEARCH, new ExecutorLoadStats(1.0, timeValueMillis(200).nanos(), 0, 1, 2, queueBacklogDuration));
+        assertThat(searchLoadProbe.getSearchLoad(), closeTo(scalingFactorUnderTest * 2.0, 1e-3));
 
         statsPerExecutor.clear();
         // With 200ms per task each thread can do 5 tasks per second
@@ -167,10 +266,10 @@ public class SearchLoadProbeTests extends ESTestCase {
         int numProcessors = 4;
         statsPerExecutor.put(
             Names.SEARCH,
-            new ExecutorLoadStats(threadsUsed, timeValueMillis(200).nanos(), queueSize, maxThreads, numProcessors)
+            new ExecutorLoadStats(threadsUsed, timeValueMillis(200).nanos(), queueSize, maxThreads, numProcessors, 0L)
         );
         var expectedExtraThreads = threadsUsed * ((double) numProcessors / maxThreads);
-        assertThat(searchLoadProbe.getSearchLoad(), closeTo(threadsUsed + expectedExtraThreads, 1e-3));
+        assertThat(searchLoadProbe.getSearchLoad(), closeTo(searchLoadScalingFactor * (threadsUsed + expectedExtraThreads), 1e-3));
     }
 
     public void testSearchLoadJustThreadPool() {
@@ -242,18 +341,33 @@ public class SearchLoadProbeTests extends ESTestCase {
         double expectedTotalReportedLoad
     ) {
         Map<String, ExecutorLoadStats> statsPerExecutor = new HashMap<>();
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(MAX_TIME_TO_CLEAR_QUEUE.getKey(), timeValueMillis(maxTimeToClearQueueMillis));
+        // configure the scaling factor explicitly sometimes, otherwise rely on the default
+        boolean configureScalingFactorExplicitly = randomBoolean();
+        double randomScalingFactor = randomDoubleBetween(1.00, 10.0, true);
+        if (configureScalingFactorExplicitly) {
+            settingsBuilder.put(SEARCH_LOAD_SCALING_FACTOR.getKey(), randomScalingFactor);
+        }
+        Settings settings = settingsBuilder.build();
+
         var searchLoadProbe = new SearchLoadProbe(
             new ClusterSettings(
-                Settings.builder().put(MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueMillis(maxTimeToClearQueueMillis)).build(),
+                settings,
                 Sets.addToCopy(
                     ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                     MAX_TIME_TO_CLEAR_QUEUE,
                     MAX_QUEUE_CONTRIBUTION_FACTOR,
-                    SHARD_READ_LOAD_THRESHOLD_SETTING
+                    SHARD_READ_LOAD_THRESHOLD_SETTING,
+                    SEARCH_LOAD_SCALING_FACTOR
                 )
             ),
-            statsPerExecutor::get
+            statsPerExecutor::get,
+            MeterRegistry.NOOP
         );
+
+        double scalingFactorUnderTest = configureScalingFactorExplicitly ? randomScalingFactor : DEFAULT_SCALING_FACTOR;
+        assertThat(searchLoadProbe.searchLoadScalingFactor(), is(scalingFactorUnderTest));
 
         statsPerExecutor.put(
             Names.SEARCH,
@@ -262,10 +376,11 @@ public class SearchLoadProbeTests extends ESTestCase {
                 timeValueMillis(searchTaskTimeMillis).nanos(),
                 searchQueueSize,
                 searchOrGetThreadPoolSize((int) Math.ceil(numProcessors)),
-                numProcessors
+                numProcessors,
+                randomLongBetween(0L, TimeValue.timeValueMillis(maxTimeToClearQueueMillis).nanos())
             )
         );
 
-        assertThat(searchLoadProbe.getSearchLoad(), closeTo(expectedTotalReportedLoad, 1e-3));
+        assertThat(searchLoadProbe.getSearchLoad(), closeTo(scalingFactorUnderTest * expectedTotalReportedLoad, 1e-3));
     }
 }

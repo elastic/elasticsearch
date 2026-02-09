@@ -25,10 +25,10 @@
  * There are two main services that perform periodic tasks:
  *
  *  <ul>
- *     <li>{@link co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService}</li>
- *     <li>{@link co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService}</li>
+ *     <li>{@link org.elasticsearch.xpack.stateless.autoscaling.search.SearchMetricsService}</li>
+ *     <li>{@link org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService}</li>
  * </ul>
  *
  * For more information see the service classes javadocs.
  */
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;

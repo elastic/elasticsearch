@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster.coordination;
+package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;

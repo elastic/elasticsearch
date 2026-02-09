@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
@@ -26,12 +26,12 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ServerlessFieldCapabilitiesIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class ServerlessFieldCapabilitiesIT extends AbstractStatelessPluginIntegTestCase {
 
     private final String mapping = """
         {

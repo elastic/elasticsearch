@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
-
-import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -33,6 +31,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.autoscaling.search.SearchMetricsService;
 
 public class TransportPublishSearchLoads extends TransportMasterNodeAction<PublishNodeSearchLoadRequest, ActionResponse.Empty> {
     public static final String NAME = "cluster:monitor/stateless/autoscaling/push_node_search_load";

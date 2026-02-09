@@ -13,24 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
-import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -97,18 +82,28 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsTracker;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -415,7 +410,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
-                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
+                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
+                SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
             )
         );
         return new SearchEngine(
@@ -424,7 +420,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
             public void close() throws IOException {
@@ -524,7 +521,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
-                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
+                SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
+                SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
             )
         );
         return new SearchEngine(
@@ -533,7 +531,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
             public void close() throws IOException {
@@ -756,8 +755,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     /**
-     * Retrieve all captured commits on a given {@link IndexEngine} and notify the {@link SearchEngine} of those new commits in a random
-     * order.
+     * Retrieve all captured commits on a given {@link org.elasticsearch.xpack.stateless.engine.IndexEngine} and notify
+     * the {@link SearchEngine} of those new commits in a random order.
      *
      * @param indexEngine  the index engine to retrieve the capture commits from
      * @param searchEngine the search engine to notify with new commits

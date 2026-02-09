@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.objectstore;
-
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
+package org.elasticsearch.xpack.stateless.objectstore;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
@@ -49,7 +47,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
@@ -84,6 +81,8 @@ import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -108,6 +107,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -263,6 +263,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         true,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.search.cache_recovery_bcc.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
@@ -286,6 +291,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final ProjectResolver projectResolver;
 
     private final boolean concurrentMultipartUploads;
+    private final boolean cacheSearchRecoveryBcc;
 
     public ObjectStoreService(
         Settings settings,
@@ -316,6 +322,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
         this.permits = new Semaphore(0);
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
+        this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
     }
 
     @Override
@@ -743,9 +750,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      * @param directory         the {@link BlobStoreCacheDirectory} used to read the blob in the object store
      * @param blobTermAndGen    the term/generation of the blob to read
      * @param maxBlobLength     the blob's maximum length to read
-     * @param exactBlobLength   a flag indicating that the max. blob length is equal to the real blob length in the object store (flag is
-     *                          {@code true}) or not (flag is {@code false}) in which case we are OK to not read the blob fully. This flag
-     *                          is used in assertions only.
      * @return                  a {@link BatchedCompoundCommit}
      * @throws IOException      if an I/O error occurs
      */
@@ -753,12 +757,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         BlobStoreCacheDirectory directory,
         IOContext context,
         PrimaryTermAndGeneration blobTermAndGen,
-        long maxBlobLength,
-        boolean exactBlobLength
+        long maxBlobLength
     ) throws IOException {
         var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
-        return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, exactBlobLength);
+        return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
 
     /**
@@ -799,7 +802,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createNewInstance();
+        var dir = directory.createNewBlobStoreCacheDirectoryForWarming();
         dir.updateMetadata(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
@@ -824,7 +827,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Find the latest batched compound commit in the provided map and read it using
-     * {@link #readBatchedCompoundCommitUsingCache(BlobStoreCacheDirectory, IOContext, PrimaryTermAndGeneration, long, boolean)}
+     * {@link #readBatchedCompoundCommitUsingCache(BlobStoreCacheDirectory, IOContext, PrimaryTermAndGeneration, long)}
      *
      * @param directory the {@link BlobStoreCacheDirectory} to use for reading the blob
      * @param blobs     a sorted map of batched compound commit blobs
@@ -840,31 +843,28 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         var lastEntry = blobs.lastEntry();
         if (lastEntry != null) {
             assert startsWithBlobPrefix(lastEntry.getValue().name()) : lastEntry.getValue();
-            return readBatchedCompoundCommitUsingCache(directory, context, lastEntry.getKey(), lastEntry.getValue().length(), true);
+            return readBatchedCompoundCommitUsingCache(directory, context, lastEntry.getKey(), lastEntry.getValue().length());
         }
         return null;
     }
 
     // Package private for testing
-    static BatchedCompoundCommit readNewestBcc(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
-
-        final BlobMetadata blobMetadataOfMaxGeneration = allBlobs.values()
+    static @Nullable Tuple<Long, BlobMetadata> getLatestBlob(BlobContainer blobContainer) throws IOException {
+        Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.INDICES);
+        logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
+        return allBlobs.values()
             .stream()
             .filter(blobMetadata -> startsWithBlobPrefix(blobMetadata.name()))
-            .max(Comparator.comparingLong(m -> parseGenerationFromBlobName(m.name())))
+            .map(blobMetadata -> new Tuple<>(parseGenerationFromBlobName(blobMetadata.name()), blobMetadata))
+            .max(Comparator.comparingLong(Tuple::v1))
             .orElse(null);
-
-        if (blobMetadataOfMaxGeneration == null) {
-            return null;
-        }
-        return readBatchedCompoundCommitFromStore(blobContainer, blobMetadataOfMaxGeneration.name(), blobMetadataOfMaxGeneration.length());
     }
 
-    private static BatchedCompoundCommit readBatchedCompoundCommitFromStore(BlobContainer blobContainer, String blobName, long blobLength)
+    static BatchedCompoundCommit readBatchedCompoundCommitFromStore(BlobContainer blobContainer, BlobMetadata blobMetadata)
         throws IOException {
         return BatchedCompoundCommit.readFromStore(
-            blobName,
-            blobLength,
+            blobMetadata.name(),
+            blobMetadata.length(),
             // The following issues a new call to blobstore for each CC as suggested by the BlobReader interface.
             (name, offset, length) -> new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, name, offset, length)),
             true
@@ -887,22 +887,28 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             .toList();
     }
 
-    public static BatchedCompoundCommit readSearchShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
-        BatchedCompoundCommit latestBcc = null;
+    public @Nullable BatchedCompoundCommit readSearchShardState(
+        BlobContainer shardContainer,
+        SearchDirectory searchDirectory,
+        long primaryTerm
+    ) throws IOException {
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
             final var blobContainer = container.v2();
-
-            Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.INDICES);
-            logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
-
-            latestBcc = ObjectStoreService.readNewestBcc(blobContainer, allBlobs);
-            if (latestBcc != null) {
-                logLatestBcc(latestBcc, blobContainer);
-                break;
+            final var term = container.v1();
+            var latestBlob = getLatestBlob(blobContainer);
+            if (latestBlob == null) {
+                continue;
+            }
+            if (cacheSearchRecoveryBcc) {
+                var foundTermAndGen = new PrimaryTermAndGeneration(term, latestBlob.v1());
+                searchDirectory.updateLatestUploadedBcc(foundTermAndGen);
+                return readBatchedCompoundCommitUsingCache(searchDirectory, IOContext.DEFAULT, foundTermAndGen, latestBlob.v2().length());
+            } else {
+                return readBatchedCompoundCommitFromStore(blobContainer, latestBlob.v2());
             }
         }
-        return latestBcc;
+        return null;
     }
 
     public static void readIndexingShardState(
@@ -1011,28 +1017,24 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
                     });
                 } else {
+                    Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
                     readReferencedCompoundCommitsUsingCache(
                         latestBcc.lastCompoundCommit(),
                         latestBcc,
                         directory,
                         context,
                         bccHeaderReadExecutor,
-                        l.map(referencedCompoundCommitsByBlob -> {
-                            Map<String, BlobFileRanges> blobFileRanges = new HashMap<>();
-                            for (var referencedCompoundCommitsList : referencedCompoundCommitsByBlob.values()) {
-                                for (var referencedCompoundCommit : referencedCompoundCommitsList) {
-                                    blobFileRanges.putAll(
-                                        computeBlobFileRanges(
-                                            useReplicatedRanges,
-                                            referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
-                                            referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
-                                            referencedCompoundCommit.referencedInternalFiles()
-                                        )
-                                    );
-                                }
-                            }
-                            return new IndexingShardState(latestBcc, otherBlobs, blobFileRanges);
-                        })
+                        referencedCompoundCommit -> {
+                            blobFileRanges.putAll(
+                                computeBlobFileRanges(
+                                    useReplicatedRanges,
+                                    referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
+                                    referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                    referencedCompoundCommit.referencedInternalFiles()
+                                )
+                            );
+                        },
+                        l.map(aVoid -> new IndexingShardState(latestBcc, otherBlobs, blobFileRanges))
                     );
                 }
             })
@@ -1146,7 +1148,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Starting from the passed-in {@param compoundCommit}, this finds all the referenced BCC blobs, then all the CCs in those
-     * BCCs. It returns all the referenced internal files in these referenced CCs, grouped by the containing BCC blob file.
+     * BCCs. It then finds all the referenced internal files in these referenced CCs, and executes the provided
+     * {@param referencedCCsConsumer} on each one of it.
      * The optional param {@param bcc} is passed-in in order to avoid re-reading it from the blobstore (usually one gets a {@code
      * compoundCommit} from a {@code bcc}).
      */
@@ -1156,7 +1159,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         BlobStoreCacheDirectory directory,
         IOContext context,
         Executor bccHeaderReadExecutor,
-        ActionListener<Map<BlobFile, List<StatelessCompoundCommitReferenceWithInternalFiles>>> listener
+        Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
+        ActionListener<Void> listener
     ) {
         readReferencedCompoundCommits(
             compoundCommit,
@@ -1164,21 +1168,20 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
                 ? bcc.compoundCommits().iterator()
                 : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset),
+            referencedCCsConsumer,
             listener
         );
     }
 
-    public static void readReferencedCompoundCommits(
+    private static void readReferencedCompoundCommits(
         StatelessCompoundCommit compoundCommit,
         Executor bccHeaderReadExecutor,
         BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
-        ActionListener<Map<BlobFile, List<StatelessCompoundCommitReferenceWithInternalFiles>>> listener
+        Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
+        ActionListener<Void> listener
     ) {
-        var referencedCompoundCommitsByBlob = ConcurrentCollections.<
-            BlobFile,
-            List<StatelessCompoundCommitReferenceWithInternalFiles>>newConcurrentMap();
         var referencedFilesByBlob = groupReferencedFilesByBlob(compoundCommit);
-        try (var listeners = new RefCountingListener(listener.map(unused -> referencedCompoundCommitsByBlob))) {
+        try (var listeners = new RefCountingListener(listener)) {
             for (var referencedFilesForBlob : referencedFilesByBlob.entrySet()) {
                 var referencedBlob = referencedFilesForBlob.getKey();
                 var referencedFiles = referencedFilesForBlob.getValue().files();
@@ -1195,13 +1198,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         assert offsetInBlob == BlobCacheUtils.toPageAlignedSize(offsetInBlob);
                         var commitInternalFiles = Sets.intersection(referencedCompoundCommit.internalFiles(), referencedFiles);
                         if (commitInternalFiles.isEmpty() == false) {
-                            referencedCompoundCommitsByBlob.computeIfAbsent(referencedBlob, (ignored) -> new ArrayList<>())
-                                .add(
-                                    new StatelessCompoundCommitReferenceWithInternalFiles(
-                                        new StatelessCompoundCommitReference(referencedCompoundCommit, referencedBlob, offsetInBlob),
-                                        commitInternalFiles
-                                    )
-                                );
+                            referencedCCsConsumer.accept(
+                                new StatelessCompoundCommitReferenceWithInternalFiles(
+                                    new StatelessCompoundCommitReference(referencedCompoundCommit, referencedBlob, offsetInBlob),
+                                    commitInternalFiles
+                                )
+                            );
                         }
                         offsetInBlob += BlobCacheUtils.toPageAlignedSize(referencedCompoundCommit.sizeInBytes());
                         if (Assertions.ENABLED) {

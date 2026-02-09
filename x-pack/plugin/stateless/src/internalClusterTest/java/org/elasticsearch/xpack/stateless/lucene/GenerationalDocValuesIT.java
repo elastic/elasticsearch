@@ -15,28 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
+package org.elasticsearch.xpack.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
-import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
-import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
-import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.SearchEngine;
-import co.elastic.elasticsearch.stateless.engine.SearchEngineTestUtils;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -78,12 +59,32 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.autoscaling.search.SearchShardSizeCollector;
+import org.elasticsearch.xpack.stateless.autoscaling.search.ShardSizesPublisher;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.engine.SearchEngineTestUtils;
+import org.elasticsearch.xpack.stateless.lucene.stats.ShardSizeStatsClient;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -108,13 +109,13 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static java.util.Map.entry;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,16 +124,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
      * Plugin to track Lucene opened generational files.
      */
-    public static class GenerationalFilesTrackingServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class GenerationalFilesTrackingStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         static final AtomicReference<MergeFinder> mergeFinderRef = new AtomicReference<>(MergeFinder.EMPTY);
         static final AtomicBoolean useCustomMergePolicy = new AtomicBoolean(false);
 
-        public GenerationalFilesTrackingServerlessStatelessPlugin(Settings settings) {
+        public GenerationalFilesTrackingStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -339,12 +340,12 @@ public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIn
         }
 
         @Override
-        protected CacheBlobReader getCacheBlobReader(String fileName, BlobLocation location) {
+        protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
             // Use the direct executor so we can use the thread name in testBackgroundMergeCanRetainDeletedGenerationalFile
             return new MeteringCacheBlobReader(
                 new ObjectStoreCacheBlobReader(
-                    getBlobContainer(location.primaryTerm()),
-                    location.blobName(),
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
                     getCacheService().getRangeSize(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 ) {
@@ -471,8 +472,8 @@ public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIn
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(GenerationalFilesTrackingServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(GenerationalFilesTrackingStatelessPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
@@ -486,7 +487,7 @@ public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIn
 
     @After
     public void disableCustomMergePolicy() {
-        GenerationalFilesTrackingServerlessStatelessPlugin.disableCustomMergePolicy();
+        GenerationalFilesTrackingStatelessPlugin.disableCustomMergePolicy();
     }
 
     /**
@@ -505,7 +506,7 @@ public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIn
     }
 
     public void testBackgroundMergeCanRetainDeletedGenerationalFile() throws Exception {
-        GenerationalFilesTrackingServerlessStatelessPlugin.enableCustomMergePolicy();
+        GenerationalFilesTrackingStatelessPlugin.enableCustomMergePolicy();
         var nodeName = startMasterAndIndexNode(
             // Disable the cache, so we force all reads to fetch data from the blob store
             Settings.builder()
@@ -649,7 +650,7 @@ public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIn
         // a generational file with generation 1 attached to it. That should trigger a read against the blob store while the
         // three segments are merged.
         var firstMergeTriggered = new AtomicBoolean(false);
-        GenerationalFilesTrackingServerlessStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
+        GenerationalFilesTrackingStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
             if (firstMergeTriggered.compareAndSet(false, true)) {
                 var mergeSpecification = new MergePolicy.MergeSpecification();
                 var toMerge = StreamSupport.stream(segmentInfos.spliterator(), false)
@@ -768,7 +769,7 @@ public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIn
         // to be merged away with the next segment (_5) so the BCC7 is not referenced anymore and can be deleted
         // (until the gen files bug is solved).
         var lastMergeTriggered = new AtomicBoolean(false);
-        GenerationalFilesTrackingServerlessStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
+        GenerationalFilesTrackingStatelessPlugin.setMergeFinder((mergeTrigger, segmentInfos, mergeContext) -> {
             if (lastMergeTriggered.compareAndSet(false, true)) {
                 var toMerge = StreamSupport.stream(segmentInfos.spliterator(), false)
                     .filter(segmentCommitInfo -> segmentCommitInfo.info.name.equals("_3") || segmentCommitInfo.info.name.equals("_5"))

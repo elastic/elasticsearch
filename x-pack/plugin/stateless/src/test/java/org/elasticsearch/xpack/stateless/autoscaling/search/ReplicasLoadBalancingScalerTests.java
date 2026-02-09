@@ -15,11 +15,10 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
-import co.elastic.elasticsearch.stateless.autoscaling.DesiredClusterTopology;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -52,6 +51,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.DesiredClusterTopology;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -62,8 +62,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.DesiredClusterTopologyTestUtils.randomTierTopology;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasLoadBalancingScaler.getIndicesRelativeSearchLoads;
+import static org.elasticsearch.xpack.stateless.autoscaling.DesiredClusterTopologyTestUtils.randomTierTopology;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler.getIndicesRelativeSearchLoads;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -82,6 +82,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         client = new MockClient(testThreadPool);
         scaler = new ReplicasLoadBalancingScaler(clusterService, client);
         scaler.init();
+        scaler.updateEnableReplicasForLoadBalancing(true);
     }
 
     @After
@@ -246,6 +247,37 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         Map<String, Double> result = getIndicesRelativeSearchLoads(context, indicesStatsMap::get);
         double total = result.values().stream().mapToDouble(Double::doubleValue).sum();
         assertThat(total, closeTo(1.0, 0.0001));
+    }
+
+    public void testGetIndicesRelativeSearchLoadsWhenMissingStats() {
+        Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
+        Map<ShardId, SearchMetricsService.ShardMetrics> shardMetrics = new HashMap<>();
+        SearchMetricsService.ShardMetrics sizeRelatedShardMetrics = new SearchMetricsService.ShardMetrics();
+        sizeRelatedShardMetrics.shardSize = new ShardSizeStatsReader.ShardSize(100, 150, 0, 0);
+
+        Index index1 = new Index("index1", "uuid");
+        indicesMap.put(index1, new SearchMetricsService.IndexProperties("index1", 1, 1, false, false, 0));
+        shardMetrics.put(new ShardId(index1, 0), sizeRelatedShardMetrics);
+        Index index2 = new Index("index2", "uuid2");
+        indicesMap.put(index2, new SearchMetricsService.IndexProperties("index2", 1, 1, false, false, 0));
+
+        ShardStats index1PrimaryShard = createShardStats("index-node", new ShardId(index1, 0), true, 0.01);
+        ShardStats index1SearchShard = createShardStats("search-node", new ShardId(index1, 0), false, 0.23);
+        IndexStats index1Stats = new IndexStats(
+            index1.getName(),
+            index1.getUUID(),
+            null,
+            IndexMetadata.State.OPEN,
+            new ShardStats[] { index1SearchShard, index1PrimaryShard }
+        );
+
+        Map<String, IndexStats> indicesStatsMap = Map.of(index1.getName(), index1Stats);
+        ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, shardMetrics, 100);
+
+        Map<String, Double> result = getIndicesRelativeSearchLoads(context, indicesStatsMap::get);
+        assertThat(result.size(), is(2));
+        assertThat(result.get("index1"), closeTo(1.0, 0.01));
+        assertThat(result.get("index2"), closeTo(0.0, 0.01));
     }
 
     public void testLimitReplicasToCurrentTopologyWhenDisabled() {
@@ -434,7 +466,8 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
 
         // desired would be ceil(0.8 * 10 / (1 * 0.5)) = 16, but limited to 10 (desiredSearchNodes)
         // however, with shutdowns in progress and current replicas = 2, should stay at 2
-        assertThat(result.desiredReplicasPerIndex().isEmpty(), is(true));
+        assertThat(result.desiredReplicasPerIndex().isEmpty(), is(false));
+        assertThat(result.desiredReplicasPerIndex().get("index1"), is(2));
     }
 
     public void testCalculateDesiredReplicasAllowsScaleDownDuringShutdown() {
@@ -505,8 +538,63 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
             0
         );
 
-        // desired: ceil(0.2 * 10 / (1 * 0.5)) = 4, matches current, no change needed
-        assertThat(result.desiredReplicasPerIndex().isEmpty(), is(true));
+        // desired: ceil(0.2 * 10 / (1 * 0.5)) = 4, matches current
+        assertThat(result.desiredReplicasPerIndex().isEmpty(), is(false));
+        assertThat(result.desiredReplicasPerIndex().get("index1"), is(4));
+    }
+
+    public void testCalculateDesiredReplicasReturnsMinimumOneReplica() {
+        Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
+        Index index1 = new Index("index1", "uuid1");
+        indicesMap.put(index1, new SearchMetricsService.IndexProperties("index1", 1, 3, false, false, 0));
+        Index index2 = new Index("index2", "uuid2");
+        indicesMap.put(index2, new SearchMetricsService.IndexProperties("index2", 1, 2, false, false, 0));
+
+        ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 200);
+        Map<String, Double> relativeSearchLoads = Map.of("index1", 0.0, "index2", 1.0);
+        DesiredClusterTopology topology = new DesiredClusterTopology(
+            new DesiredClusterTopology.TierTopology(5, "8G", randomFloat(), randomFloat(), randomFloat()),
+            randomTierTopology()
+        );
+
+        ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult result = scaler.calculateDesiredReplicas(
+            context,
+            relativeSearchLoads,
+            Map.of(),
+            topology,
+            0
+        );
+
+        assertThat(result.desiredReplicasPerIndex().get("index1"), is(1));
+        assertThat(result.desiredReplicasPerIndex().get("index2"), is(5));
+    }
+
+    public void testGetDesiredReplicasReturnResultOrderedByRelativeSearchLoad() {
+        Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
+        Index index1 = new Index("index1", "uuid1");
+        indicesMap.put(index1, new SearchMetricsService.IndexProperties("index1", 1, 3, false, false, 0));
+        Index index2 = new Index("index2", "uuid2");
+        indicesMap.put(index2, new SearchMetricsService.IndexProperties("index2", 1, 2, false, false, 0));
+        Index index3 = new Index("index3", "uuid3");
+        indicesMap.put(index3, new SearchMetricsService.IndexProperties("index3", 1, 2, false, false, 0));
+
+        ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, Map.of(), 200);
+        Map<String, Double> relativeSearchLoads = Map.of("index1", 0.38, "index2", 0.23, "index3", 0.39);
+        DesiredClusterTopology topology = new DesiredClusterTopology(
+            new DesiredClusterTopology.TierTopology(5, "8G", randomFloat(), randomFloat(), randomFloat()),
+            randomTierTopology()
+        );
+
+        ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult result = scaler.calculateDesiredReplicas(
+            context,
+            relativeSearchLoads,
+            Map.of(),
+            topology,
+            0
+        );
+        assertThat(result.desiredReplicasPerIndex().firstEntry().getKey(), is("index3"));
+        assertThat(result.desiredReplicasPerIndex().lastEntry().getKey(), is("index2"));
+        assertThat(result.desiredReplicasPerIndex().size(), is(3));
     }
 
     public void testGetRecommendedReplicasWhenServiceDisabled() {

@@ -15,14 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
+package org.elasticsearch.xpack.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.LazyRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -43,15 +38,17 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,13 +58,19 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.cache.Lucene90CompoundEntriesReader;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
+import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardRecoveryComparator;
 
 import java.io.IOException;
@@ -98,12 +101,6 @@ import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE
 import static org.elasticsearch.core.Strings.format;
 
 public class SharedBlobCacheWarmingService {
-
-    public static double calculateWarmingRatio(long nowMillis, long timestampMillis, long boostWindowMillis, int searchPower) {
-        final long delta = Math.max(timestampMillis - (nowMillis - boostWindowMillis), 0);
-        final double ratio = ((double) delta / boostWindowMillis) * searchPower;
-        return Math.min(ratio, 100) / 100;
-    }
 
     public enum Type {
         INDEXING_EARLY,
@@ -208,11 +205,18 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.NodeScope
     );
 
-    public static final String OFFLINE_WARMING_SETTING_NAME = "stateless.offline_warming.enabled";
-    public static final Setting<Boolean> OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
-        OFFLINE_WARMING_SETTING_NAME,
+    public static final String SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME = "stateless.search.offline_warming";
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".enabled",
         false,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING = Setting.boolSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".prefetch_commits.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private final StatelessSharedBlobCacheService cacheService;
@@ -223,13 +227,16 @@ public class SharedBlobCacheWarmingService {
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
     private final long prewarmingRangeMinimizationStep;
-    private final boolean useOfflineWarmingForSearchShards;
+    private volatile boolean prefetchCommitsForSearchShardRecovery;
+    private volatile int minSearchPower;
+    private volatile boolean searchOfflineWarmingEnabled;
+    private volatile TimeValue boostWindow;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        Settings settings
+        ClusterSettings clusterSettings
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
@@ -250,8 +257,14 @@ public class SharedBlobCacheWarmingService {
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
         this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
-        this.prewarmingRangeMinimizationStep = PREWARMING_RANGE_MINIMIZATION_STEP.get(settings).getBytes();
-        this.useOfflineWarmingForSearchShards = OFFLINE_WARMING_ENABLED_SETTING.get(settings);
+        this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
+        clusterSettings.initializeAndWatch(
+            SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
+            value -> this.prefetchCommitsForSearchShardRecovery = value
+        );
+        clusterSettings.initializeAndWatch(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING, value -> this.minSearchPower = value);
+        clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
+        clusterSettings.initializeAndWatch(SEARCH_OFFLINE_WARMING_ENABLED_SETTING, value -> this.searchOfflineWarmingEnabled = value);
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
@@ -407,18 +420,16 @@ public class SharedBlobCacheWarmingService {
      * @param type a type of which warming this is (to distinguish between the many that may be performed in log messages)
      * @param indexShard the shard to warm in cache
      * @param commit the commit to be recovered
+     * @param regionsToWarm up-to region idx to warm, in addition to regular warming, grouped by {@code BlobFile} (if known/computed)
      */
     public void warmCacheForShardRecovery(
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
-        BlobStoreCacheDirectory directory
+        BlobStoreCacheDirectory directory,
+        @Nullable Map<BlobFile, Integer> regionsToWarm
     ) {
-        if (useOfflineWarmingForSearchShards && Type.SEARCH.equals(type)) {
-            warmCacheForShardRecoveryUsingOfflineWarming();
-        } else {
-            warmCacheRecovery(type, indexShard, commit, directory, ActionListener.noop());
-        }
+        warmCacheRecovery(type, indexShard, commit, directory, regionsToWarm, ActionListener.noop());
     }
 
     protected void warmCacheRecovery(
@@ -426,6 +437,7 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        @Nullable Map<BlobFile, Integer> regionsToWarm,
         ActionListener<Void> listener
     ) {
         ShardId shardId = indexShard.shardId();
@@ -433,19 +445,121 @@ public class SharedBlobCacheWarmingService {
         if (store.isClosing() || store.tryIncRef() == false) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
-            WarmingRun warmingRun = new WarmingRun(
-                type,
-                indexShard.shardId(),
-                "generation=" + commit.generation(),
-                Maps.copyMapWithAddedEntry(RecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", type.name())
+            try (var listeners = new RefCountingListener(ActionListener.runAfter(listener, store::decRef))) {
+                // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
+                if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || searchOfflineWarmingEnabled)) {
+                    SubscribableListener.<Map<BlobFile, Integer>>newForked(l1 -> {
+                        if (regionsToWarm == null) {
+                            Map<BlobFile, Integer> regionsToWarmComputed = ConcurrentCollections.newConcurrentMap();
+                            ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                                commit,
+                                // do not pass in any previously read BCC, because we actually want to ensure that the
+                                // referenced CCs (headers) in this BCC are also populated in the cache
+                                null,
+                                directory,
+                                BlobCacheIndexInput.WARMING,
+                                // cannot run on the {@link PREWARM_THREAD_POOL} because this triggers AND waits for cache population,
+                                // which itself runs on the {@link PREWARM_THREAD_POOL}, potentially triggering a deadlock
+                                throttledTaskRunner.asExecutor(),
+                                referencedCompoundCommit -> {
+                                    regionsToWarmComputed.compute(
+                                        referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
+                                        (blobFile, maxRegionToWarm) -> {
+                                            var regionIdx = regionsToWarmForCC(referencedCompoundCommit);
+                                            return maxRegionToWarm == null ? regionIdx : Math.max(maxRegionToWarm, regionIdx);
+                                        }
+                                    );
+                                },
+                                l1.map(aVoid -> regionsToWarmComputed)
+                            );
+                        } else {
+                            l1.onResponse(regionsToWarm);
+                        }
+                    }).<Void>andThen((l2, regionsToWarmFinal) -> {
+                        if (searchOfflineWarmingEnabled) {
+                            warmRegions(indexShard, regionsToWarmFinal, l2);
+                        } else {
+                            l2.onResponse(null);
+                        }
+                    }).addListener(listeners.acquire());
+                }
+
+                // regular shard recovery prewarming, which prefetches lucene files (headers & footers) required for shard recovery
+                final var warmingRun = new WarmingRun(
+                    type,
+                    indexShard.shardId(),
+                    "generation=" + commit.generation(),
+                    Maps.copyMapWithAddedEntry(RecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", type.name())
+                );
+                try (
+                    // warming up the latest commit upon recovery will fetch a few regions of every active
+                    // segment (the first region of every segment is always fetched)
+                    var warmer = new RecoveryWarmer(
+                        warmingRun,
+                        indexShard,
+                        store::isClosing,
+                        commit.commitFiles(),
+                        directory,
+                        listeners.acquire()
+                    )
+                ) {
+                    warmer.run();
+                }
+            }
+        }
+    }
+
+    public int regionsToWarmForCC(ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC) {
+        final double warmingRatio = calculateWarmingRatioFromCompoundCommit(referencedCC, threadPool.absoluteTimeInMillis());
+        assert warmingRatio >= 0.0;
+        if (warmingRatio <= 0) {
+            return 0;
+        } else {
+            final long startPosition = referencedCC.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile();
+            final long endPosition = startPosition + Math.round(
+                referencedCC.statelessCompoundCommitReference().compoundCommit().sizeInBytes() * warmingRatio
             );
+            int endRegion = cacheService.getEndingRegion(endPosition);
+            final long positionInEndRegion = endPosition % cacheService.getRegionSize();
+            if (endRegion > 0 && positionInEndRegion > 0 && positionInEndRegion <= cacheService.getRegionSize() / 2) {
+                // take the floor region if the end position is <= half of the region size
+                endRegion = Math.max(endRegion - 1, cacheService.getRegion(startPosition));
+            }
+            return endRegion;
+        }
+    }
+
+    private void warmRegions(IndexShard indexShard, Map<BlobFile, Integer> regionsToWarmPerBlobFile, ActionListener<Void> listener) {
+        try (RefCountingListener listeners = new RefCountingListener(listener)) {
+            for (var regionsToWarm : regionsToWarmPerBlobFile.entrySet()) {
+                if (regionsToWarm.getValue() > 0) {
+                    warmBlobRegions(Type.SEARCH, indexShard, regionsToWarm.getKey(), regionsToWarm.getValue(), listeners.acquire());
+                }
+            }
+        }
+    }
+
+    private void warmBlobRegions(
+        Type type,
+        IndexShard indexShard,
+        BlobFile blobFile,
+        int endRegionToWarmTo,
+        ActionListener<Void> listener
+    ) {
+        final Store store = indexShard.store();
+        final ShardId shardId = indexShard.shardId();
+        final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name()));
+
+        if (store.isClosing() || store.tryIncRef() == false) {
+            listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
+        } else {
             try (
-                var warmer = new RecoveryWarmer(
+                var warmer = new BlobRegionWarmer(
                     warmingRun,
-                    indexShard,
+                    blobFile,
+                    endRegionToWarmTo,
                     store::isClosing,
-                    commit.commitFiles(),
-                    directory,
+                    BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
                     ActionListener.runAfter(listener, store::decRef)
                 )
             ) {
@@ -454,8 +568,29 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    protected void warmCacheForShardRecoveryUsingOfflineWarming() {
-        // no-op
+    private double calculateWarmingRatioFromCompoundCommit(
+        ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCompoundCommit,
+        long nowMillis
+    ) {
+        final var timestampFieldValueRange = referencedCompoundCommit.statelessCompoundCommitReference()
+            .compoundCommit()
+            .getTimestampFieldValueRange();
+        long commitMillis;
+        if (timestampFieldValueRange != null) {
+            commitMillis = timestampFieldValueRange.minMillis() + (timestampFieldValueRange.maxMillis() - timestampFieldValueRange
+                .minMillis()) / 2;
+        } else {
+            // if we don't have a timestamp range for the compound commit, use a timestamp in the middle of the boost window
+            commitMillis = nowMillis - boostWindow.getMillis() / 2;
+        }
+
+        return calculateWarmingRatio(nowMillis, commitMillis, boostWindow.getMillis(), minSearchPower);
+    }
+
+    protected static double calculateWarmingRatio(long nowMillis, long timestampMillis, long boostWindowMillis, int searchPower) {
+        final long delta = Math.max(timestampMillis - (nowMillis - boostWindowMillis), 0);
+        final double ratio = ((double) delta / boostWindowMillis) * searchPower;
+        return Math.min(ratio, 100) / 100;
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
@@ -647,7 +782,7 @@ public class SharedBlobCacheWarmingService {
             var dir = (IndexBlobStoreCacheDirectory) directory;
             int region = (int) (dir.getPosition(fileName, position, (int) length) / cacheService.getRegionSize());
             // region 0 is already loaded by this point while resolving full set of commit files and safe to skip.
-            // See co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService#readIndexingShardState
+            // See org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService#readIndexingShardState
             return region == 0;
         }
 
@@ -736,6 +871,42 @@ public class SharedBlobCacheWarmingService {
                 duration,
                 segmentCount,
                 locationsToWarm.size(),
+                tasksCount.get(),
+                totalBytesCopied.get()
+            );
+        }
+    }
+
+    private class BlobRegionWarmer extends SharedBlobCacheWarmingService.AbstractWarmer {
+        private final BlobFile blobFile;
+        private final int endRegionToWarmTo;
+
+        BlobRegionWarmer(
+            SharedBlobCacheWarmingService.WarmingRun warmingRun,
+            BlobFile blobFile,
+            int endRegionToWarmTo,
+            Supplier<Boolean> isStoreClosing,
+            BlobStoreCacheDirectory directory,
+            ActionListener<Void> listener
+        ) {
+            super(warmingRun, isStoreClosing, directory, listener);
+            this.blobFile = blobFile;
+            this.endRegionToWarmTo = endRegionToWarmTo;
+        }
+
+        void run() {
+            scheduleWarmingTask(new WarmBlobRegionsTask(blobFile, endRegionToWarmTo, listeners.acquire()));
+        }
+
+        @Override
+        protected void onWarmingSuccess(long duration) {
+            logger.log(
+                duration >= 5000 ? Level.INFO : Level.DEBUG,
+                "{} {} warming completed in {} ms ({} regions, {} tasks, {} bytes)",
+                warmingRun.shardId(),
+                warmingRun.type(),
+                duration,
+                endRegionToWarmTo,
                 tasksCount.get(),
                 totalBytesCopied.get()
             );
@@ -834,7 +1005,7 @@ public class SharedBlobCacheWarmingService {
                                     WarmBlobLocationTask.this,
                                     cacheKey.fileName(),
                                     ByteRange.of(offset, offset + cacheService.getRegionSize()),
-                                    directory.getCacheBlobReaderForWarming(cacheKey.fileName(), blobLocation),
+                                    directory.getCacheBlobReaderForWarming(blobFile),
                                     () -> writeBuffer.get().clear(),
                                     totalBytesCopied::addAndGet,
                                     StatelessPlugin.PREWARM_THREAD_POOL
@@ -891,7 +1062,7 @@ public class SharedBlobCacheWarmingService {
                             }
 
                             var blobLocation = item.blobLocation();
-                            var cacheBlobReader = directory.getCacheBlobReaderForWarming(cacheKey.fileName(), blobLocation);
+                            var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation.blobFile());
                             var itemListener = ActionListener.releaseAfter(item.listener(), Releasables.assertOnce(refs.acquire()));
                             maybeFetchBlobRange(item, cacheBlobReader, cacheKey, itemListener.delegateResponse((l, e) -> {
                                 if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
@@ -992,6 +1163,57 @@ public class SharedBlobCacheWarmingService {
             @Override
             public String toString() {
                 return "WarmingTask{region=" + blobRegion + "}";
+            }
+        }
+
+        protected class WarmBlobRegionsTask implements ActionListener<Releasable> {
+            private final BlobFile blobFile;
+            private final int endRegion;
+            private final ActionListener<Void> listener;
+
+            WarmBlobRegionsTask(BlobFile blobFile, int endRegion, ActionListener<Void> listener) {
+                this.blobFile = Objects.requireNonNull(blobFile);
+                this.endRegion = endRegion;
+                this.listener = listener;
+                logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobFile);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                final var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
+
+                // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
+                try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
+                    for (int region = 0; region <= endRegion; region++) {
+                        final long offset = (long) region * cacheService.getRegionSize();
+                        cacheService.fetchRegion(
+                            cacheKey,
+                            region,
+                            cacheService.getRegionSize(),
+                            new LazyRangeMissingHandler<>(
+                                () -> new SequentialRangeMissingHandler(
+                                    WarmBlobRegionsTask.this,
+                                    cacheKey.fileName(),
+                                    ByteRange.of(offset, offset + cacheService.getRegionSize()),
+                                    directory.getCacheBlobReaderForWarming(blobFile),
+                                    () -> writeBuffer.get().clear(),
+                                    totalBytesCopied::addAndGet,
+                                    StatelessPlugin.PREWARM_THREAD_POOL,
+                                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                                )
+                            ),
+                            fetchExecutor,
+                            // force is enabled during warming to ensure we always warm the specified region
+                            true,
+                            ref.acquire().map(b -> null)
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> format("%s %s failed to warm blob %s", warmingRun.shardId(), warmingRun.type(), blobFile), e);
             }
         }
 

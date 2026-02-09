@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.metering.action;
+package org.elasticsearch.xpack.stateless.metering.action;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponseTests.createErrors;
+import static org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesResponseTests.createErrors;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;

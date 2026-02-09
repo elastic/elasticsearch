@@ -15,12 +15,11 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
-
-import co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.IndexRankingProperties;
-import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.IndexProperties;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.search.IndexReplicationRanker.IndexRankingProperties;
+import org.elasticsearch.xpack.stateless.autoscaling.search.SearchMetricsService.IndexProperties;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -29,8 +28,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.getRankedIndicesBelowThreshold;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.rankedIndexComparator;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.IndexReplicationRanker.getRankedIndicesBelowThreshold;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.IndexReplicationRanker.rankedIndexComparator;
 
 public class IndexReplicationRankerTests extends ESTestCase {
 

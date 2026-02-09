@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
+package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -44,20 +41,26 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class StatelessIndexBalanceAllocationDeciderIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final int HEAVY_WEIGHT = 1000;
     private static final int LIGHT_WEIGHT = 1;
@@ -172,8 +175,8 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractServerless
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         return plugins;
     }
 
@@ -193,8 +196,8 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractServerless
         }
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
-        public TestServerlessStatelessPlugin(Settings settings) {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -230,11 +233,82 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractServerless
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
             return CollectionUtils.appendToCopy(super.createAllocationDeciders(settings, clusterSettings), new AllocationDecider() {
-                public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                @Override
+                public Decision canRebalance(RoutingAllocation allocation) {
                     return Decision.NO;
                 }
             });
         }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not_preferred:DEBUG",
+        reason = "So we can see why the shards are being moved"
+    )
+    public void testShardsAreMovedToImproveIndexBalanceOnClusterScaleUp() {
+        // Enable the index balance decider
+        Settings settings = Settings.builder()
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
+            .build();
+
+        final var indexNodes = List.of(startMasterAndIndexNode(settings), startMasterAndIndexNode(settings));
+        final var searchNodes = startSearchNodes(2);
+
+        final String indexName = randomIdentifier();
+        final int numberOfShards = randomIntBetween(10, 20);
+
+        createIndex(indexName, numberOfShards, 1);
+        ensureGreen(indexName);
+
+        {
+            // The nodes should both have a roughly even spread of the index shards
+            final int thresholdForTwoNodes = Math.ceilDiv(numberOfShards, 2);
+            final var state = internalCluster().clusterService().state();
+            final var index = state.routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
+            final var routingNodes = state.getRoutingNodes();
+            indexNodes.stream()
+                .map(ESIntegTestCase::getNodeId)
+                .forEach(
+                    nodeId -> assertThat(
+                        routingNodes.node(nodeId).numberOfOwningShardsForIndex(index),
+                        lessThanOrEqualTo(thresholdForTwoNodes)
+                    )
+                );
+        }
+
+        // Start more index nodes (should trigger a re-route)
+        final var expandedIndexNodes = Stream.concat(indexNodes.stream(), startIndexNodes(randomIntBetween(1, 4), settings).stream())
+            .toList();
+        // The nodes should eventually all have a roughly even spread of the index shards
+        assertIndexBalanceIsRestored(numberOfShards, expandedIndexNodes, indexName);
+
+        // Start more search nodes (should trigger a re-route)
+        final var expandedSearchNodes = Stream.concat(searchNodes.stream(), startSearchNodes(randomIntBetween(1, 4), settings).stream())
+            .toList();
+        // The nodes should eventually all have a roughly even spread of the index shards
+        assertIndexBalanceIsRestored(numberOfShards, expandedSearchNodes, indexName);
+    }
+
+    private void assertIndexBalanceIsRestored(int numberOfShards, List<String> expandedNodeSet, String indexName) {
+        // The nodes should eventually all have a roughly even spread of the index shards
+        final int shardCountThreshold = Math.ceilDiv(numberOfShards, expandedNodeSet.size());
+        awaitClusterState(state -> {
+            final var routingNodes = state.getRoutingNodes();
+            final var index = state.routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
+            logger.info("--> Checking cluster state for index {}", index);
+            return expandedNodeSet.stream().map(ESIntegTestCase::getNodeId).allMatch(nodeId -> {
+                int shardsOnNode = routingNodes.node(nodeId).numberOfOwningShardsForIndex(index);
+                logger.info(
+                    "--> Node {} has {} shards (threshold={}, numberOfShards={}, eligibleNodes={})",
+                    nodeId,
+                    shardsOnNode,
+                    shardCountThreshold,
+                    numberOfShards,
+                    expandedNodeSet.size()
+                );
+                return shardsOnNode <= shardCountThreshold;
+            });
+        });
     }
 
     private void setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes() {

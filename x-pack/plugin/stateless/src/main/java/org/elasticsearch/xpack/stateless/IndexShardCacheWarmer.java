@@ -15,12 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -35,13 +30,17 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.FileNotFoundException;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.Executor;
 
-import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
 
 public class IndexShardCacheWarmer {
 
@@ -105,7 +104,7 @@ public class IndexShardCacheWarmer {
                 // Recovery hasn't even started yet, so we need to set the blob container here in a copied prewarming instance. This
                 // instance will also be copied when reading the last BCC and other referenced blobs, so it is OK to use it for warming
                 // purpose once the last BCC is known.
-                var prewarmingDirectory = indexDirectory.createNewInstance();
+                var prewarmingDirectory = indexDirectory.getBlobStoreCacheDirectory().createNewBlobStoreCacheDirectoryForWarming();
                 prewarmingDirectory.setBlobContainer(
                     primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
                 );
@@ -132,7 +131,7 @@ public class IndexShardCacheWarmer {
                             // instance that will be used _only_ during pre-warming.
                             prewarmingDirectory.updateMetadata(state.blobFileRanges(), last.getAllFilesSizeInBytes());
                             if (last.hollow() == false || readSingleBlobIfHollow == false) {
-                                warmingService.warmCacheForShardRecovery(warmingType, indexShard, last, prewarmingDirectory);
+                                warmingService.warmCacheForShardRecovery(warmingType, indexShard, last, prewarmingDirectory, null);
                             }
                         }
                     }, e -> logException(indexShard.shardId(), e)), store::decRef)

@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
-import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,15 +37,18 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
+import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
 import java.util.List;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

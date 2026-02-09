@@ -13,13 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
-
-import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -33,6 +29,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -150,6 +147,11 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
 
     String getSliceDescription() {
         return sliceDescription;
+    }
+
+    @Override
+    public void prefetch(long offset, long length) throws IOException {
+        cacheFileReader.tryPrefetch(offset, length);
     }
 
     @Override

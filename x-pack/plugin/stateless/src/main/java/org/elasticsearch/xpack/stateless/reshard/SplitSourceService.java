@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.reshard;
-
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,14 +34,18 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -97,7 +98,7 @@ public class SplitSourceService {
      * A newly created shard starts in CLONE state and has no backing lucene index. This operation
      * sets up a lucene index on the target shard by copying the source shard's lucene index to the target
      * directory on the blob store, and arranging for any new commits to also be copied to the target until the
-     * target shard enters handoff state. Once it has finished copying all the existing commits, it prepares for
+     * target shard enters handoff state. Once the source has finished copying all the existing commits, it prepares for
      * handoff by acquiring indexing permits, flushing, and stopping the copying of new commits, and then calls
      * the listener with a handle on the permits that are held if it succeeds, so that the listener can perform
      * the actual handoff with the target shard.
@@ -296,24 +297,38 @@ public class SplitSourceService {
         }
 
         logger.debug("preparing for handoff to {}", targetShardId);
-        SubscribableListener<Releasable> withPermits = SubscribableListener.newForked(split::withPermits)
-            .andThen(
-                (l, permits) -> SubscribableListener.<Void>newForked(afterMutable -> sourceShard.ensureMutable(afterMutable, true))
-                    .andThen(afterFlush -> sourceShard.withEngine(engine -> {
-                        logger.debug("handoff: flushing {} for {}", sourceShard.shardId(), targetShardId);
-                        // Don't stop copying commits until anything outstanding has been flushed.
-                        engine.flush(/* force */ true, /* waitIfOngoing */ true, afterFlush.map(fr -> {
-                            // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
-                            // commits spontaneously even though indexing permits are held. These are harmless to copy.
-                            logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
-                            stopCopyingNewCommits(targetShardId);
-                            onGoingSplits.remove(sourceShard);
-                            return null;
-                        }));
-                        return null;
-                    }))
-                    .addListener(l.map((ignored) -> permits))
-            );
+        SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
+            afterMutable -> sourceShard.ensureMutable(afterMutable, false)
+        ).<Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
+            logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
+            // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the
+            // flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
+            engine.flush(/* force */ false, /* waitIfOngoing */ false, afterFirstFlush);
+            return null;
+        })).andThen(split::withPermits).andThen((afterSecondFlush, permits) -> {
+            // withEngine and flush can throw, and we don't want to leak permits if it does
+            try {
+                sourceShard.withEngine(engine -> {
+                    logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
+                    // Don't stop copying commits until anything outstanding has been flushed.
+                    engine.flush(/* force */ true, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
+                        // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
+                        // commits spontaneously even though indexing permits are held. These are harmless to copy.
+                        logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
+                        stopCopyingNewCommits(targetShardId);
+                        onGoingSplits.remove(sourceShard);
+                        afterSecondFlush.onResponse(permits);
+                    }, e -> {
+                        permits.close();
+                        afterSecondFlush.onFailure(e);
+                    }));
+                    return null;
+                });
+            } catch (Exception e) {
+                permits.close();
+                afterSecondFlush.onFailure(e);
+            }
+        });
         withPermits.addListener(handoffListener);
     }
 
@@ -361,6 +376,52 @@ public class SplitSourceService {
         });
 
         cleanup.run();
+    }
+
+    /**
+     * Wait to observe target shard state post HANDOFF. This is called on the source node before releasing permits
+     * during the HANDOFF dance.
+     * @param shardId       target shardId
+     * @param listener      completed once target HANDOFF is observed
+     *                      We do not expect this function to throw in {@code getIndexSafe()} because this is
+     *                      invoked after we got permits for this index.
+     */
+    public void waitForTargetShardHandoff(ShardId shardId, ActionListener<Void> listener) {
+        Index index = shardId.getIndex();
+
+        ClusterStateObserver.waitForState(
+            clusterService,
+            clusterService.threadPool().getThreadContext(),
+            new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    // Condition met, so we notify success
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    // This will NEVER be called because timeout is null but we still log an error just in case
+                    logger.error("Ignoring timeout for HANDOFF wait on {}", shardId);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+            },
+            clusterState -> {
+                IndexReshardingMetadata reshardingMetadata = clusterState.metadata()
+                    .projectFor(index)
+                    .getIndexSafe(index)
+                    .getReshardingMetadata();
+
+                return reshardingMetadata != null
+                    && reshardingMetadata.getSplit().targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.HANDOFF);
+            },
+            null, // no timeout => wait forever
+            logger
+        );
     }
 
     private ShardId getSplitSource(ShardId targetShardId) {
@@ -547,8 +608,8 @@ public class SplitSourceService {
         SubscribableListener.<Void>newForked(l -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), l))
             .<Void>andThen(
                 l -> client.execute(
-                    TransportUpdateSplitSourceStateAction.TYPE,
-                    new TransportUpdateSplitSourceStateAction.Request(
+                    TransportUpdateSplitSourceShardStateAction.TYPE,
+                    new TransportUpdateSplitSourceShardStateAction.Request(
                         indexShard.shardId(),
                         IndexReshardingState.Split.SourceShardState.DONE
                     ),

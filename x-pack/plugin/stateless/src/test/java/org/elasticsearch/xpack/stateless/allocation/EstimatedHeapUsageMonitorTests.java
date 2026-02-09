@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
+package org.elasticsearch.xpack.stateless.allocation;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -45,7 +45,7 @@ import java.util.stream.IntStream;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-@TestLogging(value = "co.elastic.elasticsearch.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
+@TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
 public class EstimatedHeapUsageMonitorTests extends ESTestCase {
 
     private long totalBytesPerNode;

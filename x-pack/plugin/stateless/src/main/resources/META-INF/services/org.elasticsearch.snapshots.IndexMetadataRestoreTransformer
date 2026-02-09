@@ -1,1 +1,1 @@
-co.elastic.elasticsearch.stateless.recovery.StatelessRestoreTransformer
+org.elasticsearch.xpack.stateless.recovery.StatelessRestoreTransformer

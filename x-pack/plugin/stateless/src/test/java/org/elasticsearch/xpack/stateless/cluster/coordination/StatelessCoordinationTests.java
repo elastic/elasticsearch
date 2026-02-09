@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster.coordination;
-
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
@@ -59,6 +57,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -161,8 +160,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                     Coordinator.class.getCanonicalName(),
                     Level.INFO,
                     expectedMessagePrefix + "*"
-                ) {
-                },
+                ) {},
                 new MockLog.LoggingExpectation() {
                     @Override
                     public void match(LogEvent event) {

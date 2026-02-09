@@ -13,28 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.SearchEngine;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
-import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
-import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -50,7 +31,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -65,20 +47,40 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
+import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
+import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
+import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
-import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
+import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE;
 
@@ -98,8 +100,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final SplitSourceService splitSourceService;
     private final ProjectResolver projectResolver;
     private final Executor bccHeaderReadExecutor;
-    private final int minSearchPower;
-    private volatile TimeValue boostWindow;
+    private final boolean useInternalFilesReplicatedContentForSearchShards;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -127,9 +128,10 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.splitSourceService = splitSourceService;
         this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
-        this.minSearchPower = clusterSettings.get(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING);
-        clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
         this.cacheService = cacheService;
+        this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
+            SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+        );
     }
 
     @Override
@@ -303,9 +305,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                 );
                 if (recoveryCommit.hollow() == false) {
                     // We must use a copied instance for warming as the index directory will move forward with new commits
-                    var warmingDirectory = indexDirectory.createNewInstance();
+                    var warmingDirectory = indexDirectory.getBlobStoreCacheDirectory().createNewBlobStoreCacheDirectoryForWarming();
                     warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
-                    warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
+                    warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory, null);
                 }
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
@@ -360,7 +362,12 @@ class StatelessIndexEventListener implements IndexEventListener {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert blobContainer != null : indexShard.routingEntry();
 
-        final var batchedCompoundCommit = ObjectStoreService.readSearchShardState(blobContainer, indexShard.getOperationPrimaryTerm());
+        final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+        final var batchedCompoundCommit = objectStoreService.readSearchShardState(
+            blobContainer,
+            searchDirectory,
+            indexShard.getOperationPrimaryTerm()
+        );
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
 
@@ -370,14 +377,13 @@ class StatelessIndexEventListener implements IndexEventListener {
                 ? batchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration()
                 : PrimaryTermAndGeneration.ZERO,
             indexShard.shardId(),
-            listener.delegateFailure((l, response) -> ActionListener.completeWith(listener, () -> {
-                var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+            listener.<RegisterCommitResponse>delegateFailure((l, response) -> {
                 var lastUploaded = response.getLatestUploadedBatchedCompoundCommitTermAndGen();
                 var nodeId = response.getNodeId();
                 assert nodeId != null : response;
 
-                var compoundCommit = response.getCompoundCommit();
-                if (compoundCommit == null) {
+                final StatelessCompoundCommit compoundCommit;
+                if (response.getCompoundCommit() == null) {
                     // If the indexing shard provided no compound commit to recover from, then the last uploaded BCC term/gen returned
                     // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
                     assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
@@ -385,7 +391,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                     logBootstrapping(indexShard, batchedCompoundCommit);
                     // If there is no batched compound commit found in the object store, then recover from an empty commit
                     if (batchedCompoundCommit == null) {
-                        return null;
+                        l.onResponse(null);
+                        return;
                     }
 
                     // Otherwise recover from the compound commit found in the object store
@@ -393,8 +400,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                     // until the next new commit notification.
                     compoundCommit = batchedCompoundCommit.lastCompoundCommit();
                     lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
-
                 } else {
+                    compoundCommit = response.getCompoundCommit();
                     logBootstrapping(indexShard, compoundCommit, lastUploaded);
                 }
 
@@ -402,17 +409,61 @@ class StatelessIndexEventListener implements IndexEventListener {
                     || batchedCompoundCommit.lastCompoundCommit()
                         .primaryTermAndGeneration()
                         .onOrBefore(compoundCommit.primaryTermAndGeneration());
-                assert compoundCommit != null;
 
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
-                searchDirectory.updateCommit(compoundCommit);
-                // warming up the latest commit upon recovery will fetch a few regions of every active
-                // segment (the first region of every segment is always fetched)
-                warmingService.warmCacheForShardRecovery(SEARCH, indexShard, compoundCommit, searchDirectory);
-                assert indexShard.store().refCount() > 0 : indexShard.shardId();
-                return null;
-            }))
+
+                SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Integer>>>newForked(l2 -> {
+                    if (useInternalFilesReplicatedContentForSearchShards) {
+                        Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, Integer> regionsToWarm = ConcurrentCollections.newConcurrentMap();
+                        ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                            compoundCommit,
+                            batchedCompoundCommit,
+                            searchDirectory,
+                            IOContext.DEFAULT,
+                            bccHeaderReadExecutor,
+                            referencedCompoundCommit -> {
+                                blobFileRanges.putAll(
+                                    computeBlobFileRanges(
+                                        true,
+                                        referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
+                                        referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                        referencedCompoundCommit.referencedInternalFiles()
+                                    )
+                                );
+                                regionsToWarm.compute(
+                                    referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
+                                    (blobFile, maxRegionToWarm) -> {
+                                        var regionIdx = warmingService.regionsToWarmForCC(referencedCompoundCommit);
+                                        return maxRegionToWarm == null ? regionIdx : Math.max(maxRegionToWarm, regionIdx);
+                                    }
+                                );
+                            },
+                            l2.map(aVoid -> new Tuple<>(blobFileRanges, regionsToWarm))
+                        );
+                    } else {
+                        l2.onResponse(null);
+                    }
+                }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndRegionsToWarm) -> {
+                    if (blobFileRangesAndRegionsToWarm != null) {
+                        searchDirectory.updateCommit(compoundCommit, blobFileRangesAndRegionsToWarm.v1());
+                        warmingService.warmCacheForShardRecovery(
+                            SEARCH,
+                            indexShard,
+                            compoundCommit,
+                            searchDirectory,
+                            blobFileRangesAndRegionsToWarm.v2()
+                        );
+                    } else {
+                        searchDirectory.updateCommit(compoundCommit);
+                        warmingService.warmCacheForShardRecovery(SEARCH, indexShard, compoundCommit, searchDirectory, null);
+                    }
+                    // this goes async (aka "offline warming")
+                    assert indexShard.store().refCount() > 0 : indexShard.shardId();
+                    l3.onResponse(null);
+                }));
+            })
         );
     }
 

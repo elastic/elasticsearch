@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.metrics;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+package org.elasticsearch.xpack.stateless.metrics;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,6 +39,7 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -55,7 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class IndicesMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
     public static class TestAPMInternalSettings extends Plugin {
         @Override

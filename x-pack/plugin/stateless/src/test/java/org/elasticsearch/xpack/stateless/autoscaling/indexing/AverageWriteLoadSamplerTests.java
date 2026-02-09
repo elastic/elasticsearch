@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
@@ -24,11 +24,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.QUEUE_SIZE_DEFAULT_EWMA_ALPHA;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.WRITE_LOAD_DEFAULT_EWMA_ALPHA;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.ensureRange;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.AverageWriteLoadSampler.QUEUE_SIZE_DEFAULT_EWMA_ALPHA;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.AverageWriteLoadSampler.WRITE_LOAD_DEFAULT_EWMA_ALPHA;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.AverageWriteLoadSampler.ensureRange;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;

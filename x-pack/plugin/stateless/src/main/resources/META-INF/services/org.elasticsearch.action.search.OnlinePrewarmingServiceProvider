@@ -1,1 +1,1 @@
-co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingServiceProvider
+org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingServiceProvider

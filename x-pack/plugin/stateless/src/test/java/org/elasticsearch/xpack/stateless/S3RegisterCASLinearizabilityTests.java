@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SdkClientException;

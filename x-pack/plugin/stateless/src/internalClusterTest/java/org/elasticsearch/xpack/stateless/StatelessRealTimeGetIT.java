@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -58,6 +54,9 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapArchive;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -92,7 +91,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StatelessRealTimeGetIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase {
 
     @Before
     public void init() {

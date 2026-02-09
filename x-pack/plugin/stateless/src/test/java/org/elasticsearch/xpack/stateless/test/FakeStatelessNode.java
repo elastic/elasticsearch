@@ -13,28 +13,11 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.test;
+package org.elasticsearch.xpack.stateless.test;
 
-import co.elastic.elasticsearch.stateless.TestUtils;
-import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService;
-import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
-import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Field;
@@ -113,10 +96,26 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
+import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.Closeable;
@@ -132,9 +131,11 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
+import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -228,7 +229,21 @@ public class FakeStatelessNode implements Closeable {
         repoPath = LuceneTestCase.createTempDir();
         pathHome = LuceneTestCase.createTempDir().toAbsolutePath();
         nodeSettings = nodeSettings();
-        clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Set.copyOf(
+                Stream.concat(
+                    BUILT_IN_CLUSTER_SETTINGS.stream(),
+                    Stream.of(
+                        ServerlessSharedSettings.BOOST_WINDOW_SETTING,
+                        ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING,
+                        SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
+                        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
+                        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING
+                    )
+                ).toList()
+            )
+        );
         environment = environmentSupplier.apply(nodeSettings);
         telemetryProvider = TelemetryProvider.NOOP;
 
@@ -293,7 +308,9 @@ public class FakeStatelessNode implements Closeable {
             localCloseables.add(transportService::stop);
 
             objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService, projectResolver);
-            clusterService.addStateApplier(objectStoreService);
+            if (projectResolver.supportsMultipleProjects()) {
+                clusterService.addStateApplier(objectStoreService);
+            }
             objectStoreService.start();
             localCloseables.add(objectStoreService);
             indicesService = mock(IndicesService.class);
@@ -301,7 +318,7 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, nodeSettings);
+            warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, clusterSettings);
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,
                 threadPool,
@@ -325,16 +342,16 @@ public class FakeStatelessNode implements Closeable {
                 new IndexDirectory(
                     new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
                     new IndexBlobStoreCacheDirectory(sharedCacheService, shardId),
-                    commitService::onGenerationalFileDeletion
+                    commitService::onGenerationalFileDeletion,
+                    true
                 )
             );
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
-            indexingDirectory.getBlobStoreCacheDirectory()
-                .setBlobContainer(term -> objectStoreService.getProjectBlobContainer(shardId, term));
+            indexingDirectory.getBlobStoreCacheDirectory().setBlobContainer(term -> getBlobContainer(objectStoreService, shardId, term));
             searchDirectory = localCloseables.add(
                 createSearchDirectory(sharedCacheService, shardId, cacheBlobReaderService, new AtomicMutableObjectStoreUploadTracker())
             );
-            searchDirectory.setBlobContainer(term -> objectStoreService.getProjectBlobContainer(shardId, term));
+            searchDirectory.setBlobContainer(term -> getBlobContainer(objectStoreService, shardId, term));
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             closeables = localCloseables.transfer();
@@ -376,6 +393,10 @@ public class FakeStatelessNode implements Closeable {
                 };
             }
         };
+    }
+
+    protected BlobContainer getBlobContainer(ObjectStoreService objectStoreService, ShardId shardId, long term) {
+        return objectStoreService.getProjectBlobContainer(shardId, term);
     }
 
     public StatelessCommitCleaner getCommitCleaner() {
@@ -592,7 +613,7 @@ public class FakeStatelessNode implements Closeable {
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),
             settings,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            new ClusterSettings(settings, BUILT_IN_CLUSTER_SETTINGS)
         );
     }
 

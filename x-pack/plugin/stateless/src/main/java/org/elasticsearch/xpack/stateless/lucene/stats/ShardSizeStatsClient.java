@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.lucene.stats;
+package org.elasticsearch.xpack.stateless.lucene.stats;
 
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 

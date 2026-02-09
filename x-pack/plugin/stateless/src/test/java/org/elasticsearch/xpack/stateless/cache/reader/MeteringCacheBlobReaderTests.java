@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache.reader;
+package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
@@ -83,7 +83,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         verifyNoInteractions(readCompleteCallback);
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")
     public void testExceptionIsLoggedAtDebugWhenCallbackThrows() throws IOException {
         RuntimeException callbackException = new RuntimeException("Callback exception");
         MeteringCacheBlobReader.ReadCompleteCallback throwingReadCompleteCallback = (bytesRead, timeToReadNanos) -> {

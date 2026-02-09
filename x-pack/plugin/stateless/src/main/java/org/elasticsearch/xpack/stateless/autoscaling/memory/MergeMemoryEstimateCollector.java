@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -74,7 +74,7 @@ public class MergeMemoryEstimateCollector implements MergeEventListener, Cluster
      * @param minTransportVersionSupplier
      * @param localNodeIdSupplier
      * @param publisher Publications are initiated under lock and therefore the Publisher must be async and not block the caller.
-     *                  See e.g. {@link co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimatePublisher}.
+     *                  See e.g. {@link org.elasticsearch.xpack.stateless.autoscaling.memory.MergeMemoryEstimatePublisher}.
      */
     public MergeMemoryEstimateCollector(
         ClusterSettings clusterSettings,

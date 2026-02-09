@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
-
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -46,6 +44,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -54,12 +53,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;

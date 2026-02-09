@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 
@@ -85,6 +85,55 @@ public class ReplicaRankingContextTests extends ESTestCase {
         assertEquals(2.0, rankingContext.calculateReplicationFactor(true), Double.MIN_VALUE);
         assertEquals(0.0, rankingContext.calculateReplicationSizeOveruse(), Double.MIN_VALUE);
         assertEquals(2000, rankingContext.getThreshold());
+    }
+
+    public void testGetSumOfReplicasInteractiveSizes() {
+        Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
+        Map<ShardId, SearchMetricsService.ShardMetrics> shardMetrics = new HashMap<>();
+
+        // Empty context
+        ReplicaRankingContext rankingContext = new ReplicaRankingContext(indicesMap, shardMetrics, -1);
+        assertEquals(0, rankingContext.getSumOfReplicasInteractiveSizes());
+
+        // Single index with 1 replica
+        Index index1 = new Index("index1", "uuid1");
+        indicesMap.put(index1, new SearchMetricsService.IndexProperties("index1", 1, 1, false, false, 0));
+        shardMetrics.put(new ShardId(index1, 0), shardMetricOf(1000));
+        rankingContext = new ReplicaRankingContext(indicesMap, shardMetrics, -1);
+        assertEquals(1, rankingContext.getTotalReplicas());
+        assertEquals(1000, rankingContext.getSumOfReplicasInteractiveSizes());
+
+        // Single index with 2 replicas
+        indicesMap.put(index1, new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, 0));
+        rankingContext = new ReplicaRankingContext(indicesMap, shardMetrics, -1);
+        assertEquals(2, rankingContext.getTotalReplicas());
+        assertEquals(2000, rankingContext.getSumOfReplicasInteractiveSizes());
+
+        // Multiple indices with different replica counts
+        Index index2 = new Index("index2", "uuid2");
+        indicesMap.put(index2, new SearchMetricsService.IndexProperties("index2", 1, 1, false, false, 0));
+        shardMetrics.put(new ShardId(index2, 0), shardMetricOf(500));
+        rankingContext = new ReplicaRankingContext(indicesMap, shardMetrics, -1);
+        assertEquals(3, rankingContext.getTotalReplicas());
+        assertEquals(2500, rankingContext.getSumOfReplicasInteractiveSizes());
+
+        // Index with non-interactive size only (should contribute 0)
+        Index index3 = new Index("index3", "uuid3");
+        indicesMap.put(index3, new SearchMetricsService.IndexProperties("index3", 1, 2, false, false, 0));
+        shardMetrics.put(new ShardId(index3, 0), shardMetricOf(0, 2000));
+        rankingContext = new ReplicaRankingContext(indicesMap, shardMetrics, -1);
+        assertEquals(5, rankingContext.getTotalReplicas());
+        assertEquals(2500, rankingContext.getSumOfReplicasInteractiveSizes());
+
+        // Multiple shards per index
+        Index index4 = new Index("index4", "uuid4");
+        indicesMap.put(index4, new SearchMetricsService.IndexProperties("index4", 3, 2, false, false, 0));
+        shardMetrics.put(new ShardId(index4, 0), shardMetricOf(100));
+        shardMetrics.put(new ShardId(index4, 1), shardMetricOf(200));
+        shardMetrics.put(new ShardId(index4, 2), shardMetricOf(300));
+        rankingContext = new ReplicaRankingContext(indicesMap, shardMetrics, -1);
+        assertEquals(7, rankingContext.getTotalReplicas());
+        assertEquals(3700, rankingContext.getSumOfReplicasInteractiveSizes());
     }
 
     private static SearchMetricsService.ShardMetrics shardMetricOf(long interactiveSize) {

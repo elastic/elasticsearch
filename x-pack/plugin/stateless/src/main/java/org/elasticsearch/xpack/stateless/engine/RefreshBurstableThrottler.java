@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
@@ -33,7 +33,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-import static co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
+import static org.elasticsearch.xpack.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
 
 /**
  * A refresh throttler that allows accumulating unused refreshes (here referred to as credit) to be used for handling

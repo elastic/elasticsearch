@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -33,8 +33,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndexingOperationsMemoryRequirementsSampler.DEFAULT_SAMPLE_VALIDITY;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.IndexingOperationsMemoryRequirementsSampler.DEFAULT_SAMPLE_VALIDITY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;

@@ -15,14 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitServiceTestUtils;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -39,6 +32,12 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.hamcrest.Matchers;
 
@@ -46,11 +45,11 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -59,7 +58,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsNot.not;
 
-public class StatelessCommitServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
      * Moves all the index's shards away from searchNodeA and onto searchNodeB.
@@ -242,7 +241,7 @@ public class StatelessCommitServiceIT extends AbstractServerlessStatelessPluginI
      * search shard to another node, leveraging "index.routing.allocation.exclude._name".
      */
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE",
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE",
         reason = "This doesn't add a lot of logging and it's extremely useful for debugging"
     )
     public void testRetainCommitForReadersAfterShardMovedAway() throws Exception {
@@ -260,7 +259,7 @@ public class StatelessCommitServiceIT extends AbstractServerlessStatelessPluginI
      * index settings to 0 replicas.
      */
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE",
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE",
         reason = "This doesn't add a lot of logging and it's extremely useful for debugging"
     )
     public void testRetainCommitForReadersAfterShardReplicasSetToZero() throws Exception {

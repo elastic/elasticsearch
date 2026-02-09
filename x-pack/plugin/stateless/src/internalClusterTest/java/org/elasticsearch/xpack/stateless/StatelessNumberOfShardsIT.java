@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 
@@ -39,7 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StatelessNumberOfShardsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessNumberOfShardsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
+package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.THRESHOLD_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_SHARD_ROLES;
 
@@ -79,11 +80,29 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Float> INDEXING_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
+        "serverless.cluster.routing.allocation.balance.threshold.indexing_tier",
+        THRESHOLD_SETTING,
+        1.0f,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Float> SEARCH_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
+        "serverless.cluster.routing.allocation.balance.threshold.search_tier",
+        THRESHOLD_SETTING,
+        1.0f,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final BalancerSettings balancerSettings;
     private volatile float indexingTierShardBalanceFactor;
     private volatile float searchTierShardBalanceFactor;
     private volatile float indexingTierWriteLoadBalanceFactor;
     private volatile float searchTierWriteLoadBalanceFactor;
+    private volatile float indexingTierBalancingThreshold;
+    private volatile float searchTierBalancingThreshold;
 
     public StatelessBalancingWeightsFactory(BalancerSettings balancerSettings, ClusterSettings clusterSettings) {
         this.balancerSettings = balancerSettings;
@@ -100,6 +119,8 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
             SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
             value -> this.searchTierWriteLoadBalanceFactor = value
         );
+        clusterSettings.initializeAndWatch(INDEXING_TIER_BALANCING_THRESHOLD_SETTING, value -> this.indexingTierBalancingThreshold = value);
+        clusterSettings.initializeAndWatch(SEARCH_TIER_BALANCING_THRESHOLD_SETTING, value -> this.searchTierBalancingThreshold = value);
     }
 
     @Override
@@ -180,8 +201,18 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
                     .filter(n -> n.getRoutingNode().node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
                     .toArray(BalancedShardsAllocator.ModelNode[]::new);
                 assert nodePartitionsAreDisjointAndUnionToAll(allNodes, searchNodes, indexingNodes);
-                searchNodeSorter = new BalancedShardsAllocator.NodeSorter(searchNodes, searchWeightFunction, balancer);
-                indexingNodeSorter = new BalancedShardsAllocator.NodeSorter(indexingNodes, indexingWeightFunction, balancer);
+                searchNodeSorter = new BalancedShardsAllocator.NodeSorter(
+                    searchNodes,
+                    searchWeightFunction,
+                    balancer,
+                    searchTierBalancingThreshold
+                );
+                indexingNodeSorter = new BalancedShardsAllocator.NodeSorter(
+                    indexingNodes,
+                    indexingWeightFunction,
+                    balancer,
+                    indexingTierBalancingThreshold
+                );
             }
 
             @Override

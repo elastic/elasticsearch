@@ -15,19 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.IndexEngineTestUtils;
-import co.elastic.elasticsearch.stateless.engine.SearchEngine;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -96,11 +84,22 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -126,8 +125,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
-import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -142,6 +139,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -159,16 +158,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class StatelessSearchIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
      * A testing stateless plugin that extends the {@link Engine.IndexCommitListener} to count created number of commits.
      */
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         private final AtomicInteger createdCommits = new AtomicInteger(0);
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -295,8 +294,8 @@ public class StatelessSearchIT extends AbstractServerlessStatelessPluginIntegTes
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
@@ -306,7 +305,7 @@ public class StatelessSearchIT extends AbstractServerlessStatelessPluginIntegTes
         int numberOfCreatedCommits = 0;
         for (String node : internalCluster().getNodeNames()) {
             var plugin = internalCluster().getInstance(PluginsService.class, node)
-                .filterPlugins(TestServerlessStatelessPlugin.class)
+                .filterPlugins(TestStatelessPlugin.class)
                 .findFirst()
                 .get();
             numberOfCreatedCommits += plugin.getCreatedCommits();
@@ -1355,10 +1354,11 @@ public class StatelessSearchIT extends AbstractServerlessStatelessPluginIntegTes
         // Repeatedly fail translog uploads
         ObjectStoreService objectStoreService = getObjectStoreService(indexNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+        repository.setRandomIOExceptionPattern(".*translog.*");
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-        repository.setRandomIOExceptionPattern(".*translog.*");
 
         var bulkRequest = client().prepareBulk();
         final long docCount = randomLongBetween(1, 100);

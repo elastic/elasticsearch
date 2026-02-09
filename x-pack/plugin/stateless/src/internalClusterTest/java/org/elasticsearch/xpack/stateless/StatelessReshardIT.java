@@ -15,22 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
-import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
-import co.elastic.elasticsearch.stateless.reshard.SplitStateRequest;
-import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
-import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
-import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
-import co.elastic.elasticsearch.stateless.reshard.TransportUpdateSplitStateAction;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
@@ -43,6 +35,13 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportGetFromTranslogAction;
+import org.elasticsearch.action.get.TransportShardMultiGetAction;
+import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -64,6 +63,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -84,7 +84,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -94,6 +93,15 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
+import org.elasticsearch.xpack.stateless.reshard.SplitStateRequest;
+import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
+import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -132,12 +140,13 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     // Given an index with a certain number of shards, it can be resharded only
     // using a multiple of 2. Here we test some valid and invalid combinations.
@@ -161,7 +170,78 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         }
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService:DEBUG", reason = "debugging")
+    public void testRoutingAfterSplittingMultipleShards() {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(2, 1).build());
+        ensureGreen(indexName);
+
+        final Index index = resolveIndex(indexName);
+
+        // Create an IndexRouting object for 4 shards to find document IDs that would route to each shard
+        final var indexMetadataWith2Shards = indexMetadata(clusterService().state(), index);
+        final var indexMetadataWith4Shards = IndexMetadata.builder(indexMetadataWith2Shards).reshardAddShards(4).build();
+        final var indexRoutingWith4Shards = IndexRouting.fromIndexMetadata(indexMetadataWith4Shards);
+
+        // Find 4 document IDs that would route to each of the 4 shards if the index had 4 shards
+        final var doc0Id = makeRoutingValueForShard(indexRoutingWith4Shards, 0);
+        final var doc1Id = makeRoutingValueForShard(indexRoutingWith4Shards, 1);
+        final var doc2Id = makeRoutingValueForShard(indexRoutingWith4Shards, 2);
+        final var doc3Id = makeRoutingValueForShard(indexRoutingWith4Shards, 3);
+
+        // Index the four documents with initial values
+        indexDoc(indexName, doc0Id, "field", "value0");
+        indexDoc(indexName, doc1Id, "field", "value1");
+        indexDoc(indexName, doc2Id, "field", "value2");
+        indexDoc(indexName, doc3Id, "field", "value3");
+
+        // Verify documents were indexed
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), 4);
+
+        // Execute reshard from 2 shards to 4 shards
+        final var reshardRequest = new ReshardIndexRequest(indexName, 4);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
+        waitForReshardCompletion(indexName);
+
+        // Update each document with new values
+        indexDoc(indexName, doc0Id, "field", "updated0");
+        indexDoc(indexName, doc1Id, "field", "updated1");
+        indexDoc(indexName, doc2Id, "field", "updated2");
+        indexDoc(indexName, doc3Id, "field", "updated3");
+
+        // Verify each document was updated by getting them individually
+        // Version should be 2 (initial index + update) proving the document was updated, not recreated
+        var response0 = client().prepareGet(indexName, doc0Id).execute().actionGet();
+        assertThat(response0.isExists(), is(true));
+        assertThat(response0.getSource().get("field"), equalTo("updated0"));
+        assertThat(response0.getVersion(), equalTo(2L));
+
+        var response1 = client().prepareGet(indexName, doc1Id).execute().actionGet();
+        assertThat(response1.isExists(), is(true));
+        assertThat(response1.getSource().get("field"), equalTo("updated1"));
+        assertThat(response1.getVersion(), equalTo(2L));
+
+        var response2 = client().prepareGet(indexName, doc2Id).execute().actionGet();
+        assertThat(response2.isExists(), is(true));
+        assertThat(response2.getSource().get("field"), equalTo("updated2"));
+        assertThat(response2.getVersion(), equalTo(2L));
+
+        var response3 = client().prepareGet(indexName, doc3Id).execute().actionGet();
+        assertThat(response3.isExists(), is(true));
+        assertThat(response3.getSource().get("field"), equalTo("updated3"));
+        assertThat(response3.getVersion(), equalTo(2L));
+
+        // Verify all documents are still present via search
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), 4);
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG", reason = "debugging")
     public void testReshardWillCopyDataAndRouteDocumentsToNewShard() {
         String indexNode = startMasterAndIndexNode(
             Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
@@ -353,7 +433,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
-                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
                     if (handOffStarted.getCount() > 0) {
                         handOffStarted.countDown();
                     }
@@ -578,20 +658,10 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
         int ingestedDocumentsPerShard = randomIntBetween(10, 20);
 
-        Function<Integer, String> findRoutingValue = shard -> {
-            while (true) {
-                String routingValue = randomAlphaOfLength(5);
-                int routedShard = wouldBeAfterSplitRouting.indexShard(new IndexRequest().id("dummy").routing(routingValue));
-                if (routedShard == shard) {
-                    return routingValue;
-                }
-            }
-        };
-
         var routingValuePerShard = new HashMap<Integer, String>() {
             {
-                put(0, findRoutingValue.apply(0));
-                put(1, findRoutingValue.apply(1));
+                put(0, makeRoutingValueForShard(wouldBeAfterSplitRouting, 0));
+                put(1, makeRoutingValueForShard(wouldBeAfterSplitRouting, 1));
             }
         };
 
@@ -630,7 +700,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
-                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
                     if (handOffStarted.getCount() > 0) {
                         handOffStarted.countDown();
                     }
@@ -798,6 +868,81 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
     }
 
     /*
+     * The coordinator may see the target move to SPLIT before the source shard does.
+     * This test checks that filtering is performed in that case, as a regression because there was a bug where
+     * previously it was not, resulting in duplicate documents in search results.
+     */
+    public void testSearchWhenCoordinatorSeesSplitFirst() throws Exception {
+        // install a block on the search node to prevent it from seeing the split transition, then kick off a reshard.
+        // When the coordinator sees the split, issue a search and verify the expected number of documents are returned.
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        final var index = resolveIndex(indexName);
+
+        final int numDocs = randomIntBetween(20, 50);
+        indexDocs(indexName, numDocs);
+
+        // block split application on stale search node
+        final CountDownLatch completedSearch = new CountDownLatch(1);
+        final var searchClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
+        final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            // wait for search shard cluster block to be in place before releasing SPLIT
+                            searchClusterService.getClusterApplierService().runOnApplierThread("get", Priority.IMMEDIATE, state -> {
+                                try {
+                                    completedSearch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+                                } catch (InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }, ActionListener.noop());
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // reshard up to split attempt
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(
+            indexNode,
+            clusterState -> clusterState.getMetadata()
+                .indexMetadata(index)
+                .getReshardingMetadata()
+                .getSplit()
+                .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.SPLIT
+        );
+
+        // issue search from the unblocked indexNode as coordinator
+        logger.info("issuing search before stale node sees split");
+        final var searchResponse = prepareSearchAll(indexNode, indexName).get();
+        logger.info("search before stale node sees split complete");
+        completedSearch.countDown();
+
+        waitForReshardCompletion(indexName);
+
+        try {
+            assertHitCount(searchResponse, numDocs);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    /*
         This test exercises a known edge case of the search filters implementation related to "ghost terms".
         These are the terms from the unowned documents that are produced in this specific term aggregation case.
         By default, the check that term is a ghost is not performed in the aggregation and needs to be explicitly enabled.
@@ -874,7 +1019,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
         indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             try {
-                if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
                     stateTransitionBlock.await();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -1085,6 +1230,402 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
             .get();
 
         waitForReshardCompletion(indexName);
+    }
+
+    // test GET during resharding
+    // Two gets are issued before resharding starts, so they see only the original shard.
+    // They are blocked until resharding completes. The get that still routes to the original
+    // shard should succeed. The get that now routes to the new shard will be rejected at the
+    // original source because we don't have deferral yet (see ES-11536). A subsequent get
+    // for that document created after the split completes should succeed.
+    public void testGet() throws InterruptedException {
+        startMasterOnlyNode();
+        startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-get";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // We'll set up two gets before resharding, so that they route as if there is only 1 shard.
+        // this document should be found by get after resharding, on the original shard
+        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        // this document should be found by get after resharding, on the original shard until delete-unowned runs,
+        // after which it should raise an error because the get is stale
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard0docId, "field", "shard0");
+        indexDoc(indexName, shard1docId, "field", "shard1");
+
+        var response = client().prepareGet(indexName, shard0docId).execute().actionGet();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard0"));
+        response = client().prepareGet(indexName, shard1docId).execute().actionGet();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard1"));
+
+        // install a block on sending get to the shard, then issue the get request.
+        // Unblock the get after resharding completes so it may be rerouted
+        // also block transition to DONE on target shard after split completes, so that the source
+        // shard doesn't start delete-unowned before processing the get.
+        final var SHARD_GET_ACTION = TransportGetAction.TYPE.name() + "[s]";
+        final var getPrepared = new CountDownLatch(2);
+        final var reshardDone = new CountDownLatch(1);
+        final var getComplete = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(indexNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block GET once it is prepared until resharding completes
+            if ((SHARD_GET_ACTION).equals(action)) {
+                // signal that get has been prepared so resharding can start
+                getPrepared.countDown();
+                safeAwait(reshardDone);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var getShard0Response = new AtomicReference<GetResponse>();
+        final var getShard0Thread = new Thread(() -> {
+            try {
+                // execute will block until getPrepared counts down
+                getShard0Response.set(
+                    client(indexNode).prepareGet(indexName, shard0docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+                );
+                getComplete.countDown();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        getShard0Thread.start();
+
+        // expect exception for doc that routes to shard 1 after delete-unowned completes
+        final var getShard1Thread = new Thread(
+            () -> assertThrows(
+                ElasticsearchStatusException.class,
+                () -> client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
+        getShard1Thread.start();
+
+        // don't start resharding until get is waiting on search shard
+        safeAwait(getPrepared);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+        reshardDone.countDown();
+
+        getShard0Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+        getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+
+        response = getShard0Response.get();
+        assertThat("Document should exist on source shard", response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard0"));
+
+        // the pre-split request for the shard1 doc will have thrown an exception for stale routing but should be available
+        // with a fresh request
+        response = client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT);
+        assertThat("Document should exist on source shard", response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard1"));
+    }
+
+    // test MultiGet during resharding - same pattern as testGet but with a single multiget request
+    public void testMultiGet() throws InterruptedException {
+        String masterOnlyNode = startMasterOnlyNode();
+        startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-multiget";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // this document should be found by multiget after resharding, on the original shard
+        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        // this document should fail in multiget after resharding because the request is stale
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard0docId, "field", "shard0");
+        indexDoc(indexName, shard1docId, "field", "shard1");
+
+        var response = client().prepareMultiGet().add(indexName, shard0docId).add(indexName, shard1docId).execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(2));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field"), equalTo("shard0"));
+        assertThat(response.getResponses()[1].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[1].getResponse().getSource().get("field"), equalTo("shard1"));
+
+        // install a block on sending multiget to the shard, then issue the multiget request.
+        // Unblock the multiget after resharding completes
+        final var SHARD_MGET_ACTION = TransportShardMultiGetAction.TYPE.name() + "[s]";
+        final var mgetPrepared = new CountDownLatch(1);
+        final var reshardDone = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(masterOnlyNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block MultiGet once it is prepared until resharding completes
+            if ((SHARD_MGET_ACTION).equals(action)) {
+                // signal that multiget has been prepared so resharding can start
+                mgetPrepared.countDown();
+                try {
+                    reshardDone.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var mgetResponse = new AtomicReference<MultiGetResponse>();
+        final var mgetThread = new Thread(() -> {
+            try {
+                // execute will block until reshardDone counts down
+                mgetResponse.set(
+                    client(masterOnlyNode).prepareMultiGet()
+                        .add(indexName, shard0docId)
+                        .add(indexName, shard1docId)
+                        .setRealtime(false)
+                        .execute()
+                        .actionGet(SAFE_AWAIT_TIMEOUT)
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        mgetThread.start();
+
+        // don't start resharding until multiget is waiting to be sent to shard
+        mgetPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+        reshardDone.countDown();
+
+        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
+
+        response = mgetResponse.get();
+        assertThat(response.getResponses().length, equalTo(2));
+
+        // Document on shard 0 should succeed
+        MultiGetItemResponse item0 = response.getResponses()[0];
+        assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
+        assertThat(item0.getResponse().isExists(), is(true));
+        assertThat(item0.getResponse().getSource().get("field"), equalTo("shard0"));
+
+        // Document on shard 1 should still be returned since this is a non-realtime get
+        MultiGetItemResponse item1 = response.getResponses()[1];
+        assertThat("Document on target shard should fail", item1.isFailed(), is(true));
+        assertThat(item1.getFailure().getFailure(), instanceOf(ElasticsearchStatusException.class));
+    }
+
+    // A successful realtime get should return the latest value of a doc regardless of refresh.
+    // It may fail if it has been routed to a stale shard due to concurrent resharding.
+    public void testRealtimeGet() throws InterruptedException {
+        startMasterOnlyNode();
+        final var searchNode = startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-realtime-get";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // prep realtime get but block until after resharding reaches split so that
+        // it routes to the old shard
+        // update doc and verify get returns the latest version
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard1docId, "field", "shard1_v0");
+
+        var response = client().prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard1_v0"));
+
+        final var getPrepared = new CountDownLatch(1);
+        final var atSplit = new CountDownLatch(1);
+        final var getComplete = new CountDownLatch(1);
+
+        final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
+
+        searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block GetFromTranslog until resharding reaches DONE
+            if ((TransportGetFromTranslogAction.NAME).equals(action)) {
+                // signal that get has been prepared so resharding can start
+                getPrepared.countDown();
+                try {
+                    atSplit.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            // block SPLIT transition until get has been processed
+                            atSplit.countDown();
+                            getComplete.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // expect exception for realtime get that routes to shard 1 after HANDOFF (well, before SPLIT)
+        final var getShard1Thread = new Thread(() -> {
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> client(searchNode).prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+            );
+            // unblock SPLIT transition
+            getComplete.countDown();
+        });
+        getShard1Thread.start();
+
+        // don't start resharding until get is waiting on search shard
+        getPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+
+        getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+    }
+
+    // A successful realtime multiget should return the latest values of docs regardless of refresh.
+    // Items may fail if they have been routed to a stale shard due to concurrent resharding.
+    public void testRealtimeMultiGet() throws InterruptedException {
+        startMasterOnlyNode();
+        final var searchNode = startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-realtime-multiget";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // prep realtime multiget but block until after resharding reaches split so that
+        // it routes to the old shard
+        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard0docId, "field", "shard0_v0");
+        indexDoc(indexName, shard1docId, "field", "shard1_v0");
+
+        var response = client().prepareMultiGet()
+            .add(indexName, shard0docId)
+            .add(indexName, shard1docId)
+            .setRealtime(true)
+            .execute()
+            .actionGet();
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field"), equalTo("shard0_v0"));
+        assertThat(response.getResponses()[1].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[1].getResponse().getSource().get("field"), equalTo("shard1_v0"));
+
+        final var mgetPrepared = new CountDownLatch(1);
+        final var atSplit = new CountDownLatch(1);
+        final var mgetComplete = new CountDownLatch(1);
+
+        final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
+
+        searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block ShardMultiGetFromTranslog until resharding reaches SPLIT
+            if ((TransportShardMultiGetFomTranslogAction.NAME).equals(action)) {
+                // signal that multiget has been prepared so resharding can start
+                mgetPrepared.countDown();
+                try {
+                    atSplit.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            // block SPLIT transition until multiget has been processed
+                            atSplit.countDown();
+                            mgetComplete.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // expect item-level failures for docs that route to different shards after HANDOFF
+        final var mgetThread = new Thread(() -> {
+            MultiGetResponse mgetResponse = client(searchNode).prepareMultiGet()
+                .add(indexName, shard0docId)
+                .add(indexName, shard1docId)
+                .setRealtime(true)
+                .execute()
+                .actionGet(SAFE_AWAIT_TIMEOUT);
+
+            // Check that we have results for both documents
+            assertThat(mgetResponse.getResponses().length, equalTo(2));
+
+            // Document that stays on shard 0 should succeed
+            MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
+            assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
+            assertThat(item0.getResponse().isExists(), is(true));
+
+            // Document that moves to shard 1 should fail
+            MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
+            assertThat("Document moved to target shard should fail due to stale routing", item1.isFailed(), is(true));
+            assertThat(item1.getFailure().getFailure(), instanceOf(ElasticsearchStatusException.class));
+
+            // unblock SPLIT transition
+            mgetComplete.countDown();
+        });
+        mgetThread.start();
+
+        // don't start resharding until multiget is waiting on search shard
+        mgetPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+
+        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
     }
 
     public void testReshardMustMatchExpectedNumberOfShards() {
@@ -1367,7 +1908,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
     public void testReshardTargetWillNotTransitionToHandoffIfSourcePrimaryTermChanged() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
@@ -1392,7 +1933,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
         CountDownLatch handoffLatch = new CountDownLatch(1);
         mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
-            if (TransportUpdateSplitStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
                 try {
                     handoffAttemptedLatch.countDown();
                     handoffLatch.await();
@@ -1445,7 +1986,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         assertThat(getCurrentPrimaryTerm(index, 1), equalTo(getCurrentPrimaryTerm(index, 0)));
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
     public void testReshardTargetStateWillNotTransitionTargetPrimaryTermChanged() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
@@ -1479,7 +2020,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         });
         CountDownLatch proceedAfterShardFailure = new CountDownLatch(1);
         mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
-            if (TransportUpdateSplitStateAction.TYPE.name().equals(action) && stateChangeAttemptedLatch.getCount() != 0) {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action) && stateChangeAttemptedLatch.getCount() != 0) {
                 try {
                     stateChangeAttemptedLatch.countDown();
                     if (stateChangeAttemptedLatch.getCount() == 0) {
@@ -2312,8 +2853,8 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         }
     }
 
-    public void testSplitStateNeedsToBeAcked() throws Exception {
-        startMasterOnlyNode();
+    public void testSplitStateNeedsToBeAppliedOnAllKnownNodes() throws Exception {
+        startMasterOnlyNode(Settings.builder().put("cluster.publish.timeout", TimeValue.timeValueMillis(100)).build());
         String indexNode = startIndexNode();
         startSearchNodes(1);
         String nodeWithBlockedClusterStateProcessing = startSearchNode();
@@ -2323,7 +2864,6 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
-        Index index = resolveIndex(indexName);
         ensureGreen(indexName);
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
@@ -2338,7 +2878,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         var doneAttempted = new CountDownLatch(1);
         var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (TransportUpdateSplitStateAction.TYPE.name().equals(action)) {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
                 TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
 
                 if (actualRequest instanceof SplitStateRequest splitStateRequest) {
@@ -2361,28 +2901,44 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
-        // Wait for HANDOFF to complete normally and then block cluster state updates on one node.
+        // Wait for HANDOFF to complete normally and then start delaying cluster state updates on one node.
         splitAttempted.await();
 
-        var blockClusterStateProcessing = new BlockClusterStateProcessing(nodeWithBlockedClusterStateProcessing, random());
-        internalCluster().setDisruptionScheme(blockClusterStateProcessing);
-        blockClusterStateProcessing.startDisrupting();
+        var clusterStateApplicationBlock = new CountDownLatch(1);
+        internalCluster().getInstance(ClusterService.class, nodeWithBlockedClusterStateProcessing).addHighPriorityApplier(event -> {
+            try {
+                clusterStateApplicationBlock.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         try {
             // Unblock application of SPLIT state - it should not succeed because we are waiting for an ack.
             splitBlocked.countDown();
 
-            assertFalse(doneAttempted.await(50, TimeUnit.MILLISECONDS));
+            assertFalse(doneAttempted.await(200, TimeUnit.MILLISECONDS));
 
-            // Unblock stuck node to ack the update.
-            blockClusterStateProcessing.stopDisrupting();
+            var doneAttemptedWaiter = new Thread(() -> {
+                try {
+                    doneAttempted.await();
+                    assertEquals(0, clusterStateApplicationBlock.getCount());
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            doneAttemptedWaiter.start();
+
+            // Unblock stuck node to receive the update.
+            clusterStateApplicationBlock.countDown();
+
+            doneAttemptedWaiter.join(SAFE_AWAIT_TIMEOUT.millis());
 
             waitForReshardCompletion(indexName);
             ensureGreen(indexName);
             assertHitCount(prepareSearchAll(indexName), numDocs);
-
         } finally {
-            blockClusterStateProcessing.stopDisrupting();
+            clusterStateApplicationBlock.countDown();
         }
     }
 
@@ -2420,6 +2976,19 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
             .findAny()
             .get();
         return primaryStats.getStats().indexing.getTotal().getIndexCount();
+    }
+
+    /**
+     * Generate a string that if used as id or routing value will route to the given shardId of indexRouting.
+     */
+    private String makeRoutingValueForShard(IndexRouting indexRouting, int shardId) {
+        while (true) {
+            String routingValue = randomAlphaOfLength(5);
+            int routedShard = indexRouting.indexShard(new IndexRequest().id("dummy").routing(routingValue));
+            if (routedShard == shardId) {
+                return routingValue;
+            }
+        }
     }
 
     private static void assertShardDocCountEquals(ShardId shard, long expectedCount) {

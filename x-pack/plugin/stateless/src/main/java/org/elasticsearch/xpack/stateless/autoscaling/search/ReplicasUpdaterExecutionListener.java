@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 /**
 * Hook interface for testing and observability of the replicas updater service.
@@ -26,7 +26,7 @@ interface ReplicasUpdaterExecutionListener {
     /**
      * Called when the replicas updater loop starts executing
      */
-    void onRunStart(boolean immediateScaleDown);
+    void onRunStart(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds);
 
     /**
      * Called when the loop completes
@@ -53,7 +53,7 @@ interface ReplicasUpdaterExecutionListener {
         public static final NoopExecutionListener INSTANCE = new NoopExecutionListener();
 
         @Override
-        public void onRunStart(boolean immediateScaleDown) {}
+        public void onRunStart(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds) {}
 
         @Override
         public void onRunComplete() {}

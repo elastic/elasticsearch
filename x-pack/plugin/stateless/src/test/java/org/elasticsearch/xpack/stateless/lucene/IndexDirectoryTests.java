@@ -13,14 +13,16 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
+package org.elasticsearch.xpack.stateless.lucene;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
@@ -76,7 +78,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
+import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.contains;
@@ -104,7 +106,7 @@ public class IndexDirectoryTests extends ESTestCase {
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         final Path path = PathUtils.get(createTempDir().toString());
         try (
-            Directory directory = new IndexDirectory(FSDirectory.open(path), new IndexBlobStoreCacheDirectory(null, null), null);
+            Directory directory = new IndexDirectory(FSDirectory.open(path), new IndexBlobStoreCacheDirectory(null, null), null, true);
             IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())
         ) {
             indexWriter.commit();
@@ -132,7 +134,8 @@ public class IndexDirectoryTests extends ESTestCase {
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
                 new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
-                null
+                null,
+                true
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -249,7 +252,8 @@ public class IndexDirectoryTests extends ESTestCase {
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
                 new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
-                null
+                null,
+                true
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -326,7 +330,8 @@ public class IndexDirectoryTests extends ESTestCase {
             IndexDirectory directory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
                 new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
-                null
+                null,
+                true
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -391,7 +396,8 @@ public class IndexDirectoryTests extends ESTestCase {
             IndexDirectory directory = new IndexDirectory(
                 FSDirectory.open(path),
                 indexBlobStoreCacheDirectory,
-                (shardId1, filename) -> capturedOnDeletions.add(new Tuple<>(shardId1, filename))
+                (shardId1, filename) -> capturedOnDeletions.add(new Tuple<>(shardId1, filename)),
+                true
             )
         ) {
             final int fileLength = between(50, 100);
@@ -434,7 +440,7 @@ public class IndexDirectoryTests extends ESTestCase {
         final ShardId shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 10));
         final IndexBlobStoreCacheDirectory indexBlobStoreCacheDirectory = new IndexBlobStoreCacheDirectory(null, shardId);
         indexBlobStoreCacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
-        try (IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), indexBlobStoreCacheDirectory, null)) {
+        try (IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), indexBlobStoreCacheDirectory, null, true)) {
             Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(10));
             var recoveryCommit = createCommit(directory, files, 4L);
             directory.updateRecoveryCommit(
@@ -450,6 +456,52 @@ public class IndexDirectoryTests extends ESTestCase {
 
             assertThat(directory.getTranslogRecoveryStartFile(), is(equalTo(recoveryCommit.translogRecoveryStartFile())));
             assertEquals(files, Set.of(indexBlobStoreCacheDirectory.listAll()));
+        }
+    }
+
+    public void testReadFromMemory() throws Exception {
+        final Path dataPath = createTempDir();
+        final Path indexDataPath = dataPath.resolve("index");
+
+        try (
+            IndexDirectory directory = new IndexDirectory(
+                FSDirectory.open(indexDataPath),
+                new IndexBlobStoreCacheDirectory(null, null),
+                null,
+                false
+            )
+        ) {
+
+            try (IndexWriter w = new IndexWriter(directory, newIndexWriterConfig())) {
+                var fieldValues = generateRandomStringArray(randomIntBetween(1, 15), randomIntBetween(1, 15), false, false);
+                for (var fieldValue : fieldValues) {
+                    Document doc = new Document();
+                    doc.add(newField("f", fieldValue, StringField.TYPE_NOT_STORED));
+                    w.addDocument(doc);
+                }
+                w.commit();
+            }
+
+            SegmentInfos infos = SegmentInfos.readLatestCommit(directory);
+            SegmentCommitInfo info = infos.info(0);
+            String siFilename = info.info.name + ".si";
+
+            try (var input = directory.openInput(siFilename, IOContext.READONCE)) {
+
+                // Checks that nothing is returned if the SegmentInfo is not set
+                assertFalse(directory.openSegmentInfoInputFromMemory(siFilename, IOContext.READONCE).isPresent());
+
+                directory.setLastCommittedSegmentInfosSupplier(() -> infos);
+                var maybeInputFromMemory = directory.openSegmentInfoInputFromMemory(siFilename, IOContext.READONCE);
+                assertTrue(maybeInputFromMemory.isPresent());
+
+                try (var inputFromMemory = maybeInputFromMemory.get()) {
+                    assertEquals(input.length(), inputFromMemory.length());
+                    for (long i = 0, m = input.length(); i < m; i++) {
+                        assertEquals(input.readByte(), inputFromMemory.readByte());
+                    }
+                }
+            }
         }
     }
 

@@ -15,16 +15,16 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeTests;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.stateless.lucene.stats.ShardSizeTests;
 
 import java.util.Map;
 

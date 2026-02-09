@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine.translog;
-
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.engine.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
@@ -48,6 +45,8 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -64,13 +63,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.zip.CRC32;
 
-import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_NETWORK_TIME_METRIC;
-import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_SIZE_METRIC;
-import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_TOTAL_METRIC;
-import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_SIZE_METRIC;
-import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC;
-import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_REPLAY_TIME_METRIC;
 import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
+import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_NETWORK_TIME_METRIC;
+import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_SIZE_METRIC;
+import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_TOTAL_METRIC;
+import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_SIZE_METRIC;
+import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC;
+import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_REPLAY_TIME_METRIC;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;

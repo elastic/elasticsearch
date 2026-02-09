@@ -15,15 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -83,15 +75,15 @@ import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
-import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -120,11 +112,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.ZERO;
 import static org.hamcrest.Matchers.empty;
@@ -816,7 +808,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void testOldCommitsAreRetainedIfSearchNodesUseThem() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1096,7 +1088,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var deletedCommitsLatch = new CountDownLatch(2);
 
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1742,7 +1734,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
      * thread can generate new commits and the search thread can respond correctly to each {@link TransportNewCommitNotificationAction}.
      */
     @TestIssueLogging(
-        value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE",
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2175"
     )
     public void testConcurrentIndexingAndSearchShardRecoveries() throws Exception {
@@ -1817,7 +1809,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 List<StatelessCommitRef> previous = initialCommits;
 
                 /**
-                 * Creates a random number of commits in the {@link StatelessCommitService}. If runFinalMerge is set, pivots to creating a
+                 * Creates a random number of commits in the
+                 * {@link org.elasticsearch.xpack.stateless.commits.StatelessCommitService}.
+                 * If runFinalMerge is set, pivots to creating a
                  * single merge commit to allow all the older commits to be deleted.
                  *
                  * @param runFinalMerge Controls whether to run a single merge commit.

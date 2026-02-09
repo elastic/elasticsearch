@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
-
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -32,6 +30,7 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
 import org.junit.After;
 import org.junit.Before;
 
@@ -40,8 +39,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.MERGE_MEMORY_ESTIMATE_PUBLICATION_MIN_CHANGE_RATIO;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MergeMemoryEstimateCollector.AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MergeMemoryEstimateCollector.MERGE_MEMORY_ESTIMATE_PUBLICATION_MIN_CHANGE_RATIO;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.mock;
 

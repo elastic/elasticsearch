@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache.action;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier;
+package org.elasticsearch.xpack.stateless.cache.action;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,6 +27,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessPlugin.SharedBlobCacheServiceSupplier;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,7 +50,7 @@ public class TransportClearBlobCacheAction extends TransportNodesAction<
         SharedBlobCacheServiceSupplier sharedBlobCacheServiceSupplier
     ) {
         super(
-            ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION.name(),
+            StatelessPlugin.CLEAR_BLOB_CACHE_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,

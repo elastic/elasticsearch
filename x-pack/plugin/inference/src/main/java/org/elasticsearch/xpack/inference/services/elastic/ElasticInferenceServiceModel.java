@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URISyntaxException;
 import java.util.Objects;
 
 public abstract class ElasticInferenceServiceModel extends RateLimitGroupingModel {
@@ -44,6 +46,10 @@ public abstract class ElasticInferenceServiceModel extends RateLimitGroupingMode
     public int rateLimitGroupingHash() {
         // We only have one model for rerank
         return Objects.hash(this.getServiceSettings().modelId());
+    }
+
+    public URIBuilder getBaseURIBuilder() throws URISyntaxException {
+        return new URIBuilder(elasticInferenceServiceComponents.elasticInferenceServiceUrl());
     }
 
     @Override

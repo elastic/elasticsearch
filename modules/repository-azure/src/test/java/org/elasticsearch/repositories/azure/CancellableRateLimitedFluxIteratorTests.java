@@ -410,7 +410,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         // producer thread
         runOnNewThread(() -> {
             safeAwait(barrier); // wait for request
-            for (int i = 0; i < randomIntBetween(0, elementsPerBatch); i++) {
+            for (int i = 0; i < randomIntBetween(1, elementsPerBatch); i++) {
                 iterator.onNext(randomInt());
             }
             logger.info("--> Sending completion");

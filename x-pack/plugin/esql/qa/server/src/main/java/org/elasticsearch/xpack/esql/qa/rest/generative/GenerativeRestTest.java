@@ -78,6 +78,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
         "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
+        "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
+        "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -118,6 +120,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
     private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(
         ".*Unknown column \\[([^]]+)].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
+     * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
+     * with a non-null typed field. See https://github.com/elastic/elasticsearch/issues/142115
+     */
+    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches type mismatch errors where a function argument has one of the special types that most scalar functions reject.
+     * For example: "must be [any type except counter types, dense_vector, ...], found value [...] type [counter_long]"
+     */
+    private static final Pattern SCALAR_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*found value \\[[^]]+] type \\[(counter_long|counter_double|counter_integer"
+            + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range)].*",
         Pattern.DOTALL
     );
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
@@ -251,7 +271,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return outputValidation;
                 }
             }
-            if (isUnmappedFieldUnknownColumnError(outputValidation.errorMessage())) {
+            if (isUnmappedFieldError(outputValidation.errorMessage())
+                || isScalarTypeMismatchError(outputValidation.errorMessage())) {
                 return outputValidation;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
@@ -265,7 +286,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 return;
             }
         }
-        if (isUnmappedFieldUnknownColumnError(query.exception().getMessage())) {
+        if (isUnmappedFieldError(query.exception().getMessage()) || isScalarTypeMismatchError(query.exception().getMessage())) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
@@ -283,15 +304,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     /**
-     * Checks if the error is an "Unknown column" error involving unmapped field names. This happens when a
-     * schema-fixing command (KEEP, DROP, STATS) includes one unmapped field but not another, making the second
-     * one legitimately unknown. Two forms are handled:
+     * Checks if the error is a known unmapped field error. This covers:
      * <ul>
      *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
      *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
+     *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
+     *       the expression X must contain an unmapped field name (https://github.com/elastic/elasticsearch/issues/142115)</li>
      * </ul>
      */
-    private static boolean isUnmappedFieldUnknownColumnError(String errorMessage) {
+    private static boolean isUnmappedFieldError(String errorMessage) {
         String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
         // Try the more specific pattern first (with suggestion)
         Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
@@ -306,7 +327,23 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             String unknownColumn = matcher.group(1);
             return UNMAPPED_NAMES.contains(unknownColumn);
         }
+        // NULL type mismatch in binary operations involving unmapped fields
+        matcher = NULL_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
         return false;
+    }
+
+    /**
+     * Checks if the error is a type mismatch where a function received a field of a special type that most scalar
+     * functions don't support (counter types, aggregate_metric_double, dense_vector, tdigest, histogram, etc.).
+     * These errors are acceptable since the generative tests may compose function calls with fields of these types.
+     */
+    private static boolean isScalarTypeMismatchError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
     @Override

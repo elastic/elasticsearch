@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -36,13 +37,14 @@ public class KeepGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
+        boolean unmappedFieldsEnabled = FunctionGenerator.isUnmappedFieldsEnabled(previousCommands);
         int n = randomIntBetween(1, previousOutput.size());
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
             var x = randomIntBetween(0, 100);
             if (x < 5) {
                 proj.add("*");
-            } else if (x >= 95) {
+            } else if (x >= 95 && unmappedFieldsEnabled) {
                 String name = randomUnmappedFieldName();
                 proj.add(name);
             } else {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.generator;
 
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -68,16 +69,60 @@ public class FunctionGenerator {
     );
 
     /**
+     * Types that are NOT accepted by most scalar functions. These are special metric/internal types
+     * that should be excluded when selecting fields for general-purpose function arguments.
+     * <p>
+     * Most scalar functions (mv_slice, mv_count, to_string, etc.) reject these types with errors like:
+     * "must be [any type except counter types, dense_vector, aggregate_metric_double, ...]"
+     */
+    private static final Set<String> SCALAR_UNSUPPORTED_TYPES = Set.of(
+        "counter_long",
+        "counter_double",
+        "counter_integer",
+        "aggregate_metric_double",
+        "dense_vector",
+        "tdigest",
+        "histogram",
+        "exponential_histogram",
+        "date_range"
+    );
+
+    /**
+     * Returns a field name suitable for use as a scalar function argument.
+     * Excludes types that are rejected by most scalar functions (counter types, aggregate_metric_double, etc.).
+     *
+     * @param columns the available columns
+     * @return a field name of a type accepted by most scalar functions, or null if none available
+     */
+    static String randomScalarField(List<Column> columns) {
+        List<Column> suitable = columns.stream()
+            .filter(c -> SCALAR_UNSUPPORTED_TYPES.contains(c.type()) == false)
+            .toList();
+        if (suitable.isEmpty()) {
+            return null;
+        }
+        return EsqlQueryGenerator.randomName(suitable);
+    }
+
+    /**
      * Checks if unmapped fields are allowed based on the command history.
-     * Unmapped fields are NOT allowed after STATS (not INLINE STATS), KEEP, or DROP commands
-     * because these commands fix the field list.
+     * Unmapped fields require two conditions to be met:
+     * <ol>
+     *   <li>The SET unmapped_fields="nullify" directive must be present in the FROM command</li>
+     *   <li>No schema-fixing commands (STATS, KEEP, DROP) must have been encountered yet,
+     *       since those commands fix the field list and new unmapped fields cannot be introduced after them</li>
+     * </ol>
      *
      * @param previousCommands the list of previous commands in the query
      * @return true if unmapped fields can be used, false otherwise
      */
     public static boolean areUnmappedFieldsAllowed(List<CommandGenerator.CommandDescription> previousCommands) {
         if (previousCommands == null) {
-            return true;
+            return false;
+        }
+        // Check if SET unmapped_fields="nullify" was included in the FROM command
+        if (isUnmappedFieldsEnabled(previousCommands) == false) {
+            return false;
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {
             // Note: "inline stats" is different from "stats" - inline stats doesn't fix the schema
@@ -89,13 +134,26 @@ public class FunctionGenerator {
     }
 
     /**
+     * Checks if SET unmapped_fields="nullify" was included in the FROM command.
+     */
+    public static boolean isUnmappedFieldsEnabled(List<CommandGenerator.CommandDescription> previousCommands) {
+        if (previousCommands == null || previousCommands.isEmpty()) {
+            return false;
+        }
+        // The FROM command is always the first command
+        CommandGenerator.CommandDescription fromCmd = previousCommands.get(0);
+        Object enabled = fromCmd.context().get(FromGenerator.UNMAPPED_FIELDS_ENABLED);
+        return Boolean.TRUE.equals(enabled);
+    }
+
+    /**
      * Returns an unmapped field name with some probability, otherwise returns null.
      * Use this to occasionally inject unmapped fields into function arguments.
      *
      * @param allowUnmapped if false, always returns null (unmapped fields not allowed)
      */
     private static String maybeUnmappedField(boolean allowUnmapped) {
-        if (!allowUnmapped) {
+        if (allowUnmapped == false) {
             return null;
         }
         return randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY ? randomUnmappedFieldName() : null;
@@ -411,8 +469,8 @@ public class FunctionGenerator {
             );
         }
 
-        // to_string - works on almost anything
-        String anyField = EsqlQueryGenerator.randomName(columns);
+        // to_string - works on most types (but not counter types, aggregate_metric_double, etc.)
+        String anyField = randomScalarField(columns);
         if (anyField != null && randomBoolean()) {
             return "to_string(" + fieldOrUnmapped(anyField, allowUnmapped) + ")";
         }
@@ -482,7 +540,7 @@ public class FunctionGenerator {
         String targetType = null;
         List<Column> sameTypeColumns = null;
         for (var entry : columnsByType.entrySet()) {
-            if (entry.getValue().size() >= 1) {
+            if (entry.getValue().isEmpty() == false) {
                 targetType = entry.getKey();
                 sameTypeColumns = entry.getValue();
                 break;
@@ -505,7 +563,7 @@ public class FunctionGenerator {
         // Pick a second field of the same type
         if (sameTypeColumns.size() >= 2) {
             String field2 = sameTypeColumns.get(randomIntBetween(0, sameTypeColumns.size() - 1)).name();
-            if (!field1.equals(field2)) {
+            if (field1.equals(field2) == false) {
                 return "coalesce(" + field1 + ", " + field2 + ")";
             }
         }
@@ -531,7 +589,7 @@ public class FunctionGenerator {
             .collect(Collectors.toList());
 
         // Possibly add an unmapped field (which has NULL type, accepted by these functions)
-        if (allowUnmapped && randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY && sameTypeFields.size() >= 1) {
+        if (allowUnmapped && randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY && sameTypeFields.isEmpty() == false) {
             sameTypeFields.add(randomUnmappedFieldName());
         }
 
@@ -563,7 +621,8 @@ public class FunctionGenerator {
      * @param allowUnmapped if true, may use unmapped field names
      */
     public static String mvFunction(List<Column> columns, boolean allowUnmapped) {
-        String anyField = fieldOrUnmapped(EsqlQueryGenerator.randomName(columns), allowUnmapped);
+        // Use randomScalarField to avoid counter types, aggregate_metric_double, etc.
+        String anyField = fieldOrUnmapped(randomScalarField(columns), allowUnmapped);
         if (anyField == null) {
             // Fall back to just unmapped field
             anyField = maybeUnmappedField(allowUnmapped);
@@ -611,7 +670,8 @@ public class FunctionGenerator {
      * @param allowUnmapped if true, may use unmapped field names
      */
     public static String mvSliceZipFunction(List<Column> columns, boolean allowUnmapped) {
-        String field = fieldOrUnmapped(EsqlQueryGenerator.randomName(columns), allowUnmapped);
+        // Use randomScalarField to avoid counter types, aggregate_metric_double, etc.
+        String field = fieldOrUnmapped(randomScalarField(columns), allowUnmapped);
         if (field == null) {
             return null;
         }

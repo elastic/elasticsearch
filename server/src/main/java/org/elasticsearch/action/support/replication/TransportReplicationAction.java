@@ -1100,7 +1100,7 @@ public abstract class TransportReplicationAction<
         }
 
         void retry(Exception failure) {
-            retry(failure, false);
+            retry(failure, true);
         }
 
         void retry(Exception failure, boolean markRequestAsRetry) {

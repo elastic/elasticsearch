@@ -73,7 +73,7 @@ public class CloneStepTests extends ESTestCase {
     private AtomicReference<ActionListener<AcknowledgedResponse>> capturedDeleteListener;
     private AtomicReference<ResizeRequest> capturedResizeRequest;
     private AtomicReference<DeleteIndexRequest> capturedDeleteRequest;
-    private AtomicReference<MarkIndexToBeForceMergedAction.Request> capturedMarkRequest;
+    private AtomicReference<MarkIndexForDLMForceMergeAction.Request> capturedMarkRequest;
 
     @Before
     public void setup() {
@@ -104,7 +104,7 @@ public class CloneStepTests extends ESTestCase {
                 } else if (request instanceof DeleteIndexRequest deleteIndexRequest) {
                     capturedDeleteRequest.set(deleteIndexRequest);
                     capturedDeleteListener.set((ActionListener<AcknowledgedResponse>) listener);
-                } else if (request instanceof MarkIndexToBeForceMergedAction.Request markRequest) {
+                } else if (request instanceof MarkIndexForDLMForceMergeAction.Request markRequest) {
                     capturedMarkRequest.set(markRequest);
                 }
             }
@@ -120,7 +120,7 @@ public class CloneStepTests extends ESTestCase {
         assertThat(cloneStep.stepName(), equalTo("Clone Index"));
     }
 
-    public void testStepNotCompletedWhenNoCloneIndexExists() {
+    public void testStepNotCompletedWhenNoCloneIndexCallbackExists() {
         ProjectState projectState = createProjectState(indexName, 1, null);
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
@@ -220,7 +220,7 @@ public class CloneStepTests extends ESTestCase {
         assertThat(capturedDeleteRequest.get(), is(notNullValue()));
     }
 
-    public void testGetCloneIndexNameIsDeterministic() {
+    public void testGetCloneIndexCallbackNameIsDeterministic() {
         String cloneName1 = generateExpectedCloneName(indexName);
         String cloneName2 = generateExpectedCloneName(indexName);
         assertThat(cloneName1, equalTo(cloneName2));

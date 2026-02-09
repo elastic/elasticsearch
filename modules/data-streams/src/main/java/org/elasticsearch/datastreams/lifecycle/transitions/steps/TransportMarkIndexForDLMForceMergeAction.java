@@ -25,36 +25,36 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action to mark an index to be force merged by updating its custom metadata.
  */
-public class TransportMarkIndexToBeForceMergedAction extends TransportMasterNodeAction<
-    MarkIndexToBeForceMergedAction.Request,
+public class TransportMarkIndexForDLMForceMergeAction extends TransportMasterNodeAction<
+    MarkIndexForDLMForceMergeAction.Request,
     AcknowledgedResponse> {
 
-    private final MarkIndexToBeForceMergedAction.TaskQueueManager taskQueueManager;
+    private final MarkIndexForDLMForceMergeAction.TaskQueueManager taskQueueManager;
 
     @Inject
-    public TransportMarkIndexToBeForceMergedAction(
+    public TransportMarkIndexForDLMForceMergeAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters
     ) {
         super(
-            MarkIndexToBeForceMergedAction.INSTANCE.name(),
+            MarkIndexForDLMForceMergeAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            MarkIndexToBeForceMergedAction.Request::new,
+            MarkIndexForDLMForceMergeAction.Request::new,
             AcknowledgedResponse::readFrom,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.taskQueueManager = new MarkIndexToBeForceMergedAction.TaskQueueManager(clusterService);
+        this.taskQueueManager = new MarkIndexForDLMForceMergeAction.TaskQueueManager(clusterService);
     }
 
     @Override
     protected void masterOperation(
         Task task,
-        MarkIndexToBeForceMergedAction.Request request,
+        MarkIndexForDLMForceMergeAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -62,7 +62,7 @@ public class TransportMarkIndexToBeForceMergedAction extends TransportMasterNode
     }
 
     @Override
-    protected ClusterBlockException checkBlock(MarkIndexToBeForceMergedAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(MarkIndexForDLMForceMergeAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

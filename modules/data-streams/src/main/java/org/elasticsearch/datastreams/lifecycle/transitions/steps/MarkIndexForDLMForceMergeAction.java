@@ -37,7 +37,7 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
 /**
  * Action to mark an index to be force merged by updating its custom metadata.
  */
-public class MarkIndexToBeForceMergedAction {
+public class MarkIndexForDLMForceMergeAction {
 
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/dlm/mark_to_force_merge");
     private static final String DLM_INDEX_TO_BE_MERGED_KEY = "dlm_index_to_be_force_merged";

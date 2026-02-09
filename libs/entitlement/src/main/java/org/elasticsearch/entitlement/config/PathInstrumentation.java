@@ -15,46 +15,56 @@ import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 public class PathInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
-        registry.registerRule(
-            new EntitlementRule(new MethodKey("sun/nio/fs/UnixPath", "toRealPath", List.of("java.nio.file.LinkOption[]")), args -> {
-                Path path = (Path) args[0];
-                LinkOption[] options = (LinkOption[]) args[1];
+        // Path implementations are platform-specific, so we need to dynamically determine the class names
+        StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
+            .map(Path::getClass)
+            .map(Class::getName)
+            .map(className -> className.replace('.', '/'))
+            .distinct()
+            .forEach(className -> {
+                registry.registerRule(
+                    new EntitlementRule(new MethodKey(className, "toRealPath", List.of("java.nio.file.LinkOption[]")), args -> {
+                        Path path = (Path) args[0];
+                        LinkOption[] options = (LinkOption[]) args[1];
 
-                boolean followLinks = true;
-                for (LinkOption option : options) {
-                    if (option == LinkOption.NOFOLLOW_LINKS) {
-                        followLinks = false;
-                    }
-                }
-                return Policies.fileReadWithLinks(path, followLinks);
-            }, new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy())
-        );
+                        boolean followLinks = true;
+                        for (LinkOption option : options) {
+                            if (option == LinkOption.NOFOLLOW_LINKS) {
+                                followLinks = false;
+                            }
+                        }
+                        return Policies.fileReadWithLinks(path, followLinks);
+                    }, new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy())
+                );
+
+                registry.registerRule(
+                    new EntitlementRule(
+                        new MethodKey(
+                            className,
+                            "register",
+                            List.of("java.nio.file.WatchService", "java.nio.file.WatchEvent$Kind[]", "java.nio.file.WatchEvent$Modifier[]")
+                        ),
+                        args -> {
+                            Path path = (Path) args[0];
+                            return Policies.fileRead(path);
+                        },
+                        new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
+                    )
+                );
+            });
 
         registry.registerRule(
             new EntitlementRule(
                 new MethodKey("java/nio/file/Path", "register", List.of("java.nio.file.WatchService", "java.nio.file.WatchEvent$Kind[]")),
-                args -> {
-                    Path path = (Path) args[0];
-                    return Policies.fileRead(path);
-                },
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
-            )
-        );
-
-        registry.registerRule(
-            new EntitlementRule(
-                new MethodKey(
-                    "sun/nio/fs/UnixPath",
-                    "register",
-                    List.of("java.nio.file.WatchService", "java.nio.file.WatchEvent$Kind[]", "java.nio.file.WatchEvent$Modifier[]")
-                ),
                 args -> {
                     Path path = (Path) args[0];
                     return Policies.fileRead(path);

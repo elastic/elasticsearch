@@ -46,12 +46,12 @@ public final class InstrumenterImpl implements Instrumenter {
 
     private final String registryClassMethodDescriptor;
     private final String handleClass;
-    private final Map<MethodKey, InstrumentationInfo> checkMethods;
+    private final Map<MethodKey, InstrumentationInfo> instrumentedMethods;
 
-    InstrumenterImpl(String handleClass, String registryClassMethodDescriptor, Map<MethodKey, InstrumentationInfo> checkMethods) {
+    InstrumenterImpl(String handleClass, String registryClassMethodDescriptor, Map<MethodKey, InstrumentationInfo> instrumentedMethods) {
         this.handleClass = handleClass;
         this.registryClassMethodDescriptor = registryClassMethodDescriptor;
-        this.checkMethods = checkMethods;
+        this.instrumentedMethods = instrumentedMethods;
     }
 
     public static InstrumenterImpl create(Class<?> registryClass, Map<MethodKey, InstrumentationInfo> checkMethods) {
@@ -181,7 +181,7 @@ public final class InstrumenterImpl implements Instrumenter {
                     name,
                     Stream.of(Type.getArgumentTypes(descriptor)).map(EntitlementClassVisitor::getTypeName).toList()
                 );
-                var instrumentationMethod = checkMethods.get(key);
+                var instrumentationMethod = instrumentedMethods.get(key);
                 if (instrumentationMethod != null) {
                     logger.debug("Will instrument {}", key);
                     return new EntitlementMethodVisitor(

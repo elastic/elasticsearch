@@ -42,7 +42,14 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
     public void testUpdateServiceSettings_AllFields_Success() {
-        HashMap<String, Object> settingsMap = getServiceSettingsMap(TEST_URI.toString(), TEST_RATE_LIMIT);
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.URL,
+                TEST_URI.toString(),
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
 
         var serviceSettings = createInitialServiceSettings().updateServiceSettings(settingsMap, TaskType.SPARSE_EMBEDDING);
 
@@ -155,18 +162,5 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
             var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
             return new HuggingFaceElserServiceSettings(instance.uri(), rateLimitSettings);
         }
-    }
-
-    public static HashMap<String, Object> getServiceSettingsMap(String url, Integer rateLimit) {
-        var map = new HashMap<String, Object>();
-
-        if (url != null) {
-            map.put(ServiceFields.URL, url);
-        }
-        if (rateLimit != null) {
-            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
-        }
-
-        return map;
     }
 }

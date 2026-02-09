@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
@@ -43,9 +45,9 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     );
 
     public static HuggingFaceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var uri = extractUri(map, ServiceFields.URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -53,9 +55,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         return new HuggingFaceRerankServiceSettings(uri, rateLimitSettings);
     }
 
@@ -63,8 +63,8 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     private final RateLimitSettings rateLimitSettings;
 
     public HuggingFaceRerankServiceSettings(String url) {
-        uri = createUri(url);
-        rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        this.uri = createUri(url);
+        this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
     }
 
     HuggingFaceRerankServiceSettings(URI uri, @Nullable RateLimitSettings rateLimitSettings) {
@@ -73,8 +73,24 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     }
 
     public HuggingFaceRerankServiceSettings(StreamInput in) throws IOException {
-        uri = createUri(in.readString());
-        rateLimitSettings = new RateLimitSettings(in);
+        this.uri = createUri(in.readString());
+        this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+        var extractedUri = extractOptionalUri(serviceSettings, ServiceFields.URL, validationException);
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            HuggingFaceService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+        return new HuggingFaceRerankServiceSettings(extractedUri != null ? extractedUri : this.uri, extractedRateLimitSettings);
     }
 
     @Override

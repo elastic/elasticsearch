@@ -18,6 +18,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -45,6 +47,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -62,6 +66,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -181,6 +186,13 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         abstract void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results);
 
         abstract int numResults(int numDocs);
+
+        void assertSourceOperator(LuceneSourceOperator sourceOperator) {
+            for (int shard = 0; shard < sourceOperator.refCounteds.size(); shard++) {
+                var shardContext = sourceOperator.getSliceQueue().getShardContext(shard);
+                assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+            }
+        }
     }
 
     private final TestCase testCase;
@@ -209,24 +221,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     }
 
     private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit, boolean scoring) {
-        int commitEvery = Math.max(1, numDocs / 10);
-        try (
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
-            for (int d = 0; d < numDocs; d++) {
-                List<IndexableField> doc = new ArrayList<>();
-                doc.add(new SortedNumericDocValuesField("s", d));
-                writer.addDocument(doc);
-                if (d % commitEvery == 0) {
-                    writer.commit();
-                }
-            }
-            reader = writer.getReader();
-
+        try {
+            reader = simpleReader(directory, numDocs, Math.max(1, numDocs / 10));
             IndexSearcher searcher = new IndexSearcher(reader);
             int count = 0;
             for (LuceneSliceQueue.QueryAndTags q : testCase.queryAndExtra()) {
@@ -251,6 +247,26 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             limit,
             scoring
         );
+    }
+
+    static IndexReader simpleReader(Directory directory, int numDocs, int commitEvery) throws IOException {
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int d = 0; d < numDocs; d++) {
+                List<IndexableField> doc = new ArrayList<>();
+                doc.add(new SortedNumericDocValuesField("s", d));
+                writer.addDocument(doc);
+                if (d % commitEvery == 0) {
+                    writer.commit();
+                }
+            }
+            return writer.getReader();
+        }
     }
 
     @Override
@@ -386,8 +402,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
 
         List<Page> results = new ArrayList<>();
 
+        LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);
         new TestDriverRunner().run(
-            TestDriverFactory.create(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
+            TestDriverFactory.create(ctx, sourceOperator, List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
 
@@ -407,6 +424,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         int count = results.stream().mapToInt(Page::getPositionCount).sum();
         logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
         assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
+        testCase.assertSourceOperator(sourceOperator);
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled
@@ -428,6 +446,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     public static class MockShardContext implements ShardContext {
         private final int index;
         private final ContextIndexSearcher searcher;
+        private final ShardSearchStats shardSearchStats;
 
         // TODO Reuse this overload in the places that pass 0.
         public MockShardContext(IndexReader reader) {
@@ -436,14 +455,21 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
 
         public MockShardContext(IndexReader reader, int index) {
             this.index = index;
+            this.shardSearchStats = new ShardSearchStats(
+                new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            );
             try {
-                this.searcher = new ContextIndexSearcher(
-                    reader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    TrivialQueryCachingPolicy.NEVER,
-                    true
-                );
+                if (reader != null) {
+                    this.searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        TrivialQueryCachingPolicy.NEVER,
+                        true
+                    );
+                } else {
+                    this.searcher = null;
+                }
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -487,6 +513,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         @Override
         public MappedFieldType fieldType(String name) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ShardSearchStats stats() {
+            return shardSearchStats;
         }
 
         public void incRef() {}

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -110,6 +111,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         BigArrays bigArrays,
         BlockFactoryProvider blockFactoryProvider,
         Client client,
+        NodeClient nodeClient,
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService
@@ -169,6 +171,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.usageService = usageService;
 
         this.services = new TransportActionServices(
+            nodeClient,
             transportService,
             searchService,
             exchangeService,

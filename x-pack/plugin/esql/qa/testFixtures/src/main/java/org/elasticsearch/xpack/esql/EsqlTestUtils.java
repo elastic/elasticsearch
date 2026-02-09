@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -600,6 +601,7 @@ public final class EsqlTestUtils {
     );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
+        mock(NodeClient.class),
         createMockTransportService(),
         mock(SearchService.class),
         null,

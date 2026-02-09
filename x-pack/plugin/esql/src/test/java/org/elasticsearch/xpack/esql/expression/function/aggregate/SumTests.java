@@ -177,15 +177,4 @@ public class SumTests extends AbstractAggregationTestCase {
         });
     }
 
-    @Override
-    public void testGroupingAggregate() {
-        assumeTrue("Grouping not supported for dense_vector", testCase.expectedType() != DENSE_VECTOR);
-        super.testGroupingAggregate();
-    }
-
-    @Override
-    public void testGroupingAggregateToString() {
-        assumeTrue("Grouping not supported for dense_vector", testCase.expectedType() != DENSE_VECTOR);
-        super.testGroupingAggregateToString();
-    }
 }

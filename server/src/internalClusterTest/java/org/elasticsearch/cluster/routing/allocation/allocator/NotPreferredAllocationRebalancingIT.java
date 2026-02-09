@@ -43,12 +43,12 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
 
     private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private static boolean ALLOCATION_DISABLED = false;
+    private static volatile boolean REBALANCE_DISABLED = false;
 
     @After
     public void clearNotPreferredNodesAndAllocationDisabled() {
         NOT_PREFERRED_NODES.clear();
-        ALLOCATION_DISABLED = false;
+        REBALANCE_DISABLED = false;
     }
 
     @Override
@@ -99,7 +99,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
         }
 
         // turn off allocation, and add a bunch of nodes
-        ALLOCATION_DISABLED = true;
+        REBALANCE_DISABLED = true;
         List<String> nodeNames = internalCluster().startNodes(numberOfNodes, settings);
         Set<String> nodeIds = new HashSet<>(nodeNames.stream().map(nodeName -> getNodeId(nodeName)).collect(Collectors.toSet()));
         Set<String> notPreferredNodeIds = new HashSet<>(randomSubsetOf(numberOfNotPreferredNodes, nodeIds));
@@ -119,7 +119,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
         for (String nodeId : notPreferredNodeIds) {
             NOT_PREFERRED_NODES.add(nodeId);
         }
-        ALLOCATION_DISABLED = false;
+        REBALANCE_DISABLED = false;
 
         // run reroute
         safeGet(
@@ -163,7 +163,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
             }, new AllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
-                    if (ALLOCATION_DISABLED) {
+                    if (REBALANCE_DISABLED) {
                         return Decision.NO;
                     } else {
                         return Decision.YES;

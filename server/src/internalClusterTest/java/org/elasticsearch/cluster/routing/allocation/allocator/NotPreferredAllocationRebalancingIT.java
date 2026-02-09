@@ -38,6 +38,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.not;
+
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
 
@@ -104,7 +107,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
         Set<String> nodeIds = new HashSet<>(nodeNames.stream().map(nodeName -> getNodeId(nodeName)).collect(Collectors.toSet()));
         Set<String> notPreferredNodeIds = new HashSet<>(randomSubsetOf(numberOfNotPreferredNodes, nodeIds));
         Set<String> preferredNodeIds = Sets.difference(nodeIds, notPreferredNodeIds);
-        Set<String> preferredAndSourceNodeIDS = Sets.union(preferredNodeIds, Set.of(sourceNodeId));
+        Set<String> preferredAndSourceNodeIds = Sets.union(preferredNodeIds, Set.of(sourceNodeId));
 
         // check that all the shards are still assigned to the source node
         clusterState = clusterService().state();
@@ -134,8 +137,8 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
             for (String indexName : indexNames) {
                 var shardRoutingTable = projectRoutingTable.index(indexName).shard(0);
                 String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-                assertTrue("Not preferred nodes should not have any assignments", notPreferredNodeIds.contains(primaryNodeId) == false);
-                assertTrue("Preferred shards should only have the assignments", preferredAndSourceNodeIDS.contains(primaryNodeId));
+                assertThat("Not preferred nodes should not have any assignments", primaryNodeId, not(isIn(notPreferredNodeIds)));
+                assertThat("Preferred shards should only have the assignments", primaryNodeId, isIn(preferredAndSourceNodeIds));
                 if (preferredNodeIds.contains(primaryNodeId)) {
                     countOnPreferred++;
                 }

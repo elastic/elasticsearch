@@ -17,8 +17,10 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -50,11 +53,15 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.runtime.DoubleScriptFieldRangeQuery;
+import org.elasticsearch.search.runtime.DoubleScriptFieldTermQuery;
+import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
@@ -67,6 +74,7 @@ import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateMetricDoub
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -264,8 +272,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
     );
 
     public static final class AggregateMetricDoubleFieldType extends SimpleMappedFieldType {
-
+        private static final Script EMPTY_SCRIPT = new Script("");
         private final EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
+        private final Metric singleMetric;
         private final MetricType metricType;
 
         public AggregateMetricDoubleFieldType(
@@ -282,6 +291,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             );
             this.metricType = metricType;
             this.metricFields = metricFields;
+            this.singleMetric = metricFields.size() == 1 ? metricFields.keySet().iterator().next() : null;
         }
 
         /**
@@ -289,6 +299,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
+            if (singleMetric != null) {
+                return metricFields.get(singleMetric);
+            }
             if (metricFields.containsKey(Metric.max)) {
                 return metricFields.get(Metric.max);
             }
@@ -317,12 +330,12 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return delegateFieldType().mayExistInIndex(context);    // TODO how does searching actually work here?
+            return metricFields.values().iterator().next().mayExistInIndex(context);    // TODO how does searching actually work here?
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return delegateFieldType().existsQuery(context);
+            return metricFields.values().iterator().next().existsQuery(context);
         }
 
         @Override
@@ -330,12 +343,41 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             if (value == null) {
                 throw new IllegalArgumentException("Cannot search for null.");
             }
-            return delegateFieldType().termQuery(value, context);
+            if (singleMetric != null) {
+                return metricFields.get(singleMetric).termQuery(value, context);
+            }
+            if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
+                return new DoubleScriptFieldTermQuery(
+                    EMPTY_SCRIPT,
+                    AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
+                    name(),
+                    NumberFieldMapper.NumberType.objectToDouble(value)
+                );
+            }
+            return Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            return delegateFieldType().termsQuery(values, context);
+            if (values.isEmpty()) {
+                return Queries.ALL_DOCS_INSTANCE;
+            }
+            if (singleMetric != null) {
+                return metricFields.get(singleMetric).termsQuery(values, context);
+            }
+            if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
+                Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
+                for (Object value : values) {
+                    terms.add(Double.doubleToLongBits(NumberFieldMapper.NumberType.objectToDouble(value)));
+                }
+                return new DoubleScriptFieldTermsQuery(
+                    EMPTY_SCRIPT,
+                    AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
+                    name(),
+                    terms
+                );
+            }
+            return Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -346,12 +388,25 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            return delegateFieldType().rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
-        }
-
-        @Override
-        public Object valueForDisplay(Object value) {
-            return delegateFieldType().valueForDisplay(value);
+            if (singleMetric != null) {
+                return metricFields.get(singleMetric).rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            }
+            if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
+                return NumberFieldMapper.NumberType.doubleRangeQuery(
+                    lowerTerm,
+                    upperTerm,
+                    includeLower,
+                    includeUpper,
+                    (l, u) -> new DoubleScriptFieldRangeQuery(
+                        EMPTY_SCRIPT,
+                        AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
+                        name(),
+                        l,
+                        u
+                    )
+                );
+            }
+            return Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -374,7 +429,11 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             DateMathParser dateMathParser,
             QueryRewriteContext context
         ) throws IOException {
-            return delegateFieldType().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
+            if (singleMetric != null) {
+                return metricFields.get(singleMetric)
+                    .isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
+            }
+            return super.isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
         }
 
         @Override
@@ -429,7 +488,42 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
                         @Override
                         public SortedNumericDoubleValues getAggregateMetricValues() {
-                            return getAggregateMetricValues(Metric.max);
+                            if (singleMetric != null) {
+                                return getAggregateMetricValues(singleMetric);
+                            }
+                            try {
+                                final SortedNumericDocValues sumValues = DocValues.getSortedNumeric(
+                                    context.reader(),
+                                    subfieldName(getFieldName(), Metric.sum)
+                                );
+                                final SortedNumericDocValues countValues = DocValues.getSortedNumeric(
+                                    context.reader(),
+                                    subfieldName(getFieldName(), Metric.value_count)
+                                );
+
+                                return new SortedNumericDoubleValues() {
+                                    @Override
+                                    public int docValueCount() {
+                                        assert countValues.docValueCount() == sumValues.docValueCount()
+                                            : "docValueCount mismatch between sum and count values";
+                                        return countValues.docValueCount();
+                                    }
+
+                                    @Override
+                                    public boolean advanceExact(int doc) throws IOException {
+                                        return sumValues.advanceExact(doc) && countValues.advanceExact(doc);
+                                    }
+
+                                    @Override
+                                    public double nextValue() throws IOException {
+                                        double sum = NumericUtils.sortableLongToDouble(sumValues.nextValue());
+                                        long count = countValues.nextValue();
+                                        return count == 0 ? Double.NaN : sum / count;
+                                    }
+                                };
+                            } catch (IOException e) {
+                                throw new IllegalStateException("Cannot load doc values", e);
+                            }
                         }
 
                         @Override
@@ -468,6 +562,67 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
+                    if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
+                        return new SortField(
+                            name(),
+                            new DoubleValuesComparatorSource(null, missingValue, sortMode, nested) {
+                                @Override
+                                protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
+                                    SortedNumericDocValues sumValues = DocValues.getSortedNumeric(
+                                        context.reader(),
+                                        subfieldName(name(), Metric.sum)
+                                    );
+                                    SortedNumericDocValues countValues = DocValues.getSortedNumeric(
+                                        context.reader(),
+                                        subfieldName(name(), Metric.value_count)
+                                    );
+                                    return new SortedNumericDoubleValues() {
+                                        private double[] averages = new double[0];
+                                        private int count;
+                                        private int index;
+
+                                        @Override
+                                        public boolean advanceExact(int doc) throws IOException {
+                                            boolean hasSum = sumValues.advanceExact(doc);
+                                            boolean hasCount = countValues.advanceExact(doc);
+                                            if (hasSum == false || hasCount == false) {
+                                                count = 0;
+                                                index = 0;
+                                                return false;
+                                            }
+                                            int sumCount = sumValues.docValueCount();
+                                            int valueCount = countValues.docValueCount();
+                                            count = Math.min(sumCount, valueCount);
+                                            if (averages.length < count) {
+                                                averages = new double[count];
+                                            }
+                                            for (int i = 0; i < count; i++) {
+                                                double sum = NumericUtils.sortableLongToDouble(sumValues.nextValue());
+                                                long valueCountValue = countValues.nextValue();
+                                                averages[i] = sum / valueCountValue;
+                                            }
+                                            if (count > 1) {
+                                                Arrays.sort(averages, 0, count);
+                                            }
+                                            index = 0;
+                                            return count > 0;
+                                        }
+
+                                        @Override
+                                        public double nextValue() {
+                                            return averages[index++];
+                                        }
+
+                                        @Override
+                                        public int docValueCount() {
+                                            return count;
+                                        }
+                                    };
+                                }
+                            },
+                            reverse
+                        );
+                    }
                     return new SortedNumericSortField(subfieldName(name(), Metric.max), SortField.Type.DOUBLE, reverse);
                 }
 

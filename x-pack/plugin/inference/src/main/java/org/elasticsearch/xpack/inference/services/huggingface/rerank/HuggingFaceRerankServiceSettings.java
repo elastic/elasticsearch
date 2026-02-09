@@ -44,6 +44,13 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
         "ml_inference_sagemaker_chat_completion"
     );
 
+    /**
+     * Creates {@link HuggingFaceRerankServiceSettings} from the given map.
+     * The map is expected to contain the required set of settings for Hugging Face Rerank Service.
+     * @param map the map containing the settings
+     * @param context the context in which the configuration is being parsed, used for validation purposes
+     * @return the created {@link HuggingFaceRerankServiceSettings}
+     */
     public static HuggingFaceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
         var uri = extractUri(map, ServiceFields.URL, validationException);

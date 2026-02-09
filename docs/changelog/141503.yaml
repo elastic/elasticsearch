@@ -1,0 +1,6 @@
+pr: 141503
+summary: Better error on some queries missing timestamps
+area: ES|QL
+type: bug
+issues:
+  - 140606

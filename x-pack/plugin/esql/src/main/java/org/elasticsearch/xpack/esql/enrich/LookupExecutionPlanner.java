@@ -334,7 +334,7 @@ public class LookupExecutionPlanner {
                         EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
                     )
                 );
-                return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, docChannel);
+                return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, true, docChannel);
             }
 
             @Override

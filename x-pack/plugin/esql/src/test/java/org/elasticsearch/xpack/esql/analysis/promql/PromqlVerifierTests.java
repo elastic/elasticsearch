@@ -37,10 +37,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
-        assertThat(
-            error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
-            equalTo("1:32: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
-        );
+        assertThat(error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb), containsString("Unknown column [__name__]"));
     }
 
     public void testPromqlSubquery() {

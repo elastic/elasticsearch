@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
@@ -77,7 +78,7 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
                     if (values == null) {
                         assertNull(expected);
                     } else {
-                        TDigestState agg = values.getState();
+                        HistogramUnionState agg = values.getState();
                         assertEquals(expected.size(), agg.size());
                         assertEquals(expected.getMax(), agg.getMax(), 0d);
                         assertEquals(expected.getMin(), agg.getMin(), 0d);

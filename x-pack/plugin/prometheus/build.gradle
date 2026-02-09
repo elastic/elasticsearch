@@ -1,0 +1,31 @@
+plugins {
+  id 'elasticsearch.internal-es-plugin'
+  id 'elasticsearch.internal-yaml-rest-test'
+  id 'elasticsearch.internal-java-rest-test'
+  id 'elasticsearch.internal-cluster-test'
+}
+
+esplugin {
+  name = 'x-pack-prometheus'
+  description = 'The Prometheus plugin defines Prometheus mappings and contains Prometheus-compatible APIs.'
+  classname ='org.elasticsearch.xpack.prometheus.PrometheusPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  // stack is needed as we import the metrics@custom template
+  clusterModules project(xpackModule('stack'))
+  // transitive dependencies of stack
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("Requires a bunch of xpack plugins")
+}

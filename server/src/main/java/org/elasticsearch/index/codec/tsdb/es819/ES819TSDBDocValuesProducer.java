@@ -748,10 +748,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class DenseBinaryDocValues extends BinaryDocValues
+    abstract static class ES819BinaryDocValues extends BinaryDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalLengthReader {
+            BlockLoader.OptionalLengthReader {}
+
+    abstract static class DenseBinaryDocValues extends ES819BinaryDocValues {
 
         final int maxDoc;
         int doc = -1;
@@ -864,10 +866,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class SparseBinaryDocValues extends BinaryDocValues
-        implements
-            BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalLengthReader {
+    abstract static class SparseBinaryDocValues extends ES819BinaryDocValues {
 
         final IndexedDISI disi;
 

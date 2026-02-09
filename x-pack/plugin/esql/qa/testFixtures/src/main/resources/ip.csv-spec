@@ -780,6 +780,32 @@ ip4:ip  | a:ip | b:ip | c:ip
 1.2.3.4 | null | null | null
 ;
 
+ipPrefixV6MultipleRowsDifferentLengthsRow
+required_capability: fn_ip_prefix_fix_dirty_scratch_leak
+ROW ip = ["::1", "::ffff:ffff:ffff:ffff", "::1"]::ip
+| MV_EXPAND ip
+| EVAL v6_prefix = CASE(ip == "::1", 72, 80)
+| EVAL prefix = IP_PREFIX(ip, 32, v6_prefix);
+
+ip:ip                 | v6_prefix:integer | prefix:ip
+::1                   | 72                | ::
+::ffff:ffff:ffff:ffff | 80                | ::ffff:0:0:0
+::1                   | 72                | ::
+;
+
+ipPrefixV4MultipleRowsDifferentLengthsRow
+required_capability: fn_ip_prefix_fix_dirty_scratch_leak
+ROW ip = ["0.0.0.0", "123.123.123.123", "0.0.0.0"]::ip
+| MV_EXPAND ip
+| EVAL v4_prefix = CASE(ip == "0.0.0.0", 16, 24)
+| EVAL prefix = IP_PREFIX(ip, v4_prefix, 128);
+
+ip:ip           | v4_prefix:integer | prefix:ip
+0.0.0.0         | 16                | 0.0.0.0
+123.123.123.123 | 24                | 123.123.123.0
+0.0.0.0         | 16                | 0.0.0.0
+;
+
 networkDirectionSimple
 required_capability: network_direction
 

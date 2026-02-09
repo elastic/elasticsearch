@@ -152,6 +152,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         final var metricsAttributes = blobStoreServices.getMetricsAttributes(action);
         repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, metricsAttributes);
         repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, metricsAttributes);
+        blobStoreServices.onRetrySucceeded(action, numberOfRetries);
     }
 
     @Override
@@ -289,7 +290,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 purpose.getKey(),
                 numberOfRetries
             );
-            blobStoreServices.onRetrySucceeded(action, numberOfRetries);
+            onRetrySucceeded(action, numberOfRetries);
         }
     }
 

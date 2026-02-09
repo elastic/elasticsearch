@@ -205,7 +205,7 @@ setup:
   - gte: { aggregations.percentile_ranks_agg.values.5000\.0: 77.9 }
   - lte: { aggregations.percentile_ranks_agg.values.5000\.0: 78.1 }
 
----  
+---
 "Exists query":
   - do:
       search:

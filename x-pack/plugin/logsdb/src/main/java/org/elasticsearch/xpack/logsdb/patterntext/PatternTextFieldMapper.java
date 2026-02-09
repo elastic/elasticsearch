@@ -13,9 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
@@ -355,11 +353,6 @@ public class PatternTextFieldMapper extends FieldMapper {
     @Override
     public PatternTextFieldType fieldType() {
         return (PatternTextFieldType) super.fieldType();
-    }
-
-    @FunctionalInterface
-    interface DocValuesSupplier {
-        BinaryDocValues get(LeafReader leafReader) throws IOException;
     }
 
     @Override

@@ -242,3 +242,20 @@ d1:long | d2:long | status:keyword
 ;
 
 # ----------------------------------------------------------------------------------------------------------------------
+
+Test date types in the search field
+
+required_capability: first_last_agg_with_dates
+
+FROM voyager
+| STATS 
+    f_date = FIRST(@timestamp, distance_to_earth),
+    l_date = LAST(@timestamp, distance_to_earth),
+    f_date_nanos = FIRST(@timestamp::date_nanos, distance_to_earth),
+    l_date_nanos = LAST(@timestamp::date_nanos, distance_to_earth)
+;
+
+f_date:datetime                                                                | l_date:datetime          | f_date_nanos:date_nanos                                                        | l_date_nanos:date_nanos
+[2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 2025-12-25T00:00:20.000Z | [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 2025-12-25T00:00:20.000Z
+;
+

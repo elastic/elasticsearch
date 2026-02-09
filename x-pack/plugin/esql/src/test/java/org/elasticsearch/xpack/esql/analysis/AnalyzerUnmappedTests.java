@@ -12,7 +12,6 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -55,21 +55,20 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -3404,14 +3403,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         return "SET unmapped_fields=\"load\"; " + query;
     }
 
-    public void partiallyUnmappedKeywordMultiIndexFailsWithLoad() {
+    public void testPartiallyUnmappedKeywordFailsWithLoad() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        Map<String, IndexFieldCapabilities> fooFields = new HashMap<>();
-        fooFields.putAll(fieldResponseMap("@timestamp", "date"));
-        fooFields.putAll(fieldResponseMap("message", "keyword"));
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
-                fieldCapabilitiesIndexResponse("foo", fooFields),
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap(Map.of("@timestamp", "date", "message", "keyword"))),
                 fieldCapabilitiesIndexResponse("bar", Map.of())
             ),
             List.of()
@@ -3421,28 +3417,24 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailureWithResolution(setUnmappedLoad(query), "Cannot use field [@timestamp] due to ambiguities", resolution);
     }
 
-    public void partiallyUnmappedNonKeywordMultiIndexCastFailsWithLoad() {
+    public void testPartiallyUnmappedNonKeywordFailsWithLoad() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        Map<String, IndexFieldCapabilities> fooFields = new HashMap<>();
-        fooFields.putAll(fieldResponseMap("@timestamp", "date"));
-        fooFields.putAll(fieldResponseMap("event_duration", "long"));
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
-                fieldCapabilitiesIndexResponse("foo", fooFields),
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap(Map.of("@timestamp", "date", "message", "keyword"))),
                 fieldCapabilitiesIndexResponse("bar", Map.of())
             ),
             List.of()
         );
         IndexResolution resolution = mergedResolution("foo,bar", caps);
-        String query = "FROM foo, bar METADATA _index | EVAL duration = event_duration::DOUBLE | KEEP _index, @timestamp, duration | SORT _index, @timestamp DESC";
+        String query =
+            "FROM foo, bar METADATA _index | EVAL duration = event_duration::DOUBLE | KEEP _index, @timestamp, duration | SORT _index, @timestamp DESC";
         verificationFailureWithResolution(setUnmappedLoad(query), "incompatible types", resolution);
     }
 
-    public void partiallyUnmappedMixedTypesMultiIndexCastFailsWithLoad() {
+    public void testPartiallyUnmappedMixedTypesWithCastFailsWithLoad() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        Map<String, IndexFieldCapabilities> fooBarFields = new HashMap<>();
-        fooBarFields.putAll(fieldResponseMap("@timestamp", "date"));
-        fooBarFields.putAll(fieldResponseMap("message", "keyword"));
+        Map<String, IndexFieldCapabilities> fooBarFields = fieldResponseMap(Map.of("@timestamp", "date", "message", "keyword"));
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
                 fieldCapabilitiesIndexResponse("foo", fooBarFields),
@@ -3452,7 +3444,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             List.of()
         );
         IndexResolution resolution = mergedResolution("foo,bar,bazz", caps);
-        String query = "FROM foo, bar, bazz METADATA _index | EVAL msg = message::KEYWORD | KEEP _index, @timestamp, msg | SORT _index, @timestamp DESC";
+        String query =
+            "FROM foo, bar, bazz METADATA _index | EVAL msg = message::KEYWORD | KEEP _index, @timestamp, msg | SORT _index, @timestamp DESC";
         verificationFailureWithResolution(setUnmappedLoad(query), "Cannot use field [@timestamp] due to ambiguities", resolution);
     }
 

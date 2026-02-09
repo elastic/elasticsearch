@@ -511,16 +511,19 @@ public final class AnalyzerTestUtils {
         return Map.of(fieldName, new IndexFieldCapabilitiesBuilder(fieldName, type).build());
     }
 
+    public static Map<String, IndexFieldCapabilities> fieldResponseMap(Map<String, String> fieldTypes) {
+        Map<String, IndexFieldCapabilities> result = new HashMap<>();
+        for (Map.Entry<String, String> entry : fieldTypes.entrySet()) {
+            result.putAll(fieldResponseMap(entry.getKey(), entry.getValue()));
+        }
+        return result;
+    }
+
     public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {
-        return IndexResolver.mergedMappings(
-            indexPattern,
-            false,
-            fieldsInfoOnCurrentVersion(caps),
-            IndexResolver.DO_NOT_GROUP
-        );
+        return IndexResolver.mergedMappings(indexPattern, false, fieldsInfoOnCurrentVersion(caps), IndexResolver.DO_NOT_GROUP);
     }
 }

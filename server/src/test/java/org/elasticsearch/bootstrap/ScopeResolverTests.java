@@ -27,6 +27,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -169,7 +170,8 @@ public class ScopeResolverTests extends ESTestCase {
             false,
             false,
             true,
-            false
+            false,
+            Optional.empty()
         );
 
         PluginBundle bundle = mock(PluginBundle.class);

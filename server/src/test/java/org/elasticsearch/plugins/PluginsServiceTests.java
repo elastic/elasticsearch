@@ -42,6 +42,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
@@ -68,7 +69,7 @@ public class PluginsServiceTests extends ESTestCase {
             null,
             PluginsLoader.createPluginsLoader(
                 Set.of(),
-                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
                 Map.of(),
                 false
             )
@@ -466,7 +467,21 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
+                    new PluginDescriptor(
+                        "extensible",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        Optional.empty()
+                    ),
                     extensiblePlugin,
                     null
                 )
@@ -481,7 +496,21 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
+                    new PluginDescriptor(
+                        "extensible",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        Optional.empty()
+                    ),
                     extensiblePlugin,
                     null
                 ),
@@ -498,7 +527,8 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        false
+                        false,
+                        Optional.empty()
                     ),
                     testPlugin,
                     null

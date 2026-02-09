@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
@@ -212,6 +213,30 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
+    public void testReadDistributionMode() throws Exception {
+        assertThat(mockInternalDescriptor().getDistributionMode(), isEmpty());
+        assertThat(
+            mockInternalDescriptor("distribution.mode", "STATEFUL_ONLY").getDistributionMode(),
+            is(Optional.of(PluginDescriptor.DistributionMode.STATEFUL_ONLY))
+        );
+        assertThat(
+            mockInternalDescriptor("distribution.mode", "STATELESS_ONLY").getDistributionMode(),
+            is(Optional.of(PluginDescriptor.DistributionMode.STATELESS_ONLY))
+        );
+    }
+
+    public void testReadDistributionModeInvalid() throws Exception {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mockInternalDescriptor("distribution.mode", "INVALID")
+        );
+        assertThat(e.getMessage(), containsString("invalid distribution.mode"));
+        assertThat(e.getMessage(), containsString("INVALID"));
+        assertThat(e.getMessage(), containsString("STATEFUL_ONLY"));
+        assertThat(e.getMessage(), containsString("STATELESS_ONLY"));
+        assertThat(e.getMessage(), containsString("ALWAYS"));
+    }
+
     public void testIsModular() throws Exception {
         PluginDescriptor info = mockStableDescriptor("modular", "false");
         assertThat(info.isModular(), is(false));
@@ -230,7 +255,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            false
+            false,
+            Optional.empty()
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -253,7 +279,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            false
+            false,
+            Optional.empty()
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -286,7 +313,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            false
+            false,
+            Optional.empty()
         );
     }
 
@@ -312,7 +340,7 @@ public class PluginDescriptorTests extends ESTestCase {
     }
 
     /**
-     * This is important because {@link PluginsUtils#getPluginBundles(Path)} will
+     * This is important because {@link PluginsUtils#getPluginBundles(Path, java.util.function.Predicate)} will
      * use the hashcode to catch duplicate names
      */
     public void testPluginEqualityAndHash() {
@@ -330,7 +358,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            isStable
+            isStable,
+            Optional.empty()
         );
         // everything but name is different from descriptor1
         PluginDescriptor descriptor2 = new PluginDescriptor(
@@ -347,7 +376,8 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.hasNativeController() == false,
             descriptor1.isLicensed() == false,
             descriptor1.isModular() == false,
-            descriptor1.isStable() == false
+            descriptor1.isStable() == false,
+            Optional.empty()
         );
         // only name is different from descriptor1
         PluginDescriptor descriptor3 = new PluginDescriptor(
@@ -362,7 +392,8 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.hasNativeController(),
             descriptor1.isLicensed(),
             descriptor1.isModular(),
-            descriptor1.isStable()
+            descriptor1.isStable(),
+            Optional.empty()
         );
 
         assertThat(descriptor1, equalTo(descriptor2));

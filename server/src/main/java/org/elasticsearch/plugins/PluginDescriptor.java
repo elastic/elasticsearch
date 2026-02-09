@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +44,18 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
 
+    /**
+     * Controls when to load a plugin in the current distribution.
+     */
+    public enum DistributionMode {
+        /** Only load plugin when stateless mode is disabled */
+        STATEFUL_ONLY,
+        /** Only load plugin when stateless mode is enabled */
+        STATELESS_ONLY,
+        /** Always load plugin (default) */
+        ALWAYS
+    }
+
     private final String name;
     private final String description;
     private final String version;
@@ -55,6 +68,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final boolean isLicensed;
     private final boolean isModular;
     private final boolean isStable;
+    private final Optional<DistributionMode> distributionMode;
 
     /**
      * Construct plugin info.
@@ -71,6 +85,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @param isLicensed           whether is this a licensed plugin
      * @param isModular            whether this plugin should be loaded in a module layer
      * @param isStable             whether this plugin is implemented using the stable plugin API
+     * @param distributionMode     when to load this plugin
      */
     public PluginDescriptor(
         String name,
@@ -84,7 +99,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         boolean hasNativeController,
         boolean isLicensed,
         boolean isModular,
-        boolean isStable
+        boolean isStable,
+        Optional<DistributionMode> distributionMode
     ) {
         this.name = name;
         this.description = description;
@@ -98,6 +114,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
+        this.distributionMode = distributionMode;
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -123,6 +140,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         isModular = in.readBoolean();
         isStable = in.readBoolean();
+        distributionMode = Optional.empty(); // only read from descriptor property files, not serialized
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -253,8 +271,42 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         boolean isLicensed = readBoolean(propsMap, name, "licensed");
         boolean modular = module != null;
+        Optional<DistributionMode> distributionMode = readDistributionMode(propsMap, name);
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, classname, module, extended, nativeCont, isLicensed, modular, false);
+        return new PluginDescriptor(
+            name,
+            desc,
+            ver,
+            esVer,
+            javaVer,
+            classname,
+            module,
+            extended,
+            nativeCont,
+            isLicensed,
+            modular,
+            false,
+            distributionMode
+        );
+    }
+
+    private static Optional<DistributionMode> readDistributionMode(Map<String, String> propsMap, String pluginId) {
+        String rawValue = propsMap.remove("distribution.mode");
+        if (rawValue == null || rawValue.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(DistributionMode.valueOf(rawValue.trim()));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Descriptor of plugin [%s] contains invalid distribution.mode [%s], expected one of %s",
+                    pluginId,
+                    rawValue,
+                    Arrays.toString(DistributionMode.values())
+                )
+            );
+        }
     }
 
     private static PluginDescriptor readerStableDescriptor(Map<String, String> propsMap, String filename) {
@@ -264,8 +316,23 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
+        Optional<DistributionMode> distributionMode = readDistributionMode(propsMap, name);
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, true);
+        return new PluginDescriptor(
+            name,
+            desc,
+            ver,
+            esVer,
+            javaVer,
+            null,
+            null,
+            List.of(),
+            false,
+            false,
+            isModular,
+            true,
+            distributionMode
+        );
     }
 
     private static String readNonEmptyString(Map<String, String> propsMap, String pluginId, String name) {
@@ -415,6 +482,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         return isStable;
     }
 
+    /**
+     * The distribution mode of this plugin, specifically if to include the plugin in stateless mode or not.
+     */
+    public Optional<DistributionMode> getDistributionMode() {
+        return distributionMode;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -433,7 +507,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         builder.field("extended_plugins", extendedPlugins);
         builder.field("has_native_controller", hasNativeController);
         builder.field("licensed", isLicensed);
-
         return builder;
     }
 
@@ -470,6 +543,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Licensed: ", isLicensed);
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
+        distributionMode.ifPresent(dm -> appendLine(lines, prefix, "Distribution Mode: ", dm.name()));
 
         return String.join(System.lineSeparator(), lines);
     }

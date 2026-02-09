@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -173,7 +174,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        isStable
+                        isStable,
+                        Optional.empty()
                     )
                 );
             }
@@ -195,7 +197,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        isStable
+                        isStable,
+                        Optional.empty()
                     )
                 );
             }

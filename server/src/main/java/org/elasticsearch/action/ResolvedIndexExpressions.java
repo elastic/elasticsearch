@@ -55,12 +55,11 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         /**
          * Add a new resolved expression.
          * @param original         the original expression that was resolved -- may be blank for "access all" cases
-         * @param localExpressions is a HashSet as an optimization -- the set needs to be mutable, and we want to avoid copying it.
-         *                         May be empty.
+         * @param localExpressions the resolved local index expressions. May be empty.
          */
         public void addExpressions(
             String original,
-            HashSet<String> localExpressions,
+            Set<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult,
             Set<String> remoteExpressions
         ) {
@@ -93,7 +92,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
-                final var iter = expressions.iterator();
+                final var iter = expressions.listIterator();
                 while (iter.hasNext()) {
                     final ResolvedIndexExpression current = iter.next();
                     if (expressionsToExclude.contains(current.original())) {
@@ -104,14 +103,39 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
                     if (localExpressions.isEmpty()) {
                         continue;
                     }
-                    localExpressions.removeAll(expressionsToExclude);
+                    var filtered = new HashSet<>(localExpressions);
+                    filtered.removeAll(expressionsToExclude);
+                    iter.set(
+                        new ResolvedIndexExpression(
+                            current.original(),
+                            new LocalExpressions(
+                                filtered,
+                                current.localExpressions().localIndexResolutionResult(),
+                                current.localExpressions().exception()
+                            ),
+                            current.remoteExpressions()
+                        )
+                    );
                 }
             }
         }
 
         public ResolvedIndexExpressions build() {
-            // TODO make all sets on `expressions` immutable
-            return new ResolvedIndexExpressions(expressions);
+            return new ResolvedIndexExpressions(
+                expressions.stream()
+                    .map(
+                        e -> new ResolvedIndexExpression(
+                            e.original(),
+                            new LocalExpressions(
+                                Set.copyOf(e.localExpressions().indices()),
+                                e.localExpressions().localIndexResolutionResult(),
+                                e.localExpressions().exception()
+                            ),
+                            Set.copyOf(e.remoteExpressions())
+                        )
+                    )
+                    .toList()
+            );
         }
     }
 }

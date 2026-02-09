@@ -89,11 +89,19 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     )
     public TopSnippets(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately.") Expression field,
-        @Param(name = "query", type = { "keyword" }, description = """
-            The input text containing only query terms for snippet extraction.
-            Lucene query syntax, operators, and wildcards are not allowed.
-            """) Expression query,
+        @Param(
+            name = "field",
+            type = { "keyword", "text" },
+            description = "The field to extract snippets from. The input can be a single-valued"
+                + " or multi-valued field. In the case of a multi-valued argument,"
+                + " snippets are extracted from each value separately."
+        ) Expression field,
+        @Param(
+            name = "query",
+            type = { "keyword" },
+            description = "The input text containing only query terms for snippet extraction."
+                + " Lucene query syntax, operators, and wildcards are not allowed."
+        ) Expression query,
         @MapParam(
             name = "options",
             description = "(Optional) `TOP_SNIPPETS` additional options as "

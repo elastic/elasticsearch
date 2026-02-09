@@ -488,7 +488,7 @@ public class ValuesSourceReaderBenchmark {
                                     blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
                                     blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
-                                    true
+                                    DocVector.config().singleSegmentNonDecreasing(true)
                                 ).asBlock()
                             )
                         );
@@ -525,7 +525,7 @@ public class ValuesSourceReaderBenchmark {
                                         blockFactory.newConstantIntVector(0, size),
                                         leafs.build(),
                                         docs.build(),
-                                        null
+                                        DocVector.config()
                                     ).asBlock()
                                 )
                             );
@@ -543,7 +543,7 @@ public class ValuesSourceReaderBenchmark {
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
-                                null
+                                DocVector.config()
                             ).asBlock()
                         )
                     );
@@ -570,7 +570,7 @@ public class ValuesSourceReaderBenchmark {
                                     blockFactory.newConstantIntVector(0, 1),
                                     blockFactory.newConstantIntVector(next.ord, 1),
                                     blockFactory.newConstantIntVector(next.itr.nextInt(), 1),
-                                    true
+                                    DocVector.config().singleSegmentNonDecreasing(true)
                                 ).asBlock()
                             )
                         );

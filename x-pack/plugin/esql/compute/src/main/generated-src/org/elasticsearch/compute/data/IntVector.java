@@ -28,7 +28,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     IntBlock asBlock();
 
     @Override
-    IntVector filter(int... positions);
+    IntVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     IntBlock keepMask(BooleanVector mask);

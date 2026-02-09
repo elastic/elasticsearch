@@ -50,6 +50,9 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                 ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
+                        if (r.getMessage() != null) {
+                            return new RestResponse(r.getStatus(), r.getMessage());
+                        }
                         return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                     }
                 })

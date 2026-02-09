@@ -30,11 +30,10 @@ public class OTLPActionResponse extends ActionResponse {
         this.status = status;
     }
 
-    // writeTo is required by the ActionResponse contract but is never used at runtime.
-    // The response is created and consumed locally on the same node, so node-to-node serialization does not occur.
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("OTLPActionResponse should not be serialized to a stream");
+        out.writeBytesReference(response);
+        out.writeEnum(status);
     }
 
     public BytesReference getResponse() {

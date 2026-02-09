@@ -55,7 +55,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(NotPreferredPlugin.class);
+        plugins.add(TestPlugin.class);
         return plugins;
     }
 
@@ -145,7 +145,7 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
         });
     }
 
-    public static class NotPreferredPlugin extends Plugin implements ClusterPlugin {
+    public static class TestPlugin extends Plugin implements ClusterPlugin {
 
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {

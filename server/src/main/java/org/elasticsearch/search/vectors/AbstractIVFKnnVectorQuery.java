@@ -320,7 +320,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     /**
      * Calculate multi-criteria segment relevance score using configurable weights
      */
-    private static float calculateSegmentRelevance(
+    private static float calculateSegmentAffinity(
         float[] queryVector,
         SegmentMetadata metadata,
         float proximityWeight,
@@ -331,40 +331,40 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return 0f;
         }
 
-        // Component 1: Proximity score (distance to global centroid)
+        // distance to global centroid
         float proximityScore = calculateSegmentProximity(queryVector, metadata.globalCentroid(), metadata.similarityFunction());
         proximityScore = Math.max(0f, proximityScore);
 
-        // Component 2: Density score (average cluster size - logarithmic to prefer moderate density)
+        // density score (average cluster size - logarithmic to prefer moderate density)
         float densityScore = 0f;
         if (metadata.averageClusterSize() > 0) {
             // Use log to normalize density - very large clusters don't get exponentially higher scores
             densityScore = (float) Math.log(metadata.averageClusterSize());
         }
 
-        // Component 3: Quality score (cluster variance - inverse to prefer balanced clusters)
+        // quality score (cluster variance - inverse to prefer balanced clusters)
         float qualityScore = 0f;
         if (metadata.clusterVariance() >= 0) {
             // Inverse of (1 + variance) to prefer lower variance
             qualityScore = 1.0f / (1.0f + metadata.clusterVariance());
         }
 
-        // Normalize scores (simple min-max normalization based on expected ranges)
+        // normalize scores (simple min-max normalization based on expected ranges)
         proximityScore = Math.min(1.0f, proximityScore); // Assume similarity scores are normalized
         densityScore = Math.min(1.0f, densityScore / 10.0f); // Normalize log scores
         qualityScore = Math.min(1.0f, qualityScore);
 
-        // Calculate weighted combination
+        // weighted/convex combination
         float totalWeight = proximityWeight + densityWeight + qualityWeight;
         if (totalWeight <= 0f) {
-            return proximityScore; // Fallback to proximity only
+            return proximityScore; // fallback to proximity only
         }
 
         return (proximityWeight * proximityScore + densityWeight * densityScore + qualityWeight * qualityScore) / totalWeight;
     }
 
     /**
-     * Calculate proximity score between query vector and segment global centroid
+     * calculate proximity score between query vector and segment global centroid
      */
     private static float calculateSegmentProximity(
         float[] queryVector,
@@ -376,20 +376,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
 
         try {
-            // Handle zero vectors in placeholder centroids (all zeros)
+            // handle zero vectors in placeholder centroids (all zeros)
             if (isZeroVector(segmentGlobalCentroid)) {
-                return 0f; // Zero centroids provide no meaningful proximity signal
+                return 0f; // zero centroids provide no meaningful proximity signal ?
             }
             return similarityFunction.compare(queryVector, segmentGlobalCentroid);
         } catch (Exception e) {
-            // Handle any errors in similarity calculation (e.g., zero vectors in cosine similarity)
+            // TODO : better exception handling
             return 0f;
         }
     }
 
-    /**
-     * Check if a vector is a zero vector
-     */
     private static boolean isZeroVector(float[] vector) {
         for (float v : vector) {
             if (v != 0f) return false;
@@ -402,7 +399,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     /**
-     * Collect metadata for all segments to enable multi-criteria budget allocation
+     * collect metadata for all segments to enable multi-criteria budget allocation
      */
     private List<SegmentMetadata> collectSegmentMetadata(List<LeafReaderContext> leafReaderContexts, String field) throws IOException {
         List<SegmentMetadata> segmentMetadata = new ArrayList<>(leafReaderContexts.size());
@@ -417,13 +414,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
 
             try {
-                // Get field info for similarity function
                 FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
                 if (fieldInfo != null && fieldInfo.getVectorDimension() > 0) {
                     VectorSimilarityFunction similarity = fieldInfo.getVectorSimilarityFunction();
 
-                    // For now, we create placeholder cluster statistics
-                    // In a full implementation, this would access actual cluster statistics from the IVF reader
+                    // TODO : for now we create placeholder cluster statistics
+                    // TODO : this would need to access actual cluster statistics from the IVF reader (need to change writer too)
                     float[] placeholderCentroid = new float[fieldInfo.getVectorDimension()];
                     int vectorCount = floatVectorValues.size();
                     int numCentroids = Math.max(1, vectorCount / 100); // Estimate: assume ~100 vectors per centroid
@@ -445,7 +441,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     segmentMetadata.add(new SegmentMetadata(context, null, null, floatVectorValues.size(), 0, 0f, 0f, 0f, false));
                 }
             } catch (Exception e) {
-                // Fallback for any access issues - segment will not participate in multi-criteria allocation
+                // TODO : this is unexpected, throw ?
                 segmentMetadata.add(new SegmentMetadata(context, null, null, floatVectorValues.size(), 0, 0f, 0f, 0f, false));
             }
         }
@@ -464,40 +460,39 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         boolean enableProximityAllocation
     ) {
         if (enableProximityAllocation == false || segmentMetadata.isEmpty()) {
-            // Fall back to equal allocation
             return new float[segmentMetadata.size()];
         }
 
-        // Calculate relevance scores for all valid segments
-        float[] relevanceScores = new float[segmentMetadata.size()];
-        float totalRelevance = 0f;
+        // calculate relevance scores for all valid segments
+        float[] affinityScores = new float[segmentMetadata.size()];
+        float totAffinity = 0f;
         int validSegments = 0;
 
         for (int i = 0; i < segmentMetadata.size(); i++) {
             SegmentMetadata metadata = segmentMetadata.get(i);
             if (metadata.isValid()) {
-                float relevance = calculateSegmentRelevance(queryVector, metadata, proximityWeight, densityWeight, qualityWeight);
-                relevanceScores[i] = Math.max(0f, relevance);
-                totalRelevance += relevanceScores[i];
+                float affinity = calculateSegmentAffinity(queryVector, metadata, proximityWeight, densityWeight, qualityWeight);
+                affinityScores[i] = Math.max(0f, affinity);
+                totAffinity += affinityScores[i];
                 validSegments++;
             } else {
-                relevanceScores[i] = 0f;
+                affinityScores[i] = 0f;
             }
         }
 
-        if (validSegments == 0 || totalRelevance == 0f) {
-            // Fall back to equal allocation
+        if (validSegments == 0 || totAffinity == 0f) {
+            // fallback to equal allocation
             return new float[segmentMetadata.size()];
         }
 
-        // Distribute budget proportionally to relevance scores
+        // distribute budget proportionally to relevance scores
         float[] segmentVisitRatios = new float[segmentMetadata.size()];
         for (int i = 0; i < segmentMetadata.size(); i++) {
-            if (relevanceScores[i] > 0f) {
-                // Allocate proportionally to relevance, ensuring total doesn't exceed base budget
-                segmentVisitRatios[i] = (relevanceScores[i] / totalRelevance) * baseVisitRatio * validSegments;
+            if (affinityScores[i] > 0f) {
+                // allocate proportionally to relevance, ensuring total doesn't exceed base budget
+                segmentVisitRatios[i] = (affinityScores[i] / totAffinity) * baseVisitRatio * validSegments;
             } else {
-                // Give minimal allocation to non-relevant segments
+                // give minimal allocation to non-relevant segments
                 segmentVisitRatios[i] = baseVisitRatio * 0.1f; // 10% of base allocation
             }
         }

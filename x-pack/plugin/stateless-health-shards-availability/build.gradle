@@ -23,15 +23,7 @@ configurations {
 
 dependencies {
     implementation("org.elasticsearch:server")
+    internalClusterTestImplementation(testArtifact(project(":modules-self-managed:stateless")))
     internalClusterTestImplementation(testArtifact(project(":modules-self-managed:stateless"), "internalClusterTest"))
 }
 
-// This can be removed once the x-pack plugin is moved to the public repository
-tasks.withType<LicenseHeadersTask>().configureEach {
-    additionalLicense(
-        "ELAST",
-        "Elastic License 2.0",
-        "2.0; you may not use this file except in compliance with the Elastic License"
-    )
-    approvedLicenses = listOf("Elastic License 2.0")
-}

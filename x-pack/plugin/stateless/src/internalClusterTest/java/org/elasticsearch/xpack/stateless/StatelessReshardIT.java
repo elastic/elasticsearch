@@ -1,0 +1,3142 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package org.elasticsearch.xpack.stateless;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportGetFromTranslogAction;
+import org.elasticsearch.action.get.TransportShardMultiGetAction;
+import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
+import org.elasticsearch.xpack.stateless.reshard.SplitStateRequest;
+import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
+import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
+import org.hamcrest.Matcher;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.blobstore.OperationPurpose.INDICES;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
+
+    // Given an index with a certain number of shards, it can be resharded only
+    // using a multiple of 2. Here we test some valid and invalid combinations.
+    public void testReshardTargetNumShardsIsValid() {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        int numShards = randomIntBetween(1, 5);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(numShards, 0).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, numShards);
+
+        for (int i = 0; i < 5; i++) {
+            logger.info("attempting reshard from {} to {} shards should succeed", numShards, numShards * 2);
+            client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+            waitForReshardCompletion(indexName);
+            numShards *= 2;
+            checkNumberOfShardsSetting(indexNode, indexName, numShards);
+        }
+    }
+
+    public void testRoutingAfterSplittingMultipleShards() {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(2, 1).build());
+        ensureGreen(indexName);
+
+        final Index index = resolveIndex(indexName);
+
+        // Create an IndexRouting object for 4 shards to find document IDs that would route to each shard
+        final var indexMetadataWith2Shards = indexMetadata(clusterService().state(), index);
+        final var indexMetadataWith4Shards = IndexMetadata.builder(indexMetadataWith2Shards).reshardAddShards(4).build();
+        final var indexRoutingWith4Shards = IndexRouting.fromIndexMetadata(indexMetadataWith4Shards);
+
+        // Find 4 document IDs that would route to each of the 4 shards if the index had 4 shards
+        final var doc0Id = makeRoutingValueForShard(indexRoutingWith4Shards, 0);
+        final var doc1Id = makeRoutingValueForShard(indexRoutingWith4Shards, 1);
+        final var doc2Id = makeRoutingValueForShard(indexRoutingWith4Shards, 2);
+        final var doc3Id = makeRoutingValueForShard(indexRoutingWith4Shards, 3);
+
+        // Index the four documents with initial values
+        indexDoc(indexName, doc0Id, "field", "value0");
+        indexDoc(indexName, doc1Id, "field", "value1");
+        indexDoc(indexName, doc2Id, "field", "value2");
+        indexDoc(indexName, doc3Id, "field", "value3");
+
+        // Verify documents were indexed
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), 4);
+
+        // Execute reshard from 2 shards to 4 shards
+        final var reshardRequest = new ReshardIndexRequest(indexName, 4);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
+        waitForReshardCompletion(indexName);
+
+        // Update each document with new values
+        indexDoc(indexName, doc0Id, "field", "updated0");
+        indexDoc(indexName, doc1Id, "field", "updated1");
+        indexDoc(indexName, doc2Id, "field", "updated2");
+        indexDoc(indexName, doc3Id, "field", "updated3");
+
+        // Verify each document was updated by getting them individually
+        // Version should be 2 (initial index + update) proving the document was updated, not recreated
+        var response0 = client().prepareGet(indexName, doc0Id).execute().actionGet();
+        assertThat(response0.isExists(), is(true));
+        assertThat(response0.getSource().get("field"), equalTo("updated0"));
+        assertThat(response0.getVersion(), equalTo(2L));
+
+        var response1 = client().prepareGet(indexName, doc1Id).execute().actionGet();
+        assertThat(response1.isExists(), is(true));
+        assertThat(response1.getSource().get("field"), equalTo("updated1"));
+        assertThat(response1.getVersion(), equalTo(2L));
+
+        var response2 = client().prepareGet(indexName, doc2Id).execute().actionGet();
+        assertThat(response2.isExists(), is(true));
+        assertThat(response2.getSource().get("field"), equalTo("updated2"));
+        assertThat(response2.getVersion(), equalTo(2L));
+
+        var response3 = client().prepareGet(indexName, doc3Id).execute().actionGet();
+        assertThat(response3.isExists(), is(true));
+        assertThat(response3.getSource().get("field"), equalTo("updated3"));
+        assertThat(response3.getVersion(), equalTo(2L));
+
+        // Verify all documents are still present via search
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), 4);
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG", reason = "debugging")
+    public void testReshardWillCopyDataAndRouteDocumentsToNewShard() {
+        String indexNode = startMasterAndIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        startSearchNode();
+
+        ensureStableCluster(2);
+
+        final int multiple = 2;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        final Index index = resolveIndex(indexName);
+        final var sourceShard = new ShardId(index, 0);
+
+        int[] shardDocs = new int[multiple];
+        Consumer<Integer> indexShardDocs = (numDocs) -> {
+            for (var item : indexDocs(indexName, numDocs).getItems()) {
+                var docShard = item.getResponse().getShardId().getId();
+                shardDocs[docShard]++;
+            }
+        };
+
+        final int numDocs = randomIntBetween(10, 100);
+        indexShardDocs.accept(numDocs);
+        int totalNumberOfDocumentsInIndex = numDocs;
+        assertShardDocCountEquals(sourceShard, totalNumberOfDocumentsInIndex);
+
+        // flushing here ensures that the initial copy phase does some work, rather than relying entirely on catching new commits after
+        // resharding has begun.
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        final var initialIndexMetadata = indexMetadata(clusterService().state(), index);
+        // before resharding there should be no resharding metadata
+        assertNull(initialIndexMetadata.getReshardingMetadata());
+
+        // block handoff until we've indexed some more documents after resharding has started
+        CountDownLatch preHandoffLatch = new CountDownLatch(1);
+        // block ongoing copy until we've added some new commits that the first copy phase hasn't seen
+        CountDownLatch postCopyLatch = new CountDownLatch(1);
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                // Signal that we've started the initial copy. It won't see any new commits generated after this, so we know
+                // that the new ones come from ongoing copying.
+                postCopyLatch.countDown();
+            }
+        });
+
+        // used to wait for new documents to be indexed after we've started copy but before we enter handoff
+        // this introduces a special test-only sync point in SplitSourceService which is a little ugly. I suppose
+        // alternatively we could just have a thread running and doing indexing throughout the process, and probabilistically it
+        // will generate some in this window without explicit synchronization.
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        splitSourceService.setPreHandoffHook(() -> {
+            try {
+                logger.info("waiting for prehandoff latch");
+                preHandoffLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+                logger.info("prehandoff latch released");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // there should be split metadata at some point during resharding
+        var splitState = waitForClusterState((state) -> indexMetadata(state, index).getReshardingMetadata() != null);
+
+        logger.info("starting reshard");
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        logger.info("getting reshard metadata");
+        var reshardingMetadata = indexMetadata(splitState.actionGet(SAFE_AWAIT_TIMEOUT), index).getReshardingMetadata();
+        assertNotNull(reshardingMetadata.getSplit());
+        assert reshardingMetadata.shardCountBefore() == 1;
+        assert reshardingMetadata.shardCountAfter() == multiple;
+
+        // wait for initial copy to start
+        try {
+            postCopyLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            logger.info("interrupted");
+            throw new RuntimeException(e);
+        }
+
+        // index some more documents and flush to generate new commits
+        final int postCopyDocs = randomIntBetween(10, 20);
+        indexShardDocs.accept(postCopyDocs);
+        totalNumberOfDocumentsInIndex += postCopyDocs;
+        logger.info("allowing handoff after post-copy index");
+        preHandoffLatch.countDown();
+
+        waitForReshardCompletion(indexName);
+
+        // resharding metadata should eventually be removed after split executes
+        var indexMetadata = indexMetadata(
+            waitForClusterState((state) -> indexMetadata(state, index).getReshardingMetadata() == null).actionGet(SAFE_AWAIT_TIMEOUT),
+            index
+        );
+
+        // index documents until all the new shards have received at least one document
+        int docsPerRequest = randomIntBetween(10, 100);
+        do {
+            indexShardDocs.accept(docsPerRequest);
+            totalNumberOfDocumentsInIndex += docsPerRequest;
+        } while (Arrays.stream(shardDocs).filter(shard -> shard > 0).count() < multiple);
+
+        // Verify that each shard id contains the expected number of documents indexed into it.
+        // Note that stats won't include data copied from the source shard since they didn't go through the "normal" indexing logic.
+        final var postReshardStatsResponse = client().admin().indices().prepareStats(indexName).execute().actionGet();
+
+        IntStream.range(0, multiple)
+            .forEach(shardId -> assertShardDocCountEquals(postReshardStatsResponse, new ShardId(index, shardId), shardDocs[shardId]));
+
+        // index more documents to verify that a search query returns all indexed documents thus far
+        final int numDocsRound3 = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocsRound3);
+        totalNumberOfDocumentsInIndex += numDocsRound3;
+
+        refresh(indexName);
+
+        // verify that the index metadata returned matches the expected multiple of shards
+        checkNumberOfShardsSetting(indexNode, index.getName(), multiple);
+
+        var search = prepareSearchAll(indexName).get();
+        assertHitCount(search, totalNumberOfDocumentsInIndex);
+
+        // all documents should be on their owning shards
+        var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        assertTrue(
+            StreamSupport.stream(search.getHits().spliterator(), false)
+                .allMatch(hit -> hit.getShard().getShardId().getId() == indexRouting.indexShard(new IndexRequest().id(hit.getId())))
+        );
+
+        search.decRef();
+    }
+
+    public void testSearchDuringReshard() throws Exception {
+        runSearchTest(false);
+    }
+
+    public void testEsqlSearchDuringReshard() throws Exception {
+        runSearchTest(true);
+    }
+
+    private void runSearchTest(boolean useEsql) throws Exception {
+        var masterNode = startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        startSearchNode();
+        String searchCoordinator = startSearchNode();
+        ensureStableCluster(4);
+
+        final int multiple = 2;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        int initialIndexedDocuments = randomIntBetween(10, 100);
+        indexDocs(indexName, initialIndexedDocuments);
+
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        long totalNumberOfDocumentsInIndex = initialIndexedDocuments;
+
+        // works before resharding
+        refresh(indexName);
+
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
+
+        ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName);
+        client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
+
+        CountDownLatch handOffStarted = new CountDownLatch(multiple - 1); // (multiple - 1) target shards
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
+
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    if (handOffStarted.getCount() > 0) {
+                        handOffStarted.countDown();
+                    }
+                    stateTransitionBlock.await();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Index index = resolveIndex(indexName);
+
+        awaitClusterState(searchCoordinator, clusterState -> indexMetadata(clusterState, index).getReshardingMetadata() != null);
+
+        // wait for all target shards to arrive at handoff point
+        handOffStarted.await();
+
+        // All target shards are in CLONE state.
+        // At this point the handoff is in progress, all target shards received handoff requests
+        // but didn't respond to them due to the `stateTransitionBlock`.
+        // Since handoff is in progress, source acquired all primary operation permits
+        // meaning that refresh below will not complete until the handoff completes
+        // (which in this test means never since we blocked handoff).
+        try {
+            client(searchCoordinator).admin().indices().prepareRefresh(indexName).get(TimeValue.timeValueMillis(500));
+            fail("It is possible to perform refresh while handoff is in progress");
+        } catch (Exception e) {
+            assertTrue(e instanceof ElasticsearchTimeoutException);
+        }
+
+        // We can still perform search on the source shard and see all previous writes due to the pre-reshard refresh.
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
+
+        // TODO write more data here.
+        // Writes to source shard at this point will not be copied to the target
+        // because they happen after commit copy logic is already disabled.
+        // Eventually we'll forward such writes to the target.
+        // But for now we can't write here because eventually we remove some documents written here
+        // as unowned but they are also not copied to the target.
+        // That of course leads to incorrect search results.
+
+        // unblock HANDOFF transition
+        stateTransitionBlock.await();
+
+        awaitClusterState(
+            searchCoordinator,
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
+
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
+
+        // we can still index between handoff and split but refresh is blocked
+        final int handoffIndexedDocuments = randomIntBetween(10, 20);
+        indexDocs(indexName, handoffIndexedDocuments);
+        totalNumberOfDocumentsInIndex += handoffIndexedDocuments;
+
+        // Refresh should block on the target shard until SPLIT is complete. Start a request now and verify
+        // that it doesn't complete until then.
+        final var refresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).execute();
+        final var refreshThread = new Thread(() -> {
+            refresh.actionGet();
+            var split = getSplit(searchCoordinator, index);
+            assertTrue(
+                "Unexpected split state " + split,
+                split.targetStates().allMatch(IndexReshardingState.Split.TargetShardState.SPLIT::equals)
+            );
+        });
+        refreshThread.start();
+
+        // We may see some of the documents written, e.g., because refresh proceeds on the source shard.
+        // Shard count returned by search should still be 1 (only source shard)
+        assertDocAndShardCount(
+            searchCoordinator,
+            indexName,
+            useEsql,
+            is(
+                both(greaterThanOrEqualTo(totalNumberOfDocumentsInIndex - handoffIndexedDocuments)).and(
+                    lessThanOrEqualTo(totalNumberOfDocumentsInIndex)
+                )
+            ),
+            equalTo(1)
+        );
+
+        // unblock SPLIT transition
+        stateTransitionBlock.await();
+
+        awaitClusterState(
+            searchCoordinator,
+            clusterState -> clusterState.getMetadata()
+                .indexMetadata(index)
+                .getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
+        );
+
+        // refresh that was blocked earlier should now complete
+        refreshThread.join(SAFE_AWAIT_TIMEOUT.millis());
+
+        // and we should see the documents indexed during handoff now
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+
+        // Transition of target shards to DONE state is blocked, all targets are in SPLIT state.
+        // Refresh includes target shards, search includes target shards.
+        // Note that at this point `deleteUnownedDocuments()` is already done on target shards
+        // because it is done before transition to DONE and `startStateTransitionBlock.await()` above
+        // guarantees that all target shards sent the request to transition to DONE.
+        // So this test does not directly exercise search filters, those are covered in other tests.
+        var splitRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
+        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
+
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+
+        final int splitIndexedDocuments = randomIntBetween(10, 20);
+        indexDocs(indexName, splitIndexedDocuments);
+        totalNumberOfDocumentsInIndex += splitIndexedDocuments;
+
+        client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        // The source shard has not yet deleted unowned documents but will filter them once targets have passed SPLIT
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+
+        // unblock DONE transition
+        stateTransitionBlock.await();
+
+        awaitClusterState(searchCoordinator, clusterState -> {
+            var metadata = indexMetadata(clusterState, index);
+            if (metadata.getReshardingMetadata() == null) {
+                // all shards are DONE so resharding metadata is removed by master
+                return true;
+            }
+
+            boolean targetsDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.DONE);
+            boolean sourceDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .sourceStates()
+                .allMatch(s -> s == IndexReshardingState.Split.SourceShardState.DONE);
+            return targetsDone && sourceDone;
+        });
+
+        // All target shards and the source shard are DONE.
+        var doneRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+        assertEquals(multiple, doneRefresh.getTotalShards());
+        assertEquals(multiple, doneRefresh.getSuccessfulShards());
+
+        // all unowned documents should be deleted now so we should get the exact count
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+
+        // indexing new data and searching for it works
+        final int doneIndexedDocuments = randomIntBetween(10, 20);
+        indexDocs(indexName, doneIndexedDocuments);
+        totalNumberOfDocumentsInIndex += doneIndexedDocuments;
+
+        client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
+
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+
+        waitForReshardCompletion(indexName);
+    }
+
+    private void assertDocAndShardCount(
+        String searchNode,
+        String indexName,
+        boolean useEsql,
+        Matcher<Long> docCountMatcher,
+        Matcher<Integer> shardCountMatcher
+    ) {
+        if (useEsql) {
+            final var query = "FROM $index | STATS COUNT(*)".replace("$index", indexName);
+            final var request = new EsqlQueryRequest().allowPartialResults(false).query(query);
+
+            try (var response = client(searchNode).execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
+                final var docCount = (long) response.column(0).next();
+                final var shardCount = response.getExecutionInfo().getCluster("").getTotalShards();
+                assertThat("unexpected document count in ESQL response", docCount, docCountMatcher);
+                assertThat("unexpected shard count in ESQL response", shardCount, shardCountMatcher);
+            }
+        } else {
+            assertResponse(prepareSearchAll(searchNode, indexName), response -> {
+                final var docCount = response.getHits().getTotalHits().value();
+                final var shardCount = response.getTotalShards();
+                assertThat("unexpected document count in search response", docCount, docCountMatcher);
+                assertThat("unexpected shard count in search response", shardCount, shardCountMatcher);
+            });
+        }
+    }
+
+    public void testSearchWithCustomRoutingDuringReshard() throws Exception {
+        String masterNode = startMasterOnlyNode();
+        String indexNode = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final int multiple = 2;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        var index = resolveIndex(indexName);
+        var indexMetadata = indexMetadata(internalCluster().clusterService(masterNode).state(), index);
+
+        // We re-create the metadata directly in test in order to have access to after-reshard routing.
+        var wouldBeMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardAddShards(multiple)
+            .reshardingMetadata(
+                IndexReshardingMetadata.newSplitByMultiple(1, multiple)
+                    .transitionSplitTargetToNewState(new ShardId(index, 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
+            )
+            .build();
+        var wouldBeAfterSplitRouting = IndexRouting.fromIndexMetadata(wouldBeMetadata);
+
+        int ingestedDocumentsPerShard = randomIntBetween(10, 20);
+
+        var routingValuePerShard = new HashMap<Integer, String>() {
+            {
+                put(0, makeRoutingValueForShard(wouldBeAfterSplitRouting, 0));
+                put(1, makeRoutingValueForShard(wouldBeAfterSplitRouting, 1));
+            }
+        };
+
+        int id = 0;
+        for (var shardAndRouting : routingValuePerShard.entrySet()) {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < ingestedDocumentsPerShard; i++) {
+                var indexRequest = client().prepareIndex(indexName).setId(String.valueOf(id++)).setRouting(shardAndRouting.getValue());
+
+                var source = Map.of("field", randomUnicodeOfCodepointLengthBetween(1, 25));
+                bulkRequest.add(indexRequest.setSource(source));
+            }
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+        }
+
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        refresh(indexName);
+
+        var preSplitSearch = prepareSearchAll(indexName).setRouting(routingValuePerShard.get(1));
+
+        // There is only one shard so any routing value will get routed to shard 0.
+        assertResponse(preSplitSearch, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard * multiple, r.getHits().getTotalHits().value());
+        });
+
+        // Start split and block transition to HANDOFF.
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        CountDownLatch handOffStarted = new CountDownLatch(multiple - 1); // (multiple - 1) target shards
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
+
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    if (handOffStarted.getCount() > 0) {
+                        handOffStarted.countDown();
+                    }
+                    stateTransitionBlock.await();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        awaitClusterState(searchNode, clusterState -> indexMetadata(clusterState, index).getReshardingMetadata() != null);
+
+        // wait for all target shards to arrive at handoff point
+        handOffStarted.await();
+
+        // Don't refresh since it is blocked anyway, covered in other tests.
+
+        // Transition to HANDOFF is blocked, all target shards are in CLONE state.
+        var cloneSearch = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(1));
+
+        // Since all target shards are in CLONE state they are not considered in routing logic at this point.
+        // So even though the routing value used will eventually route to shard 1, right now this search
+        // is still routed to shard 0 and all documents are returned (consistent with the search before split started).
+        assertResponse(cloneSearch, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard * multiple, r.getHits().getTotalHits().value());
+        });
+
+        // unblock HANDOFF transition
+        stateTransitionBlock.await();
+
+        // Wait for recovery of the target shard to complete because a flush is performed during recovery
+        // and we don't want to block it.
+        awaitClusterState(masterNode, clusterState -> clusterState.routingTable().index(index).shard(1).primaryShard().started());
+
+        awaitClusterState(
+            searchNode,
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
+
+        // Transition to SPLIT is blocked, all target shards are in HANDOFF state.
+        var handoffSearch = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(2));
+
+        // Since all target shards are in HANDOFF state they are not considered in routing logic at this point.
+        // So even though the routing value used will eventually route to shard 2, right now this search
+        // is still routed to shard 0 and all documents are returned (consistent with the search before split started).
+        assertResponse(handoffSearch, r -> {
+            assertEquals(1, r.getTotalShards());
+            assertEquals(ingestedDocumentsPerShard * multiple, r.getHits().getTotalHits().value());
+        });
+
+        var commitUploadLatch = new CountDownLatch(multiple - 1); // number of target shards
+        // Block commit uploads in order to block the flush performed after deletion of unowned documents.
+        // This allows to test shards in SPLIT state before they execute `deleteUnownedDocuments()` and test search filters.
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                try {
+                    if (commitUploadLatch.getCount() > 0) {
+                        commitUploadLatch.await();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+        });
+
+        // unblock SPLIT transition
+        stateTransitionBlock.await();
+
+        awaitClusterState(
+            searchNode,
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
+        );
+
+        try {
+            var splitSearchShard0 = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(0));
+
+            // Now that target shards are in SPLIT state they should be considered in routing calculation.
+
+            // This search uses routing value that routes to shard 0 so search is send to shard 0.
+            assertResponse(splitSearchShard0, r -> {
+                assertEquals(1, r.getTotalShards());
+                assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
+            });
+
+            for (int targetShardId = 1; targetShardId < multiple; targetShardId++) {
+                var splitSearchTargetShard = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(targetShardId));
+
+                // Search is correctly routed to the target shard based on the routing parameter in the search request.
+                // Search filter is correctly applied and only owned documents are returned.
+                int finalShardId = targetShardId;
+                assertResponse(splitSearchTargetShard, r -> {
+                    assertEquals(1, r.getTotalShards());
+                    assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
+                    assertEquals(ingestedDocumentsPerShard, r.getHits().getHits().length);
+                    for (var hit : r.getHits().getHits()) {
+                        assertEquals(finalShardId, hit.getShard().getShardId().getId());
+                        assertEquals(routingValuePerShard.get(finalShardId), hit.getMetadataFields().get("_routing").getValue());
+                    }
+                });
+            }
+        } finally {
+            // Unblock commit uploads on all target shards.
+            for (int i = 0; i < multiple - 1; i++) {
+                commitUploadLatch.countDown();
+                commitUploadLatch.countDown();
+            }
+        }
+
+        // unblock DONE transition
+        stateTransitionBlock.await();
+
+        awaitClusterState(searchNode, clusterState -> {
+            var metadata = indexMetadata(clusterState, index);
+            if (metadata.getReshardingMetadata() == null) {
+                // all shards are DONE so resharding metadata is removed by master
+                return true;
+            }
+
+            boolean targetsDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .targetStates()
+                .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.DONE);
+            boolean sourceDone = metadata.getReshardingMetadata()
+                .getSplit()
+                .sourceStates()
+                .allMatch(s -> s == IndexReshardingState.Split.SourceShardState.DONE);
+            return targetsDone && sourceDone;
+        });
+
+        for (int shardId = 0; shardId < multiple; shardId++) {
+            var splitSearchTargetShard = prepareSearchAll(searchNode, indexName).setRouting(routingValuePerShard.get(shardId));
+
+            // Search is correctly routed to the shard based on the routing parameter in the search request.
+            // All unowned documents are deleted and are not returned.
+            int finalShardId = shardId;
+            assertResponse(splitSearchTargetShard, r -> {
+                assertEquals(1, r.getTotalShards());
+                assertEquals(ingestedDocumentsPerShard, r.getHits().getTotalHits().value());
+                assertEquals(ingestedDocumentsPerShard, r.getHits().getHits().length);
+                for (var hit : r.getHits().getHits()) {
+                    assertEquals(finalShardId, hit.getShard().getShardId().getId());
+                    assertEquals(routingValuePerShard.get(finalShardId), hit.getMetadataFields().get("_routing").getValue());
+                }
+            });
+        }
+
+        waitForReshardCompletion(indexName);
+    }
+
+    /*
+     * The coordinator may see the target move to SPLIT before the source shard does.
+     * This test checks that filtering is performed in that case, as a regression because there was a bug where
+     * previously it was not, resulting in duplicate documents in search results.
+     */
+    public void testSearchWhenCoordinatorSeesSplitFirst() throws Exception {
+        // install a block on the search node to prevent it from seeing the split transition, then kick off a reshard.
+        // When the coordinator sees the split, issue a search and verify the expected number of documents are returned.
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        final var index = resolveIndex(indexName);
+
+        final int numDocs = randomIntBetween(20, 50);
+        indexDocs(indexName, numDocs);
+
+        // block split application on stale search node
+        final CountDownLatch completedSearch = new CountDownLatch(1);
+        final var searchClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
+        final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            // wait for search shard cluster block to be in place before releasing SPLIT
+                            searchClusterService.getClusterApplierService().runOnApplierThread("get", Priority.IMMEDIATE, state -> {
+                                try {
+                                    completedSearch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+                                } catch (InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }, ActionListener.noop());
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // reshard up to split attempt
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(
+            indexNode,
+            clusterState -> clusterState.getMetadata()
+                .indexMetadata(index)
+                .getReshardingMetadata()
+                .getSplit()
+                .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.SPLIT
+        );
+
+        // issue search from the unblocked indexNode as coordinator
+        logger.info("issuing search before stale node sees split");
+        final var searchResponse = prepareSearchAll(indexNode, indexName).get();
+        logger.info("search before stale node sees split complete");
+        completedSearch.countDown();
+
+        waitForReshardCompletion(indexName);
+
+        try {
+            assertHitCount(searchResponse, numDocs);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    /*
+        This test exercises a known edge case of the search filters implementation related to "ghost terms".
+        These are the terms from the unowned documents that are produced in this specific term aggregation case.
+        By default, the check that term is a ghost is not performed in the aggregation and needs to be explicitly enabled.
+     */
+    public void testTermAggregationDuringReshard() throws BrokenBarrierException, InterruptedException {
+        String masterNode = startMasterOnlyNode();
+        String indexNode = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        // Mapping needed to be able to do terms aggregation
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, 1).build()).setMapping("""
+            {"properties":{"field":{"type": "keyword"}}}"""));
+        ensureGreen(indexName);
+
+        var index = resolveIndex(indexName);
+        var indexMetadata = internalCluster().clusterService(masterNode).state().getMetadata().indexMetadata(index);
+
+        // We re-create the metadata directly in test in order to have access to after-reshard routing.
+        var wouldBeMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardAddShards(2)
+            .reshardingMetadata(
+                IndexReshardingMetadata.newSplitByMultiple(1, 2)
+                    .transitionSplitTargetToNewState(new ShardId(index, 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
+            )
+            .build();
+        var wouldBeAfterSplitRouting = IndexRouting.fromIndexMetadata(wouldBeMetadata);
+
+        int ingestedDocumentsPerShard = randomIntBetween(10, 20);
+
+        Function<Integer, String> findRoutingValue = shard -> {
+            while (true) {
+                String routingValue = randomAlphaOfLength(5);
+                int routedShard = wouldBeAfterSplitRouting.indexShard(new IndexRequest().id("dummy").routing(routingValue));
+                if (routedShard == shard) {
+                    return routingValue;
+                }
+            }
+        };
+
+        var routingValuePerShard = new HashMap<Integer, String>() {
+            {
+                put(0, findRoutingValue.apply(0));
+                put(1, findRoutingValue.apply(1));
+            }
+        };
+
+        int id = 0;
+        for (var shardAndRouting : routingValuePerShard.entrySet()) {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < ingestedDocumentsPerShard; i++) {
+                var indexRequest = client().prepareIndex(indexName).setId(String.valueOf(id++)).setRouting(shardAndRouting.getValue());
+
+                var source = Map.of("field", shardAndRouting.getValue());
+                bulkRequest.add(indexRequest.setSource(source));
+            }
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+        }
+
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        refresh(indexName);
+
+        // Start split and block transition to HANDOFF.
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        CyclicBarrier stateTransitionBlock = new CyclicBarrier(2); // target shard + the test itself
+
+        MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    stateTransitionBlock.await();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        awaitClusterState(searchNode, clusterState -> clusterState.getMetadata().indexMetadata(index).getReshardingMetadata() != null);
+
+        // transition to HANDOFF
+        stateTransitionBlock.await();
+
+        // Wait for recovery of the target shard to complete because a flush is performed during recovery
+        // and we don't want to block it.
+        awaitClusterState(masterNode, clusterState -> clusterState.routingTable().index(index).shard(1).primaryShard().started());
+
+        var commitUploadLatch = new CountDownLatch(1); // number of target shards
+
+        // Block commit uploads in order to block the flush performed after deletion of unowned documents.
+        // This allows to test shards in SPLIT state before they execute `deleteUnownedDocuments()` and test search filters.
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                try {
+                    if (commitUploadLatch.getCount() > 0) {
+                        commitUploadLatch.await();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+        });
+        try {
+            // transition to SPLIT
+            stateTransitionBlock.await();
+
+            awaitClusterState(
+                searchNode,
+                clusterState -> clusterState.getMetadata()
+                    .indexMetadata(index)
+                    .getReshardingMetadata()
+                    .getSplit()
+                    .targetStates()
+                    .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
+            );
+
+            var sourceShardTermsAggregation = prepareSearchAll(searchNode, indexName).setSize(0)
+                // note the minDocCount(0) - this is the specific edge case we are testing
+                .addAggregation(AggregationBuilders.terms("term").field("field").minDocCount(0))
+                .setRouting(routingValuePerShard.get(0));
+
+            assertResponse(sourceShardTermsAggregation, r -> {
+                InternalMultiBucketAggregation<?, ?> terms = r.getAggregations().get("term");
+                // TODO this is a current gap, we should only see one bucket here
+                // since all documents routed to the target shard have the same value for "field"
+                // Instead we see ghost term here.
+                assertEquals(2, terms.getBuckets().size());
+                assertEquals(ingestedDocumentsPerShard, terms.getBuckets().get(0).getDocCount());
+                assertEquals(0, terms.getBuckets().get(1).getDocCount());
+            });
+
+            var targetShardTermsAggregation = prepareSearchAll(searchNode, indexName).setSize(0)
+                // note the minDocCount(0) - this is the specific edge case we are testing
+                .addAggregation(AggregationBuilders.terms("term").field("field").minDocCount(0))
+                .setRouting(routingValuePerShard.get(1));
+
+            assertResponse(targetShardTermsAggregation, r -> {
+                InternalMultiBucketAggregation<?, ?> terms = r.getAggregations().get("term");
+                // TODO this is a current gap, we should only see one bucket here
+                // since all documents routed to the target shard have the same value for "field"
+                // Instead we see ghost term here.
+                assertEquals(2, terms.getBuckets().size());
+                var bucket = terms.getBuckets().get(0);
+                var secondBucket = terms.getBuckets().get(1);
+                if (bucket.getDocCount() == 0) {
+                    assertEquals(routingValuePerShard.get(0), bucket.getKey());
+
+                    assertEquals(routingValuePerShard.get(1), secondBucket.getKey());
+                    assertEquals(ingestedDocumentsPerShard, secondBucket.getDocCount());
+                } else {
+                    assertEquals(routingValuePerShard.get(0), secondBucket.getKey());
+                    assertEquals(0, secondBucket.getDocCount());
+
+                    assertEquals(routingValuePerShard.get(1), bucket.getKey());
+                    assertEquals(ingestedDocumentsPerShard, bucket.getDocCount());
+                }
+            });
+        } finally {
+            commitUploadLatch.countDown();
+        }
+
+        // unblock transition to DONE
+        stateTransitionBlock.await();
+
+        waitForReshardCompletion(indexName);
+    }
+
+    public void testReshardEmptyIndex() {
+        String indexNode = startMasterAndIndexNode();
+        String searchNode = startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        final int multiple = 2;
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, multiple);
+
+        assertHitCount(prepareSearchAll(indexName), 0);
+
+        // All shards should be usable
+        var shards = IntStream.range(0, multiple).boxed().collect(Collectors.toSet());
+        int docsPerRequest = randomIntBetween(10, 100);
+        int indexedDocs = 0;
+        do {
+            for (var item : indexDocs(indexName, docsPerRequest).getItems()) {
+                indexedDocs += 1;
+                shards.remove(item.getResponse().getShardId().getId());
+            }
+        } while (shards.isEmpty() == false);
+
+        refresh(indexName);
+
+        assertHitCount(prepareSearchAll(indexName), indexedDocs);
+    }
+
+    public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        startSearchNode();
+
+        ensureStableCluster(3);
+
+        /* This allocation rule is used to prevent the new reshard index shard from getting allocated.
+         * This will also prevent the search shard from getting allocated, hence we have two search nodes above.
+         */
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        assertBusy(() -> {
+            GetSettingsResponse postReshardSettingsResponse = client().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                .get();
+            assertThat(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+                equalTo(2)
+            );
+        });
+
+        // Briefly pause to give time for allocation to have theoretically occurred
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(200));
+
+        final var indexingShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
+            .setShard(1)
+            .setPrimary(true);
+        assertThat(
+            client().execute(TransportClusterAllocationExplainAction.TYPE, indexingShardExplain)
+                .actionGet()
+                .getExplanation()
+                .getUnassignedInfo()
+                .reason(),
+            equalTo(UnassignedInfo.Reason.RESHARD_ADDED)
+        );
+
+        final var searchShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
+            .setShard(1)
+            .setPrimary(false);
+        assertThat(
+            client().execute(TransportClusterAllocationExplainAction.TYPE, searchShardExplain)
+                .actionGet()
+                .getExplanation()
+                .getUnassignedInfo()
+                .reason(),
+            equalTo(UnassignedInfo.Reason.RESHARD_ADDED)
+        );
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+
+        waitForReshardCompletion(indexName);
+    }
+
+    // test GET during resharding
+    // Two gets are issued before resharding starts, so they see only the original shard.
+    // They are blocked until resharding completes. The get that still routes to the original
+    // shard should succeed. The get that now routes to the new shard will be rejected at the
+    // original source because we don't have deferral yet (see ES-11536). A subsequent get
+    // for that document created after the split completes should succeed.
+    public void testGet() throws InterruptedException {
+        startMasterOnlyNode();
+        startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-get";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // We'll set up two gets before resharding, so that they route as if there is only 1 shard.
+        // this document should be found by get after resharding, on the original shard
+        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        // this document should be found by get after resharding, on the original shard until delete-unowned runs,
+        // after which it should raise an error because the get is stale
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard0docId, "field", "shard0");
+        indexDoc(indexName, shard1docId, "field", "shard1");
+
+        var response = client().prepareGet(indexName, shard0docId).execute().actionGet();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard0"));
+        response = client().prepareGet(indexName, shard1docId).execute().actionGet();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard1"));
+
+        // install a block on sending get to the shard, then issue the get request.
+        // Unblock the get after resharding completes so it may be rerouted
+        // also block transition to DONE on target shard after split completes, so that the source
+        // shard doesn't start delete-unowned before processing the get.
+        final var SHARD_GET_ACTION = TransportGetAction.TYPE.name() + "[s]";
+        final var getPrepared = new CountDownLatch(2);
+        final var reshardDone = new CountDownLatch(1);
+        final var getComplete = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(indexNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block GET once it is prepared until resharding completes
+            if ((SHARD_GET_ACTION).equals(action)) {
+                // signal that get has been prepared so resharding can start
+                getPrepared.countDown();
+                safeAwait(reshardDone);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var getShard0Response = new AtomicReference<GetResponse>();
+        final var getShard0Thread = new Thread(() -> {
+            try {
+                // execute will block until getPrepared counts down
+                getShard0Response.set(
+                    client(indexNode).prepareGet(indexName, shard0docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+                );
+                getComplete.countDown();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        getShard0Thread.start();
+
+        // expect exception for doc that routes to shard 1 after delete-unowned completes
+        final var getShard1Thread = new Thread(
+            () -> assertThrows(
+                ElasticsearchStatusException.class,
+                () -> client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
+        getShard1Thread.start();
+
+        // don't start resharding until get is waiting on search shard
+        safeAwait(getPrepared);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+        reshardDone.countDown();
+
+        getShard0Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+        getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+
+        response = getShard0Response.get();
+        assertThat("Document should exist on source shard", response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard0"));
+
+        // the pre-split request for the shard1 doc will have thrown an exception for stale routing but should be available
+        // with a fresh request
+        response = client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT);
+        assertThat("Document should exist on source shard", response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard1"));
+    }
+
+    // test MultiGet during resharding - same pattern as testGet but with a single multiget request
+    public void testMultiGet() throws InterruptedException {
+        String masterOnlyNode = startMasterOnlyNode();
+        startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-multiget";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // this document should be found by multiget after resharding, on the original shard
+        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        // this document should fail in multiget after resharding because the request is stale
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard0docId, "field", "shard0");
+        indexDoc(indexName, shard1docId, "field", "shard1");
+
+        var response = client().prepareMultiGet().add(indexName, shard0docId).add(indexName, shard1docId).execute().actionGet();
+        assertThat(response.getResponses().length, equalTo(2));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field"), equalTo("shard0"));
+        assertThat(response.getResponses()[1].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[1].getResponse().getSource().get("field"), equalTo("shard1"));
+
+        // install a block on sending multiget to the shard, then issue the multiget request.
+        // Unblock the multiget after resharding completes
+        final var SHARD_MGET_ACTION = TransportShardMultiGetAction.TYPE.name() + "[s]";
+        final var mgetPrepared = new CountDownLatch(1);
+        final var reshardDone = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(masterOnlyNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block MultiGet once it is prepared until resharding completes
+            if ((SHARD_MGET_ACTION).equals(action)) {
+                // signal that multiget has been prepared so resharding can start
+                mgetPrepared.countDown();
+                try {
+                    reshardDone.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var mgetResponse = new AtomicReference<MultiGetResponse>();
+        final var mgetThread = new Thread(() -> {
+            try {
+                // execute will block until reshardDone counts down
+                mgetResponse.set(
+                    client(masterOnlyNode).prepareMultiGet()
+                        .add(indexName, shard0docId)
+                        .add(indexName, shard1docId)
+                        .setRealtime(false)
+                        .execute()
+                        .actionGet(SAFE_AWAIT_TIMEOUT)
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        mgetThread.start();
+
+        // don't start resharding until multiget is waiting to be sent to shard
+        mgetPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+        reshardDone.countDown();
+
+        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
+
+        response = mgetResponse.get();
+        assertThat(response.getResponses().length, equalTo(2));
+
+        // Document on shard 0 should succeed
+        MultiGetItemResponse item0 = response.getResponses()[0];
+        assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
+        assertThat(item0.getResponse().isExists(), is(true));
+        assertThat(item0.getResponse().getSource().get("field"), equalTo("shard0"));
+
+        // Document on shard 1 should still be returned since this is a non-realtime get
+        MultiGetItemResponse item1 = response.getResponses()[1];
+        assertThat("Document on target shard should fail", item1.isFailed(), is(true));
+        assertThat(item1.getFailure().getFailure(), instanceOf(ElasticsearchStatusException.class));
+    }
+
+    // A successful realtime get should return the latest value of a doc regardless of refresh.
+    // It may fail if it has been routed to a stale shard due to concurrent resharding.
+    public void testRealtimeGet() throws InterruptedException {
+        startMasterOnlyNode();
+        final var searchNode = startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-realtime-get";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // prep realtime get but block until after resharding reaches split so that
+        // it routes to the old shard
+        // update doc and verify get returns the latest version
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard1docId, "field", "shard1_v0");
+
+        var response = client().prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getSource().get("field"), equalTo("shard1_v0"));
+
+        final var getPrepared = new CountDownLatch(1);
+        final var atSplit = new CountDownLatch(1);
+        final var getComplete = new CountDownLatch(1);
+
+        final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
+
+        searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block GetFromTranslog until resharding reaches DONE
+            if ((TransportGetFromTranslogAction.NAME).equals(action)) {
+                // signal that get has been prepared so resharding can start
+                getPrepared.countDown();
+                try {
+                    atSplit.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            // block SPLIT transition until get has been processed
+                            atSplit.countDown();
+                            getComplete.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // expect exception for realtime get that routes to shard 1 after HANDOFF (well, before SPLIT)
+        final var getShard1Thread = new Thread(() -> {
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> client(searchNode).prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+            );
+            // unblock SPLIT transition
+            getComplete.countDown();
+        });
+        getShard1Thread.start();
+
+        // don't start resharding until get is waiting on search shard
+        getPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+
+        getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+    }
+
+    // A successful realtime multiget should return the latest values of docs regardless of refresh.
+    // Items may fail if they have been routed to a stale shard due to concurrent resharding.
+    public void testRealtimeMultiGet() throws InterruptedException {
+        startMasterOnlyNode();
+        final var searchNode = startSearchNode();
+        final var indexNode = startIndexNode();
+
+        ensureStableCluster(3);
+
+        final String indexName = "test-realtime-multiget";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexMetadata = indexMetadata(internalCluster().clusterService(indexNode).state(), index);
+
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // prep realtime multiget but block until after resharding reaches split so that
+        // it routes to the old shard
+        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard0docId, "field", "shard0_v0");
+        indexDoc(indexName, shard1docId, "field", "shard1_v0");
+
+        var response = client().prepareMultiGet()
+            .add(indexName, shard0docId)
+            .add(indexName, shard1docId)
+            .setRealtime(true)
+            .execute()
+            .actionGet();
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getSource().get("field"), equalTo("shard0_v0"));
+        assertThat(response.getResponses()[1].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[1].getResponse().getSource().get("field"), equalTo("shard1_v0"));
+
+        final var mgetPrepared = new CountDownLatch(1);
+        final var atSplit = new CountDownLatch(1);
+        final var mgetComplete = new CountDownLatch(1);
+
+        final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
+
+        searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block ShardMultiGetFromTranslog until resharding reaches SPLIT
+            if ((TransportShardMultiGetFomTranslogAction.NAME).equals(action)) {
+                // signal that multiget has been prepared so resharding can start
+                mgetPrepared.countDown();
+                try {
+                    atSplit.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            // block SPLIT transition until multiget has been processed
+                            atSplit.countDown();
+                            mgetComplete.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // expect item-level failures for docs that route to different shards after HANDOFF
+        final var mgetThread = new Thread(() -> {
+            MultiGetResponse mgetResponse = client(searchNode).prepareMultiGet()
+                .add(indexName, shard0docId)
+                .add(indexName, shard1docId)
+                .setRealtime(true)
+                .execute()
+                .actionGet(SAFE_AWAIT_TIMEOUT);
+
+            // Check that we have results for both documents
+            assertThat(mgetResponse.getResponses().length, equalTo(2));
+
+            // Document that stays on shard 0 should succeed
+            MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
+            assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
+            assertThat(item0.getResponse().isExists(), is(true));
+
+            // Document that moves to shard 1 should fail
+            MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
+            assertThat("Document moved to target shard should fail due to stale routing", item1.isFailed(), is(true));
+            assertThat(item1.getFailure().getFailure(), instanceOf(ElasticsearchStatusException.class));
+
+            // unblock SPLIT transition
+            mgetComplete.countDown();
+        });
+        mgetThread.start();
+
+        // don't start resharding until multiget is waiting on search shard
+        mgetPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+
+        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
+    }
+
+    public void testReshardMustMatchExpectedNumberOfShards() {
+        String indexNode = startMasterAndIndexNode();
+
+        ensureStableCluster(1);
+
+        final String successIndexName = "test-index-success";
+        final String failsIndexName = "test-index-fails";
+        createIndex(successIndexName, indexSettings(1, 0).build());
+        createIndex(failsIndexName, indexSettings(1, 0).build());
+        ensureGreen(successIndexName, failsIndexName);
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(successIndexName, 2)).actionGet();
+
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(failsIndexName, 4)).actionGet()
+        );
+
+        assertThat(iae.getMessage(), equalTo("Requested new shard count [4] does not match required new shard count [2]"));
+    }
+
+    public void testReshardFailsWithNullIndex() {
+        String indexNode = startMasterAndIndexNode();
+
+        ensureStableCluster(1);
+
+        final String indexName = "test-index";
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        // Test null index
+        ReshardIndexRequest request = new ReshardIndexRequest("");
+        expectThrows(InvalidIndexNameException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
+    }
+
+    public void testReshardFailsWithWildcardIndex() {
+        String indexNode = startMasterAndIndexNode();
+
+        ensureStableCluster(1);
+
+        final String indexName1 = "test-1";
+        final String indexName2 = "test-2";
+        createIndex(indexName1, indexSettings(1, 0).build());
+        createIndex(indexName2, indexSettings(1, 0).build());
+        ensureGreen(indexName1);
+        ensureGreen(indexName2);
+
+        // Multiple indices not allowed "test*"
+        ReshardIndexRequest request = new ReshardIndexRequest("test*");
+        expectThrows(IndexNotFoundException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
+    }
+
+    public void testReshardWithIndexClose() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        String searchNode = startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
+
+        assertBusy(() -> closeIndices(indexName));
+        expectThrows(
+            IndexClosedException.class,
+            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet()
+        );
+
+        GetSettingsResponse postReshardSettingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+            .get();
+
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+            equalTo(1)
+        );
+    }
+
+    public void testDeleteByQueryAfterReshard() throws Exception {
+        final int NUM_DOCS = 100;
+
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, NUM_DOCS);
+
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
+
+        logger.info("starting reshard");
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 2);
+        ensureGreen(indexName);
+
+        // doc count should not have increased since both shards will have deleted unowned documents
+        assertResponse(prepareSearchAll(indexName), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) NUM_DOCS));
+        });
+    }
+
+    public void testReshardWithConcurrentIndexClose() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        String searchNode = startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
+
+        // Close an index concurrently with resharding.
+        // Either the close or the reshard should fail here since close logic
+        // validates that index is not being concurrently resharded.
+        AtomicBoolean success = new AtomicBoolean(false);
+        runInParallel(2, i -> {
+            if (i == 0) {
+                Consumer<Exception> assertCloseException = e -> {
+                    if (e instanceof IllegalArgumentException ia) {
+                        assertTrue(
+                            "Unexpected exception from index close operation: " + e,
+                            ia.getMessage().contains("Cannot close indices that are being resharded")
+                        );
+                    } else if (e instanceof IllegalStateException is) {
+                        assertTrue(
+                            "Unexpected exception from index close operation: " + e,
+                            is.getMessage().contains("index is being resharded in the meantime")
+                        );
+                    } else {
+                        fail("Unexpected exception from index close operation: " + e);
+                    }
+                };
+
+                try {
+                    Thread.sleep(randomIntBetween(0, 200));
+
+                    var response = indicesAdmin().prepareClose(indexName).get();
+                    assertEquals(1, response.getIndices().size());
+                    var indexResponse = response.getIndices().get(0);
+                    assertEquals(indexName, indexResponse.getIndex().getName());
+                    if (indexResponse.hasFailures()) {
+                        assertCloseException.accept(indexResponse.getException());
+                    }
+                } catch (Exception e) {
+                    assertCloseException.accept(e);
+                }
+            } else {
+                try {
+                    Thread.sleep(randomIntBetween(0, 200));
+
+                    client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+                    waitForReshardCompletion(indexName);
+                    success.set(true);
+                } catch (Exception e) {
+                    // IndexNotFoundException is possible if closed index is already removed from the node at this time.
+                    boolean isExpectedException = e instanceof IndexClosedException || e instanceof IndexNotFoundException;
+                    assertTrue("Unexpected error while resharding an index: " + e, isExpectedException);
+                }
+            }
+        });
+
+        GetSettingsResponse postReshardSettingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+            .get();
+
+        var expectedNumberOfShards = success.get() ? 2 : 1;
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+            equalTo(expectedNumberOfShards)
+        );
+    }
+
+    public void testReshardSystemIndex() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = SYSTEM_INDEX_NAME + "-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName);
+        expectThrows(IllegalArgumentException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
+    }
+
+    public void testReshardDataStream() throws Exception {
+        startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        var putComposableIndexTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("my_data_stream_template")
+            .indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("my-data-stream*"))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
+            );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putComposableIndexTemplateRequest));
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TimeValue.MINUS_ONE, TimeValue.MINUS_ONE, "my-data-stream")
+            )
+        );
+
+        // Try to reshard the data stream itself, it should fail
+        ReshardIndexRequest dataStreamRequest = new ReshardIndexRequest("my-data-stream");
+        expectThrows(IndexNotFoundException.class, () -> client().execute(TransportReshardAction.TYPE, dataStreamRequest).actionGet());
+
+        // Try to reshard an index that is part of a data stream, it should fail as well
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "my-data-stream" })
+        ).actionGet();
+        var dataStreamIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getWriteIndex();
+
+        ReshardIndexRequest dataStreamIndexRequest = new ReshardIndexRequest(dataStreamIndex.getName());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(TransportReshardAction.TYPE, dataStreamIndexRequest).actionGet()
+        );
+    }
+
+    public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+
+        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
+        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
+        assertThat(indexCount, equalTo(100L));
+
+        Index index = resolveIndex(indexName);
+        long currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
+
+        int primaryTermIncrements = randomIntBetween(2, 4);
+        for (int i = 0; i < primaryTermIncrements; i++) {
+            IndexShard indexShard = findIndexShard(index, 0);
+            indexShard.failShard("broken", new Exception("boom local"));
+            long finalCurrentPrimaryTerm = currentPrimaryTerm;
+            assertBusy(() -> assertThat(getCurrentPrimaryTerm(index, 0), greaterThan(finalCurrentPrimaryTerm)));
+            ensureGreen(indexName);
+            currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
+        }
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+
+        assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
+    public void testReshardTargetWillNotTransitionToHandoffIfSourcePrimaryTermChanged() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+
+        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
+        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
+        assertThat(indexCount, equalTo(100L));
+
+        Index index = resolveIndex(indexName);
+        long currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        handoffAttemptedLatch.await();
+
+        IndexShard indexShard = findIndexShard(index, 0);
+        indexShard.failShard("broken", new Exception("boom local"));
+        final long finalPrimaryTerm = currentPrimaryTerm;
+        assertBusy(() -> {
+            assertThat(getCurrentPrimaryTerm(index, 0), greaterThan(finalPrimaryTerm));
+            assertThat(
+                client().admin()
+                    .cluster()
+                    .prepareHealth(TimeValue.timeValueSeconds(30))
+                    .setIndices(indexName)
+                    .get()
+                    .getActivePrimaryShards(),
+                equalTo(1)
+            );
+        });
+
+        MockLog.assertThatLogger(() -> {
+            // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
+            // has advanced.
+            handoffLatch.countDown();
+            waitForReshardCompletion(indexName);
+        },
+            ReshardIndexService.class,
+            new MockLog.PatternSeenEventExpectation(
+                "split handoff failed",
+                ReshardIndexService.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*\\[" + indexName + "\\]\\[1\\] cannot transition target state \\[HANDOFF\\] because source primary term advanced \\[.*"
+            )
+        );
+
+        // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
+        ensureGreen(indexName);
+
+        // The primary term has synchronized with the source
+        assertThat(getCurrentPrimaryTerm(index, 1), equalTo(getCurrentPrimaryTerm(index, 0)));
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
+    public void testReshardTargetStateWillNotTransitionTargetPrimaryTermChanged() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+
+        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
+        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
+        assertThat(indexCount, equalTo(100L));
+
+        Index index = resolveIndex(indexName);
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        IndexReshardingState.Split.TargetShardState targetShardStateToDisrupt = randomFrom(
+            IndexReshardingState.Split.TargetShardState.HANDOFF,
+            IndexReshardingState.Split.TargetShardState.SPLIT,
+            IndexReshardingState.Split.TargetShardState.DONE
+        );
+        CountDownLatch stateChangeAttemptedLatch = new CountDownLatch(switch (targetShardStateToDisrupt) {
+            case HANDOFF -> 1;
+            case SPLIT -> 2;
+            case DONE -> 3;
+            case CLONE -> throw new AssertionError();
+        });
+        CountDownLatch proceedAfterShardFailure = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action) && stateChangeAttemptedLatch.getCount() != 0) {
+                try {
+                    stateChangeAttemptedLatch.countDown();
+                    if (stateChangeAttemptedLatch.getCount() == 0) {
+                        proceedAfterShardFailure.await();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        stateChangeAttemptedLatch.await();
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+            assertThat(projectState.routingTable().index(index).shard(1).primaryShard().allocationId(), notNullValue());
+        });
+
+        ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+        final ShardRouting shardRouting = projectState.routingTable().index(index).shard(1).primaryShard();
+        final long currentPrimaryTerm = getCurrentPrimaryTerm(index, 1);
+
+        ShardStateAction shardStateAction = internalCluster().getInstance(ShardStateAction.class, internalCluster().getRandomNodeName());
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        shardStateAction.localShardFailed(shardRouting, "broken", new Exception("boom remote"), listener);
+        listener.actionGet();
+
+        assertBusy(() -> assertThat(getCurrentPrimaryTerm(index, 1), greaterThan(currentPrimaryTerm)));
+
+        MockLog.assertThatLogger(() -> {
+            // When we release the handoff block the recovery will progress. However, it will fail because the target shard primary term
+            // has advanced.
+            proceedAfterShardFailure.countDown();
+            waitForReshardCompletion(indexName);
+        },
+            ReshardIndexService.class,
+            new MockLog.PatternSeenEventExpectation(
+                "state transition failed",
+                ReshardIndexService.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*\\["
+                    + indexName
+                    + "\\]\\[1\\] cannot transition target state \\["
+                    + targetShardStateToDisrupt
+                    + "\\] because target primary term advanced \\[.*"
+            )
+        );
+
+        // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
+        ensureGreen(indexName);
+    }
+
+    public void testSplitTargetWillNotStartUntilHandoff() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        startIndexNode();
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME.equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        handoffAttemptedLatch.await();
+
+        ensureRed(indexName);
+
+        // Allow handoff to proceed
+        handoffLatch.countDown();
+        waitForReshardCompletion(indexName);
+
+        ensureGreen(indexName);
+
+    }
+
+    public void testTargetDoesNotTransitionToSplitUntilSearchShardsActive() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        startIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(3);
+
+        /* This allocation rule is used to prevent the new reshard index shard from getting allocated.
+         * This will also prevent the search shard from getting allocated, hence we have two search nodes above.
+         */
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        assertBusy(() -> {
+            GetSettingsResponse postReshardSettingsResponse = client().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                .get();
+            assertThat(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+                equalTo(2)
+            );
+        });
+
+        Index index = resolveIndex(indexName);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setMetadata(true).get().getState();
+            final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+            final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+            final IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+            assertNotNull(reshardingMetadata);
+            assertThat(reshardingMetadata.getSplit().getTargetShardState(1), equalTo(IndexReshardingState.Split.TargetShardState.HANDOFF));
+        });
+
+        final var searchShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
+            .setShard(1)
+            .setPrimary(false);
+        assertThat(
+            client().execute(TransportClusterAllocationExplainAction.TYPE, searchShardExplain)
+                .actionGet()
+                .getExplanation()
+                .getUnassignedInfo()
+                .reason(),
+            equalTo(UnassignedInfo.Reason.RESHARD_ADDED)
+        );
+
+        // Pause briefly to give chance for a buggy state transition to proceed
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+
+        // Assert still handoff and has not transitioned to SPLIT
+        ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setMetadata(true).get().getState();
+        final ProjectState projectState = state.projectState(state.metadata().projectFor(index).id());
+        final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+        final IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+        assertNotNull(reshardingMetadata);
+        assertThat(reshardingMetadata.getSplit().getTargetShardState(1), equalTo(IndexReshardingState.Split.TargetShardState.HANDOFF));
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+
+        waitForReshardCompletion(indexName);
+    }
+
+    public void testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut() throws Exception {
+        Settings settings = Settings.builder().put(SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getKey(), "200ms").build();
+        String indexNode = startMasterAndIndexNode(settings);
+        startIndexNode(settings);
+        startSearchNode(settings);
+
+        ensureStableCluster(3);
+
+        /* This allocation rule is used to prevent the new reshard index shard from getting allocated.
+         * This will also prevent the search shard from getting allocated, hence we have two search nodes above.
+         */
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        assertBusy(() -> {
+            GetSettingsResponse postReshardSettingsResponse = client().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                .get();
+            assertThat(
+                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+                equalTo(2)
+            );
+        });
+
+        // TODO: At this point we finish the reshard once all the target states are DONE. In the future we maybe need to switch this
+        // assertion to reflect the usage of additional states
+        waitForReshardCompletion(indexName);
+
+        final var searchShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
+            .setShard(1)
+            .setPrimary(false);
+
+        assertThat(
+            client().execute(TransportClusterAllocationExplainAction.TYPE, searchShardExplain)
+                .actionGet()
+                .getExplanation()
+                .getUnassignedInfo()
+                .reason(),
+            equalTo(UnassignedInfo.Reason.RESHARD_ADDED)
+        );
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+    }
+
+    // only one resharding operation on a given index should be allowed to be in flight at a time
+    public void testConcurrentReshardFails() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        // create index
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        // block allocation so that resharding will stall
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+
+        // start first resharding operation
+        var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // wait until we know it's in progress
+        var ignored = splitState.actionGet(SAFE_AWAIT_TIMEOUT).projectState().metadata().index(indexName).getReshardingMetadata();
+
+        // now start a second reshard, which should fail
+        assertThrows(
+            IllegalStateException.class,
+            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT)
+        );
+
+        // unblock allocation to allow operations to proceed
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
+
+        waitForReshardCompletion(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 2);
+
+        // now we should be able to resplit
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 4);
+    }
+
+    // This test checks that batched cluster state updates performed in scope of resharding are correct.
+    public void testConcurrentReshardOfDifferentIndices() {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        int indexCount = randomIntBetween(1, 10);
+
+        final String indexNameTemplate = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+
+        for (int i = 0; i < indexCount; i++) {
+            final String indexName = indexNameTemplate + i;
+            createIndex(indexName, indexSettings(1, 0).build());
+            ensureGreen(indexName);
+            checkNumberOfShardsSetting(indexNode, indexName, 1);
+        }
+
+        // Block master service to force all resharding tasks to be executed in one batch.
+        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+
+        var futures = new ArrayList<ActionFuture<ActionResponse.Empty>>();
+        for (int i = 0; i < indexCount; i++) {
+            final String indexName = indexNameTemplate + i;
+            futures.add(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)));
+        }
+
+        disruption.stopDisrupting();
+
+        for (int i = 0; i < indexCount; i++) {
+            futures.get(i).actionGet();
+            waitForReshardCompletion(indexNameTemplate + i);
+        }
+
+        for (int i = 0; i < indexCount; i++) {
+            final String indexName = indexNameTemplate + i;
+            checkNumberOfShardsSetting(indexNode, indexName, 2);
+        }
+    }
+
+    // Test that documents are always routed to source shard before target shards are in handoff
+    public void testWriteRequestsRoutedToSourceBeforeHandoff() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        IndexMetadata sourceMetadata = clusterService().state().projectState().metadata().index(indexName);
+
+        // Build target Index metadata with 2 shards
+        IndexMetadata targetMetadata = IndexMetadata.builder(sourceMetadata).reshardAddShards(2).build();
+
+        // Generate a document id that would route to the target shard
+        int numTargetDocs = 0;
+        String targetDocId = null;
+        while (numTargetDocs < 1) {
+            String term = randomAlphaOfLength(10);
+            final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(targetMetadata), term, null);
+            if (shard == 1) {
+                numTargetDocs++;
+                targetDocId = term;
+            }
+        }
+
+        startIndexNode();
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME.equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        handoffAttemptedLatch.await();
+
+        // Now index a document that belongs to the target shard and verify that it goes to the source shard id.
+        IndexMetadata indexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(indexMetadata), targetDocId, null);
+        assertThat(shard, equalTo(0));
+
+        // Allow handoff to proceed
+        handoffLatch.countDown();
+        waitForReshardCompletion(indexName);
+        indexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        // Again index a document that belongs to the target shard and verify that it goes to the target shard id.
+        shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(indexMetadata), targetDocId, null);
+        assertThat(shard, equalTo(1));
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+    }
+
+    // Test that documents are always routed to source shard before target shards are in handoff
+    // Similar to testWriteRequestsRoutedToSourceBeforeHandoff() except we actually index the document into the
+    // source shard.
+    public void testIndexRequestBeforeHandoff() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        IndexMetadata sourceMetadata = clusterService().state().projectState().metadata().index(indexName);
+
+        // Build target Index metadata with 2 shards
+        IndexMetadata targetMetadata = IndexMetadata.builder(sourceMetadata).reshardAddShards(2).build();
+
+        // Generate a document id that would route to the target shard
+        int numTargetDocs = 0;
+        String targetDocId = null;
+        while (numTargetDocs < 1) {
+            String term = randomAlphaOfLength(10);
+            final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(targetMetadata), term, null);
+            if (shard == 1) {
+                numTargetDocs++;
+                targetDocId = term;
+            }
+        }
+
+        startIndexNode();
+
+        final var preHandoffEnteredLatch = new CountDownLatch(1);
+        final var preHandoffLatch = new CountDownLatch(1);
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        splitSourceService.setPreHandoffHook(() -> {
+            try {
+                logger.info("waiting for prehandoff latch");
+                preHandoffEnteredLatch.countDown();
+                preHandoffLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+                logger.info("prehandoff latch released");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        preHandoffEnteredLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+
+        // Now index a document that belongs to the target shard and verify that it goes to the source shard id.
+        IndexMetadata indexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(indexMetadata), targetDocId, null);
+        assertThat(shard, equalTo(0));
+        index(indexName, targetDocId, Map.of("foo", "bar"));
+        logger.info("Target shard document indexed into source");
+
+        // Allow handoff to proceed
+        preHandoffLatch.countDown();
+        waitForReshardCompletion(indexName);
+
+        // verify that the index metadata returned matches the expected multiple of shards
+        GetSettingsResponse postReshardSettingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+            .get();
+
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+            equalTo(2)
+        );
+
+        // TODO:
+        // This should work once we have the logic to copy commits that arrive during handoff, ES-11531 and logic to route search
+        // requests post-handoff.
+        // assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 1);
+        // assertSearchHits(prepareSearch(indexName).setQuery(matchQuery("foo", "bar")), targetDocId);
+
+        // Note that stats won't include data copied from the source shard to target shard,
+        // since they didn't go through the "normal" indexing logic.
+        final var indexStats = client().admin().indices().prepareStats(indexName).execute().actionGet();
+        assertThat(getIndexCount(indexStats, 0), equalTo(1L));
+        assertThat(getIndexCount(indexStats, 1), equalTo(0L));
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+    }
+
+    // Test race where a target shard gets marked as splitting and copies the source directory in the middle of an upload
+    public void testUploadCopyRace() throws Exception {
+        var reshardStarted = new AtomicBoolean(false);
+        var startSplitLatch = new CountDownLatch(1);
+        var uploadLatch = new CountDownLatch(1);
+
+        var indexNode = startMasterAndIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build(),
+            new StatelessMockRepositoryStrategy() {
+                @Override
+                public void blobContainerWriteBlobAtomic(
+                    CheckedRunnable<IOException> originalRunnable,
+                    OperationPurpose purpose,
+                    String blobName,
+                    InputStream inputStream,
+                    long blobSize,
+                    boolean failIfAlreadyExists
+                ) throws IOException {
+                    if (reshardStarted.get()) {
+                        startSplitLatch.countDown();
+                        try {
+                            uploadLatch.await();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    originalRunnable.run();
+                }
+            }
+        );
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), 100);
+
+        var indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportReshardSplitAction.START_SPLIT_ACTION_NAME.equals(action)) {
+                try {
+                    startSplitLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        splitSourceService.setPreHandoffHook(uploadLatch::countDown);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        reshardStarted.set(true);
+
+        // upload will unblock split and wait for pre-handoff hook
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearchAll(indexName), 100);
+    }
+
+    public void testSourceRelocationDuringReshard() {
+        testRelocationDuringReshard(0);
+    }
+
+    public void testTargetRelocationDuringReshard() {
+        testRelocationDuringReshard(1);
+    }
+
+    private void testRelocationDuringReshard(int shardId) {
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNodeA, indexName, 1);
+
+        indexDocs(indexName, 100);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), 100);
+
+        // spin up new index node
+        var indexNodeB = startIndexNode();
+        ensureStableCluster(4);
+        var clusterState = clusterService().state();
+
+        logger.info("starting reshard");
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        clusterState = waitForClusterState(state -> {
+            var shardRoutingTable = state.routingTable().index(indexName).shard(shardId);
+            return shardRoutingTable != null && shardRoutingTable.primaryShard().state() == ShardRoutingState.STARTED;
+        }).actionGet();
+        var nodeId = clusterState.routingTable().index(indexName).shard(shardId).primaryShard().currentNodeId();
+        var fromNode = clusterState.getNodes().get(nodeId).getName();
+        var toNode = fromNode.equals(indexNodeA) ? indexNodeB : indexNodeA;
+        logger.info("Relocating shard {} from {} to {}", shardId, fromNode, toNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, shardId, fromNode, toNode));
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearchAll(indexName), 100);
+    }
+
+    public void testMismatchedSourceAndTargetPrimaryTerm() {
+        String indexNode = startMasterAndIndexNode();
+        String indexNodeB = startIndexNode();
+        startSearchNodes(2);
+        ensureStableCluster(4);
+
+        // Exclude second node from allocation meaning that it won't be possible to allocate the source shard
+        // and later the target shard on this node (since we also have shards per node limit).
+        // This is needed to delay the recovery of the target shard until source shard primary term advances.
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", indexNodeB));
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        Index index = resolveIndex(indexName);
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        int docs = randomIntBetween(10, 100);
+        indexDocs(indexName, docs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), docs);
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        awaitClusterState(state -> state.routingTable(state.metadata().projectFor(index).id()).index(index).shard(1) != null);
+
+        // Now fail and recover the source shard
+        IndexShard indexShard = findIndexShard(index, 0);
+        indexShard.failShard("broken", new Exception("boom local"));
+        awaitClusterState(state -> state.metadata().indexMetadata(index).primaryTerm(0) > 1);
+
+        // And unblock recovery of the target shard.
+        // Target shard will initiate a start split request with latest source shard primary term but its own primary term is 1.
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", "null"));
+
+        // Split successfully completes.
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearchAll(indexName), docs);
+    }
+
+    public void testRestartTargetWhileSourceIsCopying() throws Exception {
+        var copyLatch = new CountDownLatch(1);
+        var restartLatch = new CountDownLatch(1);
+        var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                restartLatch.countDown();
+                try {
+                    copyLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+            }
+        };
+
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeA, copyBlockStrategy);
+        startSearchNode();
+        ensureStableCluster(3);
+
+        // Disable rebalancing
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName), 100);
+
+        // Spin up new index node
+        var indexNodeB = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeB, copyBlockStrategy);
+
+        logger.info("starting reshard");
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait until source shard is stuck copying
+        restartLatch.await();
+        internalCluster().restartNode(indexNodeB);
+
+        ensureStableCluster(4);
+        copyLatch.countDown();
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+    }
+
+    public void testSourceRelocationAndTargetRestart() throws Exception {
+        Set<String> copiesInProgress = ConcurrentHashMap.newKeySet();
+        var blobToBlock = new AtomicReference<String>();
+        var blockedFirstCopy = new AtomicBoolean(false);
+        var copyLatch = new CountDownLatch(1);
+        var relocateLatch = new CountDownLatch(1);
+        var testFailure = new AtomicReference<Throwable>();
+        var copyRaceCheckStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                if (copiesInProgress.add(blobName) == false) {
+                    // Copies from the old and new source shard have interfered
+                    testFailure.compareAndSet(null, new AssertionError("Copy still in progress: " + blobName));
+                }
+                try {
+                    // Block only the copy of latest blob from the old source shard
+                    if (blobToBlock.get().equals(blobName) && blockedFirstCopy.getAndSet(true) == false) {
+                        relocateLatch.countDown();
+                        copyLatch.await();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                copiesInProgress.remove(blobName);
+            }
+        };
+
+        var masterNode = startMasterOnlyNode();
+        var indexNodes = startIndexNodes(
+            3,
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        for (String indexNode : indexNodes) {
+            setNodeRepositoryStrategy(indexNode, copyRaceCheckStrategy);
+        }
+        var searchNode = startSearchNode();
+        ensureStableCluster(5);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        // Disable rebalancing
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
+
+        var index = resolveIndex(indexName);
+        var sourceShardOldNode = findIndexNode(index, 0).getName();
+        flush(indexName);
+        var blobContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, sourceShardOldNode, 0);
+        var latestBlob = blobContainer.listBlobs(INDICES)
+            .values()
+            .stream()
+            .map(BlobMetadata::name)
+            .max(Comparator.comparingLong(StatelessCompoundCommit::parseGenerationFromBlobName))
+            .orElseThrow();
+        blobToBlock.set(latestBlob);
+
+        logger.info("starting reshard");
+        client(sourceShardOldNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait until old source shard is stuck copying
+        relocateLatch.await();
+
+        var targetShardNodeId = new AtomicReference<String>();
+        awaitClusterState(state -> {
+            targetShardNodeId.set(state.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
+            return targetShardNodeId.get() != null;
+        });
+        var targetShardNode = nodeIdsToNames().get(targetShardNodeId.get());
+        assertNotEquals(sourceShardOldNode, targetShardNode);
+        var sourceShardNewNode = indexNodes.stream()
+            .filter(node -> node.equals(sourceShardOldNode) == false && node.equals(targetShardNode) == false)
+            .findFirst()
+            .orElseThrow();
+        logger.info("Relocating source shard from {} to {}", sourceShardOldNode, sourceShardNewNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceShardOldNode, sourceShardNewNode));
+
+        internalCluster().restartNode(targetShardNode);
+        // Check that all split requests are routed to the new source shard instance.
+        // Add send behavior to all index nodes since the target shard can get assigned to a different node after the restart
+        for (var indexNode : indexNodes) {
+            MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportReshardSplitAction.START_SPLIT_ACTION_NAME)) {
+                    var splitRequest = (TransportReshardSplitAction.Request) request;
+                    if (splitRequest.sourceNode().getName().equals(sourceShardOldNode)) {
+                        testFailure.compareAndSet(null, new AssertionError("Target routed split request to old source shard"));
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        copyLatch.countDown();
+
+        // This test simulates a scenario where the source shard gets stuck copying to the target. During this period, the source shard is
+        // scheduled for relocation, which gets blocked because copying takes a permit. The target shard node also restarts, and upon
+        // recovery it starts sending split requests to the new source shard, which rejects them since it hasn't started.
+        //
+        // Once the old source shard instance finishes copying, it releases the permit, unblocking relocation. After relocation, the old
+        // source instance continues the initial split request and tries to acquire all primary permits in preparation for handoff but fails
+        // as it is no longer the primary. The new source shard instance, once started, will proceed with the split request.
+        //
+        // This test checks that the old and new source shard instances don't copy concurrently. It also checks that the target shard routes
+        // split requests to the new source shard instance.
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+        if (testFailure.get() != null) {
+            fail(testFailure.get());
+        }
+    }
+
+    public void testSplitStateNeedsToBeAppliedOnAllKnownNodes() throws Exception {
+        startMasterOnlyNode(Settings.builder().put("cluster.publish.timeout", TimeValue.timeValueMillis(100)).build());
+        String indexNode = startIndexNode();
+        startSearchNodes(1);
+        String nodeWithBlockedClusterStateProcessing = startSearchNode();
+        ensureStableCluster(4);
+
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", nodeWithBlockedClusterStateProcessing));
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        var splitAttempted = new CountDownLatch(1);
+        var splitBlocked = new CountDownLatch(1);
+        var doneAttempted = new CountDownLatch(1);
+        var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            splitAttempted.countDown();
+                            splitBlocked.await();
+                        } else if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE) {
+                            if (doneAttempted.getCount() > 0) {
+                                doneAttempted.countDown();
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait for HANDOFF to complete normally and then start delaying cluster state updates on one node.
+        splitAttempted.await();
+
+        var clusterStateApplicationBlock = new CountDownLatch(1);
+        internalCluster().getInstance(ClusterService.class, nodeWithBlockedClusterStateProcessing).addHighPriorityApplier(event -> {
+            try {
+                clusterStateApplicationBlock.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        try {
+            // Unblock application of SPLIT state - it should not succeed because we are waiting for an ack.
+            splitBlocked.countDown();
+
+            assertFalse(doneAttempted.await(200, TimeUnit.MILLISECONDS));
+
+            var doneAttemptedWaiter = new Thread(() -> {
+                try {
+                    doneAttempted.await();
+                    assertEquals(0, clusterStateApplicationBlock.getCount());
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            doneAttemptedWaiter.start();
+
+            // Unblock stuck node to receive the update.
+            clusterStateApplicationBlock.countDown();
+
+            doneAttemptedWaiter.join(SAFE_AWAIT_TIMEOUT.millis());
+
+            waitForReshardCompletion(indexName);
+            ensureGreen(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+        } finally {
+            clusterStateApplicationBlock.countDown();
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(DataStreamsPlugin.class);
+        plugins.add(StatelessMockRepositoryPlugin.class);
+        plugins.add(EsqlPlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected boolean addMockFsRepository() {
+        // Use FS repository because it supports blob copy
+        return false;
+    }
+
+    private static long getCurrentPrimaryTerm(Index index, int shardId) {
+        return client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMetadata(true)
+            .get()
+            .getState()
+            .getMetadata()
+            .findIndex(index)
+            .get()
+            .primaryTerm(shardId);
+    }
+
+    private static long getIndexCount(IndicesStatsResponse statsResponse, int shardId) {
+        ShardStats primaryStats = Arrays.stream(statsResponse.getShards())
+            .filter(shardStat -> shardStat.getShardRouting().primary() && shardStat.getShardRouting().id() == shardId)
+            .findAny()
+            .get();
+        return primaryStats.getStats().indexing.getTotal().getIndexCount();
+    }
+
+    /**
+     * Generate a string that if used as id or routing value will route to the given shardId of indexRouting.
+     */
+    private String makeRoutingValueForShard(IndexRouting indexRouting, int shardId) {
+        while (true) {
+            String routingValue = randomAlphaOfLength(5);
+            int routedShard = indexRouting.indexShard(new IndexRequest().id("dummy").routing(routingValue));
+            if (routedShard == shardId) {
+                return routingValue;
+            }
+        }
+    }
+
+    private static void assertShardDocCountEquals(ShardId shard, long expectedCount) {
+        assertShardDocCountEquals(
+            client().admin().indices().prepareStats(shard.getIndexName()).execute().actionGet(),
+            shard,
+            expectedCount
+        );
+    }
+
+    private static void assertShardDocCountEquals(IndicesStatsResponse statsResponse, ShardId shard, long expectedCount) {
+        assertThat(shard + " has unexpected number of documents", getIndexCount(statsResponse, shard.id()), equalTo(expectedCount));
+    }
+
+    private static IndexReshardingState.Split getSplit(String nodeName, Index index) {
+        final var reshardingMetadata = client(nodeName).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .getMetadata()
+            .indexMetadata(index)
+            .getReshardingMetadata();
+
+        return reshardingMetadata != null ? reshardingMetadata.getSplit() : null;
+    }
+
+    private static IndexMetadata indexMetadata(ClusterState state, Index index) {
+        return state.metadata().indexMetadata(index);
+    }
+
+    private static SearchRequestBuilder prepareSearchAll(String indexName) {
+        return prepareSearchAll(client(), indexName);
+    }
+
+    private static SearchRequestBuilder prepareSearchAll(String searchNode, String indexName) {
+        return prepareSearchAll(client(searchNode), indexName);
+    }
+
+    private static SearchRequestBuilder prepareSearchAll(Client client, String indexName) {
+        return client.prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(10000)
+            .setTrackTotalHits(true)
+            .setAllowPartialSearchResults(false);
+    }
+
+    private static void closeIndices(final String... indices) {
+        closeIndices(indicesAdmin().prepareClose(indices));
+    }
+
+    private static void closeIndices(final CloseIndexRequestBuilder requestBuilder) {
+        final CloseIndexResponse response = requestBuilder.get();
+        assertThat(response.isAcknowledged(), is(true));
+        assertThat(response.isShardsAcknowledged(), is(true));
+
+        final String[] indices = requestBuilder.request().indices();
+        if (indices != null) {
+            assertThat(response.getIndices().size(), equalTo(indices.length));
+            for (String index : indices) {
+                CloseIndexResponse.IndexResult indexResult = response.getIndices()
+                    .stream()
+                    .filter(result -> index.equals(result.getIndex().getName()))
+                    .findFirst()
+                    .get();
+                assertThat(indexResult, notNullValue());
+                assertThat(indexResult.hasFailures(), is(false));
+                assertThat(indexResult.getException(), nullValue());
+                assertThat(indexResult.getShards(), notNullValue());
+                Arrays.stream(indexResult.getShards()).forEach(shardResult -> {
+                    assertThat(shardResult.hasFailures(), is(false));
+                    assertThat(shardResult.getFailures(), notNullValue());
+                    assertThat(shardResult.getFailures().length, equalTo(0));
+                });
+            }
+        } else {
+            assertThat(response.getIndices().size(), equalTo(0));
+        }
+    }
+
+    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expected_shards) {
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+                client(indexNode).admin()
+                    .indices()
+                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                    .execute()
+                    .actionGet()
+                    .getIndexToSettings()
+                    .get(indexName)
+            ),
+            equalTo(expected_shards)
+        );
+    }
+
+    public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {
+        return waitForClusterState(logger, clusterService(), predicate);
+    }
+
+    /**
+     * A future that waits if necessary for cluster state to match a given predicate, and returns that state
+     * @param predicate continue waiting for state updates until true
+     * @return A future whose get() will resolve to the cluster state that matches the supplied predicate
+     */
+    public static PlainActionFuture<ClusterState> waitForClusterState(
+        Logger logger,
+        ClusterService clusterService,
+        Predicate<ClusterState> predicate
+    ) {
+        var future = new PlainActionFuture<ClusterState>();
+        var listener = new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                logger.info("cluster state updated: version {}", state.version());
+                future.onResponse(state);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                future.onFailure(null);
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                future.onFailure(new TimeoutException(timeout.toString()));
+            }
+        };
+
+        ClusterStateObserver.waitForState(clusterService, new ThreadContext(Settings.EMPTY), listener, predicate, null, logger);
+
+        return future;
+    }
+
+    /**
+     * Extract a shardId from a "simple" {@link IndexRouting} using a randomly
+     * chosen method. All of the random methods <strong>should</strong> return the
+     * same results.
+     */
+    private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
+        return switch (between(0, 2)) {
+            case 0 -> indexRouting.indexShard(new IndexRequest().id(id).routing(routing));
+            case 1 -> indexRouting.updateShard(id, routing);
+            case 2 -> indexRouting.deleteShard(id, routing);
+            default -> throw new AssertionError("invalid option");
+        };
+    }
+
+    private void waitForReshardCompletion(String indexName) {
+        awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
+    }
+}

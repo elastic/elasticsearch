@@ -1,0 +1,280 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
+
+/**
+ * This class samples the search load with a given frequency {@code SAMPLING_FREQUENCY_SETTING} and publishes the new
+ * reading to the elected master periodically (parameterized by {@code MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING} or when the change is
+ * significant enough (parameterized by {@code MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING})
+ */
+public class SearchLoadSampler extends AbstractLifecycleComponent implements ClusterStateListener {
+    public static final Setting<Double> MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING = Setting.doubleSetting(
+        "serverless.autoscaling.search.sampler.min_sensitivity_ratio_for_publication",
+        0.1,
+        0,
+        0.4,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> SAMPLING_FREQUENCY_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.search.sampler.frequency",
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.search.sampler.max_time_between_publications",
+        TimeValue.timeValueSeconds(30),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private final Logger logger = LogManager.getLogger(SearchLoadSampler.class);
+    private final ThreadPool threadPool;
+    private final Executor executor;
+    private final AverageSearchLoadSampler averageSearchLoadSampler;
+    private final DoubleSupplier currentSearchLoadSupplier;
+    private final Supplier<MetricQuality> searchLoadQualitySupplier;
+    private final Client client;
+    private final AtomicLong seqNoSupplier = new AtomicLong();
+    private final LongHistogram samplingTaskSchedulingDrift;
+
+    private volatile double minSensitivityRatio;
+    private volatile TimeValue samplingFrequency;
+    private volatile TimeValue maxTimeBetweenPublications;
+    private volatile double searchLoad;
+    private volatile double latestPublishedSearchLoad;
+    private volatile MetricQuality searchLoadQuality = MetricQuality.MINIMUM;
+    private volatile SamplingTask samplingTask;
+    private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
+    private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
+    private volatile String nodeId;
+    private volatile double numProcessors;
+
+    public static SearchLoadSampler create(
+        Client client,
+        AverageSearchLoadSampler averageSearchLoadSampler,
+        DoubleSupplier currentSearchLoadSupplier,
+        Supplier<MetricQuality> searchLoadQualitySupplier,
+        ClusterService clusterService,
+        Settings settings,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
+    ) {
+        var clusterSettings = clusterService.getClusterSettings();
+        var searchLoadSampler = new SearchLoadSampler(
+            client,
+            averageSearchLoadSampler,
+            currentSearchLoadSupplier,
+            searchLoadQualitySupplier,
+            AverageSearchLoadSampler.getNumProcessors(AverageSearchLoadSampler.USE_VCPU_REQUEST.get(settings), settings),
+            clusterSettings,
+            threadPool,
+            meterRegistry
+        );
+        clusterSettings.addSettingsUpdateConsumer(AverageSearchLoadSampler.USE_VCPU_REQUEST, value -> {
+            var newNumProcessors = AverageSearchLoadSampler.getNumProcessors(value, settings);
+            searchLoadSampler.setNumProcessors(newNumProcessors);
+        });
+        clusterService.addListener(searchLoadSampler);
+        return searchLoadSampler;
+    }
+
+    public SearchLoadSampler(
+        Client client,
+        AverageSearchLoadSampler averageSearchLoadSampler,
+        DoubleSupplier currentSearchLoadSupplier,
+        Supplier<MetricQuality> searchLoadQualitySupplier,
+        double numProcessors,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
+    ) {
+        if (numProcessors <= 0) {
+            throw new IllegalArgumentException("Processors must be positive but was " + numProcessors);
+        }
+
+        clusterSettings.initializeAndWatch(MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING, value -> this.minSensitivityRatio = value);
+        clusterSettings.initializeAndWatch(SAMPLING_FREQUENCY_SETTING, value -> this.samplingFrequency = value);
+        clusterSettings.initializeAndWatch(MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING, value -> this.maxTimeBetweenPublications = value);
+        this.numProcessors = numProcessors;
+
+        this.threadPool = threadPool;
+        this.executor = threadPool.generic();
+        this.averageSearchLoadSampler = averageSearchLoadSampler;
+        this.client = client;
+        this.currentSearchLoadSupplier = currentSearchLoadSupplier;
+        this.searchLoadQualitySupplier = searchLoadQualitySupplier;
+        // To ensure that the first sample is published right away
+        lastPublicationRelativeTimeInMillis.set(threadPool.relativeTimeInMillis() - maxTimeBetweenPublications.getMillis());
+        samplingTaskSchedulingDrift = meterRegistry.registerLongHistogram(
+            "es.autoscaling.search_load.sampler_drift.histogram",
+            "The delay from the configured sampling frequency when executing search load samples",
+            "ns"
+        );
+    }
+
+    @Override
+    protected void doStart() {
+        var newSamplingTask = new SamplingTask();
+        samplingTask = newSamplingTask;
+        newSamplingTask.run();
+    }
+
+    @Override
+    protected void doStop() {
+        samplingTask = null;
+    }
+
+    @Override
+    protected void doClose() {}
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        assert nodeId == null || nodeId.equals(event.state().nodes().getLocalNodeId());
+        if (nodeId == null) {
+            setNodeId(event.state().nodes().getLocalNodeId());
+        }
+        if (event.nodesDelta().masterNodeChanged()) {
+            clearInFlightPublicationTicket();
+            publishCurrentLoad(nodeId); // Publish changes immediately if master node changes.
+        }
+    }
+
+    public void setNumProcessors(double numProcessors) {
+        this.numProcessors = numProcessors;
+    }
+
+    // Visible for testing
+    void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
+    }
+
+    private void sampleSearchLoad(String nodeId) {
+        this.searchLoadQuality = searchLoadQualitySupplier.get();
+        this.searchLoad = searchLoadQuality != MetricQuality.EXACT ? 0.0 : currentSearchLoadSupplier.getAsDouble();
+
+        var previousLoadPerProcessor = latestPublishedSearchLoad / numProcessors;
+        var currentLoadPerProcessor = searchLoad / numProcessors;
+        boolean hasLoadIncreaseSurpassedSensitivityRatio = currentLoadPerProcessor - previousLoadPerProcessor >= minSensitivityRatio;
+
+        boolean wasMaxPublicationTimeSurpassed = timeSinceLastPublicationInMillis() >= maxTimeBetweenPublications.getMillis();
+
+        if (hasLoadIncreaseSurpassedSensitivityRatio || wasMaxPublicationTimeSurpassed) {
+            publishCurrentLoad(nodeId);
+        }
+    }
+
+    private long timeSinceLastPublicationInMillis() {
+        return getRelativeTimeInMillis() - lastPublicationRelativeTimeInMillis.get();
+    }
+
+    /**
+     * Non-private only for testing.
+     */
+    void publishSearchLoad(double load, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
+        var request = new PublishNodeSearchLoadRequest(nodeId, seqNoSupplier.incrementAndGet(), load, quality);
+        client.execute(TransportPublishSearchLoads.INSTANCE, request, listener.map(unused -> null));
+    }
+
+    private void publishCurrentLoad(String nodeId) {
+        if (nodeId == null) {
+            return;
+        }
+        try {
+            var ticket = new Object();
+            if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
+                final var publishedLoad = searchLoad;
+                publishSearchLoad(publishedLoad, searchLoadQuality, nodeId, ActionListener.runAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        var previousPublicationTime = lastPublicationRelativeTimeInMillis.get();
+                        lastPublicationRelativeTimeInMillis.compareAndSet(previousPublicationTime, getRelativeTimeInMillis());
+                        latestPublishedSearchLoad = publishedLoad;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.log(getExceptionLogLevel(e), () -> "Unable to publish the latest search load", e);
+                    }
+                }, () -> inFlightPublicationTicket.compareAndSet(ticket, null)));
+            }
+        } catch (Exception e) {
+            logger.error("Unable to publish latest search load", e);
+            assert false : e;
+            clearInFlightPublicationTicket();
+        }
+    }
+
+    private void clearInFlightPublicationTicket() {
+        inFlightPublicationTicket.set(null);
+    }
+
+    private long getRelativeTimeInMillis() {
+        return threadPool.relativeTimeInMillis();
+    }
+
+    class SamplingTask implements Runnable {
+        private long expectedTimeNanos = -1;
+
+        @Override
+        public void run() {
+            if (samplingTask != SamplingTask.this) {
+                return;
+            }
+            long now = System.nanoTime();
+            if (expectedTimeNanos != -1) {
+                long driftNanos = now - expectedTimeNanos;
+                samplingTaskSchedulingDrift.record(driftNanos);
+            }
+
+            try {
+                averageSearchLoadSampler.sample();
+                sampleSearchLoad(nodeId);
+            } finally {
+                expectedTimeNanos = now + samplingFrequency.nanos();
+                threadPool.scheduleUnlessShuttingDown(samplingFrequency, executor, SamplingTask.this);
+            }
+        }
+    }
+}

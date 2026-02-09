@@ -1,1 +1,1 @@
-co.elastic.elasticsearch.stateless.allocation.StatelessHeapUsageCollector
+org.elasticsearch.xpack.stateless.allocation.StatelessHeapUsageCollector

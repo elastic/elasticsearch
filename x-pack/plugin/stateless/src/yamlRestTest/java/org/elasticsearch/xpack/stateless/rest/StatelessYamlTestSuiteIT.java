@@ -1,28 +1,37 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
  */
 
 package org.elasticsearch.xpack.stateless.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.serverless.ServerlessElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
 public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public StatelessYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public StatelessYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
@@ -31,31 +40,22 @@ public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return createParameters();
     }
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password"));
-
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+        String token = basicAuthHeaderValue("admin-user", new SecureString("x-pack-test-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
 
     private static ElasticsearchCluster createCluster() {
-        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .setting("xpack.security.enabled", "true")
-            .user("x_pack_rest_user", "x-pack-test-password");
-        boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
-        if (setNodes) {
-            clusterBuilder.nodes(2);
-        }
-        // We need to disable ILM history based on a setting, to avoid errors in Serverless where the setting is not available.
-        boolean disableILMHistory = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.disable_ilm_history", "true"));
-        if (disableILMHistory) {
-            // disable ILM history, since it disturbs tests
-            clusterBuilder.setting("indices.lifecycle.history_index_enabled", "false");
-        }
+        // TODO Remove serverless dependencies of ServerlessElasticsearchCluster ES-14147
+        final var clusterBuilder = ServerlessElasticsearchCluster.local()
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.watcher.enabled", "false")
+            .setting("rest.internal.reshard_allowed", "true")
+            .user("admin-user", "x-pack-test-password");
         return clusterBuilder.build();
     }
 

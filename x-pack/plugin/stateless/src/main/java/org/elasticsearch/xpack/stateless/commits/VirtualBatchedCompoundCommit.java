@@ -1,8 +1,18 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
  */
 
 package org.elasticsearch.xpack.stateless.commits;
@@ -788,13 +798,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return List.copyOf(pendingCompoundCommits);
     }
 
-    // TODO: make package-private ES-13786
-    public int size() {
+    int size() {
         return pendingCompoundCommits.size();
     }
 
-    // TODO: make package-private ES-13786
-    public Set<PrimaryTermAndGeneration> getPendingCompoundCommitGenerations() {
+    Set<PrimaryTermAndGeneration> getPendingCompoundCommitGenerations() {
         return pendingCompoundCommits.stream()
             .map(PendingCompoundCommit::getStatelessCompoundCommit)
             .map(StatelessCompoundCommit::primaryTermAndGeneration)
@@ -835,8 +843,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    // TODO: make package-private ES-13786
-    public BlobLocation getBlobLocation(String fileName) {
+    BlobLocation getBlobLocation(String fileName) {
         var internalLocation = internalLocations.get(fileName);
         return internalLocation == null ? uploadedBlobLocationsSupplier.apply(fileName) : internalLocation;
     }
@@ -891,8 +898,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    // TODO: make package-private ES-13786
-    public boolean assertSameNodeEphemeralId(String id) {
+    boolean assertSameNodeEphemeralId(String id) {
         assert id.equals(nodeEphemeralId) : id + " != " + nodeEphemeralId;
         return true;
     }
@@ -981,13 +987,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             return reference.getGeneration();
         }
 
-        // TODO: make package-private ES-13786
-        public long getMaxSeqNo() {
+        long getMaxSeqNo() {
             return maxSeqNo;
         }
 
-        // TODO: make package-private ES-13786
-        public StatelessCommitRef getCommitReference() {
+        StatelessCommitRef getCommitReference() {
             return reference;
         }
 

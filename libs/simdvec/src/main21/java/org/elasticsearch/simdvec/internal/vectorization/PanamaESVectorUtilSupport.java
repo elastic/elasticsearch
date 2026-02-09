@@ -22,6 +22,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
@@ -44,6 +45,9 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
+    /** Whether native vector distance functions are available (not supported on Windows). */
+    private static final boolean HAS_NATIVE_VECTOR_DISTANCES = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
             return a.fma(b, c);
@@ -62,14 +66,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float dotProduct(float[] a, float[] b) {
-        return SUPPORTS_HEAP_SEGMENTS
+        return SUPPORTS_HEAP_SEGMENTS && HAS_NATIVE_VECTOR_DISTANCES
             ? Similarities.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
             : VectorUtil.dotProduct(a, b);
     }
 
     @Override
     public float squareDistance(float[] a, float[] b) {
-        return SUPPORTS_HEAP_SEGMENTS
+        return SUPPORTS_HEAP_SEGMENTS && HAS_NATIVE_VECTOR_DISTANCES
             ? Similarities.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
             : VectorUtil.squareDistance(a, b);
     }

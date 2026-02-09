@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.inference.services.groq.completion;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
+import org.hamcrest.MatcherAssert;
 
 import java.net.URI;
 import java.util.HashMap;
@@ -24,6 +27,51 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<GroqChatCompletionServiceSettings> {
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final String TEST_ORGANIZATION_ID = "test-organization-id";
+    private static final String INITIAL_TEST_ORGANIZATION_ID = "initial-test-organization-id";
+    private static final URI TEST_URI = ServiceUtils.createUri("https://test-uri.com");
+    private static final URI INITIAL_TEST_URI = ServiceUtils.createUri("https://initial-test-uri.com");
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                TEST_MODEL_ID,
+                OpenAiServiceFields.ORGANIZATION,
+                TEST_ORGANIZATION_ID,
+                ServiceFields.URL,
+                TEST_URI.toString(),
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
+
+        var serviceSettings = createInitialGroqChatCompletionServiceSettings().updateServiceSettings(settingsMap, TaskType.COMPLETION);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(new GroqChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, TEST_ORGANIZATION_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = createInitialGroqChatCompletionServiceSettings().updateServiceSettings(new HashMap<>(), TaskType.COMPLETION);
+
+        MatcherAssert.assertThat(serviceSettings, is(createInitialGroqChatCompletionServiceSettings()));
+    }
+
+    private static GroqChatCompletionServiceSettings createInitialGroqChatCompletionServiceSettings() {
+        return new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+    }
 
     public void testFromMapRequiresModelId() {
         var map = new HashMap<String, Object>();

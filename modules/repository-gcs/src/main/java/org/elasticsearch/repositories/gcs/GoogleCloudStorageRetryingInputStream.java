@@ -49,7 +49,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         long start,
         long end
     ) throws IOException {
-        super(new GoogleCloudStorageBlobStoreServices(blobStore, purpose, blobId), purpose, start, end);
+        super(blobStore.getRepositoriesMetrics(), new GoogleCloudStorageBlobStoreServices(blobStore, purpose, blobId), purpose, start, end);
     }
 
     private static class GoogleCloudStorageBlobStoreServices implements BlobStoreServices<Long> {
@@ -124,19 +124,6 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         }
 
         @Override
-        public void onRetryStarted(StreamAction action) {
-            blobStore.getRepositoriesMetrics().inputStreamRetryStartedCounter().incrementBy(1, metricAttributes(action));
-        }
-
-        @Override
-        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            final Map<String, Object> attributes = metricAttributes(action);
-            final var repositoriesMetrics = blobStore.getRepositoriesMetrics();
-            repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, attributes);
-            repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, attributes);
-        }
-
-        @Override
         public long getMeaningfulProgressSize() {
             return Math.max(1L, GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE / 100L);
         }
@@ -159,7 +146,8 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
             };
         }
 
-        private Map<String, Object> metricAttributes(StreamAction action) {
+        @Override
+        public Map<String, Object> getMetricsAttributes(StreamAction action) {
             return Map.of(
                 "repo_type",
                 GoogleCloudStorageRepository.TYPE,

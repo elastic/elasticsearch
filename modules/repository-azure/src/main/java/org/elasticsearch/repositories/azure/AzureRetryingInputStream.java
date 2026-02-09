@@ -28,6 +28,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
     protected AzureRetryingInputStream(AzureBlobStore azureBlobStore, OperationPurpose purpose, String blob, long position, Long length)
         throws IOException {
         super(
+            azureBlobStore.getRepositoriesMetrics(),
             new AzureBlobStoreServices(azureBlobStore, purpose, blob),
             purpose,
             position,
@@ -60,19 +61,6 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
         }
 
         @Override
-        public void onRetryStarted(StreamAction action) {
-            blobStore.getRepositoriesMetrics().inputStreamRetryStartedCounter().incrementBy(1, metricAttributes(action));
-        }
-
-        @Override
-        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            final Map<String, Object> attributes = metricAttributes(action);
-            final var repositoriesMetrics = blobStore.getRepositoriesMetrics();
-            repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, attributes);
-            repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, attributes);
-        }
-
-        @Override
         public long getMeaningfulProgressSize() {
             return Math.max(1L, blobStore.getReadChunkSize() / 100L);
         }
@@ -99,7 +87,8 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
             return true;
         }
 
-        private Map<String, Object> metricAttributes(StreamAction action) {
+        @Override
+        public Map<String, Object> getMetricsAttributes(StreamAction action) {
             return Map.of(
                 "repo_type",
                 AzureRepository.TYPE,

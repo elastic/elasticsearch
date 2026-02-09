@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,6 +24,7 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -229,7 +231,7 @@ public class RetryingInputStreamTests extends ESTestCase {
     private static final class ShortDelayRetryingInputStream extends RetryingInputStream<String> {
 
         ShortDelayRetryingInputStream(BlobStoreServices<String> blobStoreServices, OperationPurpose purpose) throws IOException {
-            super(blobStoreServices, purpose);
+            super(RepositoriesMetrics.NOOP, blobStoreServices, purpose);
         }
 
         @Override
@@ -309,6 +311,11 @@ public class RetryingInputStreamTests extends ESTestCase {
         @Override
         public String getBlobDescription() {
             return "";
+        }
+
+        @Override
+        public Map<String, Object> getMetricsAttributes(RetryingInputStream.StreamAction action) {
+            return Map.of();
         }
 
         record Success(RetryingInputStream.StreamAction action, long numberOfRetries) {};

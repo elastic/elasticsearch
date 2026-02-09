@@ -8,21 +8,20 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.comparators.DoubleComparator;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.field.DoubleDocValuesField;
 import org.elasticsearch.script.field.LongDocValuesField;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -86,62 +85,57 @@ class AggregateMetricAverageFieldScript extends DoubleFieldScript {
         }
     }
 
-    class AverageSortField extends org.apache.lucene.search.SortField {
-        AverageSortField(SortField.Type type, boolean reverse) {
-            super("", type, reverse);
-        }
+    /**
+     * @return a SortField that uses the average script of the aggregate metric double to sort.
+     */
+    static SortField sortField(
+        String fieldName,
+        SearchLookup lookup,
+        Object missingValue,
+        MultiValueMode sortMode,
+        IndexFieldData.XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
+        LeafFactory leafFactory = newLeafFactory(fieldName, lookup);
+        return new SortField(fieldName, new DoubleValuesComparatorSource(null, missingValue, sortMode, nested) {
+            @Override
+            protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
+                DoubleFieldScript script = leafFactory.newInstance(context);
+                return new SortedNumericDoubleValues() {
+                    private double[] values = new double[0];
+                    private int count;
+                    private int index;
 
-        @Override
-        public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
-            return new DoubleComparator(numHits, "", null, getReverse(), pruning) {
-                @Override
-                public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
-                    return new DoubleComparator.DoubleLeafComparator(context);
-                }
-
-                /** Leaf comparator for {@link DoubleComparator} that provides skipping functionality */
-                public class AverageLeafComparator extends DoubleLeafComparator {
-
-                    public AverageLeafComparator(LeafReaderContext context) throws IOException {
-                        super(context);
+                    @Override
+                    public boolean advanceExact(int doc) {
+                        script.runForDoc(doc);
+                        count = script.count();
+                        if (count == 0) {
+                            index = 0;
+                            return false;
+                        }
+                        if (values.length < count) {
+                            values = new double[count];
+                        }
+                        System.arraycopy(script.values(), 0, values, 0, count);
+                        if (count > 1) {
+                            Arrays.sort(values, 0, count);
+                        }
+                        index = 0;
+                        return true;
                     }
 
                     @Override
-                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return new NumericDocValues() {
-                            @Override
-                            public long longValue() throws IOException {
-                                return 0;
-                            }
-
-                            @Override
-                            public boolean advanceExact(int target) throws IOException {
-                                return false;
-                            }
-
-                            @Override
-                            public int docID() {
-                                return 0;
-                            }
-
-                            @Override
-                            public int nextDoc() throws IOException {
-                                return 0;
-                            }
-
-                            @Override
-                            public int advance(int target) throws IOException {
-                                return 0;
-                            }
-
-                            @Override
-                            public long cost() {
-                                return 0;
-                            }
-                        };
+                    public double nextValue() {
+                        return values[index++];
                     }
-                }
-            };
-        }
+
+                    @Override
+                    public int docValueCount() {
+                        return count;
+                    }
+                };
+            }
+        }, reverse);
     }
 }

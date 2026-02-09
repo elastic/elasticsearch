@@ -29,7 +29,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -74,7 +73,6 @@ import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateMetricDoub
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -562,68 +560,17 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
-                        return new SortField(
-                            name(),
-                            new DoubleValuesComparatorSource(null, missingValue, sortMode, nested) {
-                                @Override
-                                protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                                    SortedNumericDocValues sumValues = DocValues.getSortedNumeric(
-                                        context.reader(),
-                                        subfieldName(name(), Metric.sum)
-                                    );
-                                    SortedNumericDocValues countValues = DocValues.getSortedNumeric(
-                                        context.reader(),
-                                        subfieldName(name(), Metric.value_count)
-                                    );
-                                    return new SortedNumericDoubleValues() {
-                                        private double[] averages = new double[0];
-                                        private int count;
-                                        private int index;
-
-                                        @Override
-                                        public boolean advanceExact(int doc) throws IOException {
-                                            boolean hasSum = sumValues.advanceExact(doc);
-                                            boolean hasCount = countValues.advanceExact(doc);
-                                            if (hasSum == false || hasCount == false) {
-                                                count = 0;
-                                                index = 0;
-                                                return false;
-                                            }
-                                            int sumCount = sumValues.docValueCount();
-                                            int valueCount = countValues.docValueCount();
-                                            count = Math.min(sumCount, valueCount);
-                                            if (averages.length < count) {
-                                                averages = new double[count];
-                                            }
-                                            for (int i = 0; i < count; i++) {
-                                                double sum = NumericUtils.sortableLongToDouble(sumValues.nextValue());
-                                                long valueCountValue = countValues.nextValue();
-                                                averages[i] = sum / valueCountValue;
-                                            }
-                                            if (count > 1) {
-                                                Arrays.sort(averages, 0, count);
-                                            }
-                                            index = 0;
-                                            return count > 0;
-                                        }
-
-                                        @Override
-                                        public double nextValue() {
-                                            return averages[index++];
-                                        }
-
-                                        @Override
-                                        public int docValueCount() {
-                                            return count;
-                                        }
-                                    };
-                                }
-                            },
-                            reverse
-                        );
+                    if (singleMetric != null) {
+                        return new SortedNumericSortField(subfieldName(name(), singleMetric), SortField.Type.DOUBLE, reverse);
                     }
-                    return new SortedNumericSortField(subfieldName(name(), Metric.max), SortField.Type.DOUBLE, reverse);
+                    return AggregateMetricAverageFieldScript.sortField(
+                        name(),
+                        fieldDataContext.lookupSupplier().get(),
+                        missingValue,
+                        sortMode,
+                        nested,
+                        reverse
+                    );
                 }
 
                 @Override

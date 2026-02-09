@@ -41,13 +41,13 @@ public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase 
     }
 
     public void testSyntheticId() throws Exception {
-         runTestWithRandomDocs((writer, finalDocs) -> {
+        runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 final var storedFields = reader.storedFields();
 
                 int totalDocs = 0;
                 for (var leafReaderContext : reader.leaves()) {
-                   totalDocs += leafReaderContext.reader().maxDoc();
+                    totalDocs += leafReaderContext.reader().maxDoc();
                 }
                 assertThat(totalDocs, equalTo(finalDocs.values().stream().mapToInt(TSDBSyntheticIdPostingsFormatTests.Doc::version).sum()));
 

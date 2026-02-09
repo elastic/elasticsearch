@@ -1037,6 +1037,7 @@ public class MasterService extends AbstractLifecycleComponent {
         void onBatchFailure(Exception failure) {
             // if the whole batch resulted in an exception then this overrides any task-level results whether successful or not
             this.failure = Objects.requireNonNull(failure);
+            this.onPublicationSuccess = null;
             this.publishedStateConsumer = null;
             this.clusterStateAckListener = null;
         }

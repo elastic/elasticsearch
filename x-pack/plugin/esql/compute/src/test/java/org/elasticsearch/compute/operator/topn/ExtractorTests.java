@@ -131,7 +131,7 @@ public class ExtractorTests extends ESTestCase {
                                     blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
                                     blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                     blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                    randomBoolean() ? null : randomBoolean()
+                                    docVectorConfig()
                                 ).asBlock()
                             ) }
                     );
@@ -276,5 +276,13 @@ public class ExtractorTests extends ESTestCase {
         return haveNulls
             ? new LongRangeBlockBuilder.LongRange(randomBoolean() ? from : null, randomBoolean() ? to : null)
             : new LongRangeBlockBuilder.LongRange(from, to);
+    }
+
+    private static DocVector.Config docVectorConfig() {
+        DocVector.Config config = DocVector.config();
+        if (randomBoolean()) {
+            config.singleSegmentNonDecreasing(randomBoolean());
+        }
+        return config;
     }
 }

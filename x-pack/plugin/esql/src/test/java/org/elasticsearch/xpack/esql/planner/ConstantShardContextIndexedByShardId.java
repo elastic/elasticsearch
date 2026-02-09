@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -89,6 +90,11 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
 
         @Override
         public MappedFieldType fieldType(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ShardSearchStats stats() {
             throw new UnsupportedOperationException();
         }
 

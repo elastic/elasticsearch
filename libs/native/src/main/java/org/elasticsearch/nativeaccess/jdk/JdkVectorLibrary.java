@@ -116,13 +116,14 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                         for (DataType type : DataType.values()) {
                             String typeName = switch (type) {
-                                case INT7 -> "7u";
+                                case INT7U -> "i7u";
+                                case INT8 -> "i8";
                                 case FLOAT32 -> "f32";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7 -> intSingle;
+                                    case INT7U, INT8 -> intSingle;
                                     case FLOAT32 -> floatSingle;
                                 };
                                 case BULK -> bulk;
@@ -138,8 +139,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             if (f == Function.SQUARE_DISTANCE) continue;
 
                             String typeName = switch (type) {
-                                case I1I4 -> "_int1_int4";
-                                case I2I4 -> "_int2_int4";
+                                case D1Q4 -> "d1q4";
+                                case D2Q4 -> "d2q4";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
@@ -278,24 +279,44 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
-        private static final MethodHandle dot7uHandle = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7, Operation.SINGLE)
+        private static final MethodHandle dotI7uHandle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7U, Operation.SINGLE)
         );
 
-        static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
+        static int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceInt(dot7uHandle, a, b, length);
+            return callSingleDistanceInt(dotI7uHandle, a, b, length);
         }
 
-        private static final MethodHandle square7uHandle = HANDLES.get(
-            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7, Operation.SINGLE)
+        private static final MethodHandle squareI7uHandle = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7U, Operation.SINGLE)
         );
 
-        static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
+        static int squareDistanceI7u(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceInt(square7uHandle, a, b, length);
+            return callSingleDistanceInt(squareI7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle dotI8Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.SINGLE)
+        );
+
+        static int dotProductI8(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
+            return callSingleDistanceInt(dotI8Handle, a, b, elementCount);
+        }
+
+        private static final MethodHandle squareI8Handle = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.SINGLE)
+        );
+
+        static int squareDistanceI8(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
+            return callSingleDistanceInt(squareI8Handle, a, b, elementCount);
         }
 
         private static final MethodHandle dotF32Handle = HANDLES.get(
@@ -318,8 +339,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceFloat(squareF32Handle, a, b, elementCount);
         }
 
-        private static final MethodHandle dotI1I4Handle = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.I1I4, Operation.SINGLE)
+        private static final MethodHandle dotD1Q4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
 
         /**
@@ -329,14 +350,14 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param query  address of the int4 vector
          * @param length the vector dimensions
          */
-        static long dotProductI1I4(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD1Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceLong(dotI1I4Handle, a, query, length);
+            return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
         }
 
-        private static final MethodHandle dotI2I4Handle = HANDLES.get(
-            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.I2I4, Operation.SINGLE)
+        private static final MethodHandle dotD2Q4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE)
         );
 
         /**
@@ -346,10 +367,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param query  address of the int4 vector
          * @param length the vector dimensions
          */
-        static long dotProductI2I4(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD2Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 2, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
-            return callSingleDistanceLong(dotI2I4Handle, a, query, length);
+            return callSingleDistanceLong(dotD2Q4Handle, a, query, length);
         }
 
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
@@ -373,79 +394,41 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             // this means we need to reduce the overheads as much as possible.
                             // So have specific hard-coded check methods rather than use guardWithTest
                             // to create the check-and-call methods dynamically
+                            String checkMethod = switch (op.getKey().function()) {
+                                case DOT_PRODUCT -> "dotProduct";
+                                case SQUARE_DISTANCE -> "squareDistance";
+                            };
+
                             MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
-                                case DataType dt -> switch (dt) {
-                                    case INT7 -> {
-                                        MethodType type = MethodType.methodType(
-                                            int.class,
-                                            MemorySegment.class,
-                                            MemorySegment.class,
-                                            int.class
-                                        );
-                                        yield switch (op.getKey().function()) {
-                                            case DOT_PRODUCT -> lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", type);
-                                            case SQUARE_DISTANCE -> lookup.findStatic(
-                                                JdkVectorSimilarityFunctions.class,
-                                                "squareDistance7u",
-                                                type
-                                            );
-                                        };
+                                case DataType dt -> {
+                                    MethodType type = null;
+
+                                    switch (dt) {
+                                        case INT7U:
+                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "I7u";
+                                            break;
+                                        case INT8:
+                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "I8";
+                                            break;
+                                        case FLOAT32:
+                                            type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "F32";
+                                            break;
                                     }
-                                    case FLOAT32 -> {
-                                        MethodType type = MethodType.methodType(
-                                            float.class,
-                                            MemorySegment.class,
-                                            MemorySegment.class,
-                                            int.class
-                                        );
-                                        yield switch (op.getKey().function()) {
-                                            case DOT_PRODUCT -> lookup.findStatic(
-                                                JdkVectorSimilarityFunctions.class,
-                                                "dotProductF32",
-                                                type
-                                            );
-                                            case SQUARE_DISTANCE -> lookup.findStatic(
-                                                JdkVectorSimilarityFunctions.class,
-                                                "squareDistanceF32",
-                                                type
-                                            );
-                                        };
-                                    }
-                                };
-                                case BBQType bbq -> switch (bbq) {
-                                    case I1I4 -> {
-                                        MethodType type = MethodType.methodType(
-                                            long.class,
-                                            MemorySegment.class,
-                                            MemorySegment.class,
-                                            int.class
-                                        );
-                                        yield switch (op.getKey().function()) {
-                                            case DOT_PRODUCT -> lookup.findStatic(
-                                                JdkVectorSimilarityFunctions.class,
-                                                "dotProductI1I4",
-                                                type
-                                            );
-                                            case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");
-                                        };
-                                    }
-                                    case I2I4 -> {
-                                        MethodType type = MethodType.methodType(
-                                            long.class,
-                                            MemorySegment.class,
-                                            MemorySegment.class,
-                                            int.class
-                                        );
-                                        yield switch (op.getKey().function()) {
-                                            case DOT_PRODUCT -> lookup.findStatic(
-                                                JdkVectorSimilarityFunctions.class,
-                                                "dotProductI2I4",
-                                                type
-                                            );
-                                            case SQUARE_DISTANCE -> throw new UnsupportedOperationException("Not implemented");
-                                        };
-                                    }
-                                };
+
+                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod, type);
+                                }
+                                case BBQType bbq -> {
+                                    MethodType type = MethodType.methodType(
+                                        long.class,
+                                        MemorySegment.class,
+                                        MemorySegment.class,
+                                        int.class
+                                    );
+                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod + bbq, type);
+                                }
                                 default -> throw new IllegalArgumentException("Unknown handle type " + op.getKey().dataType());
                             };
 

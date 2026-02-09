@@ -389,6 +389,9 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
+- class: org.elasticsearch.index.query.RewriteableTests
+  method: testRewriteAndFetchWithExecutorOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/142140
 
 # Examples:
 #

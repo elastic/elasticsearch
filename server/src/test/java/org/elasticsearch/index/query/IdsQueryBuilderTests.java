@@ -97,7 +97,8 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             null,
             Collections.emptyMap(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
 
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> builder.doToQuery(searchExecutionContext));

@@ -14,12 +14,15 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -34,6 +37,10 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.terminate;
 
+/**
+ * Utility for running {@link Driver} with configurations customized for tests.
+ * See {@link #builder} for lots of utilities for building the {@link Driver}.
+ */
 public class TestDriverRunner {
     private Integer numThreads = null;
 
@@ -47,34 +54,28 @@ public class TestDriverRunner {
     }
 
     /**
-     * Run a driver with a single operator, returning the result.
+     * Helpers for building the {@link Driver} out of {@link Operator}
+     * or {@link Operator.OperatorFactory}.
+     * <p>
+     *     Generally you can use it like:
+     * </p>
+     * <pre>{@code
+     *   var runner = new TestDriverRunner().builder(driverContext());
+     *   runner.input(buildInput(runner.blockFactory()));
+     *   List<Page> results = runner.run(operatorFactory);
+     * }</pre>
+     * <p>
+     *     If you need the inputs to assert the contents of the outputs
+     *     then use {@link DriverBuilder#collectDeepCopy()}:
+     * </p>
+     * <pre>{@code
+     *   var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+     *   runner.input(buildInput(runner.blockFactory()));
+     *   assertResults(runner.deepCopy(), runner.run(operatorFactory));
+     * }</pre>
      */
-    public List<Page> run(Operator operator, Iterator<Page> input, DriverContext context) {
-        return run(List.of(operator), input, context);
-    }
-
-    /**
-     * Run a single driver, returning the result.
-     */
-    public List<Page> run(List<Operator> operators, Iterator<Page> input, DriverContext driverContext) {
-        List<Page> results = new ArrayList<>();
-        boolean success = false;
-        try (
-            Driver d = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(input),
-                operators,
-                new TestResultPageSinkOperator(results::add)
-            )
-        ) {
-            run(d);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
-            }
-        }
-        return results;
+    public DriverBuilder builder(DriverContext context) {
+        return new DriverBuilder(context);
     }
 
     /**
@@ -122,6 +123,217 @@ public class TestDriverRunner {
             future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
             terminate(threadPool);
+        }
+    }
+
+    /**
+     * Helpers for building the {@link Driver}.
+     */
+    public class DriverBuilder {
+        private final DriverContext context;
+
+        private boolean collectDeepCopy = false;
+        private boolean insertNulls = false;
+        private List<Page> deepCopy;
+        private SourceOperator input;
+        private List<Operator.Status> statuses;
+
+        DriverBuilder(DriverContext context) {
+            this.context = context;
+        }
+
+        /**
+         * Asks the runner to collect a deep copy of the input. Must be called before
+         * any call to {@link #input(CannedSourceOperator)} or it's overwrites.
+         */
+        public DriverBuilder collectDeepCopy() {
+            if (input != null) {
+                throw new IllegalStateException("must be called before `input`");
+            }
+            collectDeepCopy = true;
+            return this;
+        }
+
+        /**
+         * Asks the runner to insert null rows. Must be called before
+         * any call to {@link #input(CannedSourceOperator)} or it's overwrites.
+         */
+        public DriverBuilder insertNulls() {
+            if (input != null) {
+                throw new IllegalStateException("must be called before `input`");
+            }
+            insertNulls = true;
+            return this;
+        }
+
+        /**
+         * Builds a {@link Page}, then a {@link CannedSourceOperator}
+         * and delegates to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(List<Block> input) {
+            return input(input.toArray(Block[]::new));
+        }
+
+        /**
+         * Builds a {@link Page}, then a {@link CannedSourceOperator}
+         * and delegates to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(Block... input) {
+            return input(new Page(input));
+        }
+
+        /**
+         * Builds a {@link CannedSourceOperator} and delegates
+         * to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(Page input) {
+            return input(Iterators.single(input));
+        }
+
+        /**
+         * Builds a {@link CannedSourceOperator} and delegates
+         * to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(Page... input) {
+            return input(List.of(input));
+        }
+
+        /**
+         * Builds a {@link CannedSourceOperator} and delegates
+         * to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(Iterable<Page> input) {
+            return input(input.iterator());
+        }
+
+        /**
+         * Builds a {@link CannedSourceOperator} and delegates
+         * to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(Iterator<Page> input) {
+            return input(new CannedSourceOperator(input));
+        }
+
+        /**
+         * Collects input from a {@link SourceOperator.SourceOperatorFactory}, builds a
+         * {@link CannedSourceOperator}, and delegates to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(SourceOperator.SourceOperatorFactory input) {
+            return input(input.get(context));
+        }
+
+        /**
+         * Collects input from a {@link SourceOperator}, builds a
+         * {@link CannedSourceOperator}, and delegates to {@link #input(CannedSourceOperator)}.
+         */
+        public DriverBuilder input(SourceOperator input) {
+            return input(CannedSourceOperator.collectPages(input));
+        }
+
+        /**
+         * Sets the input passed to the driver.
+         */
+        public DriverBuilder input(CannedSourceOperator input) {
+            if (this.input != null) {
+                throw new IllegalStateException("already added input");
+            }
+            SourceOperator source = input;
+            if (insertNulls) {
+                source = new NullInsertingSourceOperator(input, blockFactory());
+            }
+            if (collectDeepCopy) {
+                List<Page> collected = CannedSourceOperator.collectPages(source);
+                this.deepCopy = BlockTestUtils.deepCopyOf(collected, TestBlockFactory.getNonBreakingInstance());
+                this.input = new CannedSourceOperator(collected.iterator());
+            } else {
+                this.input = source;
+            }
+            return this;
+        }
+
+        /**
+         * Run a single driver, returning the result.
+         */
+        public List<Page> run(Operator.OperatorFactory operator) {
+            return run(operator.get(context));
+        }
+
+        /**
+         * Run a single driver, returning the result.
+         */
+        public List<Page> run(Operator.OperatorFactory... operators) {
+            return run(List.of(operators).stream().map(f -> f.get(context)).toList());
+        }
+
+        /**
+         * Run a single driver, returning the result.
+         */
+        public List<Page> run(Operator operator) {
+            return run(List.of(operator));
+        }
+
+        /**
+         * Run a single driver, returning the result.
+         */
+        public List<Page> run(Operator... operators) {
+            return run(List.of(operators));
+        }
+
+        /**
+         * Run a single driver, returning the result.
+         */
+        public List<Page> run(List<Operator> operators) {
+            List<Page> results = new ArrayList<>();
+            boolean success = false;
+            try (Driver d = TestDriverFactory.create(context, input, operators, new TestResultPageSinkOperator(results::add))) {
+                TestDriverRunner.this.run(d);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+                }
+            }
+            statuses = operators.stream().map(Operator::status).toList();
+            return results;
+        }
+
+        /**
+         * A deep copy of the inputs. Available only after calling
+         * {@link #collectDeepCopy()} and {@link #input(CannedSourceOperator)}.
+         */
+        public List<Page> deepCopy() {
+            if (collectDeepCopy == false) {
+                throw new IllegalStateException("didn't collect deep copy");
+            }
+            if (deepCopy == null) {
+                throw new IllegalStateException("input not called");
+            }
+            return deepCopy;
+        }
+
+        /**
+         * The status of the completed operators. Available after
+         * {@link #run(List)}.
+         */
+        public List<Operator.Status> statuses() {
+            if (statuses == null) {
+                throw new IllegalStateException("didn't run");
+            }
+            return statuses;
+        }
+
+        /**
+         * The {@link DriverContext}. Always available.
+         */
+        public DriverContext context() {
+            return context;
+        }
+
+        /**
+         * The {@link BlockFactory}. Always available.
+         */
+        public BlockFactory blockFactory() {
+            return context.blockFactory();
         }
     }
 }

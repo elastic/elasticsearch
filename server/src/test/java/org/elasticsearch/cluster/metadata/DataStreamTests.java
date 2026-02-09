@@ -1400,6 +1400,77 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         testIndicesPastRetention(true);
     }
 
+    public void testGetIndicesOlderThanWithoutFailureStoreParam() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        // Create backing indices with mixed ages
+        List<DataStreamMetadata> backingIndicesMetadata = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        // Create failure indices with mixed ages
+        List<DataStreamMetadata> failureIndicesMetadata = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 6000_000, now - 5000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        Metadata.Builder builder = Metadata.builder();
+
+        List<Index> backingIndices = createDataStreamIndices(
+            builder,
+            dataStreamName,
+            backingIndicesMetadata,
+            settings(IndexVersion.current()),
+            backingIndicesMetadata.size(),
+            false
+        );
+
+        List<Index> failureIndices = createDataStreamIndices(
+            builder,
+            dataStreamName,
+            failureIndicesMetadata,
+            settings(IndexVersion.current()),
+            failureIndicesMetadata.size(),
+            true
+        );
+
+        DataStream dataStream = newInstance(
+            dataStreamName,
+            backingIndices,
+            backingIndices.size(),
+            null,
+            false,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            failureIndices
+        );
+        builder.put(dataStream);
+        Metadata metadata = builder.build();
+
+        List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+            metadata.getProject()::index,
+            () -> now,
+            TimeValue.timeValueSeconds(2500)
+        );
+
+        // Expected: 2 old backing indices + 2 old failure indices (excluding write indices)
+        assertThat(indicesPastRetention.size(), is(4));
+
+        // Verify we got indices from both backing and failure stores
+        List<String> backingIndexNames = backingIndices.stream().map(Index::getName).toList();
+        List<String> failureIndexNames = failureIndices.stream().map(Index::getName).toList();
+
+        long backingIndicesCount = indicesPastRetention.stream().filter(idx -> backingIndexNames.contains(idx.getName())).count();
+        long failureIndicesCount = indicesPastRetention.stream().filter(idx -> failureIndexNames.contains(idx.getName())).count();
+
+        assertThat(backingIndicesCount, is(2L));
+        assertThat(failureIndicesCount, is(2L));
+    }
+
     private void testIndicesPastRetention(boolean failureStore) {
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();

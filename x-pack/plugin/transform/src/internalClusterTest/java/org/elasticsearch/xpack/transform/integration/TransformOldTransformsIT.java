@@ -161,10 +161,6 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         }
     }
 
-    private void createSourceIndex(String index) {
-        indicesAdmin().create(new CreateIndexRequest(index)).actionGet();
-    }
-
     private void putTransform(String transformId, String config) {
         IndexRequest indexRequest = new IndexRequest(OLD_INDEX).id(TransformConfig.documentId(transformId))
             .source(config, XContentType.JSON)

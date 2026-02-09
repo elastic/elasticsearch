@@ -1,7 +1,7 @@
 # "version" holds the version of the templates installed by xpack-plugin prometheus.
 # This must be increased whenever an existing template is changed, in order for it
 # to be updated on Elasticsearch upgrade.
-version: 1
+version: 2
 component-templates:
   - metrics-prometheus@mappings
   - metrics-prometheus@settings

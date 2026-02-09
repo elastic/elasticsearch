@@ -31,7 +31,7 @@ public record RepositoriesMetrics(
     LongHistogram exceptionHistogram,
     LongHistogram throttleHistogram,
     LongHistogram httpRequestTimeInMillisHistogram,
-    LongCounter inputStreamRetryEventCounter,
+    LongCounter inputStreamRetryStartedCounter,
     LongCounter inputStreamRetryCompletedCounter,
     LongHistogram inputStreamRetryHistogram
 ) {

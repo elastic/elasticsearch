@@ -125,14 +125,15 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public void onRetryStarted(StreamAction action) {
-            blobStore.getRepositoriesMetrics().inputStreamRetryEventCounter().incrementBy(1, metricAttributes(action));
+            blobStore.getRepositoriesMetrics().inputStreamRetryStartedCounter().incrementBy(1, metricAttributes(action));
         }
 
         @Override
         public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
             final Map<String, Object> attributes = metricAttributes(action);
-            blobStore.getRepositoriesMetrics().inputStreamRetryCompletedCounter().incrementBy(1, attributes);
-            blobStore.getRepositoriesMetrics().inputStreamRetryHistogram().record(numberOfRetries, attributes);
+            final var repositoriesMetrics = blobStore.getRepositoriesMetrics();
+            repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, attributes);
+            repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, attributes);
         }
 
         @Override
@@ -165,7 +166,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
                 "repo_name",
                 blobStore.getRepositoryName(),
                 "operation",
-                "GetObject", // GCS doesn't have a direct equivalent of S3's Operation.GET_OBJECT.getKey() for RetryingInputStream
+                StorageOperation.GET.key(),
                 "purpose",
                 purpose.getKey(),
                 "action",

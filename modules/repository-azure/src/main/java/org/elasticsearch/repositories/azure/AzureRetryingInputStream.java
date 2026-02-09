@@ -61,14 +61,15 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
         @Override
         public void onRetryStarted(StreamAction action) {
-            blobStore.getRepositoriesMetrics().inputStreamRetryEventCounter().incrementBy(1, metricAttributes(action));
+            blobStore.getRepositoriesMetrics().inputStreamRetryStartedCounter().incrementBy(1, metricAttributes(action));
         }
 
         @Override
         public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
             final Map<String, Object> attributes = metricAttributes(action);
-            blobStore.getRepositoriesMetrics().inputStreamRetryCompletedCounter().incrementBy(1, attributes);
-            blobStore.getRepositoriesMetrics().inputStreamRetryHistogram().record(numberOfRetries, attributes);
+            final var repositoriesMetrics = blobStore.getRepositoriesMetrics();
+            repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, attributes);
+            repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, attributes);
         }
 
         @Override

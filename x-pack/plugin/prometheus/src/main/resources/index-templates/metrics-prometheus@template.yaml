@@ -1,7 +1,7 @@
 ---
 version: ${xpack.prometheus.template.version}
 index_patterns: ["metrics-*.prometheus-*"]
-priority: 200
+priority: 150
 data_stream: {}
 allow_auto_create: true
 _meta:

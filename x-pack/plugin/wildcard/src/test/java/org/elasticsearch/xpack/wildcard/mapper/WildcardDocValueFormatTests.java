@@ -41,7 +41,7 @@ public class WildcardDocValueFormatTests extends ESSingleNodeTestCase {
         String indexName = "test";
         String fieldName = "field_name";
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
-        IndexService indexService = createIndex(indexName, settings, "doc", "@timestamp", "type=date", fieldName, "type=wildcard");
+        IndexService indexService = createIndex(indexName, settings, "@timestamp", "type=date", fieldName, "type=wildcard");
 
         var indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.CREATE).source("""
             {

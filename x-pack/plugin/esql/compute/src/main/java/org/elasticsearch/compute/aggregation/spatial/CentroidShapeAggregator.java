@@ -300,20 +300,10 @@ abstract class CentroidShapeAggregator {
             long requiredSize = groupId + 1;
             if (xValues.size() < requiredSize) {
                 xValues = bigArrays.grow(xValues, requiredSize);
-            }
-            if (xDeltas.size() < requiredSize) {
                 xDeltas = bigArrays.grow(xDeltas, requiredSize);
-            }
-            if (yValues.size() < requiredSize) {
                 yValues = bigArrays.grow(yValues, requiredSize);
-            }
-            if (yDeltas.size() < requiredSize) {
                 yDeltas = bigArrays.grow(yDeltas, requiredSize);
-            }
-            if (weights.size() < requiredSize) {
                 weights = bigArrays.grow(weights, requiredSize);
-            }
-            if (shapeTypes.size() < requiredSize) {
                 shapeTypes = bigArrays.grow(shapeTypes, requiredSize);
             }
         }

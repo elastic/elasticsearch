@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -32,7 +33,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator(blockFactory, input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(int channelA) implements ColumnExtractOperator.Evaluator {

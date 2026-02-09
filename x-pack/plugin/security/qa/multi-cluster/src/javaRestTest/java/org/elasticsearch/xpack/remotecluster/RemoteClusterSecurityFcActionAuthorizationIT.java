@@ -395,7 +395,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                     "cross_cluster",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read", "read_cross_cluster").build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read").build() },
                     null
                 )
             )
@@ -560,7 +560,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                     "cross_cluster",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read", "read_cross_cluster").build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read").build() },
                     null
                 )
             )

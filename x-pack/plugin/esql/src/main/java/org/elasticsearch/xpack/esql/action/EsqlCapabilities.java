@@ -250,6 +250,11 @@ public class EsqlCapabilities {
         FN_IP_PREFIX,
 
         /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
+
+        /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
@@ -1080,6 +1085,11 @@ public class EsqlCapabilities {
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
         TO_LOWER_MV,
+
+        /**
+         * Does {@code CHUNK} process all field values?
+         */
+        CHUNK_MV,
 
         /**
          * Use double parameter markers to represent field or function names.

@@ -131,7 +131,7 @@ class ValuesFromManyReader extends ValuesReader {
             convertAndAccumulate();
             for (int f = 0; f < target.length; f++) {
                 try (Block targetBlock = finalBuilders[f].build()) {
-                    target[f] = targetBlock.filter(backwards);
+                    target[f] = targetBlock.filter(false, backwards);
                 }
                 operator.sanityCheckBlock(rowStride[f], backwards.length, target[f], f);
             }

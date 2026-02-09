@@ -14,7 +14,22 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.hamcrest.Matchers.is;
+
 public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
+
+    public void testUriCreation() {
+        var model = createModel("http://eis-gateway.com", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/dense"));
+    }
+
+    public void testUriCreation_WithTrailingSlash() {
+        var model = createModel("http://eis-gateway.com/", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/text/dense"));
+    }
 
     public static ElasticInferenceServiceDenseTextEmbeddingsModel createModel(String url, String modelId) {
         return new ElasticInferenceServiceDenseTextEmbeddingsModel(

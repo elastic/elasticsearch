@@ -30,6 +30,7 @@ import java.util.Map;
 
 public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
 
+    public static final String TEXT_EMBEDDING_PATH = "/api/v1/embed/text/dense";
     private final URI uri;
 
     public ElasticInferenceServiceDenseTextEmbeddingsModel(
@@ -99,7 +100,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/dense");
+            return getBaseURIBuilder().setPath(TEXT_EMBEDDING_PATH).build();
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

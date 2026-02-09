@@ -15,8 +15,8 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 
 /**
- * This aggregator calculates the centroid of a set of cartesian shapes.
- * It is assumed that the cartesian shapes are encoded as WKB BytesRef.
+ * This aggregator calculates the centroid of a set of shapes (geo_shape or cartesian_shape).
+ * It is assumed that the shapes are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that shapes are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node.
  */
@@ -30,7 +30,7 @@ import org.elasticsearch.lucene.spatial.CentroidCalculator;
         @IntermediateState(name = "shapeType", type = "INT") }
 )
 @GroupingAggregator
-class SpatialCentroidCartesianShapeSourceValuesAggregator extends CentroidShapeAggregator {
+class SpatialCentroidShapeSourceValuesAggregator extends CentroidShapeAggregator {
     public static void combine(ShapeCentroidState current, BytesRef wkb) {
         Geometry geometry = SpatialAggregationUtils.decode(wkb);
         CentroidCalculator calculator = new CentroidCalculator();

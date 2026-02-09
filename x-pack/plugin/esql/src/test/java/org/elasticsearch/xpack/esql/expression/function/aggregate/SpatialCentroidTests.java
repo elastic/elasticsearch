@@ -98,9 +98,14 @@ public class SpatialCentroidTests extends SpatialAggregationTestCase {
             double absExpectedY = Math.abs(expectedY);
             double error = Math.max(1e-10, Math.max(absExpectedX, absExpectedY) * 1e-14);
 
+            // Shape types share a unified aggregator (SpatialCentroidShape), while point types have type-specific aggregators
+            String aggregatorName = DataType.isSpatialShape(fieldSupplier.type())
+                ? "SpatialCentroidShape"
+                : standardAggregatorName("SpatialCentroid", fieldSupplier.type());
+
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                standardAggregatorName("SpatialCentroid", fieldSupplier.type()) + "SourceValues",
+                aggregatorName + "SourceValues",
                 expectedType,
                 centroidMatches(expectedX, expectedY, error)
             );

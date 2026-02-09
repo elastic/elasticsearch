@@ -11,10 +11,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianShapeSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoShapeSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -121,8 +120,7 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier();
             };
-            case DataType.GEO_SHAPE -> new SpatialCentroidGeoShapeSourceValuesAggregatorFunctionSupplier();
-            case DataType.CARTESIAN_SHAPE -> new SpatialCentroidCartesianShapeSourceValuesAggregatorFunctionSupplier();
+            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

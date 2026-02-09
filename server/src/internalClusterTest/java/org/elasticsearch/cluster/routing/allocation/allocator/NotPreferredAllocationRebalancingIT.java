@@ -126,7 +126,8 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
             client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
         );
 
-        // spin on checking that enough rebalancing has happened, while asserting that no shards have been moved to the not preferred nodes
+        // wait for cluster state where enough rebalancing has happened, while asserting that no shards have been moved to the not
+        // preferred nodes
         awaitClusterState(state -> {
             var projectRoutingTable = state.routingTable(ProjectId.DEFAULT);
             int countOnPreferred = 0;

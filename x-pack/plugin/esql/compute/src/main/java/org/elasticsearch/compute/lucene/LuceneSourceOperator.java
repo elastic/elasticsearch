@@ -155,7 +155,7 @@ public class LuceneSourceOperator extends LuceneOperator {
      *     </li>
      * </ul>
      */
-    static PartitioningStrategy highSpeedAutoStrategy(Query query) {
+    public static PartitioningStrategy highSpeedAutoStrategy(Query query) {
         Query unwrapped = unwrap(query);
         log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
         return switch (unwrapped) {

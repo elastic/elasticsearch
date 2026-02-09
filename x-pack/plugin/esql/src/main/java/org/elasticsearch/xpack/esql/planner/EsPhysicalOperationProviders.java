@@ -20,6 +20,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -69,6 +70,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -106,6 +108,15 @@ import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFiel
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
+
+    // LuceneTopNSourceOperator auto strategy
+    private static final DataPartitioning.AutoStrategy TOP_N_AUTO_STRATEGY = unusedLimit -> {
+        if (EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled()) {
+            // Use high speed independently of the limit
+            return LuceneSourceOperator::highSpeedAutoStrategy;
+        }
+        return query -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+    };
 
     /**
      * Context of each shard we're operating against. Note these objects are shared across multiple operators as
@@ -333,12 +344,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
              * references to the same underlying data, but we're being a bit paranoid here.
              */
             estimatedPerRowSortSize *= 2;
+
             // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
             // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+                TOP_N_AUTO_STRATEGY,
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,

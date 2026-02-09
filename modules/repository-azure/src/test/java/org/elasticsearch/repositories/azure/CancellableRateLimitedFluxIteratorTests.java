@@ -407,10 +407,11 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         int elementsPerBatch = randomIntBetween(3, 10);
         final var iterator = new CancellableRateLimitedFluxIterator<>(elementsPerBatch, nextItem -> {});
 
+        final int elementsInStream = randomIntBetween(0, elementsPerBatch);
         // producer thread
         runOnNewThread(() -> {
             safeAwait(barrier); // wait for request
-            for (int i = 0; i < randomIntBetween(1, elementsPerBatch); i++) {
+            for (int i = 0; i < elementsInStream; i++) {
                 iterator.onNext(randomInt());
             }
             logger.info("--> Sending completion");
@@ -421,7 +422,9 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         // consumer thread
         runOnNewThread(() -> {
             iterator.onSubscribe(subscription);
-            assertTrue(iterator.hasNext());
+            if (randomBoolean()) {
+                assertEquals(elementsInStream > 0, iterator.hasNext());
+            }
             safeAwait(barrier); // wait for completion
             logger.info("--> Cancelling subscription");
             iterator.cancel();

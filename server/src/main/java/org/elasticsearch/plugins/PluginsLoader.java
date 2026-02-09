@@ -17,6 +17,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.nativeaccess.NativeAccessUtil;
+import org.elasticsearch.plugins.PluginDescriptor.DistributionMode;
 
 import java.io.IOException;
 import java.lang.ModuleLayer.Controller;
@@ -175,10 +176,10 @@ public class PluginsLoader {
     }
 
     private static Predicate<PluginDescriptor> distributionModePredicate(boolean isStatelessMode) {
-        return descriptor -> switch (descriptor.getDistributionMode().orElse(null)) {
+        return descriptor -> switch (descriptor.getDistributionMode().orElse(DistributionMode.ALWAYS)) {
             case STATEFUL_ONLY -> isStatelessMode == false;
             case STATELESS_ONLY -> isStatelessMode;
-            default -> true; // default to true otherwise
+            case ALWAYS -> true; // always loaded
         };
     }
 

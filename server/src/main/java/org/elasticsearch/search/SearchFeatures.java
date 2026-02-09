@@ -45,6 +45,10 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES = new NodeFeature(
         "search.exponential_histogram_querydsl_percentiles"
     );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS = new NodeFeature(
+        "search.exponential_histogram_querydsl_percentile_ranks"
+    );
+    public static final NodeFeature CLOSING_INVALID_PIT_ID = new NodeFeature("closing_invalid_pit_id");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -63,7 +67,9 @@ public final class SearchFeatures implements FeatureSpecification {
             DATE_FORMAT_MISSING_AS_NULL,
             LIMIT_MAX_IDS_FEATURE,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
+            CLOSING_INVALID_PIT_ID
         );
     }
 }

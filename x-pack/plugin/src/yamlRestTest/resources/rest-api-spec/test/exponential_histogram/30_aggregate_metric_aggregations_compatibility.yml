@@ -143,3 +143,16 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { aggregations.max_agg.value: 10.0 }
+
+---
+"Exists query over aggregate_metric_double and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        body:
+          query:
+            exists:
+              field: histo_or_aggregate_metric
+
+  - match: { hits.total.value: 2 }
+

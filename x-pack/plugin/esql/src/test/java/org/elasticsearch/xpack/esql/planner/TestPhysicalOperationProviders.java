@@ -163,7 +163,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 blockFactory.newConstantIntVector(index, page.getPositionCount()),
                 blockFactory.newConstantIntVector(0, page.getPositionCount()),
                 blockFactory.newIntArrayVector(IntStream.range(0, page.getPositionCount()).toArray(), page.getPositionCount()),
-                true
+                DocVector.config().singleSegmentNonDecreasing(true)
             );
             var block = docVector.asBlock();
             index++;
@@ -366,7 +366,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private static void consumeIndexDoc(Consumer<DocBlock> indexDocConsumer, DocVector vector, @Nullable List<Integer> currentList) {
         if (currentList != null) {
-            try (DocVector indexDocVector = vector.filter(currentList.stream().mapToInt(Integer::intValue).toArray())) {
+            try (DocVector indexDocVector = vector.filter(false, currentList.stream().mapToInt(Integer::intValue).toArray())) {
                 indexDocConsumer.accept(indexDocVector.asBlock());
             }
         }

@@ -166,7 +166,8 @@ public class SumTests extends AbstractAggregationTestCase {
             );
 
             var returnType = type == DENSE_VECTOR ? DENSE_VECTOR
-                : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
+                : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE
+                : DataType.LONG;
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

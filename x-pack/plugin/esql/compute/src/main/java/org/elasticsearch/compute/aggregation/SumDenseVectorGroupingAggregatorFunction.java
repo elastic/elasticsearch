@@ -25,9 +25,7 @@ import java.util.List;
  */
 public class SumDenseVectorGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
-    private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-        new IntermediateStateDesc("sum", ElementType.FLOAT)
-    );
+    private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(new IntermediateStateDesc("sum", ElementType.FLOAT));
 
     private final SumDenseVectorGroupingState state;
     private final List<Integer> channels;

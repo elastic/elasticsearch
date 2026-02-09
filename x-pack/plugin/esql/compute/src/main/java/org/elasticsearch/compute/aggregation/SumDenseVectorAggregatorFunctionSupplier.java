@@ -7,10 +7,10 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.operator.DriverContext;
-import java.util.List;
-
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.DriverContext;
+
+import java.util.List;
 
 public class SumDenseVectorAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
 

@@ -67,6 +67,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private static final String METRIC_NAME_LABEL = "__name__";
     private static final String DYNAMIC_TEMPLATE_COUNTER = "counter";
     private static final String DYNAMIC_TEMPLATE_GAUGE = "gauge";
+    private static final String METRICS_DATA_STREAM_PREFIX = "metrics-";
 
     private final Client client;
 
@@ -221,7 +222,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
             builder.endObject();
 
-            String targetIndex = "metrics-" + fullDataset + "-" + namespace;
+            String targetIndex = METRICS_DATA_STREAM_PREFIX + fullDataset + "-" + namespace;
             return new IndexRequest(targetIndex).opType(DocWriteRequest.OpType.CREATE)
                 .setRequireDataStream(true)
                 .source(builder)

@@ -81,7 +81,7 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
             );
             handler.messageReceived(request, channel, task);
         });
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), "index1");
         logger.info("==> Updated allocation tag, waiting for hand off...");
         safeAwait(handOffReceivedLatch);
         logger.info("==> sending some indexing requests");

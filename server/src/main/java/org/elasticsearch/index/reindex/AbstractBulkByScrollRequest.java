@@ -15,10 +15,8 @@ import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -49,6 +47,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private static final TransportVersion BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION = TransportVersion.fromName(
         "bulk_by_scroll_request_includes_relocation_field"
     );
+    private static final TransportVersion REINDEX_RELOCATION_RESUME = TransportVersion.fromName("reindex_relocation_resume");
 
     /**
      * The search to be executed.
@@ -111,6 +110,12 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private int slices = DEFAULT_SLICES;
 
+    /**
+     * Resume information for continuing a task from a previous run.
+     */
+    @Nullable
+    private ResumeInfo resumeInfo;
+
     public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
         super(in);
         searchRequest = new SearchRequest(in);
@@ -127,6 +132,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             // N.B. Prior to this transport version, shouldStoreResult was not serialized (this does not seem to have caused any problems)
             shouldStoreResult = in.readBoolean();
             eligibleForRelocationOnShutdown = in.readBoolean();
+        }
+        if (in.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            resumeInfo = in.readOptionalWriteable(ResumeInfo::new);
         }
     }
 
@@ -427,6 +435,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
+     * Sets resumption data to continue from a previously-acquired scroll ID.
+     */
+    public Self setResumeInfo(ResumeInfo resumeInfo) {
+        this.resumeInfo = Objects.requireNonNull(resumeInfo);
+        return self();
+    }
+
+    /**
+     * Returns the resumption information for this request, if any.
+     */
+    public Optional<ResumeInfo> getResumeInfo() {
+        return Optional.ofNullable(resumeInfo);
+    }
+
+    /**
      * Build a new request for a slice of the parent request.
      */
     public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices);
@@ -485,6 +508,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             out.writeBoolean(shouldStoreResult);
             out.writeBoolean(eligibleForRelocationOnShutdown);
         }
+        if (out.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            out.writeOptionalWriteable(resumeInfo);
+        }
     }
 
     /**
@@ -502,139 +528,5 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public String getDescription() {
         return this.toString();
-    }
-
-    /**
-     * Holds resume state information for a task to be resumed from a previous run. It may contain a WorkerResumeInfo which keeps the state
-     * for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
-     */
-    public static class ResumeInfo implements Writeable {
-        @Nullable
-        private final WorkerResumeInfo worker;
-        @Nullable
-        private final Map<Integer, SliceResumeInfo> slices;
-
-        public ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceResumeInfo> slices) {
-            validate(worker, slices);
-            this.worker = worker;
-            this.slices = slices != null ? Map.copyOf(slices) : null;
-        }
-
-        public ResumeInfo(StreamInput in) throws IOException {
-            this.worker = in.readOptionalNamedWriteable(WorkerResumeInfo.class);
-            this.slices = in.readOptionalImmutableMap(StreamInput::readVInt, SliceResumeInfo::new);
-            validate(this.worker, this.slices);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalNamedWriteable(worker);
-            out.writeOptionalMap(slices, StreamOutput::writeVInt, (o, v) -> v.writeTo(o));
-        }
-
-        public int getTotalSlices() {
-            return slices == null ? 1 : slices.size();
-        }
-
-        public Optional<WorkerResumeInfo> getWorker() {
-            return Optional.ofNullable(worker);
-        }
-
-        public Optional<SliceResumeInfo> getSlice(int sliceId) {
-            return slices == null ? Optional.empty() : Optional.ofNullable(slices.get(sliceId));
-        }
-
-        private void validate(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceResumeInfo> slices) {
-            if (worker == null && (slices == null || slices.isEmpty())) {
-                throw new IllegalArgumentException("resume info requires a worker resume info or non-empty slices resume info");
-            }
-            if (worker != null && slices != null) {
-                throw new IllegalArgumentException("resume info cannot contain both a worker resume info and slices resume info");
-            }
-        }
-    }
-
-    /**
-     * Resume information for a single worker of a BulkByScrollTask.
-     */
-    public interface WorkerResumeInfo extends NamedWriteable {
-        BulkByScrollTask.Status status();
-    }
-
-    /**
-     * Resume information for a scroll-based BulkByScrollTask worker.
-     */
-    public record ScrollWorkerResumeInfo(String scrollId, BulkByScrollTask.Status status) implements WorkerResumeInfo {
-        public static final String NAME = "ScrollWorkerResumeInfo";
-
-        public ScrollWorkerResumeInfo {
-            Objects.requireNonNull(scrollId, "scrollId cannot be null");
-            Objects.requireNonNull(status, "status cannot be null");
-        }
-
-        public ScrollWorkerResumeInfo(StreamInput in) throws IOException {
-            this(in.readString(), new BulkByScrollTask.Status(in));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(scrollId);
-            status.writeTo(out);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
-
-    /*
-     * Holds the result of a worker task, either with successful response or a failure exception */
-    public record WorkerResult(@Nullable BulkByScrollResponse response, @Nullable Exception failure) implements Writeable {
-
-        public WorkerResult {
-            if (response != null && failure != null) {
-                throw new IllegalArgumentException("worker result cannot contain both a response and failure");
-            }
-            if (response == null && failure == null) {
-                throw new IllegalArgumentException("worker result requires a response or failure");
-            }
-        }
-
-        public WorkerResult(StreamInput in) throws IOException {
-            this(in.readOptional(BulkByScrollResponse::new), in.readOptionalException());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(response);
-            out.writeOptionalException(failure);
-        }
-    }
-
-    /**
-     * Resume information for a single slice of a BulkByScrollTask. It contains either the WorkerResumeInfo for the worker that processed
-     * the slice if the task was not completed, or the final result of the slice if it has completed.
-     */
-    public record SliceResumeInfo(int sliceId, @Nullable WorkerResumeInfo resumeInfo, @Nullable WorkerResult result) implements Writeable {
-        public SliceResumeInfo {
-            if (resumeInfo != null && result != null) {
-                throw new IllegalArgumentException("slice resume info cannot contain both a resume info and result");
-            }
-            if (resumeInfo == null && result == null) {
-                throw new IllegalArgumentException("slice resume info requires a resume info or result");
-            }
-        }
-
-        public SliceResumeInfo(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readOptionalNamedWriteable(WorkerResumeInfo.class), in.readOptionalWriteable(WorkerResult::new));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(sliceId);
-            out.writeOptionalNamedWriteable(resumeInfo);
-            out.writeOptionalWriteable(result);
-        }
     }
 }

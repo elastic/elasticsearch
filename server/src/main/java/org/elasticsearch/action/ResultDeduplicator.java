@@ -63,6 +63,11 @@ public final class ResultDeduplicator<T, R> {
         return requests.size();
     }
 
+    /*
+     * @param request Request to check
+     * @return true if the given request is currently tracked by this deduplicator, i.e. a request equal to the given one has been passed to
+     * {@link #executeOnce} but has not yet completed.
+     */
     public boolean hasRequest(T request) {
         return requests.containsKey(request);
     }

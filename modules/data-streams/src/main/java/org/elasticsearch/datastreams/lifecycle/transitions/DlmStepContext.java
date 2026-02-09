@@ -69,8 +69,8 @@ public record DlmStepContext(
     }
 
     /*
-     * Returns true if the request is in-progress (deduplicator is currently
-     * tracking the provided request for the project associated with this context),
+     * @return true if the request is in-progress (deduplicator is currently
+     * tracking the provided projectId, request tuple),
      * false otherwise.
      */
     public boolean deduplicatorHasRequest(ProjectId projectId, TransportRequest request) {

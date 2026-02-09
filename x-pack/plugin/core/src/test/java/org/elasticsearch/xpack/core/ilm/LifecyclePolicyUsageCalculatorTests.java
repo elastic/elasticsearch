@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
 
@@ -46,7 +47,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
-            equalTo(new ItemUsage(List.of(), List.of(), List.of()))
+            sameInstance(ItemUsage.EMPTY)
         );
     }
 
@@ -64,7 +65,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
 
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
-            equalTo(new ItemUsage(List.of(), List.of(), List.of()))
+            sameInstance(ItemUsage.EMPTY)
         );
     }
 
@@ -86,7 +87,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
 
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
-            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of()))
+            equalTo(new ItemUsage(List.of("myindex"), null, null))
         );
     }
 
@@ -123,7 +124,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
 
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
-            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
+            equalTo(new ItemUsage(List.of("myindex"), null, List.of("mytemplate")))
         );
     }
 
@@ -215,7 +216,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
         // Test where policy exists and is used by an index, datastream, and template
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, project, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
-            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
+            equalTo(new ItemUsage(List.of("myindex"), null, List.of("mytemplate")))
         );
     }
 }

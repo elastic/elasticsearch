@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -31,8 +32,8 @@ public class ConstantNull implements BlockLoader {
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
-        return READER;
+    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+        return () -> READER;
     }
 
     @Override

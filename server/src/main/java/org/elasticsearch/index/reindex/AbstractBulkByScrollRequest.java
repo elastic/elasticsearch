@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -27,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -41,6 +44,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
     private static final int DEFAULT_SLICES = 1;
+    private static final TransportVersion BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION = TransportVersion.fromName(
+        "bulk_by_scroll_request_includes_relocation_field"
+    );
+    private static final TransportVersion REINDEX_RELOCATION_RESUME = TransportVersion.fromName("reindex_relocation_resume");
 
     /**
      * The search to be executed.
@@ -96,10 +103,18 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private boolean shouldStoreResult;
 
+    private boolean eligibleForRelocationOnShutdown;
+
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
     private int slices = DEFAULT_SLICES;
+
+    /**
+     * Resume information for continuing a task from a previous run.
+     */
+    @Nullable
+    private ResumeInfo resumeInfo;
 
     public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
         super(in);
@@ -113,6 +128,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
         slices = in.readVInt();
+        if (in.getTransportVersion().supports(BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION)) {
+            // N.B. Prior to this transport version, shouldStoreResult was not serialized (this does not seem to have caused any problems)
+            shouldStoreResult = in.readBoolean();
+            eligibleForRelocationOnShutdown = in.readBoolean();
+        }
+        if (in.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            resumeInfo = in.readOptionalWriteable(ResumeInfo::new);
+        }
     }
 
     /**
@@ -351,7 +374,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * Should this task store its result after it has finished?
+     * Should this task store its result in the tasks index after it has finished?
      */
     public Self setShouldStoreResult(boolean shouldStoreResult) {
         this.shouldStoreResult = shouldStoreResult;
@@ -361,6 +384,20 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public boolean getShouldStoreResult() {
         return shouldStoreResult;
+    }
+
+    /**
+     * Returns whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public boolean isEligibleForRelocationOnShutdown() {
+        return eligibleForRelocationOnShutdown;
+    }
+
+    /**
+     * Sets whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public void setEligibleForRelocationOnShutdown(boolean eligibleForRelocationOnShutdown) {
+        this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
     }
 
     /**
@@ -395,6 +432,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     public int getSlices() {
         return slices;
+    }
+
+    /**
+     * Sets resumption data to continue from a previously-acquired scroll ID.
+     */
+    public Self setResumeInfo(ResumeInfo resumeInfo) {
+        this.resumeInfo = Objects.requireNonNull(resumeInfo);
+        return self();
+    }
+
+    /**
+     * Returns the resumption information for this request, if any.
+     */
+    public Optional<ResumeInfo> getResumeInfo() {
+        return Optional.ofNullable(resumeInfo);
     }
 
     /**
@@ -435,7 +487,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers, eligibleForRelocationOnShutdown);
     }
 
     @Override
@@ -451,6 +503,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
         out.writeVInt(slices);
+        if (out.getTransportVersion().supports(BULK_BY_SCROLL_REQUEST_INCLUDES_RELOCATION_FIELD_TRANSPORT_VERSION)) {
+            // N.B. Prior to this transport version, shouldStoreResult was not serialized (this does not seem to have caused any problems)
+            out.writeBoolean(shouldStoreResult);
+            out.writeBoolean(eligibleForRelocationOnShutdown);
+        }
+        if (out.getTransportVersion().supports(REINDEX_RELOCATION_RESUME)) {
+            out.writeOptionalWriteable(resumeInfo);
+        }
     }
 
     /**

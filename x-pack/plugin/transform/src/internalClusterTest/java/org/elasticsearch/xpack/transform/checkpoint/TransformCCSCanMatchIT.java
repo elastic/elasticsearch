@@ -367,7 +367,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             }
             TransformConfig transformConfig = TransformConfig.builder()
                 .setId(transformId)
-                .setSource(new SourceConfig(new String[] { "local_*", "*:remote_*" }, queryConfig, Map.of()))
+                .setSource(new SourceConfig(new String[] { "local_*", "*:remote_*" }, queryConfig, Map.of(), null))
                 .setDest(new DestConfig(transformId + "-dest", null, null))
                 .setLatestConfig(new LatestConfig(List.of("position"), "@timestamp"))
                 .build();

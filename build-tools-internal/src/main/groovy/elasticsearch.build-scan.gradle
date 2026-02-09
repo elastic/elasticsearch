@@ -39,6 +39,7 @@ develocity {
 
     def fips = buildParams.inFipsJvm
     def gitRevision = buildParams.gitRevision
+    def testSeed = buildParams.testSeed
 
     background {
       tag OS.current().name()
@@ -65,6 +66,8 @@ develocity {
 
         value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
         tag System.getenv('BUILDKITE_PIPELINE_SLUG')
+
+        value 'tests.seed', testSeed
 
         value 'Job Name', jobName
         tag jobName

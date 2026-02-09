@@ -545,7 +545,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(loader, instanceOf(DateScriptBlockDocValuesReader.DateScriptBlockLoader.class));
 
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
                 assertThat(columnAtATimeLoader, instanceOf(DateScriptBlockDocValuesReader.class));
 
                 var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());

@@ -538,7 +538,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 scores,
                 bulkSize,
                 limit,
-                i,
                 ay,
                 ly,
                 y1,
@@ -623,7 +622,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 scores,
                 bulkSize,
                 limit,
-                i,
                 ay,
                 ly,
                 y1,
@@ -641,28 +639,27 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float[] scores,
         int bulkSize,
         int limit,
-        long offset,
         float ay,
         float ly,
         float y1,
         float maxScore
     ) {
         for (int j = limit; j < bulkSize; j++) {
-            float ax = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN), offset + (long) j * Float.BYTES);
+            float ax = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN), (long) j * Float.BYTES);
 
             float lx = segment.get(
                 ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                offset + 4L * bulkSize + (long) j * Float.BYTES
+                4L * bulkSize + (long) j * Float.BYTES
             ) - ax;
 
             int targetComponentSum = segment.get(
                 ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                offset + 8L * bulkSize + (long) j * Integer.BYTES
+                8L * bulkSize + (long) j * Integer.BYTES
             );
 
             float additionalCorrection = segment.get(
                 ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                offset + 12L * bulkSize + (long) j * Float.BYTES
+                12L * bulkSize + (long) j * Float.BYTES
             );
 
             float qcDist = scores[j];

@@ -571,7 +571,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
                 this::minimalMapping,
                 b -> {},
                 this::writeField,
-                Assert::assertNotNull
+                Assert::assertNull
             )
         );
     }

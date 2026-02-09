@@ -73,7 +73,7 @@ public record DlmStepContext(
      * tracking the provided projectId, request tuple),
      * false otherwise.
      */
-    public boolean deduplicatorHasRequest(ProjectId projectId, TransportRequest request) {
+    public boolean isRequestInProgress(ProjectId projectId, TransportRequest request) {
         return transportActionsDeduplicator.hasRequest(Tuple.tuple(projectId, request));
     }
 }

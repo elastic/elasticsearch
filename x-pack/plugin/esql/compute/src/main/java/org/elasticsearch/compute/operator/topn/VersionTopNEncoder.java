@@ -40,7 +40,7 @@ class VersionTopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "VersionTopNEncoder";
+        return "Version";
     }
 
     @Override

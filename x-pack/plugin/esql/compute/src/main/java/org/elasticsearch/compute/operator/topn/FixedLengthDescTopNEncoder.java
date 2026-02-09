@@ -10,10 +10,10 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
-class FixedLengthTopNEncoder extends SortableTopNEncoder {
+class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
     private final int length;
 
-    FixedLengthTopNEncoder(int length) {
+    FixedLengthDescTopNEncoder(int length) {
         this.length = length;
     }
 
@@ -22,7 +22,9 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }
+        int length = bytesRefBuilder.length();
         bytesRefBuilder.append(value);
+        bitwiseNot(bytesRefBuilder.bytes(), length, bytesRefBuilder.length());
         return length;
     }
 
@@ -36,12 +38,19 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
         scratch.length = length;
         bytes.offset += length;
         bytes.length -= length;
+        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + length);
         return scratch;
+    }
+
+    void bitwiseNot(byte[] bytes, int from, int to) {
+        for (int i = from; i < to; i++) {
+            bytes[i] = (byte) ~bytes[i];
+        }
     }
 
     @Override
     public String toString() {
-        return "FixedLength[" + length + "]";
+        return "FixedLengthDesc[" + length + "]";
     }
 
     @Override

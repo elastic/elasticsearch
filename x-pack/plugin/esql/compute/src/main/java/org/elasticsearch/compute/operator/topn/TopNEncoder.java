@@ -23,6 +23,13 @@ public interface TopNEncoder {
      * An encoder that encodes values such that sorting the bytes sorts the values.
      */
     DefaultSortableTopNEncoder DEFAULT_SORTABLE = new DefaultSortableTopNEncoder();
+    // NOCOMMIT rename to DEFAULT_SORTABLE_ASC
+
+    /**
+     * An encoder that encodes values such that sorting the bytes sorts the values.
+     */
+    DefaultSortableDescTopNEncoder DEFAULT_SORTABLE_DESC = new DefaultSortableDescTopNEncoder();
+
     /**
      * An encoder that encodes values as compactly as possible without making the
      * encoded bytes sortable.
@@ -32,6 +39,13 @@ public interface TopNEncoder {
      * An encoder for IP addresses.
      */
     FixedLengthTopNEncoder IP = new FixedLengthTopNEncoder(InetAddressPoint.BYTES);
+    // NOCOMMIT rename to IP_ASC
+
+    /**
+     * An encoder for IP addresses.
+     */
+    FixedLengthDescTopNEncoder IP_DESC = new FixedLengthDescTopNEncoder(InetAddressPoint.BYTES);
+
     /**
      * An encoder for UTF-8 text.
      */

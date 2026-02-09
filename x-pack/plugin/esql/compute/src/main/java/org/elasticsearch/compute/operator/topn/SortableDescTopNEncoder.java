@@ -14,42 +14,25 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
  */
-public abstract class SortableTopNEncoder implements TopNEncoder {
-    // NOCOMMIT rename to SortableAscTopNEncoder
+public abstract class SortableDescTopNEncoder implements TopNEncoder {
     @Override
     public final void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
-        NumericUtils.longToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
+        TopNEncoder.DEFAULT_SORTABLE.encodeLong(~value, bytesRefBuilder);
     }
 
     @Override
     public final long decodeLong(BytesRef bytes) {
-        if (bytes.length < Long.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        long v = NumericUtils.sortableBytesToLong(bytes.bytes, bytes.offset);
-        bytes.offset += Long.BYTES;
-        bytes.length -= Long.BYTES;
-        return v;
+        return ~TopNEncoder.DEFAULT_SORTABLE.decodeLong(bytes);
     }
 
     @Override
     public final void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
-        NumericUtils.intToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
+        TopNEncoder.DEFAULT_SORTABLE.encodeInt(~value, bytesRefBuilder);
     }
 
     @Override
     public final int decodeInt(BytesRef bytes) {
-        if (bytes.length < Integer.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        int v = NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset);
-        bytes.offset += Integer.BYTES;
-        bytes.length -= Integer.BYTES;
-        return v;
+        return ~TopNEncoder.DEFAULT_SORTABLE.decodeInt(bytes);
     }
 
     @Override
@@ -74,17 +57,11 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.append(value ? (byte) 1 : (byte) 0);
+        TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value == false, bytesRefBuilder);
     }
 
     @Override
     public final boolean decodeBoolean(BytesRef bytes) {
-        if (bytes.length < Byte.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        boolean v = bytes.bytes[bytes.offset] == 1;
-        bytes.offset += Byte.BYTES;
-        bytes.length -= Byte.BYTES;
-        return v;
+        return TopNEncoder.DEFAULT_SORTABLE.decodeBoolean(bytes) == false;
     }
 }

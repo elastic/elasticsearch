@@ -30,7 +30,7 @@ class UnsupportedTypesTopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "UnsupportedTypesTopNEncoder";
+        return "Unsupported";
     }
 
     @Override

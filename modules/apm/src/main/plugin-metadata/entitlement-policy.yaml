@@ -87,6 +87,9 @@ org.elasticsearch.telemetry.apm:
       - path: "/proc/self/cgroup"
         mode: read
         platform: linux
+      - path: "/proc/meminfo"
+        mode: read
+        platform: linux
       - path: "/sys/fs/cgroup"
         mode: read
         platform: linux

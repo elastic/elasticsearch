@@ -12,9 +12,12 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 /**
  * Metadata about a posting list for a centroid.
  *
- * @param offset          The offset of the posting list in the index.
- * @param length          The length of the posting list in bytes.
- * @param centroidOrdinal The ordinal of the centroid.
- * @param centroidScore   The score of the centroid.
+ * @param offset                    The offset of the posting list in the index.
+ * @param length                    The length of the posting list in bytes.
+ * @param queryCentroidOrdinal      The ordinal of the centroid that relates to the query quantization, may be the same as the centroid
+ *                                  used for the document, may be different.
+ * @param documentCentroidScore     The score of the document postings centroid and the query vector
  */
-public record PostingMetadata(long offset, long length, int centroidOrdinal, float centroidScore) {}
+public record PostingMetadata(long offset, long length, int queryCentroidOrdinal, float documentCentroidScore) {
+    public static final int NO_ORDINAL = -1;
+}

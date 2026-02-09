@@ -10,7 +10,7 @@ ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key
 
 // tag::basic-result[]
 parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
-www.example.com | fragment | /foo.gif | gif | 80 | key1=val1&key2=val2 | http | myusername:mypassword | myusername | mypassword
+www.example.com      | fragment               | /foo.gif           | gif                     |                 80 | key1=val1&key2=val2 | http                 | myusername:mypassword   | myusername             | mypassword
 // end::basic-result[]
 ;
 
@@ -145,4 +145,97 @@ warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treati
 
 parts.scheme:keyword | parts.domain:keyword | parts.path:keyword
 null                 | null                 | null
+;
+
+
+dottedPrefix
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS a.b.c = uri
+| KEEP a.b.c.port, a.b.c.scheme, a.b.c.domain
+;
+
+a.b.c.port:integer | a.b.c.scheme:keyword | a.b.c.domain:keyword
+8080               | https                | www.example.com
+;
+
+
+dottedLiteralPrefix
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS `a.b.c` = uri
+| KEEP `a.b.c`.port, `a.b.c`.scheme, `a.b.c`.domain
+;
+
+a.b.c.port:integer | a.b.c.scheme:keyword | a.b.c.domain:keyword
+8080               | https              | www.example.com
+;
+
+
+literalPrefix
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS `a` = uri
+| KEEP `a`.port, `a`.scheme, `a`.domain
+;
+
+a.port:integer | a.scheme:keyword | a.domain:keyword
+8080           | https          | www.example.com
+;
+
+
+nameShadowing
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080", x = 5, `x.port` = "shadowed"
+| URI_PARTS x = uri
+| KEEP x.port, x.scheme, x.domain, x
+;
+
+x.port:integer | x.scheme:keyword | x.domain:keyword | x:integer
+8080           | https            | www.example.com  | 5       
+;
+
+
+shadowingAnotherUriParts
+required_capability: uri_parts_command
+
+ROW uri = "https://abc.asd:456", uri2 = "http://def.ghi:789"
+| URI_PARTS x = uri
+| URI_PARTS `x.port` = uri
+| URI_PARTS x = uri2
+| KEEP x.port, `x.port`.port
+;
+
+x.port:integer | x.port.port:integer
+789            | 456
+;
+
+
+uriPartsWithDrop
+required_capability: uri_parts_command
+
+ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
+| URI_PARTS parts = uri
+| DROP uri, parts.fragment, parts.path, parts.extension, parts.query, parts.user_info, parts.username, parts.password
+;
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+www.example.com      |                 80 | http
+;
+
+
+statsTest
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080/path1"
+| URI_PARTS parts = uri
+| STATS VALUES(parts.port) BY parts.domain
+;
+
+VALUES(parts.port):integer | parts.domain:keyword
+8080                       | www.example.com
 ;

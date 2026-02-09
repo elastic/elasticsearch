@@ -73,7 +73,7 @@ class ValuesFromSingleReader extends ValuesReader {
             );
             final int[] backwards = docs.shardSegmentDocMapBackwards();
             for (int i = 0; i < unshuffled.length; i++) {
-                target[i] = unshuffled[i].filter(backwards);
+                target[i] = unshuffled[i].filter(false, backwards);
                 unshuffled[i].close();
                 unshuffled[i] = null;
             }

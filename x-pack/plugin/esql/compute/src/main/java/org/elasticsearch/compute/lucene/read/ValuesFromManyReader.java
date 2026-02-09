@@ -142,7 +142,7 @@ class ValuesFromManyReader extends ValuesReader {
                 try (Block targetBlock = finalBuilders[f].build()) {
                     assert targetBlock.getPositionCount() == backwards.length
                         : targetBlock.getPositionCount() + " == " + backwards.length + " " + targetBlock;
-                    target[f] = targetBlock.filter(backwards);
+                    target[f] = targetBlock.filter(false, backwards);
                 }
                 operator.sanityCheckBlock(current[f].rowStride, backwards.length, target[f], f);
             }

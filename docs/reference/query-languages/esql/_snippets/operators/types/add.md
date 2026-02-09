@@ -15,7 +15,6 @@
 | dense_vector | double | dense_vector |
 | dense_vector | integer | dense_vector |
 | dense_vector | long | dense_vector |
-| dense_vector | unsigned_long | dense_vector |
 | double | dense_vector | dense_vector |
 | double | double | double |
 | double | integer | double |
@@ -31,6 +30,5 @@
 | time_duration | date | date |
 | time_duration | date_nanos | date_nanos |
 | time_duration | time_duration | time_duration |
-| unsigned_long | dense_vector | dense_vector |
 | unsigned_long | unsigned_long | unsigned_long |
 

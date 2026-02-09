@@ -100,40 +100,6 @@ public class DenseVectorTestCaseHelper {
             );
         }));
 
-        // Vector + Unsigned Long
-        suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DataType.UNSIGNED_LONG), () -> {
-            int dimensions = between(64, 128);
-            List<Float> vector = randomDenseVector(dimensions);
-            long scalar = randomLong();
-            List<Float> expected = vectorScalarOp.apply(vector, scalar);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
-                    new TestCaseSupplier.TypedData(scalar, DataType.UNSIGNED_LONG, "scalar").forceLiteral()
-                ),
-                evaluatorName + "[lhs=Attribute[channel=0], rhs=" + (double) scalar + "]",
-                DENSE_VECTOR,
-                equalTo(expected)
-            );
-        }));
-
-        // Unsigned Long + Vector
-        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DENSE_VECTOR), () -> {
-            int dimensions = between(64, 128);
-            List<Float> vector = randomDenseVector(dimensions);
-            long scalar = randomLong();
-            List<Float> expected = scalarVectorOp.apply(scalar, vector);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(scalar, DataType.UNSIGNED_LONG, "scalar").forceLiteral(),
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
-                ),
-                evaluatorName + "[lhs=" + (double) scalar + ", rhs=Attribute[channel=0]]",
-                DENSE_VECTOR,
-                equalTo(expected)
-            );
-        }));
-
         // Vector + Double
         suppliers.add(new TestCaseSupplier(List.of(DENSE_VECTOR, DataType.DOUBLE), () -> {
             int dimensions = between(64, 128);

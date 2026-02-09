@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrNumeric;
 
 /**
@@ -79,13 +80,17 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         );
     }
 
+    private static boolean isSupportedScalar(DataType dataType) {
+        return isNullOrNumeric(dataType) && dataType != UNSIGNED_LONG;
+    }
+
     @Override
     protected TypeResolution checkCompatibility() {
         // dense_vectors arithmetic only supported when both arguments are dense_vectors or one argument is numeric or null
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
         if (leftType == DENSE_VECTOR || rightType == DENSE_VECTOR) {
-            if ((leftType == DENSE_VECTOR || isNullOrNumeric(leftType)) && (rightType == DENSE_VECTOR || isNullOrNumeric(rightType))) {
+            if ((leftType == DENSE_VECTOR || isSupportedScalar(leftType)) && (rightType == DENSE_VECTOR || isSupportedScalar(rightType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
             return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));

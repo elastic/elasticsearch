@@ -107,11 +107,11 @@ public class SnapshotHistoryStore implements Closeable {
                         ),
                         e
                     );
-                    throw e;
+                    throw new ElasticsearchException(e);
                 }
                 if (logger.isTraceEnabled()) {
                     logger.trace(
-                        "about to index [{}] SLM history items",
+                        "about to index SLM history items: [{}]",
                         request.requests()
                             .stream()
                             .map(dwr -> ((IndexRequest) dwr).sourceAsMap())

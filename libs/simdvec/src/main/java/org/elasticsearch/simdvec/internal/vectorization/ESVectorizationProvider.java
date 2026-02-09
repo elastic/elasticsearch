@@ -10,7 +10,6 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -42,9 +41,6 @@ public abstract class ESVectorizationProvider {
         int dataLength,
         int bulkSize
     ) throws IOException;
-
-    /** Create a new {@link ES91Int4VectorsScorer} for the given {@link IndexInput}. */
-    public abstract ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
     /** Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}. */
     public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;

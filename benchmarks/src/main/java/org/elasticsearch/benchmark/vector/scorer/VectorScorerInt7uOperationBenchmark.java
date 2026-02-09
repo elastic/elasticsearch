@@ -97,7 +97,7 @@ public class VectorScorerInt7uOperationBenchmark {
             case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
             case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
             default -> throw new IllegalArgumentException(function.toString());
-        }, VectorSimilarityFunctions.DataType.INT7, VectorSimilarityFunctions.Operation.SINGLE);
+        }, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown

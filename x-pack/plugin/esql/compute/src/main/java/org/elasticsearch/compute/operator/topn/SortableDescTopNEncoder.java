@@ -64,4 +64,10 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
     public final boolean decodeBoolean(BytesRef bytes) {
         return TopNEncoder.DEFAULT_SORTABLE.decodeBoolean(bytes) == false;
     }
+
+    protected void bitwiseNot(byte[] bytes, int from, int to) {
+        for (int i = from; i < to; i++) {
+            bytes[i] = (byte) ~bytes[i];
+        }
+    }
 }

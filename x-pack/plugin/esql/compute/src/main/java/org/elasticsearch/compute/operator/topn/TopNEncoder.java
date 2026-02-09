@@ -50,6 +50,13 @@ public interface TopNEncoder {
      * An encoder for UTF-8 text.
      */
     UTF8TopNEncoder UTF8 = new UTF8TopNEncoder();
+    // NOCOMMIT rename to UTF8_ASC
+
+    /**
+     * An encoder for UTF-8 text.
+     */
+    UTF8DescTopNEncoder UTF8_DESC = new UTF8DescTopNEncoder();
+
     /**
      * An encoder for semver versions.
      */

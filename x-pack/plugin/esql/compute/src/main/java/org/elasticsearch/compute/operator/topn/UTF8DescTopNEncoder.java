@@ -14,16 +14,8 @@ import java.util.Arrays;
 
 /**
  * Encodes utf-8 strings as {@code nul} terminated strings.
- * <p>
- *     Utf-8 can contain {@code nul} aka {@code 0x00} so we wouldn't be able
- *     to use that as a terminator. But we fix this by adding {@code 1} to all
- *     values less than the continuation byte. This removes some of the
- *     self-synchronizing nature of utf-8, but we don't need that here. When
- *     we decode we undo out munging so all consumers just get normal utf-8.
- * </p>
  */
-final class UTF8TopNEncoder extends SortableTopNEncoder {
-
+final class UTF8DescTopNEncoder extends SortableDescTopNEncoder {
     private static final int CONTINUATION_BYTE = 0b1000_0000;
     static final byte TERMINATOR = 0x00;
 
@@ -39,9 +31,9 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
             if ((b & CONTINUATION_BYTE) == 0) {
                 b++;
             }
-            bytesRefBuilder.append(b);
+            bytesRefBuilder.append((byte) ~b);
         }
-        bytesRefBuilder.append(TERMINATOR);
+        bytesRefBuilder.append((byte) ~TERMINATOR);
         return value.length + 1;
     }
 
@@ -51,22 +43,31 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
         scratch.offset = bytes.offset;
         int i = bytes.offset;
         decode: while (true) {
-            int leadByte = bytes.bytes[i] & 0xff;
+            int leadByte = ~bytes.bytes[i] & 0xff;
             int numBytes = utf8CodeLength[leadByte];
             switch (numBytes) {
                 case 0:
                     break decode;
                 case 1:
-                    bytes.bytes[i]--;
+                    bytes.bytes[i] = (byte) (~bytes.bytes[i] - 1);
                     i++;
                     break;
                 case 2:
+                    bytes.bytes[i] = (byte) ~bytes.bytes[i];
+                    bytes.bytes[i + 1] = (byte) ~bytes.bytes[i + 1];
                     i += 2;
                     break;
                 case 3:
+                    bytes.bytes[i] = (byte) ~bytes.bytes[i];
+                    bytes.bytes[i + 1] = (byte) ~bytes.bytes[i + 1];
+                    bytes.bytes[i + 2] = (byte) ~bytes.bytes[i + 2];
                     i += 3;
                     break;
                 case 4:
+                    bytes.bytes[i] = (byte) ~bytes.bytes[i];
+                    bytes.bytes[i + 1] = (byte) ~bytes.bytes[i + 1];
+                    bytes.bytes[i + 2] = (byte) ~bytes.bytes[i + 2];
+                    bytes.bytes[i + 3] = (byte) ~bytes.bytes[i + 3];
                     i += 4;
                     break;
                 default:
@@ -78,6 +79,7 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
         bytes.length -= scratch.length + 1;
         return scratch;
     }
+
 
     @Override
     public TopNEncoder toSortable() {
@@ -91,7 +93,7 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "Utf8";
+        return "Utf8Desc";
     }
 
     // This section very inspired by Lucene's UnicodeUtil

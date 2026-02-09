@@ -42,12 +42,6 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
         return scratch;
     }
 
-    void bitwiseNot(byte[] bytes, int from, int to) {
-        for (int i = from; i < to; i++) {
-            bytes[i] = (byte) ~bytes[i];
-        }
-    }
-
     @Override
     public String toString() {
         return "FixedLengthDesc[" + length + "]";

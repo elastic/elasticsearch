@@ -1171,7 +1171,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
             .stream()
             .collect(Collectors.joining(", "));
-        String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[UTF8, FixedLength["
+        String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[Utf8, FixedLength["
             + fixedLength
             + "]], sortOrders=["
             + sorts

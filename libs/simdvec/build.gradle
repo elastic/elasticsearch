@@ -21,6 +21,10 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
+  testImplementation project(':x-pack:plugin:searchable-snapshots')
+  testImplementation project(':x-pack:plugin:blob-cache')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
 }
 
 // compileMain21Java does not exist within idea (see MrJarPlugin) so we cannot reference directly by name

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -4434,6 +4435,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof Literal litExpression) {
             var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
+            }
+        } else if (queryVectorExpression instanceof ToDenseVector asDenseVector) {
+            var thisValue = ((Literal) asDenseVector.field()).value();
             if (thisValue instanceof Collection<?> litCollection) {
                 assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
             }

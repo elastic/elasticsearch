@@ -69,62 +69,62 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testEmptyIntBlock() throws IOException {
         assertEmptyBlock(blockFactory.newIntBlockBuilder(0).build());
         try (IntBlock toFilter = blockFactory.newIntBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter());
+            assertEmptyBlock(toFilter.filter(false));
         }
         assertEmptyBlock(blockFactory.newIntVectorBuilder(0).build().asBlock());
         try (IntVector toFilter = blockFactory.newIntVectorBuilder(0).appendInt(randomInt()).build()) {
-            assertEmptyBlock(toFilter.filter().asBlock());
+            assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
 
     public void testEmptyLongBlock() throws IOException {
         assertEmptyBlock(blockFactory.newLongBlockBuilder(0).build());
         try (LongBlock toFilter = blockFactory.newLongBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter());
+            assertEmptyBlock(toFilter.filter(false));
         }
         assertEmptyBlock(blockFactory.newLongVectorBuilder(0).build().asBlock());
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(0).appendLong(randomLong()).build()) {
-            assertEmptyBlock(toFilter.filter().asBlock());
+            assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
 
     public void testEmptyFloatBlock() throws IOException {
         assertEmptyBlock(blockFactory.newFloatBlockBuilder(0).build());
         try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter());
+            assertEmptyBlock(toFilter.filter(false));
         }
         assertEmptyBlock(blockFactory.newFloatVectorBuilder(0).build().asBlock());
         try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(0).appendFloat(randomFloat()).build()) {
-            assertEmptyBlock(toFilter.filter().asBlock());
+            assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
 
     public void testEmptyDoubleBlock() throws IOException {
         assertEmptyBlock(blockFactory.newDoubleBlockBuilder(0).build());
         try (DoubleBlock toFilter = blockFactory.newDoubleBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter());
+            assertEmptyBlock(toFilter.filter(false));
         }
         assertEmptyBlock(blockFactory.newDoubleVectorBuilder(0).build().asBlock());
         try (DoubleVector toFilter = blockFactory.newDoubleVectorBuilder(0).appendDouble(randomDouble()).build()) {
-            assertEmptyBlock(toFilter.filter().asBlock());
+            assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
 
     public void testEmptyBytesRefBlock() throws IOException {
         assertEmptyBlock(blockFactory.newBytesRefBlockBuilder(0).build());
         try (BytesRefBlock toFilter = blockFactory.newBytesRefBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter());
+            assertEmptyBlock(toFilter.filter(false));
         }
         assertEmptyBlock(blockFactory.newBytesRefVectorBuilder(0).build().asBlock());
         try (BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0).appendBytesRef(randomBytesRef()).build()) {
-            assertEmptyBlock(toFilter.filter().asBlock());
+            assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
 
     public void testEmptyAggregateMetricDoubleBlock() throws IOException {
         assertEmptyBlock(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
         try (AggregateMetricDoubleBlock toFilter = blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter());
+            assertEmptyBlock(toFilter.filter(false));
         }
     }
 
@@ -137,65 +137,64 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     public void testFilterIntBlock() throws IOException {
         try (IntBlock toFilter = blockFactory.newIntBlockBuilder(0).appendInt(1).appendInt(2).build()) {
-            assertFilterBlock(toFilter.filter(1));
+            assertFilterBlock(toFilter.filter(false, 1));
         }
         try (IntBlock toFilter = blockFactory.newIntBlockBuilder(1).appendInt(randomInt()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(0));
+            assertFilterBlock(toFilter.filter(false, 0));
         }
         try (IntVector toFilter = blockFactory.newIntVectorBuilder(1).appendInt(randomInt()).build()) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
         try (IntVector toFilter = blockFactory.newIntVectorBuilder(1).appendInt(randomInt()).appendInt(randomInt()).build()) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
     }
 
     public void testFilterLongBlock() throws IOException {
         try (LongBlock toFilter = blockFactory.newLongBlockBuilder(0).appendLong(1).appendLong(2).build()) {
-            assertFilterBlock(toFilter.filter(1));
+            assertFilterBlock(toFilter.filter(false, 1));
         }
         try (LongBlock toFilter = blockFactory.newLongBlockBuilder(1).appendLong(randomLong()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(0));
+            assertFilterBlock(toFilter.filter(false, 0));
         }
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).build()) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build()) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
     }
 
     public void testFilterFloatBlock() throws IOException {
         try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendFloat(1).appendFloat(2).build()) {
-            assertFilterBlock(toFilter.filter(1));
+            assertFilterBlock(toFilter.filter(false, 1));
         }
         try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(1).appendFloat(randomFloat()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(0));
+            assertFilterBlock(toFilter.filter(false, 0));
         }
         try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).build()) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
 
         }
         try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).appendFloat(randomFloat()).build()) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
     }
 
     public void testFilterDoubleBlock() throws IOException {
         try (DoubleBlock toFilter = blockFactory.newDoubleBlockBuilder(0).appendDouble(1).appendDouble(2).build()) {
-            assertFilterBlock(toFilter.filter(1));
+            assertFilterBlock(toFilter.filter(false, 1));
         }
         try (DoubleBlock toFilter = blockFactory.newDoubleBlockBuilder(1).appendDouble(randomDouble()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(0));
+            assertFilterBlock(toFilter.filter(false, 0));
         }
         try (DoubleVector toFilter = blockFactory.newDoubleVectorBuilder(1).appendDouble(randomDouble()).build()) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
-
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
         try (
             DoubleVector toFilter = blockFactory.newDoubleVectorBuilder(1).appendDouble(randomDouble()).appendDouble(randomDouble()).build()
         ) {
-            assertFilterBlock(toFilter.filter(0).asBlock());
+            assertFilterBlock(toFilter.filter(false, 0).asBlock());
         }
     }
 
@@ -206,15 +205,15 @@ public class BlockSerializationTests extends SerializationTestCase {
                 .appendBytesRef(randomBytesRef())
                 .build()
         ) {
-            assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            assertFilterBlock(toFilter.filter(false, randomIntBetween(0, 1)));
         }
 
         try (BytesRefBlock toFilter = blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(randomBytesRef()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            assertFilterBlock(toFilter.filter(false, randomIntBetween(0, 1)));
         }
 
         try (BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0).appendBytesRef(randomBytesRef()).build()) {
-            assertFilterBlock(toFilter.asBlock().filter(0));
+            assertFilterBlock(toFilter.asBlock().filter(false, 0));
         }
         try (
             BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0)
@@ -222,7 +221,7 @@ public class BlockSerializationTests extends SerializationTestCase {
                 .appendBytesRef(randomBytesRef())
                 .build()
         ) {
-            assertFilterBlock(toFilter.asBlock().filter(randomIntBetween(0, 1)));
+            assertFilterBlock(toFilter.asBlock().filter(false, randomIntBetween(0, 1)));
         }
     }
 
@@ -238,7 +237,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             builder.sum().appendDouble(randomDouble());
             builder.count().appendInt(randomInt());
             try (AggregateMetricDoubleBlock toFilter = builder.build()) {
-                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+                assertFilterBlock(toFilter.filter(false, randomIntBetween(0, 1)));
             }
         }
 
@@ -250,7 +249,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             builder.count().appendInt(randomInt());
             builder.appendNull();
             try (AggregateMetricDoubleBlock toFilter = builder.build()) {
-                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+                assertFilterBlock(toFilter.filter(false, randomIntBetween(0, 1)));
             }
         }
     }
@@ -332,7 +331,7 @@ public class BlockSerializationTests extends SerializationTestCase {
                     }
                 }
                 for (int p = 0; p < v1.getPositionCount(); p++) {
-                    try (BytesRefVector f1 = v1.filter(p); BytesRefVector f2 = v2.filter(p)) {
+                    try (BytesRefVector f1 = v1.filter(false, p); BytesRefVector f2 = v2.filter(false, p)) {
                         BytesRefVector.equals(f1, f2);
                         for (BytesRefVector vector : List.of(f1, f2)) {
                             try (BytesRefBlock deserBlock = serializeDeserializeBlock(vector.asBlock())) {
@@ -386,7 +385,7 @@ public class BlockSerializationTests extends SerializationTestCase {
                     }
                 }
                 for (int p = 0; p < b1.getPositionCount(); p++) {
-                    try (BytesRefBlock f1 = b1.filter(p); BytesRefBlock f2 = b2.filter(p)) {
+                    try (BytesRefBlock f1 = b1.filter(false, p); BytesRefBlock f2 = b2.filter(false, p)) {
                         BytesRefBlock.equals(f1, f2);
                         for (BytesRefBlock block : List.of(f1, f2)) {
                             try (BytesRefBlock deserBlock = serializeDeserializeBlock(block)) {

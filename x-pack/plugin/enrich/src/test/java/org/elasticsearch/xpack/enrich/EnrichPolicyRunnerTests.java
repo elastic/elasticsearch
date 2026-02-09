@@ -278,7 +278,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     private void testNumberRangeMatchType(String rangeType) throws Exception {
         final String sourceIndex = "source-index";
-        createIndex(sourceIndex, Settings.EMPTY, "_doc", "range", "type=" + rangeType + "_range");
+        createIndex(sourceIndex, Settings.EMPTY, "range", "type=" + rangeType + "_range");
         DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {"range":{"gt":1,"lt":10},"zipcode":90210}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
@@ -359,7 +359,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerRangeTypeWithIpRange() throws Exception {
         final String sourceIndexName = "source-index";
-        createIndex(sourceIndexName, Settings.EMPTY, "_doc", "subnet", "type=ip_range");
+        createIndex(sourceIndexName, Settings.EMPTY, "subnet", "type=ip_range");
         DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndexName).id("id").source("""
             {"subnet":"10.0.0.0/8","department":"research"}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
@@ -2214,11 +2214,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testEnrichFieldsConflictMappingTypes() throws Exception {
-        createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "name", "type=text", "zipcode", "type=long");
+        createIndex("source-1", Settings.EMPTY, "user", "type=keyword", "name", "type=text", "zipcode", "type=long");
         prepareIndex("source-1").setSource("user", "u1", "name", "n", "zipcode", 90000)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "zipcode", "type=long");
+        createIndex("source-2", Settings.EMPTY, "user", "type=keyword", "zipcode", "type=long");
 
         prepareIndex("source-2").setSource("""
             {
@@ -2269,9 +2269,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testEnrichMappingConflictFormats() throws ExecutionException, InterruptedException {
-        createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy");
+        createIndex("source-1", Settings.EMPTY, "user", "type=keyword", "date", "type=date,format=yyyy");
         prepareIndex("source-1").setSource("user", "u1", "date", "2023").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy-MM");
+        createIndex("source-2", Settings.EMPTY, "user", "type=keyword", "date", "type=date,format=yyyy-MM");
 
         prepareIndex("source-2").setSource("""
             {
@@ -2308,7 +2308,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testEnrichObjectField() throws ExecutionException, InterruptedException {
-        createIndex("source-1", Settings.EMPTY, "_doc", "id", "type=keyword", "name.first", "type=keyword", "name.last", "type=keyword");
+        createIndex("source-1", Settings.EMPTY, "id", "type=keyword", "name.first", "type=keyword", "name.last", "type=keyword");
         prepareIndex("source-1").setSource("user", "u1", "name.first", "F1", "name.last", "L1")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();

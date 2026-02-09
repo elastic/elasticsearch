@@ -38,7 +38,17 @@ import static org.hamcrest.Matchers.is;
 
 public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
-    record Test(String query, Map<String, Integer> expectedCommands, Map<String, Integer> expectedFunctions, boolean success) {}
+    record Test(
+        String query,
+        Map<String, Integer> expectedCommands,
+        Map<String, Integer> expectedFunctions,
+        Map<String, Integer> expectedSettings,
+        boolean success
+    ) {
+        Test(String query, Map<String, Integer> expectedCommands, Map<String, Integer> expectedFunctions, boolean success) {
+            this(query, expectedCommands, expectedFunctions, Map.of(), success);
+        }
+    }
 
     private final Test testCase;
 
@@ -208,7 +218,27 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             new Object[] { new Test("""
                 FROM idx
                 | EVAL x = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z")
-                """, Map.of("FROM", 1, "EVAL", 1), Map.of("DATE_DIFF", 1), true) }
+                """, Map.of("FROM", 1, "EVAL", 1), Map.of("DATE_DIFF", 1), true) },
+            // Test with settings
+            new Object[] { new Test("""
+                SET time_zone = "UTC";
+                FROM idx
+                | EVAL ip = to_ip(host)
+                """, Map.of("FROM", 1, "EVAL", 1), Map.of("TO_IP", 1), Map.of("TIME_ZONE", 1), true) },
+            // Test with multiple settings
+            new Object[] { new Test("""
+                SET time_zone = "UTC";
+                SET unmapped_fields = "NULLIFY";
+                FROM idx
+                | KEEP host
+                """, Map.of("FROM", 1, "KEEP", 1), Map.of(), Map.of("TIME_ZONE", 1, "UNMAPPED_FIELDS", 1), true) },
+            // Test with duplicate settings (both should be counted)
+            new Object[] { new Test("""
+                SET time_zone = "UTC";
+                SET time_zone = "America/New_York";
+                FROM idx
+                | LIMIT 10
+                """, Map.of("FROM", 1, "LIMIT", 1), Map.of(), Map.of("TIME_ZONE", 2), true) }
         );
     }
 
@@ -231,7 +261,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     private static void testQuery(DiscoveryNode dataNode, Test test) throws InterruptedException {
-        testQuery(dataNode, test.query, test.success, test.expectedCommands, test.expectedFunctions);
+        testQuery(dataNode, test.query, test.success, test.expectedCommands, test.expectedFunctions, test.expectedSettings);
     }
 
     private static void testQuery(
@@ -239,7 +269,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         String query,
         Boolean success,
         Map<String, Integer> expectedCommands,
-        Map<String, Integer> expectedFunctions
+        Map<String, Integer> expectedFunctions,
+        Map<String, Integer> expectedSettings
     ) throws InterruptedException {
         final var plugins = internalCluster().getInstance(PluginsService.class, dataNode.getName())
             .filterPlugins(TestTelemetryPlugin.class)
@@ -271,6 +302,14 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         // test number of queries using a function
                         final List<Measurement> functionMeasurements = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS);
                         assertUsageInQuery(expectedFunctions, functionMeasurements, iteration, success);
+
+                        // test total settings used
+                        final List<Measurement> settingMeasurementsAll = measurements(plugin, PlanTelemetryManager.SETTING_METRICS_ALL);
+                        assertAllUsages(expectedSettings, settingMeasurementsAll, iteration, success);
+
+                        // test number of queries using a setting
+                        final List<Measurement> settingMeasurements = measurements(plugin, PlanTelemetryManager.SETTING_METRICS);
+                        assertUsageInQuery(expectedSettings, settingMeasurements, iteration, success);
                     } finally {
                         latch.countDown();
                     }

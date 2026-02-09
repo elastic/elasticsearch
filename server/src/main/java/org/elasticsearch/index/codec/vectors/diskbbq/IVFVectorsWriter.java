@@ -29,10 +29,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -191,6 +191,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException;
 
+    public abstract CentroidSupplier createCentroidSupplier(FieldInfo info, float[][] centroids, float[] globalCentroid) throws IOException;
+
     protected abstract Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException;
 
     protected abstract Preconditioner createPreconditioner(int dimension);
@@ -223,10 +225,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
-            // wrap centroids with a supplier
-            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(
+            final CentroidSupplier centroidSupplier = createCentroidSupplier(
+                fieldWriter.fieldInfo,
                 centroidAssignments.centroids(),
-                fieldWriter.fieldInfo.getVectorDimension()
+                centroidAssignments.globalCentroid()
             );
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
@@ -329,7 +331,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final ByteBuffer buffer = ByteBuffer.allocate(globalCentroid.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             buffer.asFloatBuffer().put(globalCentroid);
             ivfMeta.writeBytes(buffer.array(), buffer.array().length);
-            ivfMeta.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(globalCentroid, globalCentroid)));
+            ivfMeta.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
         doWriteMeta(ivfMeta, field, numCentroids, preconditionerOffset, preconditionerLength);
     }

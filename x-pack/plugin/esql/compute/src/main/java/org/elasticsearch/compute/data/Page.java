@@ -8,9 +8,11 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -27,13 +29,17 @@ import java.util.Objects;
  * The number of blocks can be retrieved via {@link #getBlockCount()}, and the respective
  * blocks can be retrieved via their index {@link #getBlock(int)}.
  *
- * <p> Pages are immutable and can be passed between threads.
+ * <p> Pages are immutable and can be passed between threads. This class may be subclassed to
+ * add metadata (e.g., batch information for streaming exchanges). Subclasses must maintain
+ * the immutability and thread-safety guarantees.
  */
-public final class Page implements Writeable, Releasable {
+public class Page implements Writeable, Releasable {
 
-    private final Block[] blocks;
+    private static final TransportVersion BATCH_PAGE_VERSION = TransportVersion.fromName("esql_batch_page");
 
-    private final int positionCount;
+    protected final Block[] blocks;
+
+    protected final int positionCount;
 
     /**
      * True if we've called {@link #releaseBlocks()} which causes us to remove the
@@ -65,7 +71,7 @@ public final class Page implements Writeable, Releasable {
         this(true, positionCount, blocks);
     }
 
-    private Page(boolean copyBlocks, int positionCount, Block[] blocks) {
+    protected Page(boolean copyBlocks, int positionCount, Block[] blocks) {
         Objects.requireNonNull(blocks, "blocks is null");
         // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
@@ -79,9 +85,21 @@ public final class Page implements Writeable, Releasable {
     }
 
     /**
+     * Protected copy constructor for subclasses
+     */
+    protected Page(Page page) {
+        this.positionCount = page.positionCount;
+        this.blocks = page.blocks.clone();
+        // Increment ref count for blocks since we're sharing them
+        for (Block block : blocks) {
+            block.incRef();
+        }
+    }
+
+    /**
      * Appending ctor, see {@link #appendBlocks}.
      */
-    private Page(Page prev, Block[] toAdd) {
+    protected Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
                 throw new IllegalStateException(
@@ -95,7 +113,7 @@ public final class Page implements Writeable, Releasable {
         System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
     }
 
-    public Page(StreamInput in) throws IOException {
+    protected Page(StreamInput in) throws IOException {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
@@ -115,8 +133,24 @@ public final class Page implements Writeable, Releasable {
         this.blocks = blocks;
     }
 
+    /**
+     * Reads a Page from the stream, dispatching to {@link BatchPage} if the stream indicates one.
+     */
+    public static Page readFrom(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(BATCH_PAGE_VERSION)) {
+            boolean isBatchPage = in.readBoolean();
+            if (isBatchPage) {
+                return new BatchPage(in);
+            }
+        }
+        return new Page(in);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(BATCH_PAGE_VERSION)) {
+            out.writeBoolean(this instanceof BatchPage);
+        }
         out.writeVInt(positionCount);
         out.writeVInt(getBlockCount());
         for (Block block : blocks) {

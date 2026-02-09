@@ -221,7 +221,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             String matchField = in.readString();
             Page inputPage;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                inputPage = new Page(bsi);
+                inputPage = Page.readFrom(bsi);
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
@@ -272,7 +272,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.page = new Page(bsi);
+                this.page = Page.readFrom(bsi);
             }
         }
 

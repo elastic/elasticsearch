@@ -150,7 +150,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean isRunning = in.readBoolean();
         boolean isAsync = in.readBoolean();
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
-        List<Page> pages = in.readCollectionAsList(Page::new);
+        List<Page> pages = in.readCollectionAsList(Page::readFrom);
         long documentsFound = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         Profile profile = in.readOptionalWriteable(Profile::readFrom);

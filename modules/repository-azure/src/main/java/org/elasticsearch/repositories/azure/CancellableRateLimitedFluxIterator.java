@@ -73,8 +73,16 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
             assert done || error == null : "Must be done to specify an error";
         }
 
+        public boolean isDoneWithError() {
+            return done && error != null;
+        }
+
         public boolean isErrorFromProducer() {
             return fromProducer && error != null;
+        }
+
+        public boolean isErrorFromConsumer() {
+            return fromProducer == false && error != null;
         }
     }
 
@@ -141,7 +149,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         T nextElement = queue.poll();
 
         final var currentDoneState = doneState.get();
-        if (currentDoneState.done() && currentDoneState.error() != null) {
+        if (currentDoneState.isDoneWithError()) {
             // We can't trust anything we read after doneState is done with an error or cancellation
             // as we may have begun clearing the queue
             if (nextElement != null) {
@@ -270,7 +278,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
             }
 
             // If the existing error is not from the producer, allow it to be overwritten by one from the producer
-            if (existing.error() != null && existing.fromProducer() == false && newState.isErrorFromProducer()) {
+            if (existing.isErrorFromConsumer() && newState.isErrorFromProducer()) {
                 return newState;
             }
 

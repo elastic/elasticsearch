@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumTests extends AbstractAggregationTestCase {
@@ -96,6 +97,28 @@ public class SumTests extends AbstractAggregationTestCase {
                         equalTo(value.sum())
                     );
 
+                }),
+                new TestCaseSupplier(List.of(DataType.DENSE_VECTOR), () -> {
+                    int dimensions = randomIntBetween(10, 20);
+                    int numVectors = randomIntBetween(10, 20);
+                    List<Float> acc = new ArrayList<>(dimensions);
+                    for (int i = 0; i < dimensions; i++) {
+                        acc.add(0f);
+                    }
+                    List<List<Float>> denseVectors = new ArrayList<>(numVectors);
+                    for (int i = 0; i < numVectors; i++) {
+                        List<Float> vector = randomDenseVector(dimensions);
+                        denseVectors.add(vector);
+                        for (int j = 0; j < dimensions; j++) {
+                            acc.set(j, acc.get(j) + vector.get(j));
+                        }
+                    }
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(denseVectors, DENSE_VECTOR, "field")),
+                        "SumDenseVector",
+                        DENSE_VECTOR,
+                        equalTo(acc)
+                    );
                 })
             )
         );
@@ -166,7 +189,8 @@ public class SumTests extends AbstractAggregationTestCase {
             );
 
             var returnType = type == DENSE_VECTOR ? DENSE_VECTOR
-                : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
+                : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE
+                : DataType.LONG;
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

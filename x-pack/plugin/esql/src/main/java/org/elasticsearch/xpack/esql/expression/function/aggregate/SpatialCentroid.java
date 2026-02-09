@@ -119,7 +119,12 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier();
             };
-            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier();
+            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
+                case NONE, STORED -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier();
+                case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> throw new EsqlIllegalArgumentException(
+                    "Unsupported field extraction preference [" + fieldExtractPreference + "] for shape type [" + type + "]"
+                );
+            };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

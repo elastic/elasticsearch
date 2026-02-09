@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -47,6 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,6 +71,7 @@ public class S3HttpHandler implements HttpHandler {
     private final String basePath;
     private final String bucketAndBasePath;
     private final S3ConsistencyModel consistencyModel;
+    private final Supplier<String> uuidGenerator;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
@@ -83,6 +86,11 @@ public class S3HttpHandler implements HttpHandler {
         this.basePath = Objects.requireNonNullElse(basePath, "");
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
         this.consistencyModel = consistencyModel;
+        // Per-thread random is based on the same seed so that they generate the same results across threads.
+        // To ensure unique UUIDs across threads, we store and share a single random across threads so that each invocation
+        // generates different UUIDs.
+        final var random = ESTestCase.initTestSeed();
+        this.uuidGenerator = () -> UUIDs.randomBase64UUID(random);
     }
 
     /**
@@ -175,7 +183,7 @@ public class S3HttpHandler implements HttpHandler {
                             int start = Math.toIntExact(range.start());
                             int len = Math.toIntExact(range.end() - range.start() + 1);
                             var part = sourceBlob.slice(start, len);
-                            var etag = ESTestCase.randomUUID();
+                            var etag = getEtagFromContents(part);
                             upload.addPart(etag, part);
                             byte[] response = ("""
                                 <?xml version="1.0" encoding="UTF-8"?>
@@ -696,7 +704,7 @@ public class S3HttpHandler implements HttpHandler {
     }
 
     MultipartUpload putUpload(String path) {
-        final var upload = new MultipartUpload(ESTestCase.randomUUID(), path);
+        final var upload = new MultipartUpload(uuidGenerator.get(), path);
         synchronized (uploads) {
             assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
             return upload;

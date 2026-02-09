@@ -240,13 +240,11 @@ public class PluginsUtils {
         final List<String> excludedBundles = new ArrayList<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final PluginBundle bundle = readPluginBundle(plugin, type);
-            if (predicate.test(bundle.pluginDescriptor())) {
-                // PluginInfo hashes on plugin name, so this will catch name clashes
-                if (bundles.add(bundle) == false) {
-                    throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
-                }
-            } else {
+            if (predicate.test(bundle.pluginDescriptor()) == false) {
                 excludedBundles.add(bundle.plugin.getName());
+            } else if (bundles.add(bundle) == false) {
+                // PluginInfo hashes on plugin name, so this will catch name clashes
+                throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
             }
             if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.current().isSnapshot() == false) {
                 throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");

@@ -132,7 +132,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7U, INT8 -> intSingle;
+                                    case INT7U -> intSingle;
+                                    case INT8 -> switch (f) {
+                                        case COSINE -> floatSingle;
+                                        case DOT_PRODUCT, SQUARE_DISTANCE -> intSingle;
+                                    };
                                     case FLOAT32 -> floatSingle;
                                 };
                                 case BULK -> bulk;
@@ -335,10 +339,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.COSINE, DataType.INT8, Operation.SINGLE)
         );
 
-        static int cosineI8(MemorySegment a, MemorySegment b, int elementCount) {
+        static float cosineI8(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
-            return callSingleDistanceInt(cosI8Handle, a, b, elementCount);
+            return callSingleDistanceFloat(cosI8Handle, a, b, elementCount);
         }
 
         private static final MethodHandle dotI8Handle = HANDLES.get(
@@ -552,7 +556,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             checkMethod += "I7u";
                                             break;
                                         case INT8:
-                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            type = switch (op.getKey().function()) {
+                                                case COSINE -> MethodType.methodType(
+                                                    float.class,
+                                                    MemorySegment.class,
+                                                    MemorySegment.class,
+                                                    int.class
+                                                );
+                                                case DOT_PRODUCT, SQUARE_DISTANCE -> MethodType.methodType(
+                                                    int.class,
+                                                    MemorySegment.class,
+                                                    MemorySegment.class,
+                                                    int.class
+                                                );
+                                            };
                                             checkMethod += "I8";
                                             break;
                                         case FLOAT32:

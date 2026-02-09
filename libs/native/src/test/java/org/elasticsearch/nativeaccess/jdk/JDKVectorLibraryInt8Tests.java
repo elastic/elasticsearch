@@ -43,10 +43,11 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
     }
 
     public void testAllZeroValues() {
+        assumeFalse("Cosine is undefined for zero vectors", function == VectorSimilarityFunctions.Function.COSINE);
         testByteVectors(byte[]::new);
     }
 
-    public void testRandomFloats() {
+    public void testRandomBytes() {
         testByteVectors(ESTestCase::randomByteArrayOfLength);
     }
 
@@ -96,7 +97,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulk(values[queryOrd], values, expectedScores);
 
-        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, (long) dims);
+        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulk(segment, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
@@ -210,13 +211,13 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    int similarity(MemorySegment a, MemorySegment b, int length) {
+    float similarity(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (int) getVectorDistance().getHandle(
+            return (float) getVectorDistance().getHandle(
                 function,
                 VectorSimilarityFunctions.DataType.INT8,
                 VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(a, b, length);
+            ).invoke(a, b, length); // not invokeExact, as we want the implicit conversion int -> float where necessary
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -261,6 +262,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
         switch (function) {
+            case COSINE -> bulkScalar(JDKVectorLibraryInt8Tests::cosineScalar, query, data, scores);
             case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryInt8Tests::dotProductScalar, query, data, scores);
             case SQUARE_DISTANCE -> bulkScalar(JDKVectorLibraryInt8Tests::squareDistanceScalar, query, data, scores);
         }
@@ -268,6 +270,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
         switch (function) {
+            case COSINE -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::cosineScalar, query, data, offsets, scores);
             case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::dotProductScalar, query, data, offsets, scores);
             case SQUARE_DISTANCE -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::squareDistanceScalar, query, data, offsets, scores);
         }

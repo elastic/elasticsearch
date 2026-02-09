@@ -318,7 +318,7 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testAttachAndGetToken
   issue: https://github.com/elastic/elasticsearch/issues/141470
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+N- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/141548
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT

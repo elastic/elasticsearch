@@ -1,0 +1,682 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.operator;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.core.Nullable;
+import org.hamcrest.Matcher;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class MetricsInfoOperatorTests extends OperatorTestCase {
+
+    /**
+     * A simple lookup that recognizes "cpu_usage" and "disk_io" as metric fields.
+     */
+    private static final MetricsInfoOperator.MetricFieldLookup SIMPLE_LOOKUP = (indexName, fieldName) -> switch (fieldName) {
+        case "cpu_usage" -> new MetricFieldInfo("cpu_usage", indexName, "double", "gauge", "percent");
+        case "disk_io" -> new MetricFieldInfo("disk_io", indexName, "long", "counter", "bytes");
+        default -> null;
+    };
+
+    private static final int METADATA_CHANNEL = 0;
+    private static final int INDEX_CHANNEL = 1;
+
+    @Override
+    protected MetricsInfoOperator.Factory simple(SimpleOptions options) {
+        return new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+    }
+
+    @Override
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new SourceOperator() {
+            private int position = 0;
+            private static final int PAGE_SIZE = 100;
+
+            @Override
+            public void finish() {
+                position = size;
+            }
+
+            @Override
+            public boolean isFinished() {
+                return position >= size;
+            }
+
+            @Override
+            public Page getOutput() {
+                if (isFinished()) {
+                    return null;
+                }
+                int remaining = size - position;
+                int pageSize = Math.min(PAGE_SIZE, remaining);
+                try (
+                    BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(pageSize);
+                    BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(pageSize)
+                ) {
+                    for (int i = 0; i < pageSize; i++) {
+                        int idx = position + i;
+                        String json = "{\"cpu_usage\": " + (idx * 0.1) + ", \"host\": \"server" + (idx % 3) + "\"}";
+                        metadataBuilder.appendBytesRef(new BytesRef(json));
+                        indexBuilder.appendBytesRef(new BytesRef("index-" + (idx % 2)));
+                    }
+                    position += pageSize;
+                    return new Page(metadataBuilder.build(), indexBuilder.build());
+                }
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    @Override
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("MetricsInfoOperator[metadataSourceChannel=0, indexChannel=1]");
+    }
+
+    @Override
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo("MetricsInfoOperator[]");
+    }
+
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        int totalRows = results.stream().mapToInt(Page::getPositionCount).sum();
+        // cpu_usage is the only metric; with 2 indices sharing the same signature they merge into 1 row
+        assertThat(totalRows, equalTo(1));
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(MetricsInfoOperator.NUM_BLOCKS));
+        }
+    }
+
+    @Override
+    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertNull(map);
+    }
+
+    public void testSingleMetricSingleIndex() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertThat(output.getBlockCount(), equalTo(MetricsInfoOperator.NUM_BLOCKS));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");       // metric_name
+            assertColumnValue(output, 1, 0, "my-index");        // data_stream
+            assertColumnValue(output, 2, 0, "percent");          // unit
+            assertColumnValue(output, 3, 0, "gauge");            // metric_type
+            assertColumnValue(output, 4, 0, "double");           // field_type
+            assertColumnValue(output, 5, 0, "host");             // dimension_fields
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testMultipleMetricsSameIndex() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Both cpu_usage and disk_io are metric fields
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"disk_io\": 1024, \"host\": \"server1\"}", "my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            Set<String> metricNames = collectColumnValues(output, 0);
+            assertThat(metricNames, equalTo(Set.of("cpu_usage", "disk_io")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testSameMetricDifferentIndicesMergedBySignature() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Same metric from two different indices but with the same signature → merged into one row
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "index-a");
+            op.addInput(input1);
+
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"server2\"}", "index-b");
+            op.addInput(input2);
+
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Same metric name + same units/fieldTypes/metricTypes → merged into 1 row
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage"); // metric_name
+
+            // data_stream should be multi-valued with both indices
+            Set<String> dataStreams = collectMultiValues(output, 1, 0);
+            assertThat(dataStreams, equalTo(Set.of("index-a", "index-b")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testDifferentSignaturesNotMerged() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        // Lookup returns different types for the same metric name in different indices
+        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
+            if ("cpu".equals(fieldName)) {
+                if ("index-a".equals(indexName)) {
+                    return new MetricFieldInfo("cpu", indexName, "double", "gauge", "percent");
+                } else {
+                    return new MetricFieldInfo("cpu", indexName, "float", "gauge", "percent");
+                }
+            }
+            return null;
+        };
+
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            Page input1 = buildPage(blockFactory, "{\"cpu\": 0.5}", "index-a");
+            op.addInput(input1);
+
+            Page input2 = buildPage(blockFactory, "{\"cpu\": 0.9}", "index-b");
+            op.addInput(input2);
+
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Different field_type (double vs float) → different signatures → 2 rows
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testDimensionFieldsCollected() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // "host" and "region" are non-metric (dimension) fields
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\", \"region\": \"us-east\"}", "my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            Set<String> dimensions = collectMultiValues(output, 5, 0);
+            assertThat(dimensions, equalTo(Set.of("host", "region")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testNestedMetadataFields() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        // Lookup that recognizes "system.cpu" as a metric with a dotted path
+        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
+            if ("system.cpu".equals(fieldName)) {
+                return new MetricFieldInfo("system.cpu", indexName, "double", "gauge", "percent");
+            }
+            return null;
+        };
+
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            Page input = buildPage(blockFactory, "{\"system\": {\"cpu\": 0.75}, \"host\": \"server1\"}", "my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "system.cpu"); // metric_name
+            assertColumnValue(output, 5, 0, "host");        // dimension_fields
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * When dimensions live under a passthrough-style path (e.g. resource.attributes.*), the operator
+     * reports the full dotted path as the dimension key, not a shortened form like
+     * "service.name". So we get "resource.attributes.service.name", and we do NOT get "service.name"
+     * unless that path also exists as a leaf in the metadata.
+     */
+    public void testDimensionFieldsUnderPassthroughStylePath() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Metadata shaped like a passthrough: resource.attributes.service.name (dimension), cpu_usage (metric)
+            String metadataJson = """
+                {"resource": {"attributes": {"service": {"name": "api"}}}, "cpu_usage": 0.5}
+                """;
+            Page input = buildPage(blockFactory, metadataJson.trim(), "my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            Set<String> dimensions = collectMultiValues(output, 5, 0);
+            // Full path is reported, not "service.name"
+            assertThat(dimensions, equalTo(Set.of("resource.attributes.service.name")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * If both a top-level dimension path and a passthrough path exist as leaves (e.g. "service.name"
+     * and "resource.attributes.service.name"), both appear in dimension_fields.
+     */
+    public void testBothTopLevelAndPassthroughDimensionPaths() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Two documents: one with top-level service.name, one with resource.attributes.service.name
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"service\": {\"name\": \"web\"}}", "my-index");
+            Page input2 = buildPage(
+                blockFactory,
+                "{\"resource\": {\"attributes\": {\"service\": {\"name\": \"api\"}}}, \"cpu_usage\": 0.8}",
+                "my-index"
+            );
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            Set<String> dimensions = collectMultiValues(output, 5, 0);
+            assertThat(dimensions, equalTo(Set.of("service.name", "resource.attributes.service.name")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testNullMetadataSkipped() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            try (
+                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
+                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
+            ) {
+                // First row: null metadata
+                metadataBuilder.appendNull();
+                indexBuilder.appendBytesRef(new BytesRef("my-index"));
+
+                // Second row: valid metadata
+                metadataBuilder.appendBytesRef(new BytesRef("{\"cpu_usage\": 0.5, \"host\": \"server1\"}"));
+                indexBuilder.appendBytesRef(new BytesRef("my-index"));
+
+                Page input = new Page(metadataBuilder.build(), indexBuilder.build());
+                op.addInput(input);
+            }
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Only the second row contributes
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testNullIndexSkipped() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            try (
+                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
+                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
+            ) {
+                // First row: valid metadata, null index
+                metadataBuilder.appendBytesRef(new BytesRef("{\"cpu_usage\": 0.5}"));
+                indexBuilder.appendNull();
+
+                // Second row: valid metadata, valid index
+                metadataBuilder.appendBytesRef(new BytesRef("{\"cpu_usage\": 0.9, \"host\": \"server1\"}"));
+                indexBuilder.appendBytesRef(new BytesRef("my-index"));
+
+                Page input = new Page(metadataBuilder.build(), indexBuilder.build());
+                op.addInput(input);
+            }
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testEmptyInputProducesEmptyPage() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(0));
+            assertThat(output.getBlockCount(), equalTo(MetricsInfoOperator.NUM_BLOCKS));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testGetOutputBeforeFinishReturnsNull() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            assertNull(op.getOutput());
+            assertTrue(op.needsInput());
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testGetOutputCalledTwiceReturnsNullSecondTime() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output1 = op.getOutput();
+            assertNotNull(output1);
+            output1.releaseBlocks();
+
+            Page output2 = op.getOutput();
+            assertNull(output2);
+            assertTrue(op.isFinished());
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testNeedsInputReturnsFalseAfterFinish() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            assertTrue(op.needsInput());
+            op.finish();
+            assertFalse(op.needsInput());
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testIsFinishedOnlyAfterOutputProduced() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            assertFalse(op.isFinished());
+
+            op.finish();
+            // finished=true but outputProduced=false → isFinished is still false
+            assertFalse(op.isFinished());
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            output.releaseBlocks();
+
+            assertTrue(op.isFinished());
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testMetricWithNullUnit() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
+            if ("temperature".equals(fieldName)) {
+                return new MetricFieldInfo("temperature", indexName, "double", "gauge", null);
+            }
+            return null;
+        };
+
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            Page input = buildPage(blockFactory, "{\"temperature\": 36.6}", "my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "temperature"); // metric_name
+            // unit should be null
+            BytesRefBlock unitBlock = output.getBlock(2);
+            assertTrue(unitBlock.isNull(0));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testInvalidJsonSkipped() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            try (
+                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
+                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
+            ) {
+                // Row 1: invalid JSON
+                metadataBuilder.appendBytesRef(new BytesRef("not-valid-json"));
+                indexBuilder.appendBytesRef(new BytesRef("my-index"));
+
+                // Row 2: valid JSON with a metric
+                metadataBuilder.appendBytesRef(new BytesRef("{\"cpu_usage\": 0.5}"));
+                indexBuilder.appendBytesRef(new BytesRef("my-index"));
+
+                Page input = new Page(metadataBuilder.build(), indexBuilder.build());
+                op.addInput(input);
+            }
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Only the valid row contributes
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testMultipleInputPages() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Page 1: cpu_usage from index-a
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "index-a");
+            op.addInput(input1);
+
+            // Page 2: cpu_usage + disk_io from index-b
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.8, \"disk_io\": 2048, \"region\": \"eu\"}", "index-b");
+            op.addInput(input2);
+
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+
+            Set<String> metricNames = collectColumnValues(output, 0);
+            assertThat(metricNames, equalTo(Set.of("cpu_usage", "disk_io")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testDimensionFieldsAreUnionAcrossDocuments() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Document 1: dimension "host"
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
+            op.addInput(input1);
+
+            // Document 2: dimension "region" (different dimension)
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"region\": \"us-east\"}", "my-index");
+            op.addInput(input2);
+
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            // Dimensions should be union of both documents
+            Set<String> dimensions = collectMultiValues(output, 5, 0);
+            assertThat(dimensions, equalTo(Set.of("host", "region")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testFactoryDescribe() {
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, 3, 7);
+        assertThat(factory.describe(), equalTo("MetricsInfoOperator[metadataSourceChannel=3, indexChannel=7]"));
+    }
+
+    public void testToString() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, 0, 1)) {
+            assertThat(op.toString(), equalTo("MetricsInfoOperator[]"));
+        }
+    }
+
+    /**
+     * Build a single-row page with the given metadata JSON and index name.
+     */
+    private static Page buildPage(BlockFactory blockFactory, String metadataJson, String indexName) {
+        try (
+            BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(1)
+        ) {
+            metadataBuilder.appendBytesRef(new BytesRef(metadataJson));
+            indexBuilder.appendBytesRef(new BytesRef(indexName));
+            return new Page(metadataBuilder.build(), indexBuilder.build());
+        }
+    }
+
+    /**
+     * Read a single-valued BytesRef column value at the given row.
+     */
+    private static void assertColumnValue(Page page, int blockIndex, int position, String expected) {
+        BytesRefBlock block = page.getBlock(blockIndex);
+        if (block.getValueCount(position) == 1) {
+            assertThat(block.getBytesRef(block.getFirstValueIndex(position), new BytesRef()).utf8ToString(), equalTo(expected));
+        } else {
+            // Multi-valued: check if expected is in the set
+            Set<String> values = new HashSet<>();
+            int start = block.getFirstValueIndex(position);
+            int count = block.getValueCount(position);
+            for (int i = start; i < start + count; i++) {
+                values.add(block.getBytesRef(i, new BytesRef()).utf8ToString());
+            }
+            assertTrue("Expected [" + expected + "] in " + values, values.contains(expected));
+        }
+    }
+
+    /**
+     * Collect all distinct single-valued strings from a column across all rows.
+     */
+    private static Set<String> collectColumnValues(Page page, int blockIndex) {
+        BytesRefBlock block = page.getBlock(blockIndex);
+        Set<String> values = new TreeSet<>();
+        for (int p = 0; p < page.getPositionCount(); p++) {
+            if (block.isNull(p) == false) {
+                int start = block.getFirstValueIndex(p);
+                int count = block.getValueCount(p);
+                for (int i = start; i < start + count; i++) {
+                    values.add(block.getBytesRef(i, new BytesRef()).utf8ToString());
+                }
+            }
+        }
+        return values;
+    }
+
+    /**
+     * Collect all values from a multi-valued cell at a given position.
+     */
+    private static Set<String> collectMultiValues(Page page, int blockIndex, int position) {
+        BytesRefBlock block = page.getBlock(blockIndex);
+        Set<String> values = new HashSet<>();
+        if (block.isNull(position) == false) {
+            int start = block.getFirstValueIndex(position);
+            int count = block.getValueCount(position);
+            for (int i = start; i < start + count; i++) {
+                values.add(block.getBytesRef(i, new BytesRef()).utf8ToString());
+            }
+        }
+        return values;
+    }
+}

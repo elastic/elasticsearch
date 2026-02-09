@@ -230,11 +230,8 @@ public class PluginDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> mockInternalDescriptor("distribution.mode", "INVALID")
         );
-        assertThat(e.getMessage(), containsString("invalid distribution.mode"));
-        assertThat(e.getMessage(), containsString("INVALID"));
-        assertThat(e.getMessage(), containsString("STATEFUL_ONLY"));
-        assertThat(e.getMessage(), containsString("STATELESS_ONLY"));
-        assertThat(e.getMessage(), containsString("ALWAYS"));
+        assertThat(e.getMessage(), containsString("invalid distribution.mode [INVALID]"));
+        assertThat(e.getMessage(), containsString("expected one of [STATEFUL_ONLY, STATELESS_ONLY, ALWAYS]"));
     }
 
     public void testIsModular() throws Exception {

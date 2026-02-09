@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
@@ -32,6 +33,16 @@ public record DlmActionContext(
      */
     public ProjectId projectId() {
         return projectState.projectId();
+    }
+
+    /**
+     * Creates a {@link DlmStepContext} for the given index, using the resources from this action context.
+     *
+     * @param index The index to create a step context for.
+     * @return A new {@link DlmStepContext} for the given index.
+     */
+    public DlmStepContext stepContextFor(Index index) {
+        return new DlmStepContext(index, this);
     }
 
 }

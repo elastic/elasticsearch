@@ -498,11 +498,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     // Visible for testing
     Set<Index> maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
         HashSet<Index> indicesProcessed = new HashSet<>();
+        DlmActionContext actionContext = new DlmActionContext(
+            projectState,
+            transportActionsDeduplicator,
+            errorStore,
+            signallingErrorRetryInterval,
+            client
+        );
         for (DlmAction action : actions) {
 
-            if (action.canRunOnProject(
-                new DlmActionContext(projectState, transportActionsDeduplicator, errorStore, signallingErrorRetryInterval, client)
-            ) == false) continue;
+            if (action.canRunOnProject(actionContext) == false) {
+                logger.trace(
+                    "Skipping action [{}] for project [{}] as prerequisites are not met",
+                    action.name(),
+                    projectState != null ? projectState.projectId() : "unknown"
+                );
+                continue;
+            }
 
             TimeValue actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
 
@@ -553,14 +565,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             dataStream.getName(),
                             action.name()
                         );
-                        DlmStepContext dlmStepContext = new DlmStepContext(
-                            index,
-                            projectState,
-                            transportActionsDeduplicator,
-                            errorStore,
-                            signallingErrorRetryInterval,
-                            client
-                        );
+                        DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
                         stepToExecute.execute(dlmStepContext);
                     } catch (Exception ex) {
                         logger.warn(

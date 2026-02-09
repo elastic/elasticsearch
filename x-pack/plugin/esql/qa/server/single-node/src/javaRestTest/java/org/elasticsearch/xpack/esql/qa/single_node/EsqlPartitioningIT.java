@@ -20,9 +20,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 
@@ -133,12 +133,7 @@ public class EsqlPartitioningIT extends ESRestTestCase {
         assertThat(code, equalTo(200));
     }
 
-    private static Matcher<String> expectedPartition(
-        String defaultDataPartitioning,
-        String index,
-        String idxPartition,
-        boolean score
-    ) {
+    private static Matcher<String> expectedPartition(String defaultDataPartitioning, String index, String idxPartition, boolean score) {
         return switch (defaultDataPartitioning) {
             case null -> expectedAutoPartition(index, idxPartition, score);
             case "auto" -> expectedAutoPartition(index, idxPartition, score);
@@ -151,13 +146,11 @@ public class EsqlPartitioningIT extends ESRestTestCase {
         if (score && lateMaterializationEnabled == false) {
             return equalTo("SHARD");
         }
-        return equalTo(
-            switch (index) {
-                case "idx" -> idxPartition;
-                case "small_idx" -> "SHARD";
-                default -> throw new UnsupportedOperationException("unknown index [" + index + "]");
-            }
-        );
+        return equalTo(switch (index) {
+            case "idx" -> idxPartition;
+            case "small_idx" -> "SHARD";
+            default -> throw new UnsupportedOperationException("unknown index [" + index + "]");
+        });
     }
 
     private String partitionForQuery(String query) throws IOException {

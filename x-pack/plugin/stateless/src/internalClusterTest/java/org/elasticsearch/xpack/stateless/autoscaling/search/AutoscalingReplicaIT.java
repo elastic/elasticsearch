@@ -15,11 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -32,9 +30,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -42,11 +43,20 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.DesiredClusterTopology;
+import org.elasticsearch.xpack.stateless.autoscaling.DesiredClusterTopology.TierTopology;
+import org.elasticsearch.xpack.stateless.autoscaling.DesiredTopologyContext;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,10 +73,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class AutoscalingReplicaIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final long DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7).millis();
     private static final long ONE_DAY = TimeValue.timeValueDays(1).millis();
@@ -313,6 +324,9 @@ public class AutoscalingReplicaIT extends AbstractServerlessStatelessPluginInteg
             .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
             .put(ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true)
+            // disable replicas for load balancing as we only scale down completely (what this test expects) when both replicas scaler
+            // systems (instant failover and load balancing) are disabled
+            .put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), false)
             .build();
         startMasterOnlyNode(settings);
         startIndexNode(settings);
@@ -361,8 +375,7 @@ public class AutoscalingReplicaIT extends AbstractServerlessStatelessPluginInteg
             .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 205)
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false)
             .build();
-        startMasterOnlyNode(settings);
-        startIndexNode(settings);
+        startMasterAndIndexNode(settings);
         startSearchNode(settings);
 
         var cs = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -463,6 +476,221 @@ public class AutoscalingReplicaIT extends AbstractServerlessStatelessPluginInteg
         refresh(regularIndex);
         waitUntil(() -> cs.state().metadata().getProject().index(regularIndex).getNumberOfReplicas() == 2, 2, TimeUnit.SECONDS);
         assertEquals(2, cs.state().metadata().getProject().index(regularIndex).getNumberOfReplicas());
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler:DEBUG",
+        reason = "new feature debugging"
+    )
+    public void testReplicasLoadBalancingScalesUpWithHighSearchLoad() throws Exception {
+        // This test does a few things, testing the replicas for load balancing and the integration with instant failover as follows:
+        // starts 4 search nodes, enables instant failover (scales to 2 replicas),
+        // then enables load balancing (scales searched index to 4 replicas based on traffic). Stops one search node and
+        // verifies cluster goes YELLOW until desired topology is updated to 3 nodes. Validates interactions between
+        // instant failover and load balancing settings, and that SPmin below 100 forces 1 replica regardless of settings.
+        Settings settings = Settings.builder()
+            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
+            .put(ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
+            .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 250)
+            .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false)
+            .put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), false)
+            .build();
+        startMasterAndIndexNode(settings);
+        startSearchNode(settings);
+        startSearchNode(settings);
+        startSearchNode(settings);
+        String aSearchNode = startSearchNode(settings);
+
+        String indexWithSearchTraffic = "searched-index";
+        String idleIndex = "idle-index";
+        createIndex(indexWithSearchTraffic, indexSettings(1, 1).put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false).build());
+        createIndex(idleIndex, indexSettings(1, 1).put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false).build());
+        ensureGreen();
+
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(indexWithSearchTraffic, 200, boostWindow + ONE_DAY, now);
+        indexDocumentsWithTimestamp(idleIndex, 200, boostWindow + ONE_DAY, now);
+
+        // replicas for load balancing doesn't work without desired topology
+        DesiredTopologyContext desiredTopologyContext = internalCluster().getCurrentMasterNodeInstance(DesiredTopologyContext.class);
+        desiredTopologyContext.updateDesiredClusterTopology(
+            new DesiredClusterTopology(new TierTopology(4, "8G", 32.5f, 0.5f, 1.0f), new TierTopology(1, "8G", 32.5f, 0.5f, 1.0f))
+        );
+
+        // make some search traffic for the searched index
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        // instant failover at SPmin 250 should give 2 replicas to both indices, and no more
+        updateClusterSettings(Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true));
+        var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        assertBusy(() -> {
+            ClusterState state = clusterService.state();
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(2));
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(2));
+        });
+
+        logger.info("-> Enabling replicas for load balancing");
+        updateClusterSettings(Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), true));
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        assertBusy(() -> {
+            ClusterState state = clusterService.state();
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(4));
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(2));
+        });
+
+        // keep the search load high for one index
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        // stop a search node, without updating desired topology, we should remain in YELLOW until we receive the updated topology (with 3
+        // search nodes)
+        internalCluster().stopNode(aSearchNode);
+        // keep the search load high for one index
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        ensureYellow(indexWithSearchTraffic);
+
+        // keep the search load high for one index
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        // desired topology now reflects 3 search nodes so we should go to green, with 3 replicas for the searched index
+        desiredTopologyContext.updateDesiredClusterTopology(
+            new DesiredClusterTopology(new TierTopology(3, "8G", 32.5f, 0.5f, 1.0f), new TierTopology(1, "8G", 32.5f, 0.5f, 1.0f))
+        );
+        assertBusy(
+            () -> assertThat(
+                clusterService.state().metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(),
+                is(3)
+            )
+        );
+
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        // disabling replicas for instant failover should reduce the number of replicas for the idle index (to 1)
+        // but the replicas for load balancing scaler will keep the searched index to max (3)
+        updateClusterSettings(Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false));
+        assertBusy(() -> {
+            ClusterState state = clusterService.state();
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(3));
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(1));
+        });
+        ensureGreen();
+
+        // re-enabling replicas for instant failover, but disabling replicas for load balancing should
+        // bring both indices to 2 replicas (SPmin 250)
+        updateClusterSettings(
+            Settings.builder()
+                .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true)
+                .put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), false)
+        );
+        assertBusy(() -> {
+            ClusterState state = clusterService.state();
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(2));
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(2));
+        });
+        ensureGreen();
+
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        // updating SPmin to below 100 will see instant failover recommend 1 replica for everything
+        // but load balancing will recommend more for the index with search traffic, so we expect this
+        // searched index to be at 3 replicas (max possible on 3 seach nodes)
+        updateClusterSettings(
+            Settings.builder()
+                .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true)
+                .put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), true)
+                .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 45)
+        );
+        assertBusy(() -> {
+            ClusterState state = clusterService.state();
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(3));
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(1));
+        });
+
+        // disabling replicas for load balancing leaves only instant failover running which at SPmin < 100 recommends 1 replica for
+        // everything
+        updateClusterSettings(Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), false));
+        assertBusy(() -> {
+            ClusterState state = clusterService.state();
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(1));
+            assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(1));
+        });
+    }
+
+    public void testReplicasForLoadBalancingWorksAtLowSPs() throws Exception {
+        int lowSpMin = randomIntBetween(5, 45);
+        Settings settings = Settings.builder()
+            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
+            .put(ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
+            .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), lowSpMin)
+            .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false)
+            .put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), false)
+            .build();
+        startMasterAndIndexNode(settings);
+        startSearchNode(settings);
+        startSearchNode(settings);
+        startSearchNode(settings);
+
+        String indexWithSearchTraffic = "searched-index";
+        String idleIndex = "idle-index";
+        createIndex(indexWithSearchTraffic, indexSettings(1, 1).put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false).build());
+        createIndex(idleIndex, indexSettings(1, 1).put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false).build());
+        ensureGreen();
+
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(indexWithSearchTraffic, 200, boostWindow + ONE_DAY, now);
+        indexDocumentsWithTimestamp(idleIndex, 200, boostWindow + ONE_DAY, now);
+
+        DesiredTopologyContext desiredTopologyContext = internalCluster().getCurrentMasterNodeInstance(DesiredTopologyContext.class);
+        desiredTopologyContext.updateDesiredClusterTopology(
+            new DesiredClusterTopology(new TierTopology(3, "8G", 32.5f, 0.5f, 1.0f), new TierTopology(1, "8G", 32.5f, 0.5f, 1.0f))
+        );
+
+        // make some search traffic for the searched index
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+        // instant failover at low SPmin should give 1 replica to both indices, so no change here
+        updateClusterSettings(Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true));
+        var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        ClusterState state = clusterService.state();
+        assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(1));
+        assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(1));
+
+        // enabling replicas load balancing shouldn't do much as there's no index search load yet (i.e. it'll just recommend 1 replica for
+        // both indices)
+        updateClusterSettings(Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), true));
+
+        state = clusterService.state();
+        assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(), is(1));
+        assertThat(state.metadata().getProject(ProjectId.DEFAULT).index(idleIndex).getNumberOfReplicas(), is(1));
+
+        // one index gets some search traffic, so should get more replicas
+        createSearchTraffic(indexWithSearchTraffic, boostWindow);
+
+        assertBusy(
+            () -> assertThat(
+                clusterService.state().metadata().getProject(ProjectId.DEFAULT).index(indexWithSearchTraffic).getNumberOfReplicas(),
+                is(3)
+            )
+        );
+    }
+
+    private static void createSearchTraffic(String indexWithSearchTraffic, long boostWindow) {
+        for (int i = 0; i < 100; i++) {
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            boolQueryBuilder.should(new RangeQueryBuilder("@timestamp").from(randomBoolean() ? boostWindow : boostWindow + ONE_DAY));
+            SearchResponse searchResponse = client().prepareSearch(indexWithSearchTraffic)
+                .setQuery(boolQueryBuilder)
+                .setRequestCache(false)
+                .get();
+            try {
+                assertNoFailures(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+        }
     }
 
     private static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {

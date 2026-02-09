@@ -15,15 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.RawAndAdjustedNodeIngestLoadSnapshots;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -59,6 +53,12 @@ import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.RawAndAdjustedNodeIngestLoadSnapshots;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -78,20 +78,20 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler.WRITE_EXECUTORS;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.MAX_UNDESIRED_SHARDS_PROPORTION_FOR_SCALE_DOWN;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.STALE_LOAD_WINDOW;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.AverageWriteLoadSampler.WRITE_EXECUTORS;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.MAX_UNDESIRED_SHARDS_PROPORTION_FOR_SCALE_DOWN;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.STALE_LOAD_WINDOW;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,7 +122,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                     MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
                     MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
-                    MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING
+                    MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+                    MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING
                 )
             ),
             ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
@@ -697,7 +698,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final ClusterState initialState = clusterState(builder.build());
 
         final var maxUndesiredShardsProportionForScaleDown = randomMaxUndesiredShardsProportionForScaleDown();
-        var service = new IngestMetricsService(
+        var service = new org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService(
             clusterSettings(
                 Settings.builder()
                     .put(HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING.getKey(), randomDoubleBetween(0.0, 1.0, true))

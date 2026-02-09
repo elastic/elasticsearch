@@ -15,8 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
+package org.elasticsearch.xpack.stateless.lucene;
 
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
@@ -32,8 +36,10 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -52,12 +58,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
@@ -82,11 +90,21 @@ public class IndexDirectory extends ByteSizeDirectory {
     private final BiConsumer<ShardId, String> onGenerationalFileDeletion;
 
     /**
+     * A supplier of the last committed {@link SegmentInfos}. It is used to try to open committed segment info files from engine memory.
+     */
+    private Supplier<SegmentInfos> lastCommittedSegmentInfosSupplier = () -> null;
+
+    /**
      * Map of files created on disk by the indexing shard. A reference {@link LocalFileRef} to this file is kept in the map until the file
      * is deleted by Lucene. The reference to the file can be used to know if the file can be read locally and if so allows to incRef/decRef
      * the reference to hold the file for the time to execute a read operation.
      */
     private final Map<String, LocalFileRef> localFiles = new HashMap<>();
+
+    /**
+     * Whether to read segment info from memory when possible.
+     */
+    private final boolean readSiFromMemoryIfPossible;
 
     /**
      * RW locks used to update files and commits
@@ -108,11 +126,13 @@ public class IndexDirectory extends ByteSizeDirectory {
     public IndexDirectory(
         Directory in,
         IndexBlobStoreCacheDirectory cacheDirectory,
-        @Nullable BiConsumer<ShardId, String> onGenerationalFileDeletion
+        @Nullable BiConsumer<ShardId, String> onGenerationalFileDeletion,
+        boolean readSiFromMemoryIfPossible
     ) {
         super(in);
         this.cacheDirectory = Objects.requireNonNull(cacheDirectory);
         this.onGenerationalFileDeletion = onGenerationalFileDeletion;
+        this.readSiFromMemoryIfPossible = readSiFromMemoryIfPossible;
     }
 
     @Override
@@ -162,7 +182,29 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexOutput createOutput(final String name, final IOContext context) throws IOException {
-        return localFile(super.createOutput(name, context));
+        var output = localFile(super.createOutput(name, context));
+        // When we serialize SegmentInfo files, we want to guarantee that the maps of strings are serialized in a deterministic order so
+        // that we can return the same byte representation when reading the SegmentFile from memory.
+        if (IndexFileNames.matchesExtension(name, LuceneFilesExtensions.SI.getExtension())) {
+            return makeMapOfStringSerializationDeterministic(output);
+        }
+        return output;
+    }
+
+    /**
+     * Ensure that the map serialized through the returned {@code IndexOutput} have their keys serialized in their natural order.
+     *
+     * @param output the {@code IndexOutput} to decorate
+     * @return an {@code IndexOutput} that make the serialization of the map of strings deterministic.
+     */
+    private IndexOutput makeMapOfStringSerializationDeterministic(IndexOutput output) {
+        return new FilterIndexOutput("si-stable-map-serializer", output) {
+
+            @Override
+            public void writeMapOfStrings(Map<String, String> map) throws IOException {
+                super.writeMapOfStrings(new TreeMap<>(map));
+            }
+        };
     }
 
     @Override
@@ -193,6 +235,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
+
         if (cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
             try (var ignored = readLock.acquire()) {
@@ -210,6 +253,16 @@ public class IndexDirectory extends ByteSizeDirectory {
                 }
             }
         }
+
+        if (readSiFromMemoryIfPossible && isSegmentInfoFile(name)) {
+            // If the requested input is for a SegmentInfo which is part of the last committed segment info files, we can read it directly
+            // from memory and avoid a most costly access.
+            Optional<IndexInput> inputFromMemory = openSegmentInfoInputFromMemory(name, context);
+            if (inputFromMemory.isPresent()) {
+                return inputFromMemory.get();
+            }
+        }
+
         return cacheDirectory.openInput(name, context);
     }
 
@@ -278,8 +331,101 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
-    public IndexBlobStoreCacheDirectory createNewInstance() {
-        return cacheDirectory.createNewInstance();
+    /**
+     * Inject a Supplier that allows access to the committed segment info files held in memory.
+     * @param lastCommittedSegmentInfosSupplier the supplier
+     */
+    public void setLastCommittedSegmentInfosSupplier(Supplier<SegmentInfos> lastCommittedSegmentInfosSupplier) {
+        this.lastCommittedSegmentInfosSupplier = lastCommittedSegmentInfosSupplier;
+    }
+
+    /**
+     * Tries to open a segment info file from the committed segment info files, which are loaded in the engine memory.
+     *
+     * @param filename the name of the file to open
+     * @param context the IOContext
+     * @return an {@code Optional<IndexInput>} containing the input if it can be read from memory, otherwise
+     * {@code Optional.empty()}
+     */
+    final Optional<IndexInput> openSegmentInfoInputFromMemory(String filename, IOContext context) {
+        assert isSegmentInfoFile(filename);
+
+        final var segmentInfos = lastCommittedSegmentInfosSupplier.get();
+
+        if (segmentInfos != null) {
+
+            var mayBeSi = findSegmentInfo(segmentInfos, filename);
+
+            if (mayBeSi.isPresent()) {
+                final var si = mayBeSi.get();
+                assert si.files().contains(filename) : filename + " si must contain itself, since it is committed and written";
+
+                // The order in which the map fields from SegmentInfo are serialized by default is non-deterministic and rely on the map
+                // order. To ensure that we have the same byte order when the bytes are returned from memory or from the disk we need
+                // to make that order deterministic.
+                Directory memDir = new FilterDirectory(new ByteBuffersDirectory()) {
+                    @Override
+                    public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                        return makeMapOfStringSerializationDeterministic(in.createOutput(name, context));
+                    }
+                };
+
+                try {
+                    final var codec = si.getCodec();
+                    codec.segmentInfoFormat().write(memDir, si, context);
+
+                    IndexInput input = new FilterIndexInput("si_mem(" + filename + ')', memDir.openInput(filename, context)) {
+                        final AtomicBoolean closed = new AtomicBoolean();
+
+                        @Override
+                        public void close() throws IOException {
+                            if (closed.compareAndSet(false, true)) {
+                                super.close();
+                                IOUtils.close(memDir);
+                            }
+                        }
+                    };
+
+                    logger.trace(
+                        "{} opening input for segment info file {} from memory with file pointer {} and length {}",
+                        cacheDirectory.getShardId(),
+                        filename,
+                        input.getFilePointer(),
+                        input.length()
+                    );
+                    return Optional.of(input);
+
+                } catch (IOException | RuntimeException e) {
+                    var generation = IndexFileNames.parseGeneration(filename);
+                    logger.warn(Strings.format("Exception while reading %s (generation: %d) from memory: ", filename, generation), e);
+                    IOUtils.closeWhileHandlingException(memDir);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean isSegmentInfoFile(String filename) {
+        return IndexFileNames.matchesExtension(filename, LuceneFilesExtensions.SI.getExtension());
+    }
+
+    /**
+     * Returns the segment info for the specified file, if it exists in the {@code SegmentInfos}.
+     *
+     * @param segmentInfos the {@code SegmentInfos}
+     * @param filename the segment info filename
+     * @return an {@code Optional<SegmentInfo>} containing the segment info if present in the {@code SegmentInfos}, otherwise
+     * {@code Optional.empty()}
+     */
+    private static Optional<SegmentInfo> findSegmentInfo(SegmentInfos segmentInfos, String filename) {
+        final var withoutExtension = IndexFileNames.stripExtension(filename);
+        for (int i = 0, m = segmentInfos.size(); i < m; i++) {
+            final var si = segmentInfos.info(i).info;
+            if (Objects.equals(si.name, withoutExtension)) {
+                return Optional.of(si);
+            }
+        }
+        return Optional.empty();
     }
 
     public IndexBlobStoreCacheDirectory getBlobStoreCacheDirectory() {

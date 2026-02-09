@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling;
+package org.elasticsearch.xpack.stateless.autoscaling;
 
 /**
  * Used in conjunction with {@link DesiredTopologyContext} to react to changes in the desired cluster topology.

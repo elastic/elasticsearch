@@ -15,22 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.reshard;
-
-import co.elastic.elasticsearch.stateless.engine.HollowEngineException;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -54,11 +46,15 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.xpack.stateless.engine.HollowEngineException;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,7 +71,6 @@ public class ReshardIndexService {
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
     private final MasterServiceTaskQueue<TransitionTargetToHandoffStateTask> transitionTargetToHandOffStateQueue;
-    private final MasterServiceTaskQueue<TransitionTargetToSplitStateTask> transitionTargetToSplitStateQueue;
     private final MasterServiceTaskQueue<TransitionTargetStateTask> transitionTargetStateQueue;
     private final MasterServiceTaskQueue<TransitionSourceStateTask> transitionSourceStateQueue;
 
@@ -99,11 +94,6 @@ public class ReshardIndexService {
             // and we would like to unblock it quickly.
             Priority.HIGH,
             new TransitionTargetToHandoffStateExecutor()
-        );
-        this.transitionTargetToSplitStateQueue = clusterService.createTaskQueue(
-            "transition-split-target-state-to-split",
-            Priority.NORMAL,
-            new TransitionTargetToSplitStateExecutor()
         );
         this.transitionTargetStateQueue = clusterService.createTaskQueue(
             "transition-split-target-state",
@@ -133,6 +123,9 @@ public class ReshardIndexService {
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             return ValidationError.CLOSED;
         }
+        if (indexMetadata.getCreationVersion().before(IndexVersions.MOD_ROUTING_FUNCTION)) {
+            return ValidationError.INVALID_INDEX_VERSION;
+        }
 
         return null;
     }
@@ -142,12 +135,16 @@ public class ReshardIndexService {
         SYSTEM_INDEX,
         DATA_STREAM_INDEX,
         ALREADY_RESHARDING,
-        CLOSED;
+        CLOSED,
+        INVALID_INDEX_VERSION;
 
         public RuntimeException intoException(Index index) {
             return switch (this) {
                 case INDEX_NOT_FOUND -> new IndexNotFoundException(index);
                 case SYSTEM_INDEX -> new IllegalArgumentException("resharding a system index " + index + " is not supported");
+                case INVALID_INDEX_VERSION -> new IllegalArgumentException(
+                    "resharding a index [" + index + "] with a version prior to " + IndexVersions.MOD_ROUTING_FUNCTION + " is not supported"
+                );
                 case DATA_STREAM_INDEX -> new IllegalArgumentException(
                     "resharding an index " + index + " that is part of a data stream is not supported"
                 );
@@ -195,14 +192,6 @@ public class ReshardIndexService {
             "transition-split-target-shard-to-handoff [" + splitStateRequest.getShardId() + "]",
             new TransitionTargetToHandoffStateTask(splitStateRequest, listener),
             splitStateRequest.masterNodeTimeout()
-        );
-    }
-
-    public void transitionToSplit(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
-        transitionTargetToSplitStateQueue.submitTask(
-            "transition-split-target-shard-to-split [" + splitStateRequest.getShardId() + "]",
-            new TransitionTargetToSplitStateTask(splitStateRequest, listener),
-            null
         );
     }
 
@@ -504,7 +493,7 @@ public class ReshardIndexService {
             }
 
             final int sourceNumShards = sourceMetadata.getNumberOfShards();
-            int calculatedNewShardCount = sourceNumShards * 2;
+            int calculatedNewShardCount = sourceNumShards * IndexReshardingMetadata.RESHARD_SPLIT_FACTOR;
             if (request.getNewShardCount() != -1 && calculatedNewShardCount != request.getNewShardCount()) {
                 throw new IllegalArgumentException(
                     "Requested new shard count ["
@@ -515,7 +504,10 @@ public class ReshardIndexService {
                 );
             }
 
-            final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, 2);
+            final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(
+                sourceNumShards,
+                IndexReshardingMetadata.RESHARD_SPLIT_FACTOR
+            );
             // TODO: We should do this validation in TransportReshardAction as well
             validateNumTargetShards(reshardingMetadata.shardCountAfter(), sourceMetadata);
 
@@ -597,78 +589,6 @@ public class ReshardIndexService {
         @Override
         public void taskSucceeded(TransitionTargetToHandoffStateTask task, Void unused) {
             task.listener.onResponse(null);
-        }
-    }
-
-    private static class TransitionTargetToSplitStateTask extends AckedBatchedClusterStateUpdateTask {
-        private final SplitStateRequest splitStateRequest;
-
-        TransitionTargetToSplitStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
-            // This update needs to be acknowledged by all nodes for correctness of search results produced during split.
-            // Therefore we use infinite timeout.
-            // We also fail the operation if there are any nodes that didn't ack this update forcing the caller to retry
-            // since again this is needed for correctness of search.
-            super(TimeValue.MINUS_ONE, listener.delegateFailure((l, acknowledged) -> {
-                if (acknowledged.isAcknowledged() == false) {
-                    l.onFailure(
-                        new ElasticsearchException(
-                            "Couldn't apply acked cluster state update to move split target shard "
-                                + splitStateRequest.getShardId()
-                                + " to SPLIT state."
-                        )
-                    );
-                } else {
-                    l.onResponse(null);
-                }
-            }));
-            this.splitStateRequest = splitStateRequest;
-        }
-    }
-
-    private static class TransitionTargetToSplitStateExecutor extends SimpleBatchedAckListenerTaskExecutor<
-        TransitionTargetToSplitStateTask> {
-        @Override
-        public Tuple<ClusterState, ClusterStateAckListener> executeTask(TransitionTargetToSplitStateTask task, ClusterState clusterState) {
-            final SplitStateRequest splitStateRequest = task.splitStateRequest;
-            final ShardId shardId = splitStateRequest.getShardId();
-            final Index index = shardId.getIndex();
-
-            assert splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT;
-
-            final ProjectMetadata project = clusterState.metadata().projectFor(index);
-            final ProjectState projectState = clusterState.projectState(project.id());
-            final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
-            IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
-            if (reshardingMetadata == null) {
-                throw new IllegalStateException("no existing resharding operation on " + index + ".");
-            }
-
-            long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
-            long startingTargetPrimaryTerm = splitStateRequest.getTargetPrimaryTerm();
-            if (startingTargetPrimaryTerm != currentTargetPrimaryTerm) {
-                handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
-            }
-
-            assert reshardingMetadata.isSplit();
-            IndexReshardingState.Split.TargetShardState currentState = reshardingMetadata.getSplit().getTargetShardState(shardId.id());
-
-            assert currentState.ordinal() >= IndexReshardingState.Split.TargetShardState.HANDOFF.ordinal()
-                : "Attempting to transition to SPLIT before handoff happened";
-
-            if (currentState == IndexReshardingState.Split.TargetShardState.SPLIT) {
-                return new Tuple<>(clusterState, task);
-            }
-
-            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
-
-            ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
-                IndexMetadata.builder(indexMetadata)
-                    .reshardingMetadata(
-                        reshardingMetadata.transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.SPLIT)
-                    )
-            );
-
-            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), task);
         }
     }
 

@@ -15,22 +15,25 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.DesiredTopologyContext;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -45,10 +48,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService.State.IDLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService.State.RUNNING;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService.State.RUNNING_WITH_PENDING;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService.State.IDLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService.State.RUNNING;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService.State.RUNNING_WITH_PENDING;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -80,13 +83,20 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
         );
         this.testThreadPool = new TestThreadPool(getTestName());
         listener = new TestExecutionTrackingListener();
+        ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
+        NoOpNodeClient client = new NoOpNodeClient(testThreadPool);
+        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, client);
         replicasUpdaterService = new ReplicasUpdaterService(
             testThreadPool,
-            createClusterService(testThreadPool, createClusterSettings()),
-            new NoOpNodeClient(testThreadPool),
+            clusterService,
+            client,
             searchMetricsService,
-            listener
+            replicasLoadBalancingScaler,
+            new DesiredTopologyContext(ClusterServiceUtils.createClusterService(this.testThreadPool)),
+            listener,
+            TelemetryProvider.NOOP.getMeterRegistry()
         );
+        replicasUpdaterService.init();
         // very high interval to control calls manually
         replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(600));
     }
@@ -341,7 +351,7 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
 
         TestExecutionTrackingListener concurrencyCheckingListener = new TestExecutionTrackingListener() {
             @Override
-            public void onRunStart(boolean immediateScaleDown) {
+            public void onRunStart(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds) {
                 int concurrent = concurrentExecutions.incrementAndGet();
                 maxConcurrentExecutions.updateAndGet(max -> Math.max(max, concurrent));
 
@@ -353,7 +363,7 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
                         Thread.currentThread().interrupt();
                     }
                 }
-                super.onRunStart(immediateScaleDown);
+                super.onRunStart(immediateScaleDown, onlyScaleDownToTopologyBounds);
             }
 
             @Override
@@ -362,14 +372,21 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
                 super.onRunComplete();
             }
         };
-
-        replicasUpdaterService = new ReplicasUpdaterService(
+        ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
+        NoOpNodeClient client = new NoOpNodeClient(testThreadPool);
+        org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler replicasLoadBalancingScaler =
+            new org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler(clusterService, client);
+        replicasUpdaterService = new org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService(
             testThreadPool,
-            createClusterService(testThreadPool, createClusterSettings()),
-            new NoOpNodeClient(testThreadPool),
+            clusterService,
+            client,
             searchMetricsService,
-            concurrencyCheckingListener
+            replicasLoadBalancingScaler,
+            new DesiredTopologyContext(ClusterServiceUtils.createClusterService(this.testThreadPool)),
+            concurrencyCheckingListener,
+            TelemetryProvider.NOOP.getMeterRegistry()
         );
+        replicasUpdaterService.init();
         replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(600));
 
         try (ExecutorService executor = Executors.newFixedThreadPool(numThreads)) {
@@ -434,7 +451,7 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
         private final List<Boolean> scaleDownValues = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onRunStart(boolean immediateScaleDown) {
+        public void onRunStart(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds) {
             int chainedRuns = chainedPendingRuns.incrementAndGet();
             maxChainedRuns.updateAndGet(max -> Math.max(max, chainedRuns));
             executionLog.add("run-" + runCount.incrementAndGet());
@@ -523,9 +540,11 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
             ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL,
             ReplicasUpdaterService.REPLICA_UPDATER_SCALEDOWN_REPETITIONS,
             ReplicasUpdaterService.AUTO_EXPAND_REPLICA_INDICES,
+            ReplicasScalerCacheBudget.REPLICA_CACHE_BUDGET_RATIO,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING,
+            ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING,
             ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER,
             ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING,
             ReplicasLoadBalancingScaler.MAX_REPLICA_RELATIVE_SEARCH_LOAD

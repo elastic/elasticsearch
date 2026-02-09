@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster.coordination;
-
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.stateless.Heartbeat;
@@ -27,6 +25,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

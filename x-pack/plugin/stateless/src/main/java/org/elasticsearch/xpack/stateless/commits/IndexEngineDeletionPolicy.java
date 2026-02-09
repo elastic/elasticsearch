@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
@@ -26,8 +24,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SafeCommitInfo;
-import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
-import org.elasticsearch.xpack.stateless.commits.SoftDeleteIndexCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
 import java.io.IOException;
 import java.util.ArrayList;

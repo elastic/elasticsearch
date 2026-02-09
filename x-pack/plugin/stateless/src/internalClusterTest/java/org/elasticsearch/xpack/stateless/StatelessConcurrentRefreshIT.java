@@ -15,15 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.ActionFuture;
@@ -39,6 +31,13 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
@@ -66,12 +65,12 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         return plugins;
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         public final AtomicReference<CyclicBarrier> commitIndexWriterBarrierReference = new AtomicReference<>();
         public final AtomicReference<CyclicBarrier> indexBarrierReference = new AtomicReference<>();
@@ -79,7 +78,7 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
         public final AtomicReference<CountDownLatch> refreshCompletedLatchReference = new AtomicReference<>();
         public final AtomicInteger indexCounter = new AtomicInteger();
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -181,7 +180,7 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
         final String newIndexNode = startIndexNode();
         ensureStableCluster(4);
 
-        final var testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
+        final var testStateless = findPlugin(indexNode, TestStatelessPlugin.class);
 
         final var indexBarrier = new CyclicBarrier(2);
         testStateless.indexBarrierReference.set(indexBarrier);
@@ -239,7 +238,7 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
         bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        final var testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
+        final var testStateless = findPlugin(indexNode, TestStatelessPlugin.class);
 
         final var indexBarrier = new CyclicBarrier(2);
         testStateless.indexBarrierReference.set(indexBarrier);
@@ -283,8 +282,8 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
 
     @TestLogging(
         value = "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
-            + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:debug,"
-            + "co.elastic.elasticsearch.stateless.recovery:debug,"
+            + "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:debug,"
+            + "org.elasticsearch.xpack.stateless.recovery:debug,"
             + "org.elasticsearch.indices.recovery:debug",
         reason = "ensure detailed shard relocation information"
     )
@@ -312,7 +311,7 @@ public class StatelessConcurrentRefreshIT extends AbstractServerlessStatelessPlu
 
         final String newIndexNode = startIndexNode();
         ensureStableCluster(4);
-        final var testStateless = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
+        final var testStateless = findPlugin(indexNode, TestStatelessPlugin.class);
 
         // 1. Issue an indexing request with wait_until. It should register a refresh listener and wait for it to be notified.
         // It holds 1 index operation permits while waiting

@@ -15,15 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.SafeCommitInfo;
-import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
-import org.elasticsearch.xpack.stateless.commits.SoftDeleteIndexCommit;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 
 import java.io.IOException;
 import java.util.List;

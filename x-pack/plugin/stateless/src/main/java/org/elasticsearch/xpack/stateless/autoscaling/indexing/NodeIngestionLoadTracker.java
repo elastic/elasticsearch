@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
-
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.RawAndAdjustedNodeIngestLoadSnapshots;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +29,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.RawAndAdjustedNodeIngestLoadSnapshots;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.isNodeMarkedForRemoval;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.isNodeMarkedForRemoval;
 
 public class NodeIngestionLoadTracker {
 
@@ -88,7 +87,7 @@ public class NodeIngestionLoadTracker {
      */
     public static final Setting<Boolean> USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING = Setting.boolSetting(
         "serverless.autoscaling.ingest_metrics.use_tier_wide_avg_task_exec_time_during_scaling",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -396,7 +395,7 @@ public class NodeIngestionLoadTracker {
         return state.getRoutingNodes()
             .unassigned()
             .stream()
-            .filter(s -> s.isPromotableToPrimary() && s.unassignedInfo().lastAllocatedNodeId().equals(nodeId))
+            .filter(s -> s.isPromotableToPrimary() && nodeId.equals(s.unassignedInfo().lastAllocatedNodeId()))
             .count();
     }
 

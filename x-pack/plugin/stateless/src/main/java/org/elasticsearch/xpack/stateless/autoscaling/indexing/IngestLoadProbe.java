@@ -15,17 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
-
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
@@ -37,6 +34,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -123,6 +123,39 @@ public class IngestLoadProbe implements IndexEventListener, ClusterStateListener
         Setting.Property.Dynamic
     );
 
+    /**
+     * This setting caps the workload contribution from the write coordination thread pool, ensuring it does not exceed a
+     * defined proportion relative to the write thread pool.
+     */
+    static final int WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_DEFAULT_RATIO = 10;
+    public static final Setting<Integer> WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_RATIO = Setting.intSetting(
+        "serverless.autoscaling.indexing.write_coordination_max_contribution_cap_multiple",
+        WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_DEFAULT_RATIO,
+        1,
+        10,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    public static final Setting<TimeValue> WRITE_COORDINATION_MAX_CONTRIBUTION_CAPPED_LOG_INTERVAL = Setting.timeSetting(
+        "serverless.autoscaling.indexing.write_coordination_max_contribution_capped.log_interval",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    /**
+     * If write executor ingest load is below this threshold, write coordination ingest load contribution is not capped to
+     * a fixed ratio to write executor ingestion load.
+     */
+    public static final Setting<Double> WRITE_COORDINATION_UNCAPPING_THRESHOLD = Setting.doubleSetting(
+        "serverless.autoscaling.indexing.write_coordination_max_contribution_uncapped.threshold",
+        1.0,
+        0.0, // Min value is kept low for testing purposes.
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private final Function<String, ExecutorStats> executorStatsProvider;
     private final TimeProvider timeProvider;
     private volatile TimeValue maxTimeToClearQueue;
@@ -135,6 +168,9 @@ public class IngestLoadProbe implements IndexEventListener, ClusterStateListener
     private volatile TimeValue initialScalingWindowToConsiderNodeAvgTaskExecTimesUnstable;
     private final Map<String, Double> lastStableAverageTaskExecutionTime = new HashMap<>();
     private volatile OptionalLong lastScalingWindowStartTimeInMillis = OptionalLong.empty();
+    private volatile int writeCoordinationMaxContributionCapRatio;
+    private volatile FrequencyCappedAction writeCoordinationMaxContributionCappedLogInterval;
+    private volatile double writeCoordinationUncappingThreshold;
 
     @SuppressWarnings("this-escape")
     public IngestLoadProbe(
@@ -159,6 +195,22 @@ public class IngestLoadProbe implements IndexEventListener, ClusterStateListener
         clusterSettings.initializeAndWatch(
             NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE,
             value -> this.initialScalingWindowToConsiderNodeAvgTaskExecTimesUnstable = value
+        );
+        clusterSettings.initializeAndWatch(
+            WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_RATIO,
+            value -> this.writeCoordinationMaxContributionCapRatio = value
+        );
+        clusterSettings.initializeAndWatch(WRITE_COORDINATION_MAX_CONTRIBUTION_CAPPED_LOG_INTERVAL, v -> {
+            final var writeCoordinationMaxContributionCappedLogInterval = new FrequencyCappedAction(
+                timeProvider::relativeTimeInMillis,
+                TimeValue.ZERO
+            );
+            writeCoordinationMaxContributionCappedLogInterval.setMinInterval(v);
+            this.writeCoordinationMaxContributionCappedLogInterval = writeCoordinationMaxContributionCappedLogInterval;
+        });
+        clusterSettings.initializeAndWatch(
+            WRITE_COORDINATION_UNCAPPING_THRESHOLD,
+            value -> this.writeCoordinationUncappingThreshold = value
         );
     }
 
@@ -221,14 +273,47 @@ public class IngestLoadProbe implements IndexEventListener, ClusterStateListener
             }
             nodeExecutorStats.put(executorName, executorStats);
             nodeExecutorIngestionLoads.put(executorName, ingestionLoadForExecutor);
-            // Do not include ingestion load from write coordination executors if disabled (they are still recorded for metrics purpose).
-            if (includeWriteCoordinationExecutors
-                || (ThreadPool.Names.WRITE_COORDINATION.equals(executorName) == false
-                    && ThreadPool.Names.SYSTEM_WRITE_COORDINATION.equals(executorName) == false)) {
+            if (ThreadPool.Names.WRITE_COORDINATION.equals(executorName) == false
+                && ThreadPool.Names.SYSTEM_WRITE_COORDINATION.equals(executorName) == false) {
                 totalIngestionLoad += nodeExecutorIngestionLoads.get(executorName).total();
             }
         }
+
+        // Do not include ingestion load from write coordination executors if disabled (they are still recorded for metrics purpose).
+        if (includeWriteCoordinationExecutors) {
+            totalIngestionLoad += nodeExecutorIngestionLoads.get(ThreadPool.Names.SYSTEM_WRITE_COORDINATION).total();
+            totalIngestionLoad += getWriteCoordinationExecutorIngestionLoad(nodeExecutorIngestionLoads);
+        }
+
         return new NodeIngestionLoad(nodeExecutorStats, lastStableAverageTaskExecutionTime, nodeExecutorIngestionLoads, totalIngestionLoad);
+    }
+
+    // Visible for testing.
+    double getWriteCoordinationExecutorIngestionLoad(Map<String, ExecutorIngestionLoad> nodeExecutorIngestionLoads) {
+        double writeExecutorIngestionLoadTotal = nodeExecutorIngestionLoads.get(ThreadPool.Names.WRITE).total();
+        double writeCoordinationIngestionLoadTotal = nodeExecutorIngestionLoads.get(ThreadPool.Names.WRITE_COORDINATION).total();
+
+        if (writeExecutorIngestionLoadTotal <= writeCoordinationUncappingThreshold) {
+            return writeCoordinationIngestionLoadTotal;
+        }
+
+        final var capped = writeExecutorIngestionLoadTotal * this.writeCoordinationMaxContributionCapRatio;
+
+        if (writeCoordinationIngestionLoadTotal < capped) {
+            return writeCoordinationIngestionLoadTotal;
+        }
+
+        // Caps the workload contribution from the write coordination thread pool, ensuring it does not wildly exceed write thread pool.
+        writeCoordinationMaxContributionCappedLogInterval.maybeExecute(
+            () -> logger.warn(
+                "write coordination thread pool ingest load [{}] is capped to [{}] which is write ingest load [{}] * cap ratio [{}].",
+                writeCoordinationIngestionLoadTotal,
+                capped,
+                writeExecutorIngestionLoadTotal,
+                writeCoordinationMaxContributionCapRatio
+            )
+        );
+        return capped;
     }
 
     boolean dropQueueDueToInitialStartingInterval() {

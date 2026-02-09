@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import co.elastic.elasticsearch.stateless.commits.HollowIndexEngineDeletionPolicy;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexCommit;
@@ -42,7 +38,6 @@ import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
@@ -58,6 +53,9 @@ import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.stateless.commits.HollowIndexEngineDeletionPolicy;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -69,7 +67,7 @@ import java.util.function.Function;
 
 /**
  * An {@link org.elasticsearch.index.engine.Engine} implementation for hollow index shards, i.e. shards that can't process ingestion
- * until they are unhollowed and the engine is swapped with an {@link co.elastic.elasticsearch.stateless.engine.IndexEngine}.
+ * until they are unhollowed and the engine is swapped with an {@link org.elasticsearch.xpack.stateless.engine.IndexEngine}.
  *
  * The main objective of the hollow index engine is to decrease the memory footprint of inactive (ingestion-less) indexing shards.
  */
@@ -96,9 +94,10 @@ public class HollowIndexEngine extends Engine {
         EngineConfig config,
         StatelessCommitService statelessCommitService,
         HollowShardsService hollowShardsService,
-        MapperService mapperService
+        SegmentInfos segmentInfos
     ) {
         super(config);
+
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
         this.externalRefreshListeners = config.getExternalRefreshListener();
@@ -107,11 +106,10 @@ public class HollowIndexEngine extends Engine {
         try {
             store.incRef();
             Directory directory = store.directory();
-            final var shardId = engineConfig.getShardId();
             boolean success = false;
             try {
                 assert Transports.assertNotTransportThread("opening directory reader of a read-only hollow engine");
-                this.segmentInfos = Lucene.readSegmentInfos(directory);
+                this.segmentInfos = segmentInfos;
                 this.seqNoStats = buildSeqNoStats(config, segmentInfos);
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), segmentInfos.totalMaxDoc());
                 this.docsStats = buildDocsStats(segmentInfos);

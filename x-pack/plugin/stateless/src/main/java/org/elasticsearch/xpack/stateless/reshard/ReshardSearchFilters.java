@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.reshard;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -98,8 +98,12 @@ public class ReshardSearchFilters {
         // Most of the time this will return false, e.g., when no resharding is taking place.
         // It's expected to always return false when the shard is a target shard as well, because the request would not
         // have included it if it summary predated the target shard entering SPLIT.
+        // It is also possible for the coordinator to see split before the shard itself because cluster state application is
+        // asynchronous. In that case we should filter because the coordinator is including the split target.
         final var currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
-        if (summary.equals(currentSummary) == false) {
+        if (summary.compareTo(currentSummary) > 0) {
+            return true;
+        } else if (summary.compareTo(currentSummary) < 0) {
             return false;
         }
 
@@ -107,7 +111,9 @@ public class ReshardSearchFilters {
         // * When no resharding is in progress, the summaries will usually match, but we have no need to filter.
         // * We do not want to filter source shards if their targets are not yet at SPLIT, since the source is still responsible
         // for the target's documents.
-        // * We do not want to filter target shards that have moved to DONE, since they have already removed unowned documents.
+        // * We do not need to filter target shards that have moved to DONE, since they have already removed unowned documents.
+        // XXX this may not be quite correct, since although DONE means that the data has been deleted, it doesn't necessarily
+        // mean that the search shard has seen the delete. It needs to filter until it has. To fix with #5404.
         IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
         if (reshardingMetadata == null) {
             // no resharding is in progress, so no need to filter
@@ -123,7 +129,8 @@ public class ReshardSearchFilters {
             && split.allTargetStatesAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.SPLIT)) {
             hasUnownedDocs = true;
         } else if (split.isTargetShard(shardId.id())
-            && split.getTargetShardState(shardId.id()) == IndexReshardingState.Split.TargetShardState.SPLIT) {
+            // the target shard may still believe it is in handoff because it hasn't applied the latest cluster state yet
+            && split.getTargetShardState(shardId.id()) != IndexReshardingState.Split.TargetShardState.DONE) {
                 hasUnownedDocs = true;
             }
 

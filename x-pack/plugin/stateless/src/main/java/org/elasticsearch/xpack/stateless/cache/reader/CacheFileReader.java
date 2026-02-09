@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache.reader;
-
-import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
+package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -35,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -88,6 +87,24 @@ public class CacheFileReader {
      */
     public CacheFileReader copy() {
         return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier);
+    }
+
+    /**
+     * Attempts to prefetch byte(s) from the local cache using the fast path.
+     *
+     * <p>This method is best-effort and non-blocking. It only attempts to
+     * prefetch data that is already present in the local cache and may
+     * bring it into memory. If the fast path cannot be used, this method
+     * returns {@code false} and no prefetching is performed.</p>
+     *
+     * @param offset the starting offset to prefetch from
+     * @param length the number of bytes to prefetch
+     * @return {@code true} if the fast-path prefetch succeeded,
+     *         {@code false} otherwise
+     * @throws IOException if an I/O error occurs
+     */
+    public final boolean tryPrefetch(long offset, long length) throws IOException {
+        return cacheFile.tryPrefetch(offset, length);
     }
 
     /**

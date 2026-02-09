@@ -15,13 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,6 +42,10 @@ import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,6 +57,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MAX_SETTING;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
 
 /**
@@ -106,6 +107,7 @@ public class SearchMetricsService implements ClusterStateListener {
     private volatile double replicationInteractiveSizeUsage = -1.0;
 
     private volatile int searchPowerMinSetting;
+    private volatile int searchPowerMaxSetting;
 
     public static SearchMetricsService create(
         ClusterSettings clusterSettings,
@@ -138,6 +140,7 @@ public class SearchMetricsService implements ClusterStateListener {
             value -> this.staleMetricsCheckIntervalNs = value.getNanos()
         );
         clusterSettings.initializeAndWatch(SEARCH_POWER_MIN_SETTING, sp -> { this.searchPowerMinSetting = sp; });
+        clusterSettings.initializeAndWatch(SEARCH_POWER_MAX_SETTING, sp -> { this.searchPowerMaxSetting = sp; });
         meterRegistry.registerDoubleGauge(
             "es.autoscaling.search.replica_factor_interactive.current",
             "Average replica setting across indices managed by ReplicasUpdaterService",
@@ -369,7 +372,9 @@ public class SearchMetricsService implements ClusterStateListener {
                 totalDataSizeInBytes,
                 dataSizeExact ? MetricQuality.EXACT : MetricQuality.MINIMUM
             ),
-            Collections.unmodifiableList(searchLoads)
+            Collections.unmodifiableList(searchLoads),
+            searchPowerMinSetting,
+            searchPowerMaxSetting
         );
     }
 

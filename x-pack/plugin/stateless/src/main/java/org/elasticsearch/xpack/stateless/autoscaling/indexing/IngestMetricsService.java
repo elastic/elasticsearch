@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
-
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +36,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -54,11 +53,11 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.shuttingDownIndexingNodes;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_SHARD_ROLES;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.shuttingDownIndexingNodes;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.UNADJUSTED;
 
 public class IngestMetricsService implements ClusterStateListener {
 

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine.translog;
+package org.elasticsearch.xpack.stateless.engine.translog;
 
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;

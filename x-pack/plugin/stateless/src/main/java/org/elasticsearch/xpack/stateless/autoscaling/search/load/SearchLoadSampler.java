@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
-
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -31,7 +29,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
+import static org.elasticsearch.xpack.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
 /**
  * This class samples the search load with a given frequency {@code SAMPLING_FREQUENCY_SETTING} and publishes the new
@@ -76,6 +77,7 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     private final Supplier<MetricQuality> searchLoadQualitySupplier;
     private final Client client;
     private final AtomicLong seqNoSupplier = new AtomicLong();
+    private final LongHistogram samplingTaskSchedulingDrift;
 
     private volatile double minSensitivityRatio;
     private volatile TimeValue samplingFrequency;
@@ -96,7 +98,8 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         Supplier<MetricQuality> searchLoadQualitySupplier,
         ClusterService clusterService,
         Settings settings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
     ) {
         var clusterSettings = clusterService.getClusterSettings();
         var searchLoadSampler = new SearchLoadSampler(
@@ -106,7 +109,8 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
             searchLoadQualitySupplier,
             AverageSearchLoadSampler.getNumProcessors(AverageSearchLoadSampler.USE_VCPU_REQUEST.get(settings), settings),
             clusterSettings,
-            threadPool
+            threadPool,
+            meterRegistry
         );
         clusterSettings.addSettingsUpdateConsumer(AverageSearchLoadSampler.USE_VCPU_REQUEST, value -> {
             var newNumProcessors = AverageSearchLoadSampler.getNumProcessors(value, settings);
@@ -123,7 +127,8 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         Supplier<MetricQuality> searchLoadQualitySupplier,
         double numProcessors,
         ClusterSettings clusterSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
     ) {
         if (numProcessors <= 0) {
             throw new IllegalArgumentException("Processors must be positive but was " + numProcessors);
@@ -142,6 +147,11 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
         this.searchLoadQualitySupplier = searchLoadQualitySupplier;
         // To ensure that the first sample is published right away
         lastPublicationRelativeTimeInMillis.set(threadPool.relativeTimeInMillis() - maxTimeBetweenPublications.getMillis());
+        samplingTaskSchedulingDrift = meterRegistry.registerLongHistogram(
+            "es.autoscaling.search_load.sampler_drift.histogram",
+            "The delay from the configured sampling frequency when executing search load samples",
+            "ns"
+        );
     }
 
     @Override
@@ -245,16 +255,24 @@ public class SearchLoadSampler extends AbstractLifecycleComponent implements Clu
     }
 
     class SamplingTask implements Runnable {
+        private long expectedTimeNanos = -1;
+
         @Override
         public void run() {
             if (samplingTask != SamplingTask.this) {
                 return;
+            }
+            long now = System.nanoTime();
+            if (expectedTimeNanos != -1) {
+                long driftNanos = now - expectedTimeNanos;
+                samplingTaskSchedulingDrift.record(driftNanos);
             }
 
             try {
                 averageSearchLoadSampler.sample();
                 sampleSearchLoad(nodeId);
             } finally {
+                expectedTimeNanos = now + samplingFrequency.nanos();
                 threadPool.scheduleUnlessShuttingDown(samplingFrequency, executor, SamplingTask.this);
             }
         }

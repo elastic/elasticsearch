@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -30,6 +27,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -87,7 +86,7 @@ public class IndexShardCacheWarmerTests extends IndexShardTestCase {
         assertThat(store.decRef(), is(true));
 
         taskQueue.runAllTasks();
-        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecovery(any(), any(), any(), any());
+        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecovery(any(), any(), any(), any(), any());
     }
 
     public void testLogErrorIfPrewarmingFailed() throws Exception {

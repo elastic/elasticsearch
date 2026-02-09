@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
-
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,8 +23,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -158,7 +158,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             metricQualitySupplier,
             numProcessors,
             clusterSettings,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -205,7 +206,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -255,8 +257,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            threadPool
-
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -323,7 +325,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -371,7 +374,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -447,7 +451,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -481,7 +486,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             8,
             clusterSettings,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -544,7 +550,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
             () -> MetricQuality.EXACT,
             numProcessors,
             clusterSettings,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         ) {
             @Override
             public void publishSearchLoad(double searchLoad, MetricQuality quality, String nodeId, ActionListener<Void> listener) {
@@ -609,7 +616,8 @@ public class SearchLoadSamplerTests extends ESTestCase {
                 randomDoubleBetween(100.0, 500.0, true),
                 randomIntBetween(0, 100),
                 between(5, 10),
-                between(1, 15)
+                between(1, 15),
+                randomLongBetween(0L, TimeValue.timeValueSeconds(5L).nanos())
             );
         }
     }

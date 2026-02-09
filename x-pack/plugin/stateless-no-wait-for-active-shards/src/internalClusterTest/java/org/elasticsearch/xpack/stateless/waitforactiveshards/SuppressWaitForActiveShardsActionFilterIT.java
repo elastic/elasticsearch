@@ -17,18 +17,17 @@
 
 package co.elastic.elasticsearch.api.waitforactiveshards;
 
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.Collection;
 import java.util.function.UnaryOperator;
 
-public class SuppressWaitForActiveShardsActionFilterIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class SuppressWaitForActiveShardsActionFilterIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

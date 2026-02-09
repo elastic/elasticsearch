@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;

@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.recovery;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
+package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
@@ -43,6 +40,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -63,7 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class BlockRefreshUponIndexCreationIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testIndexCreatedWithRefreshBlock() throws Exception {
         startMasterAndIndexNode(useRefreshBlockSetting(true));
@@ -502,6 +501,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractServerlessStateless
     }
 
     private static Settings useRefreshBlockSetting(boolean value) {
-        return Settings.builder().put(ServerlessStatelessPlugin.USE_INDEX_REFRESH_BLOCK_SETTING.getKey(), value).build();
+        return Settings.builder().put(StatelessPlugin.USE_INDEX_REFRESH_BLOCK_SETTING.getKey(), value).build();
     }
 }

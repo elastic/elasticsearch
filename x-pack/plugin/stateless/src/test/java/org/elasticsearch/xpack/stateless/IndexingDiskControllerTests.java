@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.tests.mockfile.FilterFileStore;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
@@ -32,6 +30,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -42,8 +41,8 @@ import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.util.Objects;
 
-import static co.elastic.elasticsearch.stateless.IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING;
 import static org.elasticsearch.indices.IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING;
+import static org.elasticsearch.xpack.stateless.IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

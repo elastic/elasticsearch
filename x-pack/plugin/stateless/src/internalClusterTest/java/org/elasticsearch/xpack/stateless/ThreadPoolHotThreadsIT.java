@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-public class ThreadPoolHotThreadsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class ThreadPoolHotThreadsIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testNotHotThreadsForPersistedManagementThreadPoolQueueSizeWhenDisabled() throws Exception {
         final Settings.Builder settingsBuilder = Settings.builder()

@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.multiproject;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+package org.elasticsearch.xpack.stateless.multiproject;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
@@ -36,6 +34,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.util.concurrent.CountDownLatch;
@@ -43,7 +42,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class ProjectGlobalBlocksIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class ProjectGlobalBlocksIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected boolean multiProjectIntegrationTest() {
         return true;

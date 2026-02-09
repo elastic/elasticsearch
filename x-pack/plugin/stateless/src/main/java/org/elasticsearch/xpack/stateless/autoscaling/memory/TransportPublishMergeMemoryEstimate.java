@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
-
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ShardMergeMemoryEstimatePublication;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -36,6 +33,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ShardMergeMemoryEstimatePublication;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
 
 import java.io.IOException;
 import java.util.Objects;

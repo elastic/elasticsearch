@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -31,22 +28,24 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 
-import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 
-public class StatelessComponentsOrderIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         return plugins;
     }
 
@@ -63,7 +62,7 @@ public class StatelessComponentsOrderIT extends AbstractServerlessStatelessPlugi
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
-        final TestServerlessStatelessPlugin plugin = findPlugin(indexNode, TestServerlessStatelessPlugin.class);
+        final TestStatelessPlugin plugin = findPlugin(indexNode, TestStatelessPlugin.class);
         final var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
         final var indexShard = findIndexShard(indexName);
 
@@ -102,13 +101,13 @@ public class StatelessComponentsOrderIT extends AbstractServerlessStatelessPlugi
         assertFalse(shuttingDownThread.isAlive());
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         private final CountDownLatch mergeReadStartedLatch = new CountDownLatch(1);
         private final CountDownLatch cacheEvictedLatch = new CountDownLatch(1);
         private final CountDownLatch statelessCloseCalledLatch = new CountDownLatch(1);
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 

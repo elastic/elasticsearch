@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.mapper;
+package org.elasticsearch.xpack.stateless.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;

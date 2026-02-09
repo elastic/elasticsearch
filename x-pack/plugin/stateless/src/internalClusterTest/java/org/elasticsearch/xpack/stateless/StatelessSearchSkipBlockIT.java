@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class StatelessSearchSkipBlockIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessSearchSkipBlockIT extends AbstractStatelessPluginIntegTestCase {
 
     private final int numShards = randomIntBetween(1, 3);
     private final int numReplicas = randomIntBetween(1, 2);

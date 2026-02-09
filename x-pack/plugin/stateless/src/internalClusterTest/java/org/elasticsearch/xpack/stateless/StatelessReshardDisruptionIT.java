@@ -15,11 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
-import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
-
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,11 +28,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
@@ -45,8 +46,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests that resharding operations are resilient in presence of failures.
  */
-public class StatelessReshardDisruptionIT extends AbstractServerlessStatelessPluginIntegTestCase {
-    public void testReshardWithDisruption() throws IOException, InterruptedException {
+public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTestCase {
+    public void testReshardWithDisruption() throws IOException, InterruptedException, ExecutionException {
         var masterNode = startMasterOnlyNode();
 
         int nodes = 2;
@@ -73,20 +74,17 @@ public class StatelessReshardDisruptionIT extends AbstractServerlessStatelessPlu
             logger.info("--> start inducing failures");
 
             var failuresStarted = new CountDownLatch(1);
-            var failuresStopped = new CountDownLatch(1);
             var stop = new AtomicBoolean(false);
-            disruptionExecutorService.submit(() -> {
+            var disruptionFuture = disruptionExecutorService.submit(() -> {
                 failuresStarted.countDown();
                 do {
-                    // We exclude relocations because the implementation is not ready for it.
-                    Failure randomFailure = randomFrom(Failure.RESTART, Failure.REPLACE_FAILED_NODE, Failure.LOCAL_FAIL_SHARD);
+                    Failure randomFailure = randomFrom(Failure.values());
                     try {
                         induceFailure(randomFailure, index, clusterSize, multiple);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 } while (stop.get() == false);
-                failuresStopped.countDown();
             });
 
             failuresStarted.await();
@@ -98,7 +96,7 @@ public class StatelessReshardDisruptionIT extends AbstractServerlessStatelessPlu
                 logger.info("--> done resharding an index [{}]", indexName);
             } finally {
                 stop.set(true);
-                failuresStopped.await();
+                disruptionFuture.get();
             }
 
             checkNumberOfShardsSetting(indexName, multiple);
@@ -150,8 +148,8 @@ public class StatelessReshardDisruptionIT extends AbstractServerlessStatelessPlu
                     // ensureGreen may succeed before the cluster state reflects the failed shard
                     safeAwait(listener);
                     ensureGreen(index.getName());
-                } catch (AssertionError e) {
-                    // Unlucky, shard does not exist yet.
+                } catch (AssertionError | AlreadyClosedException e) {
+                    // Unlucky, shard does not exist yet or is already closed.
                 }
             }
             case RELOCATE_SHARD -> {

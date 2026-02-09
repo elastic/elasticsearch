@@ -15,6 +15,6 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster.coordination;
+package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 record PersistedClusterStateMetadata(long term, long version, String clusterUUID) {}

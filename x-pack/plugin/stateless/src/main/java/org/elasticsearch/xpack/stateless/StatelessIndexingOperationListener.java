@@ -15,13 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 
 import java.util.Objects;
 

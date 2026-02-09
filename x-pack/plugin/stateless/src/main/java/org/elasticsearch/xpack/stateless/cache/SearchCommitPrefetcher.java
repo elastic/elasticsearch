@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -35,7 +32,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -94,7 +92,7 @@ public class SearchCommitPrefetcher {
     );
     public static final Setting<Boolean> FORCE_PREFETCH_SETTING = Setting.boolSetting(
         "stateless.search.prefetch_commits.force",
-        false,
+        true,
         Setting.Property.NodeScope
     );
     // TODO: add a setting to enable pre-fetching only for write indices?
@@ -288,7 +286,7 @@ public class SearchCommitPrefetcher {
                 // In this case we are fetching a range that might contain multiple Lucene files and the
                 // CacheBlobReader API expects a BlobLocation.
                 var blobLocation = new BlobLocation(blobFile, 0, totalDataToPrefetchInBytes);
-                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(cacheKey.fileName(), blobLocation);
+                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobLocation.blobFile());
 
                 // If fetching a range from the indexing node, adjust it for padding and alignment.
                 // If fetching from the blob store, we try to fetch the entire region.
@@ -457,7 +455,7 @@ public class SearchCommitPrefetcher {
     }
 
     public interface CacheBlobReaderSupplier {
-        CacheBlobReader getCacheBlobReaderForPreFetching(String fileName, BlobLocation blobLocation);
+        CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile);
     }
 
     public static class PrefetchExecutor implements Executor {

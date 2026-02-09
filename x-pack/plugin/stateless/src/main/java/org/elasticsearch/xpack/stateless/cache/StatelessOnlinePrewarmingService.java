@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.cache.reader.LazyRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,9 +34,11 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
+import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -195,7 +193,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 // - if there is a single compound commit in the blob file we will just prewarm the first region of the blob file.
                 final int endRegion = siRange.fileOffset() + siRange.fileLength() > cacheService.getRegionSize() ? 1 : 0;
                 var cacheKey = new FileCacheKey(indexShard.shardId(), siRange.primaryTerm(), siRange.blobName());
-                var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(cacheKey.fileName(), siRange.blobLocation());
+                var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().blobFile());
 
                 for (int i = 0; i <= endRegion; i++) {
                     if (store.isClosing() || store.tryIncRef() == false) {

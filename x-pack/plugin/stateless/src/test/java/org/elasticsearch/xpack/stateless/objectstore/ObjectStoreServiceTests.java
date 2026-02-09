@@ -13,19 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.objectstore;
-
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType;
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.objectstore;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
@@ -68,6 +58,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -94,13 +85,20 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.IOException;
@@ -117,16 +115,17 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -302,8 +301,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
             );
 
             final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
-            BatchedCompoundCommit commit = ObjectStoreService.readSearchShardState(
+            BatchedCompoundCommit commit = testHarness.objectStoreService.readSearchShardState(
                 testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
+                dir,
                 1
             );
             if (commit != null) {
@@ -322,7 +322,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
     }
 
-    public void testReadNewestCommit() throws Exception {
+    public void testReadLatestCommit() throws Exception {
         final Map<String, BlobLocation> uploadedBlobLocations = ConcurrentCollections.newConcurrentMap();
         final var notifiedCompoundCommits = new ConcurrentLinkedQueue<StatelessCompoundCommit>();
         final long primaryTerm = randomLongBetween(1, 42);
@@ -388,7 +388,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 );
                 safeAwait(waitForUploadLatch);
                 assertThat(
-                    ObjectStoreService.readNewestBcc(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
+                    ObjectStoreService.readBatchedCompoundCommitFromStore(
+                        shardBlobContainer,
+                        ObjectStoreService.getLatestBlob(shardBlobContainer).v2()
+                    ),
                     equalTo(
                         new BatchedCompoundCommit(
                             expectedNewestCompoundCommit.get().primaryTermAndGeneration(),
@@ -441,13 +444,16 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             // Should find the newest commit in a list of CCs and BCCs
             assertThat(
-                ObjectStoreService.readNewestBcc(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
+                ObjectStoreService.readBatchedCompoundCommitFromStore(
+                    shardBlobContainer,
+                    ObjectStoreService.getLatestBlob(shardBlobContainer).v2()
+                ),
                 equalTo(expectedNewestBatchedCompoundCommit.get())
             );
         }
     }
 
-    public void testReadLatestBccUsingCachePopulatesCache() throws Exception {
+    public void testReadLatestBccPopulatesCache() throws Exception {
         final Map<String, BlobLocation> uploadedBlobs = ConcurrentCollections.newConcurrentMap();
         var primaryTerm = randomLongBetween(1, 42);
         var useReplicatedRanges = randomBoolean();
@@ -455,6 +461,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         long latestBccLength = 0L;
         var cacheSize = ByteSizeValue.ofMb(1L);
         var regionSize = ByteSizeValue.ofBytes((long) randomIntBetween(1, 3) * SharedBytes.PAGE_SIZE);
+        AtomicBoolean allowBlobRead = new AtomicBoolean(true);
         try (
             var testHarness = new FakeStatelessNode(
                 TestEnvironment::newEnvironment,
@@ -472,8 +479,36 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                         .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
                         .put(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), regionSize)
+                        .put(ObjectStoreService.CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.getKey(), true)
                         .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), useReplicatedRanges)
                         .build();
+                }
+
+                @Override
+                protected BlobContainer getBlobContainer(ObjectStoreService objectStoreService, ShardId shardId, long term) {
+                    return new FilterBlobContainer(super.getBlobContainer(objectStoreService, shardId, term)) {
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                            if (allowBlobRead.get()) {
+                                return super.readBlob(purpose, blobName);
+                            }
+                            throw new AssertionError("Unexpected blob read call after caching");
+                        }
+
+                        @Override
+                        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length)
+                            throws IOException {
+                            if (allowBlobRead.get()) {
+                                return super.readBlob(purpose, blobName, position, length);
+                            }
+                            throw new AssertionError("Unexpected blob read call after caching");
+                        }
+                    };
                 }
             }
         ) {
@@ -516,16 +551,38 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     latestBccLength = virtualBatchedCompoundCommit.getTotalSizeInBytes();
                 }
             }
+            final BatchedCompoundCommit finalLatestBcc = latestBcc;
 
             var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory);
             var blobs = ObjectStoreService.listBlobs(primaryTerm, directory.getBlobContainer(primaryTerm));
             assertThat(blobs.size(), equalTo(nbBlobs));
-            assertThat(ObjectStoreService.readLatestBccUsingCache(directory, IOContext.DEFAULT, blobs), equalTo(latestBcc));
-
-            long writeCount = computeCacheWriteCounts(latestBcc, latestBccLength, regionSize.getBytes());
-            assertTrue(TestThreadPool.terminate(testHarness.threadPool, 10L, TimeUnit.SECONDS));
 
             var cacheStats = testHarness.sharedCacheService.getStats();
+            assertThat(cacheStats.writeBytes(), equalTo(0L));
+            assertThat(cacheStats.writeCount(), equalTo(0L));
+            assertThat(cacheStats.missCount(), equalTo(0L));
+            assertThat(cacheStats.evictCount(), equalTo(0L));
+
+            CheckedRunnable<IOException> readLatestBcc = () -> {
+                if (randomBoolean()) {
+                    assertThat(
+                        testHarness.objectStoreService.readSearchShardState(
+                            testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
+                            SearchDirectory.unwrapDirectory(testHarness.searchStore.directory()),
+                            finalLatestBcc != null ? finalLatestBcc.primaryTermAndGeneration().primaryTerm() : 1
+                        ),
+                        equalTo(finalLatestBcc)
+                    );
+                } else {
+                    assertThat(ObjectStoreService.readLatestBccUsingCache(directory, IOContext.DEFAULT, blobs), equalTo(finalLatestBcc));
+                }
+            };
+            readLatestBcc.run();
+
+            long writeCount = computeCacheWriteCounts(finalLatestBcc, latestBccLength, regionSize.getBytes());
+            assertTrue(TestThreadPool.terminate(testHarness.threadPool, 10L, TimeUnit.SECONDS));
+
+            cacheStats = testHarness.sharedCacheService.getStats();
             assertThat(cacheStats.writeBytes(), equalTo(writeCount * regionSize.getBytes()));
             assertThat(cacheStats.writeCount(), equalTo(writeCount));
             assertThat(cacheStats.missCount(), equalTo(writeCount));
@@ -534,6 +591,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
             if (0L < latestBccLength) {
                 assertThat(cacheStats.writeBytes(), lessThan(latestBccLength));
             }
+
+            // read again (from cache)
+            allowBlobRead.set(false);
+            readLatestBcc.run();
+            var cacheStats2 = testHarness.sharedCacheService.getStats();
+            assertThat(cacheStats2.writeBytes(), equalTo(cacheStats.writeBytes()));
+            assertThat(cacheStats2.writeCount(), equalTo(cacheStats.writeCount()));
+            assertThat(cacheStats2.missCount(), equalTo(cacheStats.missCount()));
+            assertThat(cacheStats2.evictCount(), equalTo(cacheStats.evictCount()));
         }
     }
 
@@ -759,8 +825,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             // Shards should now have the same data, let's read from destination shard.
             var dir = SearchDirectory.unwrapDirectory(node2.searchStore.directory());
-            BatchedCompoundCommit commit = ObjectStoreService.readSearchShardState(
+            BatchedCompoundCommit commit = node2.objectStoreService.readSearchShardState(
                 node2.objectStoreService.getProjectBlobContainer(destinationShardId),
+                dir,
                 primaryTerm
             );
             if (commit != null) {

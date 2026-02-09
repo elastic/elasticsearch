@@ -15,12 +15,13 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 public record ExecutorLoadStats(
     double threadsUsed,
     double averageTaskExecutionEWMA,
     int currentQueueSize,
     int maxThreads,
-    double numProcessors
+    double numProcessors,
+    long queueBacklogDurationNanos
 ) {}

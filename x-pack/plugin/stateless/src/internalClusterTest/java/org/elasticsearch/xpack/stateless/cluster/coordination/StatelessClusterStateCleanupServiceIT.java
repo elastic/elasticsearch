@@ -15,12 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cluster.coordination;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
-import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -39,6 +34,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -60,7 +59,7 @@ import static org.hamcrest.Matchers.is;
  * See e.g. https://github.com/elastic/elasticsearch-serverless/issues/1998
  */
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
-public class StatelessClusterStateCleanupServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessPluginIntegTestCase {
     private static final Logger logger = LogManager.getLogger(StatelessClusterStateCleanupServiceIT.class);
     private final long NUM_NODES = 3;
     private MockLog mockLog;
@@ -139,7 +138,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractServerlessSta
      * with one final master fail-over to prompt a prompt unused cluster state deletion.
      */
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterStateCleanupService:DEBUG",
+        value = "org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterStateCleanupService:DEBUG",
         reason = "The logic being tested logs at DEBUG level, so this will aid debugging."
     )
     public void testClusterStateCleanup() throws Exception {
@@ -207,7 +206,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractServerlessSta
      * Tests that the cluster state cleanup task retries on errors.
      */
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterStateCleanupService:DEBUG",
+        value = "org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterStateCleanupService:DEBUG",
         reason = "Testing that transient errors are logged at DEBUG level."
     )
     public void testClusterStateCleanupRetryability() throws Exception {

@@ -13,15 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.cache.reader;
-
-import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
-import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
+package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.Directory;
@@ -54,14 +48,18 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,11 +80,11 @@ import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
-import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -106,7 +104,7 @@ public class CacheBlobReaderTests extends ESTestCase {
 
     /**
      * A custom {@link FakeStatelessNode} that builds a {@link VirtualBatchedCompoundCommit} with a few commits and its
-     * {@link co.elastic.elasticsearch.stateless.lucene.SearchDirectory} uses that to get VBCC chunks from.
+     * {@link org.elasticsearch.xpack.stateless.lucene.SearchDirectory} uses that to get VBCC chunks from.
      */
     private class FakeVBCCStatelessNode extends FakeStatelessNode {
         protected final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
@@ -246,7 +244,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
                     LongFunction<BlobContainer> blobContainer,
-                    BlobLocation location,
+                    BlobFile blobFile,
                     MutableObjectStoreUploadTracker objectStoreUploadTracker,
                     LongConsumer totalBytesReadFromObjectStore,
                     LongConsumer totalBytesReadFromIndexing,
@@ -257,7 +255,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                         shardId,
                         blobContainer,
-                        location,
+                        blobFile,
                         objectStoreUploadTracker,
                         totalBytesReadFromObjectStore,
                         totalBytesReadFromIndexing,
@@ -267,7 +265,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     );
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
-                        location.getBatchedCompoundCommitTermAndGeneration(),
+                        blobFile.termAndGeneration(),
                         clusterService.localNode().getId(),
                         client,
                         TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
@@ -286,7 +284,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     };
                     return new SwitchingCacheBlobReader(
                         objectStoreUploadTracker,
-                        location.getBatchedCompoundCommitTermAndGeneration(),
+                        blobFile.termAndGeneration(),
                         originalCacheBlobReader,
                         indexingShardCacheBlobReader
                     );
@@ -324,7 +322,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
-                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()),
+                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()).blobFile(),
                             new MutableObjectStoreUploadTracker() {
                                 @Override
                                 public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
@@ -699,7 +697,10 @@ public class CacheBlobReaderTests extends ESTestCase {
                 internalLocation.getValue().blobName()
             );
             final var cacheFile = node.sharedCacheService.getCacheFile(fileCacheKey, regionSize);
-            final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(internalLocation.getKey(), internalLocation.getValue());
+            final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(
+                internalLocation.getKey(),
+                internalLocation.getValue().blobFile()
+            );
             final var cacheFileReader = new CacheFileReader(
                 cacheFile,
                 cacheBlobReader,
@@ -755,7 +756,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BlobLocation location,
+                        BlobFile blobFile,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
@@ -766,7 +767,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            location,
+                            blobFile,
                             objectStoreUploadTracker,
                             totalBytesReadFromObjectStore,
                             totalBytesReadFromIndexing,
@@ -828,7 +829,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
                             LongFunction<BlobContainer> blobContainer,
-                            BlobLocation location,
+                            BlobFile blobFile,
                             MutableObjectStoreUploadTracker objectStoreUploadTracker,
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
@@ -837,8 +838,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             String fileName
                         ) {
                             var writerFromObjectStore = new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(location.primaryTerm()),
-                                location.blobName(),
+                                blobContainer.apply(blobFile.primaryTerm()),
+                                blobFile.blobName(),
                                 rangeSize.getBytes(),
                                 objectStoreFetchExecutor
                             ) {
@@ -853,7 +854,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             };
                             var writerFromPrimary = new IndexingShardCacheBlobReader(
                                 shardId,
-                                location.getBatchedCompoundCommitTermAndGeneration(),
+                                blobFile.termAndGeneration(),
                                 clusterService.localNode().getId(),
                                 client,
                                 TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
@@ -887,7 +888,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             };
                             return new SwitchingCacheBlobReader(
                                 objectStoreUploadTracker,
-                                location.getBatchedCompoundCommitTermAndGeneration(),
+                                blobFile.termAndGeneration(),
                                 writerFromObjectStore,
                                 writerFromPrimary
                             ) {

@@ -13,37 +13,37 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
-import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.reshard.ReshardSearchFilters;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
@@ -61,16 +61,22 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -81,6 +87,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -89,12 +96,15 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
+
 /**
  * {@link Engine} implementation for search shards
- *
+ * <p>
  * This class implements the minimal behavior to allow a stateless search shard to recover as a replica of an index/primary shard. Most of
  * indexing behavior is faked and will be removed once operations are not replicated anymore (ES-4861).
- *
+ * <p>
  * // TODO Remove methods related to indexing operations and local/global checkpoints
  * - {@link #index(Index)}
  * - {@link #delete(Delete)}
@@ -102,6 +112,13 @@ import java.util.stream.Collectors;
  * - {@link #getPersistedLocalCheckpoint()}
  */
 public class SearchEngine extends Engine {
+
+    public static final Setting<Boolean> STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
+        "stateless.search.use_internal_files_replicated_content",
+        // TODO enable this by default
+        false,
+        Setting.Property.NodeScope
+    );
 
     private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
@@ -113,6 +130,9 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    // task runner used to process commit notifications and incoming PIT metadata merges sequentially
+    private final ThrottledTaskRunner processCommitTaskRunner;
+    private final Executor bccHeaderReadExecutor;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     // The current primary term/generation is updated on initialization and after new commit notifications from the indexing shard.
@@ -122,6 +142,7 @@ public class SearchEngine extends Engine {
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long lastSearcherAcquiredTime;
+    private volatile boolean useInternalFilesReplicatedContentForSearchShards;
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
@@ -133,11 +154,18 @@ public class SearchEngine extends Engine {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService,
         ClusterSettings clusterSettings,
         Executor prefetchExecutor,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
+        Executor bccHeaderReadExecutor
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
         this.closedShardService = closedShardService;
+        var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
+        // we limit to one task to force sequential execution of enqueued tasks
+        this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
+        this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
+            SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+        );
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -232,6 +260,7 @@ public class SearchEngine extends Engine {
                 clusterSettings,
                 prefetcherDynamicSettings
             );
+            this.bccHeaderReadExecutor = bccHeaderReadExecutor;
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -355,9 +384,7 @@ public class SearchEngine extends Engine {
     }
 
     private void processCommitNotifications() {
-        var refreshExecutor = engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH);
-        refreshExecutor.execute(new AbstractRunnable() {
-
+        AbstractRunnable processCommitNotification = new AbstractRunnable() {
             private final RefCounted finish = AbstractRefCounted.of(this::finish);
             int batchSize = 0;
 
@@ -382,15 +409,48 @@ public class SearchEngine extends Engine {
                     return;
                 }
 
-                logger.trace("updating directory with commit {}", latestCommit);
-                if (directory.updateCommit(latestCommit)) {
-                    store.incRef();
-                    try {
-                        updateInternalState(latestCommit, current);
-                    } finally {
-                        store.decRef();
-                    }
+                ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
+                if (useInternalFilesReplicatedContentForSearchShards) {
+                    Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
+                    ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                        latestCommit,
+                        null,
+                        directory,
+                        IOContext.DEFAULT,
+                        DIRECT_EXECUTOR_SERVICE,
+                        referencedCompoundCommit -> {
+                            blobFileRanges.putAll(
+                                computeBlobFileRanges(
+                                    true,
+                                    referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
+                                    referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                    referencedCompoundCommit.referencedInternalFiles()
+                                )
+                            );
+                        },
+                        listenableFuture.map(aVoid -> blobFileRanges)
+                    );
+                } else {
+                    listenableFuture.onResponse(null);
                 }
+                assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
+                listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
+                    logger.trace("updating directory with commit {}", latestCommit);
+                    final boolean commitUpdated;
+                    if (blobFileRangesMap != null) {
+                        commitUpdated = directory.updateCommit(latestCommit, blobFileRangesMap);
+                    } else {
+                        commitUpdated = directory.updateCommit(latestCommit);
+                    }
+                    if (commitUpdated) {
+                        store.incRef();
+                        try {
+                            updateInternalState(latestCommit, current);
+                        } finally {
+                            store.decRef();
+                        }
+                    }
+                }, this::onFailure));
             }
 
             @Override
@@ -552,6 +612,19 @@ public class SearchEngine extends Engine {
                 }
                 return true;
             }
+        };
+        processCommitTaskRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    processCommitNotification.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("failed to process commit notification", e);
+            }
         });
     }
 
@@ -692,9 +765,51 @@ public class SearchEngine extends Engine {
         );
     }
 
-    // visible for testing
-    long getLastSearcherAcquiredTime() {
+    public long getLastSearcherAcquiredTime() {
         return lastSearcherAcquiredTime;
+    }
+
+    public void setLastSearcherAcquiredTime(long lastSearcherAcquiredTime) {
+        long currentLastSearcherAcquiredTime = this.lastSearcherAcquiredTime;
+        if (lastSearcherAcquiredTime > currentLastSearcherAcquiredTime) {
+            logger.trace(
+                "update engine last searcher acquired time for [{}] from [{}] to [{}]",
+                shardId,
+                currentLastSearcherAcquiredTime,
+                lastSearcherAcquiredTime
+            );
+            this.lastSearcherAcquiredTime = lastSearcherAcquiredTime;
+        }
+    }
+
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        return acquireSearcherSupplier(wrapper, scope, SplitShardCountSummary.UNSET);
+    }
+
+    @Override
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
+        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
+        String commitId = Base64.getEncoder().encodeToString(getLastCommittedSegmentInfos().getId());
+        return new SearcherSupplier(Function.identity()) {
+            @Override
+            protected void doClose() {
+                delegate.close();
+            }
+
+            @Override
+            public Searcher acquireSearcherInternal(String source) {
+                return delegate.acquireSearcher(source);
+            }
+
+            @Override
+            public String getSearcherId() {
+                return commitId;
+            }
+        };
     }
 
     @Override
@@ -982,7 +1097,7 @@ public class SearchEngine extends Engine {
      * listener is kept around for future completion and the method returns true.
      *
      * @param minPrimaryTermGeneration the minimum primary term and segment generation to listen to
-     * @param listener the listener
+     * @param listener                 the listener
      * @return true if the listener has been registered successfully, false if the listener has been executed immediately
      *
      * @throws AlreadyClosedException if the engine is closed
@@ -1095,6 +1210,71 @@ public class SearchEngine extends Engine {
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";
         return new UnsupportedOperationException("Search engine does not support this operation");
+    }
+
+    public void acquireSearcherForCommit(
+        String segmentsFileName,
+        Map<String, BlobLocation> metadata,
+        Function<Searcher, Searcher> wrapper,
+        ActionListener<SearcherSupplier> listener
+    ) {
+        // we use a task queue to serialize opening readers for old commits with processing commit notifications
+        processCommitTaskRunner.enqueueTask(new ActionListener<>() {
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                // do the work of opening the reader inside the task runner to serialize with commit processing
+                try (releasable) {
+                    // merging metadata is necessary to allow opening an old commit from SearchDirectory
+                    directory.mergeMetadata(metadata);
+                    SegmentInfos segmentCommitInfos = SegmentInfos.readCommit(
+                        directory,
+                        segmentsFileName,
+                        IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major
+                    );
+                    IndexCommit indexCommit = Lucene.getIndexCommit(segmentCommitInfos, directory);
+                    ElasticsearchDirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(
+                        StandardDirectoryReader.open(indexCommit),
+                        shardId
+                    );
+                    ElasticsearchReaderManager readerManager = wrapForAssertions(new ElasticsearchReaderManager(directoryReader), config());
+                    Set<PrimaryTermAndGeneration> bccDeps = new HashSet<>();
+                    for (BlobLocation blobLocation : metadata.values()) {
+                        bccDeps.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
+                    }
+                    trackLocalOpenReader(directoryReader, indexCommit, Collections.unmodifiableSet(bccDeps));
+                    final SearcherSupplier delegate = acquireSearcherSupplier(
+                        wrapper,
+                        SearcherScope.EXTERNAL,
+                        SplitShardCountSummary.UNSET,
+                        readerManager
+                    );
+                    listener.onResponse(new SearcherSupplier(Function.identity()) {
+                        @Override
+                        protected void doClose() {
+                            delegate.close();
+                            try {
+                                IOUtils.close(readerManager);
+                            } catch (IOException ex) {
+                                logger.warn("failed to close reader", ex);
+                            }
+                        }
+
+                        @Override
+                        protected Searcher acquireSearcherInternal(String source) {
+                            return delegate.acquireSearcher(source);
+                        }
+                    });
+                } catch (IOException e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private record OpenReaderInfo(Collection<String> files, Set<PrimaryTermAndGeneration> referencedBCCs) {

@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingIT.TestCacheServerlessStatelessPluginNoRecoveryPrewarming;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
@@ -26,22 +23,23 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 /**
- * This is the equivalent of {@link StatelessOnlinePrewarmingServiceProvider} but for the integration
- * test suite. We need another implementation as SPI needs a constructor with the
- * {@link org.elasticsearch.plugins.Plugin} parameter (which is {@link ServerlessStatelessPlugin} in production)
- * however, in ITs we use a different test plugin instead of {@link ServerlessStatelessPlugin}
+ * This is the equivalent of {@link org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingServiceProvider}
+ * but for the integration test suite. We need another implementation as SPI needs a constructor with the
+ * {@link org.elasticsearch.plugins.Plugin} parameter (which is {@link StatelessPlugin} in production)
+ * however, in ITs we use a different test plugin instead of {@link StatelessPlugin}
  */
 public class TestStatelessOnlinePrewarmingServiceProvider implements OnlinePrewarmingServiceProvider {
 
-    private final TestCacheServerlessStatelessPluginNoRecoveryPrewarming plugin;
+    private final StatelessOnlinePrewarmingIT.TestCacheStatelessPluginNoRecoveryPrewarming plugin;
 
     public TestStatelessOnlinePrewarmingServiceProvider() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
     }
 
-    public TestStatelessOnlinePrewarmingServiceProvider(TestCacheServerlessStatelessPluginNoRecoveryPrewarming plugin) {
+    public TestStatelessOnlinePrewarmingServiceProvider(StatelessOnlinePrewarmingIT.TestCacheStatelessPluginNoRecoveryPrewarming plugin) {
         this.plugin = plugin;
     }
 

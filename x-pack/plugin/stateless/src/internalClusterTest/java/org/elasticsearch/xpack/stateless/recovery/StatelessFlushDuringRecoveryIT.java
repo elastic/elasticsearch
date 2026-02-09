@@ -15,17 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.recovery;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -38,7 +28,16 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class StatelessFlushDuringRecoveryIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessFlushDuringRecoveryIT extends AbstractStatelessPluginIntegTestCase {
     public void testFlushDuringTranslogReplay() throws IOException, InterruptedException {
         startMasterOnlyNode();
         String indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
@@ -64,7 +63,7 @@ public class StatelessFlushDuringRecoveryIT extends AbstractServerlessStatelessP
         indexDocs(indexName, documentCount);
 
         String newIndexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
-        TestServerlessStatelessPlugin testStateless = findPlugin(newIndexNode, TestServerlessStatelessPlugin.class);
+        TestStatelessPlugin testStateless = findPlugin(newIndexNode, TestStatelessPlugin.class);
 
         // Block translog replay during future recovery after some documents are applied.
         // And fail after the flush to observe recovery after the flush during translog replay.
@@ -136,15 +135,15 @@ public class StatelessFlushDuringRecoveryIT extends AbstractServerlessStatelessP
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         return plugins;
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         public volatile Consumer<Void> translogNextCallback = null;
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 

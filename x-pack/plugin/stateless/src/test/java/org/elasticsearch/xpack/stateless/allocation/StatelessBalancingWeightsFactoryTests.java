@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
+package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -192,6 +192,8 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
         allSettings.add(StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING);
         allSettings.add(StatelessBalancingWeightsFactory.INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING);
         allSettings.add(StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING);
+        allSettings.add(StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING);
+        allSettings.add(StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING);
         return new ClusterSettings(settings, allSettings);
     }
 

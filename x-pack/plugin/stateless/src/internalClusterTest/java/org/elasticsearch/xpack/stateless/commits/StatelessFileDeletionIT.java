@@ -15,23 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.commits;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.SearchEngine;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
-import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.IOContext;
@@ -44,6 +28,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -60,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -80,11 +66,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,13 +81,26 @@ import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
+import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,10 +124,6 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
-import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.cluster.action.shard.ShardStateAction.SHARD_STARTED_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -137,8 +135,14 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -150,19 +154,25 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIntegTestCase {
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
+    value = "org.elasticsearch.action.search:DEBUG,"
+        + "org.elasticsearch.search.SearchService:TRACE,"
+        + "org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction:DEBUG"
+)
+public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
      * A {@code Stateless} implementation that can block snapshot threads from opening {@link BlobCacheIndexInput} instances and
      * await on upload and BCC release completion.
      */
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         public final Semaphore snapshotBlocker = new Semaphore(Integer.MAX_VALUE);
 
         private final AtomicReference<CountDownLatch> uploadAndBccReleaseLatch = new AtomicReference<>();
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -237,6 +247,20 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
                 cacheWarmingService,
                 telemetryProvider
             ) {
+
+                @Override
+                public void readVirtualBatchedCompoundCommitChunk(GetVirtualBatchedCompoundCommitChunkRequest request, StreamOutput output)
+                    throws IOException {
+                    // While awaiting on upload and BCC release, we want to prevent a VBCC chunk request to acquire a reference
+                    // to the BCC. We, therefore, block on the latch. As the BCC would have been already uploaded upon release,
+                    // no reference will be acquired and the search node will be notified to fetch it from the blob store.
+                    final var latch = uploadAndBccReleaseLatch.get();
+                    if (latch != null) {
+                        safeAwait(latch);
+                    }
+                    super.readVirtualBatchedCompoundCommitChunk(request, output);
+                }
+
                 @Override
                 ActionListener<BatchedCompoundCommit> newUploadTaskListener(
                     ShardCommitState commitState,
@@ -274,8 +298,8 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         return plugins;
     }
@@ -339,7 +363,7 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         });
 
         var plugin = internalCluster().getInstance(PluginsService.class, indexNode)
-            .filterPlugins(TestServerlessStatelessPlugin.class)
+            .filterPlugins(TestStatelessPlugin.class)
             .findFirst()
             .get();
         try (Releasable ignored = plugin.blockSnapshots()) {
@@ -752,7 +776,7 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY);
     }
 
-    @TestLogging(reason = "debugging", value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:DEBUG")
+    @TestLogging(reason = "debugging", value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:DEBUG")
     public void testCommitsOfScrollAreDeletedAfterIndexIsClosedAndOpened() throws Exception {
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED);
     }
@@ -932,7 +956,7 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
 
     @TestLogging(
         reason = "verifying shutdown doesn't cause warnings",
-        value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService:WARN"
+        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:WARN"
     )
     public void testDeleteIndexWhileNodeStopping() {
         var indexNode = startMasterAndIndexNode();
@@ -1365,7 +1389,7 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         createIndex(indexName, 1, 1);
 
         var stateless = internalCluster().getInstance(PluginsService.class, indexNode)
-            .filterPlugins(TestServerlessStatelessPlugin.class)
+            .filterPlugins(TestStatelessPlugin.class)
             .findFirst()
             .get();
 
@@ -1399,6 +1423,7 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
 
         boolean searchNodeUsesBothBCCs = randomBoolean();
         if (searchNodeUsesBothBCCs) {
+
             // Create a scroll that depends on the previous and current BCC
             assertResponse(
                 prepareSearch(indexName).setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(2)),
@@ -1415,9 +1440,12 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         // the creation of a new commit.
         // In the context of this test, force merge will trigger a flush that will perform the BCC upload before marking the commits as
         // deleted (when releasing their ref). The commits being actually deleted when refresh trigger the creation of the new commit.
-        // Unfortunately, force merge can return before the commit are released, and therefore marked as deleted,
+        // Unfortunately, force merge can return before the commit is released, and therefore marked as deleted,
         // opening the opportunity for a race that can prevent the refresh to actually delete the commits.
         // To avoid that race we need to ensure that all the commit references held by the VBCC are actually released.
+        // Another race that could prevent the commit deletion is if a VBCC chunk request keep holding a reference to the commit after
+        // the force merge. To avoid that problem the awaiter will also block chunk request until the BCC is uploaded.
+        // The proper fix for all those problems should be implemented by ES-13924.
         awaiterOnBccRelease.run();
 
         // Force a refresh so the index local reader only has a dependency on the latest BCC
@@ -1481,7 +1509,10 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
                 .put(SHARD_INACTIVITY_DURATION_TIME_SETTING.getKey(), TimeValue.timeValueSeconds(2))
                 .build()
         );
-        var firstSearchNode = startSearchNode();
+        Settings searchNodeSettings = Settings.builder()
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        var firstSearchNode = startSearchNode(searchNodeSettings);
         var indexName = randomIdentifier();
         createIndex(
             indexName,
@@ -1493,10 +1524,11 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
 
-        var openPITs = new ArrayList<BytesReference>();
+        var openPITs = new ArrayList<Tuple<AtomicReference<BytesReference>, Integer>>();
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        int numberOfIndexedDocs = 0;
         for (int i = 0; i < 10; i++) {
-            indexDocsAndFlush(indexName);
+            numberOfIndexedDocs += indexDocsAndFlush(indexName);
 
             // We have to wait until the search shard has received the new commit notification
             // for the upload to ensure that we get open the PIT against the uploaded commit.
@@ -1516,17 +1548,35 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
                 TransportOpenPointInTimeAction.TYPE,
                 new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueHours(1)).allowPartialSearchResults(false)
             ).actionGet();
-            openPITs.add(openPITResponse.getPointInTimeId());
+            openPITs.add(new Tuple<>(new AtomicReference<>(openPITResponse.getPointInTimeId()), numberOfIndexedDocs));
             assertThat(openPITResponse.getFailedShards(), is(equalTo(0)));
             if (i % 2 == 0) {
                 forceMerge(true);
             }
         }
 
+        for (var openPit : openPITs) {
+            logger.debug(
+                "Opened PIT with id: [{}]",
+                new PointInTimeBuilder(openPit.v1().get()).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
+            );
+        }
+
         // Run a force merge so only the open PITs are retaining the previous commits
         forceMerge(true);
 
-        var newSearchNode = startSearchNode();
+        // run searches and check number of docs
+        for (var openPit : openPITs) {
+            assertNoFailuresAndResponse(
+                prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPointInTime(new PointInTimeBuilder(openPit.v1().get()).setKeepAlive(TimeValue.timeValueMinutes(1))),
+                resp -> {
+                    assertHitCount(resp, openPit.v2());
+                }
+            );
+        }
+
+        var newSearchNode = startSearchNode(searchNodeSettings);
 
         var newCommitNotificationReceivedLatch = new CountDownLatch(1);
         MockTransportService.getInstance(newSearchNode)
@@ -1590,7 +1640,8 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         assertThat(latestUploadedBcc, is(notNullValue()));
         var latestUploadedBlob = StatelessCompoundCommit.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
 
-        var testScenario = randomFrom(PITRetentionTestScenarios.values());
+        PITRetentionTestScenarios testScenario = randomFrom(PITRetentionTestScenarios.values());
+        logger.info("Using PITRetentionTestScenario: " + testScenario);
         switch (testScenario) {
             case SUCCESSFUL_RELOCATION -> {
                 // Do nothing
@@ -1617,13 +1668,48 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         }
         ensureGreen(indexName);
 
-        if (testScenario != PITRetentionTestScenarios.STOP_SOURCE_NODE) {
-            // TODO: We should remove this once PIT transfers are in place
-            // If we close the PITS, the retained commits should be released
-            closePITs(openPITs);
+        if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+            // in case of a successful relocation and when source node fails or is stopped, we should be able to continue PIT searches
+            // and verify number of docs retrievable. This will also potentially update the PIT ids to their new location, which is
+            // important
+            // to capture for cleanup later
+            for (var openPit : openPITs) {
+                assertNoFailuresAndResponse(
+                    prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                        .setPointInTime(new PointInTimeBuilder(openPit.v1().get()).setKeepAlive(TimeValue.timeValueMinutes(1))),
+                    resp -> {
+                        assertHitCount(resp, openPit.v2());
+                        openPit.v1().set(resp.pointInTimeId());
+                    }
+                );
+            }
+        }
+        try {
+            assertBusy(
+                () -> assertTrue(
+                    shardCommitsContainer.listBlobs(operationPurpose).keySet().containsAll(retainedBlobsBeforeUnpromotableShardMoved)
+                )
+            );
+        } catch (AssertionError e) {
+            logger.info(
+                "Blobs before unpromotable shard moved = {}, blobs after search node relocation = {}",
+                retainedBlobsBeforeUnpromotableShardMoved,
+                shardCommitsContainer.listBlobs(operationPurpose).keySet()
+            );
+            throw e;
         }
 
-        // TODO: This should fail once the PIT hand-off is in place
+        if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+            // wait for the reaper process to clean up expired PITs on the source node
+            if (testScenario == PITRetentionTestScenarios.SUCCESSFUL_RELOCATION || testScenario == PITRetentionTestScenarios.FAIL_SOURCE) {
+                SearchService searchService = internalCluster().getInstance(SearchService.class, firstSearchNode);
+                assertBusy(() -> assertEquals(0, searchService.getActivePITContexts()));
+            }
+        }
+
+        logger.info("Closing PITs");
+        closePITs(openPITs);
+
         assertBusy(() -> assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob)))));
     }
 
@@ -1646,11 +1732,10 @@ public class StatelessFileDeletionIT extends AbstractServerlessStatelessPluginIn
         listener.actionGet();
     }
 
-    private static void closePITs(List<BytesReference> openPITs) throws Exception {
-        for (BytesReference pitID : openPITs) {
-            var closePITRequest = new ClosePointInTimeRequest(pitID);
+    private static void closePITs(List<Tuple<AtomicReference<BytesReference>, Integer>> openPITs) throws Exception {
+        for (var pitInfo : openPITs) {
+            var closePITRequest = new ClosePointInTimeRequest(pitInfo.v1().get());
             var closePITResponse = client().execute(TransportClosePointInTimeAction.TYPE, closePITRequest).get();
-            assertThat(closePITResponse.isSucceeded(), is(true));
         }
     }
 

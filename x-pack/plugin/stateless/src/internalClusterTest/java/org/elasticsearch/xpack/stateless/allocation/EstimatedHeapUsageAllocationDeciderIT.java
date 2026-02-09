@@ -15,13 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.HeapMemoryUsage;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.PublishHeapMemoryMetricsRequest;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
+package org.elasticsearch.xpack.stateless.allocation;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
@@ -45,6 +39,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.HeapMemoryUsage;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.PublishHeapMemoryMetricsRequest;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.ShardMappingSize;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 
 import java.util.Collection;
 import java.util.List;
@@ -55,16 +54,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class EstimatedHeapUsageAllocationDeciderIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -82,7 +81,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractServerlessSta
             .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), "100mb");
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
     public void testEstimatedHeapAllocationDecider() {
         final var masterNodeName = startMasterOnlyNode();
         final var nodeNameA = startIndexNode();

@@ -46,7 +46,7 @@
  * operation {@link org.elasticsearch.common.blobstore.BlobContainer#compareAndSetRegister}.
  * Once a new term is granted to a node, it's guaranteed that only that node will be responsible for the cluster
  * state updates in that term.
- * <p>This strategy is implemented in {@link co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy}.</p>
+ * <p>This strategy is implemented in {@link org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy}.</p>
  *
  * <h2>Cluster state storage</h2>
  *
@@ -57,10 +57,10 @@
  *
  * <p>When the leader node persists a new cluster state update, it's written locally
  * and then uploaded to the blob store in a blocking fashion.</p>
- * <p>{@link co.elastic.elasticsearch.stateless.cluster.coordination.BlobStoreSyncDirectory} is an specialized Lucene Directory
+ * <p>{@link org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectory} is an specialized Lucene Directory
  * that intercepts the fsync calls and uploads the new files to the blob store instead of fsyncing them in order to ensure their
  * durability.</p>
  * <p>Additionally, this Directory takes care of cleaning unnecessary files once a new Lucene commit
  * is safely stored into the blob store.</p>
  */
-package co.elastic.elasticsearch.stateless.cluster.coordination;
+package org.elasticsearch.xpack.stateless.cluster.coordination;

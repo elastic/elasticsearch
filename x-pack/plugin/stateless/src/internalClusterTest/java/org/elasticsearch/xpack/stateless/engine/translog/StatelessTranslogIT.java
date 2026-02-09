@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine.translog;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
+package org.elasticsearch.xpack.stateless.engine.translog;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -53,6 +50,8 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,8 +70,6 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
-import static co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator.FLUSH_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -80,12 +77,14 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
+import static org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator.FLUSH_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testTranslogFileHoldDirectoryOfReferencedFiles() throws Exception {
         startMasterOnlyNode();
@@ -469,11 +468,11 @@ public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegT
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine:debug,"
-            + "co.elastic.elasticsearch.stateless.recovery:trace,"
-            + "co.elastic.elasticsearch.stateless.commits:debug,"
-            + "co.elastic.elasticsearch.stateless.objectstore:trace,"
-            + "co.elastic.elasticsearch.stateless.StatelessIndexEventListener:trace",
+        value = "org.elasticsearch.xpack.stateless.engine:debug,"
+            + "org.elasticsearch.xpack.stateless.recovery:trace,"
+            + "org.elasticsearch.xpack.stateless.commits:debug,"
+            + "org.elasticsearch.xpack.stateless.objectstore:trace,"
+            + "org.elasticsearch.xpack.stateless.StatelessIndexEventListener:trace",
         reason = "to debug elasticsearch-serverless issue 2908"
     )
     public void testTranslogStressRecoveryTest() throws Exception {
@@ -489,8 +488,8 @@ public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegT
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
-            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        value = "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator:debug,"
+            + "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
     public void testTranslogRestartOnlyStressRecoveryTest() throws Exception {
@@ -499,8 +498,8 @@ public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegT
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
-            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        value = "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator:debug,"
+            + "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
     public void testTranslogReplaceOnlyStressRecoveryTest() throws Exception {
@@ -509,8 +508,8 @@ public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegT
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
-            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        value = "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator:debug,"
+            + "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
     public void testTranslogLocalFailureOnlyStressRecoveryTest() throws Exception {
@@ -518,8 +517,8 @@ public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegT
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
-            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        value = "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator:debug,"
+            + "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
     public void testTranslogMasterFailureOnlyStressRecoveryTest() throws Exception {
@@ -531,8 +530,8 @@ public class StatelessTranslogIT extends AbstractServerlessStatelessPluginIntegT
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
-            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        value = "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator:debug,"
+            + "org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
     public void testTranslogIsolatedNodeOnlyStressRecoveryTest() throws Exception {

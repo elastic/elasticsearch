@@ -15,26 +15,33 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.reshard;
+package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -43,8 +50,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ReshardIndexServiceTests extends ESTestCase {
@@ -54,6 +64,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
         var multiple = 2;
         var numShardsAfter = numShards * multiple;
         var index = new Index("test-index", INDEX_UUID_NA_VALUE);
+        var projectId = randomProjectIdOrDefault();
 
         var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(numShards, multiple);
         var indexMetadata = IndexMetadata.builder(index.getName())
@@ -61,9 +72,13 @@ public class ReshardIndexServiceTests extends ESTestCase {
             .numberOfShards(numShardsAfter)
             .reshardingMetadata(reshardingMetadata)
             .build();
+        var project = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
+            .putProjectMetadata(project)
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build()
+            )
             .build();
 
         var transitionSourceStateExecutor = new ReshardIndexService.TransitionSourceStateExecutor();
@@ -72,7 +87,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
             if (newTargetState == IndexReshardingState.Split.TargetShardState.CLONE) continue;
             for (int sourceId = 0; sourceId < numShards; sourceId++) {
                 for (int targetId = sourceId + numShards; targetId < numShards * multiple; targetId += numShards) {
-                    clusterState = transitionSplitTargetToNewState(new ShardId(index, targetId), newTargetState, clusterState);
+                    clusterState = transitionSplitTargetToNewState(new ShardId(index, targetId), newTargetState, clusterState, projectId);
 
                     ActionListener<Void> listener = ActionListener.wrap(unused -> {}, ESTestCase::fail);
                     var shardId = new ShardId(index, sourceId);
@@ -177,16 +192,64 @@ public class ReshardIndexServiceTests extends ESTestCase {
     private ClusterState transitionSplitTargetToNewState(
         ShardId shardId,
         IndexReshardingState.Split.TargetShardState newTargetState,
-        ClusterState clusterState
+        ClusterState clusterState,
+        ProjectId projectId
     ) {
-        var reshardingMetadata = clusterState.metadata()
-            .indexMetadata(shardId.getIndex())
+        var projectMetadata = clusterState.metadata().getProject(projectId);
+        var reshardingMetadata = projectMetadata.index(shardId.getIndex())
             .getReshardingMetadata()
             .transitionSplitTargetToNewState(shardId, newTargetState);
-        var metadata = clusterState.metadata();
-        var indexMetadata = IndexMetadata.builder(metadata.indexMetadata(shardId.getIndex()))
-            .reshardingMetadata(reshardingMetadata)
+        var indexMetadata = IndexMetadata.builder(projectMetadata.index(shardId.getIndex())).reshardingMetadata(reshardingMetadata).build();
+        var updatedProject = ProjectMetadata.builder(projectMetadata).put(indexMetadata, true).build();
+        return ClusterState.builder(clusterState).putProjectMetadata(updatedProject).build();
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testWillNotReshardInvalidIndexVersion() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        var index = new Index("test-index", INDEX_UUID_NA_VALUE);
+        var priorVersion = IndexVersion.fromId(
+            randomIntBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION.id(), IndexVersions.MOD_ROUTING_FUNCTION.id() - 1)
+        );
+        var indexMetadata = IndexMetadata.builder(index.getName()).settings(indexSettings(priorVersion, 1, 0)).build();
+        var project = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build()
+            )
             .build();
-        return ClusterState.builder(clusterState).metadata(Metadata.builder(metadata).put(indexMetadata, true)).build();
+
+        var clusterService = mock(ClusterService.class);
+        ArgumentCaptor<SimpleBatchedExecutor> executorCaptor = ArgumentCaptor.forClass(SimpleBatchedExecutor.class);
+        ArgumentCaptor<ClusterStateTaskListener> taskCaptor = ArgumentCaptor.forClass(ClusterStateTaskListener.class);
+        MasterServiceTaskQueue mockQueue = mock(MasterServiceTaskQueue.class);
+        when(clusterService.createTaskQueue(eq("reshard-index"), any(), executorCaptor.capture())).thenReturn(mockQueue);
+        // Return mock queues for other task queues created in constructor
+        when(clusterService.createTaskQueue(argThat(name -> "reshard-index".equals(name) == false), any(), any())).thenReturn(mockQueue);
+
+        var svc = new ReshardIndexService(
+            clusterService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            null,
+            mock(IndicesService.class)
+        );
+
+        var request = new ReshardIndexClusterStateUpdateRequest(projectId, index, -1);
+        svc.reshardIndex(TimeValue.THIRTY_SECONDS, request, ActionListener.noop());
+
+        // Capture the task that was submitted
+        verify(mockQueue).submitTask(eq("reshard-index [test-index]"), taskCaptor.capture(), eq(TimeValue.THIRTY_SECONDS));
+
+        // Execute the captured task through the captured executor with our cluster state
+        SimpleBatchedExecutor executor = executorCaptor.getValue();
+        ClusterStateTaskListener task = taskCaptor.getValue();
+
+        var exception = expectThrows(IllegalArgumentException.class, () -> executor.executeTask(task, clusterState));
+        assertThat(
+            exception.getMessage(),
+            containsString("resharding a index [" + index + "] with a version prior to " + IndexVersions.MOD_ROUTING_FUNCTION)
+        );
     }
 }

@@ -15,14 +15,13 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
-
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishMergeMemoryEstimate.Request;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.TransportPublishMergeMemoryEstimate.Request;
 
 import java.io.IOException;
 

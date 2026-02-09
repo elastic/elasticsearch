@@ -15,11 +15,8 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.objectstore;
+package org.elasticsearch.xpack.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 
@@ -57,7 +54,11 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -80,8 +81,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
@@ -126,8 +127,8 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         plugins.add(S3RepositoryPlugin.class);
         return plugins;
     }
@@ -476,7 +477,12 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                     // request format: /bucket/base_path/indices/UUID/0/1/stateless_commit_N?x-purpose=Indices for single part uploads,
                     // while for multi-part uploads: .../stateless_commit_N?uploadId=UUID&partNumber=N&x-purpose=Indices where the
                     // upload UUID changes with every retry.
-                    long gen = Long.parseLong(request.substring(request.lastIndexOf('_') + 1, request.lastIndexOf('?')));
+                    long gen = Long.parseLong(
+                        request.substring(
+                            request.indexOf(StatelessCompoundCommit.PREFIX) + StatelessCompoundCommit.PREFIX.length(),
+                            request.lastIndexOf('?')
+                        )
+                    );
                     final long part;
                     if (request.contains("partNumber")) {
                         final var partNumberIndex = request.indexOf("partNumber");
@@ -703,9 +709,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         boolean intercept(HttpExchange exchange) throws IOException;
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 

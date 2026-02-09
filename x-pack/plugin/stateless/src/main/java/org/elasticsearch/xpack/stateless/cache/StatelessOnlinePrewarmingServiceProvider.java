@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
@@ -27,16 +25,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 public class StatelessOnlinePrewarmingServiceProvider implements OnlinePrewarmingServiceProvider {
 
-    private final ServerlessStatelessPlugin plugin;
+    private final StatelessPlugin plugin;
 
     public StatelessOnlinePrewarmingServiceProvider() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
     }
 
-    public StatelessOnlinePrewarmingServiceProvider(ServerlessStatelessPlugin plugin) {
+    public StatelessOnlinePrewarmingServiceProvider(StatelessPlugin plugin) {
         this.plugin = plugin;
     }
 

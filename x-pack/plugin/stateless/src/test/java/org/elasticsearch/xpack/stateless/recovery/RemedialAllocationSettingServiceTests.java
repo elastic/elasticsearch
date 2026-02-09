@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.recovery;
-
-import co.elastic.elasticsearch.stateless.recovery.RemedialAllocationSettingService.RemedialAllocationSettingTask;
-import co.elastic.elasticsearch.stateless.recovery.RemedialAllocationSettingService.RemediateAllocationSettingClusterStateExecutor;
+package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -40,6 +37,8 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.recovery.RemedialAllocationSettingService.RemedialAllocationSettingTask;
+import org.elasticsearch.xpack.stateless.recovery.RemedialAllocationSettingService.RemediateAllocationSettingClusterStateExecutor;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collection;

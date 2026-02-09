@@ -15,16 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
 import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetrics;
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -38,6 +34,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +64,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,29 +90,31 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.markNodesForShutdown;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.markNodesForShutdown;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -123,7 +126,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AutoscalingMemoryMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class AutoscalingMemoryMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(AutoscalingMemoryMetricsIT.class);
 
@@ -1141,14 +1144,21 @@ public class AutoscalingMemoryMetricsIT extends AbstractServerlessStatelessPlugi
                 admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settingsMap)
             );
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(ByteSizeValue.MINUS_ONE)));
-            long adaptiveEstimate = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
-                * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalSegmentFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
-            long extraForAdaptive = (long) (adaptiveEstimate * adaptiveExtraOverheadRatio);
+
+            final double ratio = adaptiveExtraOverheadRatio;
+            long adaptiveEstimateWithExtra = 0;
+            for (MemoryMetricsService.ShardMemoryMetrics metrics : memoryMetricService.getShardMemoryMetrics().values()) {
+                long perShardEstimate = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.getNumSegments()
+                    * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + metrics.getTotalFields() * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes()
+                    + metrics.getLiveDocsBytes();
+                long perShardExtra = (long) (perShardEstimate * ratio);
+                adaptiveEstimateWithExtra += perShardEstimate + perShardExtra;
+            }
+
             var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
-            assertThat(
-                totalMemoryInBytes,
-                equalTo(HeapToSystemMemory.tier(mappingSizeInBytes + adaptiveEstimate + extraForAdaptive, projectType))
-            );
+            long expected = HeapToSystemMemory.tier(mappingSizeInBytes + adaptiveEstimateWithExtra, projectType);
+
+            assertThat(totalMemoryInBytes, equalTo(expected));
         }
         // override the fixed shard overhead
         {
@@ -1788,6 +1798,95 @@ public class AutoscalingMemoryMetricsIT extends AbstractServerlessStatelessPlugi
                 INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME
             );
             assertThat(measurements.size(), equalTo(0));
+        });
+    }
+
+    public void testScaleUpOnShardCount() throws Exception {
+        // 31 GB / 50_000 = 310 kilobytes
+        // 31 GB / 100_0000 = 620 kilobytes
+        var maxShardsPerNode = randomIntBetween(50_000, 100_000);
+        final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
+
+        startMasterNode(
+            Settings.builder()
+                .put(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), ByteSizeValue.MINUS_ONE)
+                .put(ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio)
+                .put(ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .put(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING.getKey(), false)
+                .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
+                .build()
+        );
+
+        final var indexNodeSettings = Settings.builder().put(INDEX_NODE_SETTINGS).build();
+
+        startIndexNode(indexNodeSettings);
+        ensureStableCluster(2);
+
+        // Ingest and index to ensure all shards allocated and started.
+        for (int i = 0; i <= randomIntBetween(2, 3); i++) {
+            int numberOfShards = randomIntBetween(1, 5);
+            var indexName = INDEX_NAME + i;
+            createIndex(indexName, numberOfShards, 0);
+            ensureGreen(indexName);
+            indexDocs(indexName, randomIntBetween(16, 64));
+            flush(indexName);
+        }
+
+        ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        long startedShards = clusterService.state().routingTable(ProjectId.DEFAULT).allShards().count();
+
+        var metricsService = internalCluster().getInstance(MemoryMetricsService.class, DiscoveryNodeRole.MASTER_ROLE);
+        assertThat(
+            metricsService.getAdaptiveShardMemoryEstimationMinThreshold(),
+            equalTo((HeapToSystemMemory.MAX_HEAP_SIZE - metricsService.getNodeBaseHeapEstimateInBytes()) / maxShardsPerNode)
+        );
+
+        // Test Case 1: Ensure segments and docs and mappings are small enough to trigger min threshold.
+        assertBusy(() -> {
+            Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> shardMemoryMetricsMap = metricsService.getShardMemoryMetrics();
+
+            long mappingBytesTotal = shardMemoryMetricsMap.values()
+                .stream()
+                .map(MemoryMetricsService.ShardMemoryMetrics::getMappingSizeInBytes)
+                .reduce(Long::sum)
+                .get();
+
+            MemoryMetricsService.TierEstimateMemoryUsage tierEstimateMemoryUsage = metricsService.estimateTierMemoryUsage();
+
+            // For each shard estimateShardMemoryUsageInBytes() should equal to adaptive shard memory min threshold plus its mapping sizes.
+            assertThat(
+                tierEstimateMemoryUsage.totalBytes(),
+                equalTo(mappingBytesTotal + startedShards * metricsService.getAdaptiveShardMemoryEstimationMinThreshold())
+            );
+        });
+
+        // Test Case 2: Now we significantly increase the maximum number of shards per node to artificially lower min threshold
+        // This lower the min threshold to 310 bytes to 620 bytes
+        maxShardsPerNode = randomIntBetween(50_000 * 1000, 100_000 * 1000);
+        updateClusterSettings(Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode));
+
+        // Rinse and repeat.
+        assertBusy(() -> {
+            Map<ShardId, MemoryMetricsService.ShardMemoryMetrics> shardMemoryMetricsMap = metricsService.getShardMemoryMetrics();
+
+            long adaptiveTotal = 0;
+            for (MemoryMetricsService.ShardMemoryMetrics metrics : shardMemoryMetricsMap.values()) {
+                long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.getNumSegments() * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD
+                    .getBytes() + metrics.getTotalFields() * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.getLiveDocsBytes();
+                long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
+                adaptiveTotal += estimateBytes + extraBytes;
+            }
+
+            long mappingBytesTotal = shardMemoryMetricsMap.values()
+                .stream()
+                .map(MemoryMetricsService.ShardMemoryMetrics::getMappingSizeInBytes)
+                .reduce(Long::sum)
+                .get();
+
+            MemoryMetricsService.TierEstimateMemoryUsage tierEstimateMemoryUsage = metricsService.estimateTierMemoryUsage();
+
+            // For each shard estimateShardMemoryUsageInBytes() should equal to adaptive shard memory min threshold plus its mapping sizes.
+            assertThat(tierEstimateMemoryUsage.totalBytes(), equalTo(mappingBytesTotal + adaptiveTotal));
         });
     }
 

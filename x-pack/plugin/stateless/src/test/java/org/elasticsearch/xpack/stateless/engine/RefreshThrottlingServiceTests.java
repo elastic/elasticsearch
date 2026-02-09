@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,7 +55,8 @@ public class RefreshThrottlingServiceTests extends ESTestCase {
     /**
      * The following tests simulate nodes being added and removed from the cluster. The first node action added is the master.
      * Each subsequent node action adds or removes an index or search node with a specific memory.
-     * At each node action, the resulting hardware multiplier on the master node's {@link RefreshThrottlingService}  is asserted to be
+     * At each node action, the resulting hardware multiplier on the master node's
+     * {@link org.elasticsearch.xpack.stateless.engine.RefreshThrottlingService}  is asserted to be
      * equal to the given masterMultiplier argument.
      */
     private record NodeAction(int index, boolean remove, boolean search, ByteSizeValue memory, double masterMultiplier) {}

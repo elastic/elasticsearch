@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.mockfile.FilterFileStore;
@@ -55,6 +53,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -82,7 +81,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class IndexingDiskControllerIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCase {
 
     private FileSystem defaultFileSystem;
     private FilterPath rootDir;
@@ -143,8 +142,8 @@ public class IndexingDiskControllerIT extends AbstractServerlessStatelessPluginI
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         plugins.add(InternalSettingsPlugin.class);
         return plugins;
     }
@@ -168,17 +167,17 @@ public class IndexingDiskControllerIT extends AbstractServerlessStatelessPluginI
         }
     }
 
-    @TestLogging(reason = "d", value = "co.elastic.elasticsearch.stateless.IndexingDiskController:TRACE")
+    @TestLogging(reason = "d", value = "org.elasticsearch.xpack.stateless.IndexingDiskController:TRACE")
     public void testAvailableDiskSpaceBelowLimitWithIndexingPausedOnThrottle() throws Exception {
         testAvailableDiskSpaceBelowLimit(true);
     }
 
-    @TestLogging(reason = "d", value = "co.elastic.elasticsearch.stateless.IndexingDiskController:TRACE")
+    @TestLogging(reason = "d", value = "org.elasticsearch.xpack.stateless.IndexingDiskController:TRACE")
     public void testAvailableDiskSpaceBelowLimitWithoutIndexingPausedOnThrottle() throws Exception {
         testAvailableDiskSpaceBelowLimit(false);
     }
 
-    @TestLogging(reason = "d", value = "co.elastic.elasticsearch.stateless.IndexingDiskController:TRACE")
+    @TestLogging(reason = "d", value = "org.elasticsearch.xpack.stateless.IndexingDiskController:TRACE")
     private void testAvailableDiskSpaceBelowLimit(boolean pauseIndexingOnThrottle) throws Exception {
         final ByteSizeValue reservedDiskSpace = ByteSizeValue.ofMb(randomIntBetween(11, 100));
         startMasterOnlyNode();
@@ -405,9 +404,9 @@ public class IndexingDiskControllerIT extends AbstractServerlessStatelessPluginI
         }
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 

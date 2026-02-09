@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
@@ -62,6 +60,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -107,7 +106,7 @@ import static org.hamcrest.Matchers.is;
  * TODO: Increase network delay disruption and maybe use other NetworkDisruption types.
  * TODO: Add random object store failures beyond max retries (https://elasticco.atlassian.net/browse/ES-6453)
  */
-public class CorruptionIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final boolean TEST_HARDER = RandomizedTest.systemPropertyAsBoolean("tests.harder", false);
 
@@ -128,8 +127,8 @@ public class CorruptionIT extends AbstractServerlessStatelessPluginIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         plugins.add(SlowRepositoryPlugin.class);
         return plugins;
     }
@@ -144,9 +143,9 @@ public class CorruptionIT extends AbstractServerlessStatelessPluginIntegTestCase
      * moving indexing and search shards around.
      */
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug,"
-            + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:debug,"
-            + "co.elastic.elasticsearch.stateless.recovery:debug,"
+        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug,"
+            + "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:debug,"
+            + "org.elasticsearch.xpack.stateless.recovery:debug,"
             + "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
             + "org.elasticsearch.indices.recovery:debug",
         reason = "log shard file operations on DEBUG level"
@@ -352,10 +351,8 @@ public class CorruptionIT extends AbstractServerlessStatelessPluginIntegTestCase
         // search node
         assertCacheEvictedOnCorruption(
             findSearchShard(indexName),
-            (TestSharedBlobCacheService) internalCluster().getInstance(
-                ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class,
-                searchNodeName
-            ).get()
+            (TestSharedBlobCacheService) internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, searchNodeName)
+                .get()
         );
 
         ensureGreen(indexName);
@@ -363,10 +360,8 @@ public class CorruptionIT extends AbstractServerlessStatelessPluginIntegTestCase
         // index node
         assertCacheEvictedOnCorruption(
             findIndexShard(indexName),
-            (TestSharedBlobCacheService) internalCluster().getInstance(
-                ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class,
-                indexNodeName
-            ).get()
+            (TestSharedBlobCacheService) internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNodeName)
+                .get()
         );
 
         ensureGreen(indexName);
@@ -405,8 +400,8 @@ public class CorruptionIT extends AbstractServerlessStatelessPluginIntegTestCase
         return scheme;
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
-        public TestServerlessStatelessPlugin(Settings settings) {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
@@ -100,7 +100,7 @@ public class RefreshNodeCreditManagerTests extends ESTestCase {
 
     @TestLogging(
         reason = "testing warning of node level refresh credit manager",
-        value = "co.elastic.elasticsearch.stateless.engine.RefreshNodeCreditManager:WARN"
+        value = "org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManager:WARN"
     )
     public void testPeriodicWarning() {
         long startTimeMillis = randomNonNegativeLong();

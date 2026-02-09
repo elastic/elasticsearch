@@ -15,25 +15,29 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
-
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
 
+import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
 
 /**
  * This class computes the current node search load
  */
 public class SearchLoadProbe {
 
-    public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(15);
 
     /**
      * MAX_TIME_TO_CLEAR_QUEUE is a threshold that defines the length of time that the current number of threads could take to clear the
@@ -74,17 +78,85 @@ public class SearchLoadProbe {
         Setting.Property.OperatorDynamic
     );
 
+    public static final double DEFAULT_SCALING_FACTOR = 1.05;
+    /**
+     * A scaling factor applied to the calculated search load to provide some buffer capacity above the calculated load so we can absorbe
+     * spikes in load without immediately scaling up. 1.05 means a 5% buffer.
+     * This is currently only applied to the search load for the search thread pool.
+     */
+    public static final Setting<Double> SEARCH_LOAD_SCALING_FACTOR = Setting.doubleSetting(
+        "serverless.autoscaling.search.load.scaling_factor",
+        DEFAULT_SCALING_FACTOR,
+        1.00,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private final Function<String, ExecutorLoadStats> searchExecutorStatsProvider;
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
     private volatile double shardReadLoadThreshold;
+    private volatile double searchLoadScalingFactor;
+    private final Map<String, ThreadPoolMetrics> threadPoolMetricsMap;
 
     @SuppressWarnings("this-escape")
-    public SearchLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorLoadStats> searchExecutorStatsProvider) {
+    public SearchLoadProbe(
+        ClusterSettings clusterSettings,
+        Function<String, ExecutorLoadStats> searchExecutorStatsProvider,
+        MeterRegistry meterRegistry
+    ) {
         this.searchExecutorStatsProvider = searchExecutorStatsProvider;
+        this.threadPoolMetricsMap = Map.of(SEARCH_EXECUTOR, new ThreadPoolMetrics(), SHARD_READ_THREAD_POOL, new ThreadPoolMetrics());
+        registerMetrics(meterRegistry);
+
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);
         clusterSettings.initializeAndWatch(MAX_QUEUE_CONTRIBUTION_FACTOR, this::setMaxQueueContributionFactor);
         clusterSettings.initializeAndWatch(SHARD_READ_LOAD_THRESHOLD_SETTING, this::setShardReadLoadThreshold);
+        clusterSettings.initializeAndWatch(SEARCH_LOAD_SCALING_FACTOR, this::setSearchLoadScalingFactor);
+    }
+
+    private void registerMetrics(MeterRegistry meterRegistry) {
+        for (Map.Entry<String, ThreadPoolMetrics> entry : threadPoolMetricsMap.entrySet()) {
+            String threadPoolName = entry.getKey();
+            ThreadPoolMetrics metrics = entry.getValue();
+
+            meterRegistry.registerLongGauge(
+                "es.autoscaling.search_load." + threadPoolName + ".queue_backlog_duration.current",
+                "The duration we had queuing in the threadpool",
+                "ns",
+                () -> new LongWithAttributes(metrics.lastQueueBacklogDurationNanos)
+            );
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.search_load." + threadPoolName + ".task_avg_execution_time.current",
+                "The average task execution time",
+                "ns",
+                () -> new DoubleWithAttributes(metrics.averageTaskExecutionTime)
+            );
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.search_load." + threadPoolName + ".queue_clear_threads_required.current",
+                "The number of threads needed to clear the current queue in an acceptable amount of time",
+                "1",
+                () -> new DoubleWithAttributes(metrics.queueThreadsNeeded)
+            );
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.search_load." + threadPoolName + ".busy_threads.current",
+                "The average number of threads busy handling work in the thread pool per second.",
+                "1",
+                () -> new DoubleWithAttributes(metrics.threadsUsed)
+            );
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.search_load." + threadPoolName + ".threadpool_load.current",
+                "The estimated number of processors needed to handle currently active (non queued) work",
+                "1",
+                () -> new DoubleWithAttributes(metrics.threadPoolLoad)
+            );
+            meterRegistry.registerDoubleGauge(
+                "es.autoscaling.search_load." + threadPoolName + ".queue_load.current",
+                "The estimated number of processors needed to handle queued work within an acceptable amount of time",
+                "1",
+                () -> new DoubleWithAttributes(metrics.queueLoad)
+            );
+        }
     }
 
     /**
@@ -101,19 +173,23 @@ public class SearchLoadProbe {
      * Returns the current search load (number of processors needed to cope with the current search workload).
      */
     public double getSearchLoad() {
-        return getExecutorLoad(SEARCH_EXECUTOR);
+        return searchLoadScalingFactor * getExecutorLoad(SEARCH_EXECUTOR);
     }
 
     private double getExecutorLoad(String executorName) {
+        assert threadPoolMetricsMap.containsKey(executorName) : "unsuported executor name: " + executorName;
         var searchExecutorStats = searchExecutorStatsProvider.apply(executorName);
+        var metrics = threadPoolMetricsMap.get(executorName);
         return calculateSearchLoadForExecutor(
             searchExecutorStats.threadsUsed(),
             searchExecutorStats.averageTaskExecutionEWMA(),
             searchExecutorStats.currentQueueSize(),
             maxTimeToClearQueue,
+            searchExecutorStats.queueBacklogDurationNanos(),
             maxQueueContributionFactor * searchExecutorStats.maxThreads(),
             searchExecutorStats.numProcessors(),
-            searchExecutorStats.maxThreads()
+            searchExecutorStats.maxThreads(),
+            metrics::update
         );
     }
 
@@ -125,6 +201,7 @@ public class SearchLoadProbe {
      * @param averageTaskExecutionTime The EWMA time/thread reported by the executor.
      * @param currentQueueSize         The queue size sampled at the current instant.
      * @param maxTimeToClearQueue      A setting that indicates the acceptable max time to clear the queue.
+     * @param queueBacklogDurationNanos     The duration we've had queuing in the threadpool for.
      * @param maxThreadsToHandleQueue  The maximum number of threads that can be requested to handled queued work.
      * @return The number of threads needed to cope with the current search workload on this executor.
      */
@@ -133,9 +210,11 @@ public class SearchLoadProbe {
         double averageTaskExecutionTime,
         long currentQueueSize,
         TimeValue maxTimeToClearQueue,
+        long queueBacklogDurationNanos,
         double maxThreadsToHandleQueue,
         double numProcessors,
-        int threadPoolSize
+        int threadPoolSize,
+        Consumer<SearchLoadMetricsProvider> searchLoadMetricsConsumer
     ) {
         assert maxThreadsToHandleQueue > 0.0;
         assert threadPoolSize > 0;
@@ -159,7 +238,16 @@ public class SearchLoadProbe {
         double queueThreadsNeeded = Math.min(currentQueueSize / tasksManageablePerThreadWithinMaxTime, maxThreadsToHandleQueue);
         assert queueThreadsNeeded >= 0.0;
         double queueLoad = queueThreadsNeeded * processorPerThread;
-
+        searchLoadMetricsConsumer.accept(
+            new SearchLoadMetricsProvider(
+                averageTaskExecutionTime,
+                queueThreadsNeeded,
+                queueLoad,
+                threadPoolLoad,
+                queueBacklogDurationNanos,
+                threadsUsed
+            )
+        );
         return threadPoolLoad + queueLoad;
     }
 
@@ -173,5 +261,41 @@ public class SearchLoadProbe {
 
     void setShardReadLoadThreshold(double shardReadLoadThreshold) {
         this.shardReadLoadThreshold = shardReadLoadThreshold;
+    }
+
+    private void setSearchLoadScalingFactor(double newValue) {
+        searchLoadScalingFactor = newValue;
+    }
+
+    // visible for testing
+    double searchLoadScalingFactor() {
+        return searchLoadScalingFactor;
+    }
+
+    record SearchLoadMetricsProvider(
+        double averageTaskExecutionTime,
+        double queueThreadsNeeded,
+        double queueLoad,
+        double threadPoolLoad,
+        long lastQueueBacklogDurationNanos,
+        double threadsUsed
+    ) {}
+
+    private static class ThreadPoolMetrics {
+        volatile double averageTaskExecutionTime = 0.0;
+        volatile double queueThreadsNeeded = 0.0;
+        volatile double queueLoad = 0.0;
+        volatile double threadPoolLoad = 0.0;
+        volatile double threadsUsed = 0.0;
+        volatile long lastQueueBacklogDurationNanos = 0L;
+
+        void update(SearchLoadMetricsProvider provider) {
+            this.averageTaskExecutionTime = provider.averageTaskExecutionTime;
+            this.queueLoad = provider.queueLoad;
+            this.queueThreadsNeeded = provider.queueThreadsNeeded;
+            this.threadPoolLoad = provider.threadPoolLoad;
+            this.lastQueueBacklogDurationNanos = provider.lastQueueBacklogDurationNanos;
+            this.threadsUsed = provider.threadsUsed;
+        }
     }
 }

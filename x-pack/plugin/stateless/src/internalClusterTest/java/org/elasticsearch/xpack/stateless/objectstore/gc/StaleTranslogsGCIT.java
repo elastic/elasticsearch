@@ -15,12 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.objectstore.gc;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+package org.elasticsearch.xpack.stateless.objectstore.gc;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -42,6 +37,10 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 
 import java.util.Collection;
 import java.util.List;
@@ -57,13 +56,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class StaleTranslogsGCIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StaleTranslogsGCIT extends AbstractStatelessPluginIntegTestCase {
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         public ObjectStoreGCTaskExecutor taskExecutor;
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -90,7 +89,7 @@ public class StaleTranslogsGCIT extends AbstractServerlessStatelessPluginIntegTe
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(
             super.nodePlugins().stream()
-                .map(c -> c.equals(ServerlessStatelessPlugin.class) ? TestServerlessStatelessPlugin.class : c)
+                .map(c -> c.equals(TestUtils.StatelessPluginWithTrialLicense.class) ? TestStatelessPlugin.class : c)
                 .toList(),
             MockRepository.Plugin.class
         );

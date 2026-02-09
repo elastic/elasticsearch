@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.metering.action;
+package org.elasticsearch.xpack.stateless.metering.action;
 
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -28,9 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeResponseTests.randomRepositoryStats;
-import static co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeResponseTests.randomRequestNames;
 import static org.elasticsearch.repositories.RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION;
+import static org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodeResponseTests.randomRepositoryStats;
+import static org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodeResponseTests.randomRequestNames;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;

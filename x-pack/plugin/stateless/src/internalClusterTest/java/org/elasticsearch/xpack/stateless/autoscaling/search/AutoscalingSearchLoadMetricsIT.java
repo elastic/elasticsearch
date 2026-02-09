@@ -15,18 +15,10 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadSampler;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.TransportPublishSearchLoads;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
@@ -49,6 +41,14 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadSampler;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.TransportPublishSearchLoads;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,10 +63,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.longAwait;
-import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.longAwait;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLoadSampler.SHARD_READ_EXECUTOR;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AutoscalingSearchLoadMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(List.of(ShutdownPlugin.class, ServerlessAutoscalingPlugin.class), super.nodePlugins());

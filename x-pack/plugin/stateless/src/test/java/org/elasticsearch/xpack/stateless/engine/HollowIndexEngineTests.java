@@ -15,15 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.HollowIndexEngineDeletionPolicy;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
@@ -47,8 +39,15 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.HollowIndexEngineDeletionPolicy;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 
 import java.util.Map;
 import java.util.Set;
@@ -133,7 +132,8 @@ public class HollowIndexEngineTests extends EngineTestCase {
             }
 
             var hollowConfig = hollowEngineConfig(store, globalCheckpoint::get);
-            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, mapperService)) {
+            var segmentInfos = hollowConfig.getStore().readLastCommittedSegmentsInfo();
+            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, segmentInfos)) {
                 var exception = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class : UnsupportedOperationException.class;
                 expectThrows(exception, () -> hollowIndexEngine.index(null));
                 expectThrows(exception, () -> hollowIndexEngine.delete(null));
@@ -164,7 +164,8 @@ public class HollowIndexEngineTests extends EngineTestCase {
             }
 
             var hollowConfig = hollowEngineConfig(store, globalCheckpoint::get);
-            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, mapperService)) {
+            var segmentInfos = hollowConfig.getStore().readLastCommittedSegmentsInfo();
+            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, segmentInfos)) {
                 assertEquals(expectedShardFieldStats, hollowIndexEngine.shardFieldStats());
             }
         }
@@ -192,7 +193,8 @@ public class HollowIndexEngineTests extends EngineTestCase {
             }
 
             var hollowConfig = hollowEngineConfig(store, globalCheckpoint::get);
-            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, mapperService)) {
+            var segmentInfos = hollowConfig.getStore().readLastCommittedSegmentsInfo();
+            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, segmentInfos)) {
                 assertEquals(expectedDocStats, hollowIndexEngine.docStats());
             }
         }
@@ -219,7 +221,8 @@ public class HollowIndexEngineTests extends EngineTestCase {
             }
 
             var hollowConfig = hollowEngineConfig(store, globalCheckpoint::get);
-            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, mapperService)) {
+            var segmentInfos = hollowConfig.getStore().readLastCommittedSegmentsInfo();
+            try (var hollowIndexEngine = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, segmentInfos)) {
                 var segmentsStats = hollowIndexEngine.segmentsStats(true, true);
                 assertThat(segmentsStats, equalTo(new SegmentsStats())); // should be empty for hollow shards
             }
@@ -278,7 +281,8 @@ public class HollowIndexEngineTests extends EngineTestCase {
             }
 
             var hollowConfig = hollowEngineConfig(store, globalCheckpoint::get);
-            try (var e = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, mapperService)) {
+            var segmentInfos = hollowConfig.getStore().readLastCommittedSegmentsInfo();
+            try (var e = new HollowIndexEngine(hollowConfig, statelessCommitService, hollowShardsService, segmentInfos)) {
                 assertThat(e.denseVectorStats(mappingLookup).getValueCount(), equalTo(0L)); // should be empty for hollow shards
                 assertThat(e.sparseVectorStats(mappingLookup).getValueCount(), equalTo(0L)); // should be empty for hollow shards
             }

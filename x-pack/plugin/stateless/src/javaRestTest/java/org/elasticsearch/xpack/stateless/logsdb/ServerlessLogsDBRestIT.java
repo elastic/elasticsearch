@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.logsdb;
+package org.elasticsearch.xpack.stateless.logsdb;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;

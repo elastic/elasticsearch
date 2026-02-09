@@ -15,17 +15,17 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search;
-
-import co.elastic.elasticsearch.stateless.autoscaling.AbstractBaseTierMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
-import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
+package org.elasticsearch.xpack.stateless.autoscaling.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.stateless.autoscaling.AbstractBaseTierMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.AutoscalingMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetrics;
+import org.elasticsearch.xpack.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -33,22 +33,30 @@ import java.util.List;
 import java.util.Objects;
 
 public class SearchTierMetrics extends AbstractBaseTierMetrics implements AutoscalingMetrics {
+    static final TransportVersion SP_TRANSPORT_VERSION = TransportVersion.fromName("search_power_in_autoscaling_response");
+
     private final MemoryMetrics memoryMetrics;
     private final MaxShardCopies maxShardCopies;
     private final StorageMetrics storageMetrics;
     private final List<NodeSearchLoadSnapshot> nodesLoad;
+    private final int searchPowerMin;
+    private final int searchPowerMax;
 
     public SearchTierMetrics(
         MemoryMetrics memoryMetrics,
         MaxShardCopies maxShardCopies,
         StorageMetrics storageMetrics,
-        List<NodeSearchLoadSnapshot> nodesLoad
+        List<NodeSearchLoadSnapshot> nodesLoad,
+        int searchPowerMin,
+        int searchPowerMax
     ) {
         super();
         this.memoryMetrics = memoryMetrics;
         this.maxShardCopies = maxShardCopies;
         this.storageMetrics = storageMetrics;
         this.nodesLoad = nodesLoad;
+        this.searchPowerMin = searchPowerMin;
+        this.searchPowerMax = searchPowerMax;
     }
 
     public SearchTierMetrics(String reason, ElasticsearchException exception) {
@@ -57,6 +65,8 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         this.maxShardCopies = null;
         this.storageMetrics = null;
         this.nodesLoad = null;
+        this.searchPowerMin = -1;
+        this.searchPowerMax = -1;
     }
 
     public SearchTierMetrics(StreamInput in) throws IOException {
@@ -66,6 +76,13 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         this.storageMetrics = in.readOptionalWriteable(StorageMetrics::new);
 
         this.nodesLoad = in.readOptionalCollectionAsList(NodeSearchLoadSnapshot::new);
+        if (in.getTransportVersion().supports(SP_TRANSPORT_VERSION)) {
+            this.searchPowerMin = in.readVInt();
+            this.searchPowerMax = in.readVInt();
+        } else {
+            this.searchPowerMin = -1;
+            this.searchPowerMax = -1;
+        }
     }
 
     public MemoryMetrics getMemoryMetrics() {
@@ -84,6 +101,14 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         return nodesLoad;
     }
 
+    public int getSearchPowerMin() {
+        return searchPowerMin;
+    }
+
+    public int getSearchPowerMax() {
+        return searchPowerMax;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -92,6 +117,10 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         out.writeOptionalWriteable(storageMetrics);
 
         out.writeOptionalCollection(nodesLoad);
+        if (out.getTransportVersion().supports(SP_TRANSPORT_VERSION)) {
+            out.writeVInt(searchPowerMin);
+            out.writeVInt(searchPowerMax);
+        }
     }
 
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
@@ -100,6 +129,10 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
             maxShardCopies.toXContent(objectBuilder, params);
             storageMetrics.toXContent(objectBuilder, params);
             objectBuilder.xContentList("search_load", nodesLoad);
+            if (searchPowerMin != -1) {
+                objectBuilder.field("search_power_min", searchPowerMin);
+                objectBuilder.field("search_power_max", searchPowerMax);
+            }
         });
         return builder;
     }
@@ -119,12 +152,14 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         return Objects.equals(this.memoryMetrics, that.memoryMetrics)
             && Objects.equals(this.maxShardCopies, that.maxShardCopies)
             && Objects.equals(this.storageMetrics, that.storageMetrics)
-            && Objects.equals(new HashSet<>(this.nodesLoad), new HashSet<>(that.nodesLoad)); // Equality does not depend on order
+            && Objects.equals(new HashSet<>(this.nodesLoad), new HashSet<>(that.nodesLoad)) // Equality does not depend on order
+            && this.searchPowerMin == that.searchPowerMin
+            && this.searchPowerMax == that.searchPowerMax;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(memoryMetrics, maxShardCopies, storageMetrics, nodesLoad);
+        return Objects.hash(memoryMetrics, maxShardCopies, storageMetrics, nodesLoad, searchPowerMin, searchPowerMax);
     }
 
     @Override
@@ -138,6 +173,10 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
             + storageMetrics
             + ", nodesLoad="
             + nodesLoad
+            + ", searchPowerMin="
+            + searchPowerMin
+            + ", searchPowerMax="
+            + searchPowerMax
             + '}';
     }
 }

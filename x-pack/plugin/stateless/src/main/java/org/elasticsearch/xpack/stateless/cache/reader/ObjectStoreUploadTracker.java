@@ -13,11 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.cache.reader;
+package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 

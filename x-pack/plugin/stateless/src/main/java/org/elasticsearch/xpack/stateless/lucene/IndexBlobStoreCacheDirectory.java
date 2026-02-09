@@ -15,11 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.lucene;
-
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
+package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -27,13 +23,18 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.LongFunction;
 
 public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
@@ -45,17 +46,18 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         StatelessSharedBlobCacheService cacheService,
         ShardId shardId,
         LongAdder totalBytesRead,
-        LongAdder totalBytesWarmed
+        LongAdder totalBytesWarmed,
+        @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
-        super(cacheService, shardId, totalBytesRead, totalBytesWarmed);
+        super(cacheService, shardId, totalBytesRead, totalBytesWarmed, blobContainerFunction);
     }
 
     @Override
-    protected CacheBlobReader getCacheBlobReader(String fileName, BlobLocation location) {
+    protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
         return createCacheBlobReader(
             fileName,
-            getBlobContainer(location.primaryTerm()),
-            location.blobName(),
+            getBlobContainer(blobFile.primaryTerm()),
+            blobFile.blobName(),
             getCacheService().getShardReadThreadPoolExecutor(),
             totalBytesReadFromObjectStore,
             BlobCacheMetrics.CachePopulationReason.CacheMiss
@@ -63,11 +65,11 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation location) {
+    public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
         return createCacheBlobReader(
-            fileName,
-            getBlobContainer(location.primaryTerm()),
-            location.blobName(),
+            blobFile.blobName(),
+            getBlobContainer(blobFile.primaryTerm()),
+            blobFile.blobName(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             totalBytesWarmedFromObjectStore,
             BlobCacheMetrics.CachePopulationReason.Warming,
@@ -104,44 +106,27 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public IndexBlobStoreCacheDirectory createNewInstance() {
-        var instance = new IndexBlobStoreCacheDirectory(
+    public IndexBlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
+        return new IndexBlobStoreCacheDirectory(
             cacheService,
             shardId,
             totalBytesReadFromObjectStore,
-            totalBytesWarmedFromObjectStore
+            totalBytesWarmedFromObjectStore,
+            blobContainer.get()
         ) {
-
             @Override
-            protected CacheBlobReader getCacheBlobReader(String fileName, BlobLocation location) {
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
                 return createCacheBlobReader(
                     fileName,
-                    getBlobContainer(location.primaryTerm()),
-                    location.blobName(),
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
                     getCacheService().getShardReadThreadPoolExecutor(),
                     // account for warming instead of cache miss when doing regular reads with a "prewarming" instance
                     totalBytesWarmedFromObjectStore,
                     BlobCacheMetrics.CachePopulationReason.Warming
                 );
             }
-
-            @Override
-            public CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation location) {
-                return createCacheBlobReader(
-                    fileName,
-                    getBlobContainer(location.primaryTerm()),
-                    location.blobName(),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    totalBytesWarmedFromObjectStore,
-                    BlobCacheMetrics.CachePopulationReason.Warming,
-                    ThreadPool.Names.GENERIC
-                );
-            }
         };
-        if (blobContainer.get() != null) {
-            instance.setBlobContainer(blobContainer.get());
-        }
-        return instance;
     }
 
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {

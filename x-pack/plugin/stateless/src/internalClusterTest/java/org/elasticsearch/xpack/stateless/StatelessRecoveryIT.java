@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -50,6 +47,8 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -78,7 +77,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class StatelessRecoveryIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -309,10 +308,11 @@ public class StatelessRecoveryIT extends AbstractServerlessStatelessPluginIntegT
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
 
         logger.info("--> accessing translog would fail relocation");
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+        repository.setRandomIOExceptionPattern(".*translog.*");
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-        repository.setRandomIOExceptionPattern(".*translog.*");
 
         logger.info("--> Replacing {} with {}", indexNodeA, indexNodeB);
         assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeA)));

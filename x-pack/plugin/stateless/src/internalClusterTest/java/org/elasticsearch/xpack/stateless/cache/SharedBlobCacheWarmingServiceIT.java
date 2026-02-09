@@ -15,20 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type;
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
-import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -47,8 +34,10 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
@@ -76,17 +65,30 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
+import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -96,9 +98,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -109,12 +108,15 @@ import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofBytes(4L * PAGE_SIZE);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
@@ -133,8 +135,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
@@ -173,10 +175,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         commitService.addConsumerForNewUploadedBcc(indexShard.shardId(), bccInfo -> {
             if (bccInfo.uploadedBcc().primaryTermAndGeneration().generation() == generationToBlock) {
                 logger.info("--> block object store repository");
+                // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 future.onResponse(null);
             }
         });
@@ -189,7 +192,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         assertThat(indexShard.store().readLastCommittedSegmentsInfo().getGeneration(), equalTo(generationToBlock));
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
     public void testCacheIsWarmedBeforeIndexingShardRelocation_AfterHandoff() {
         startMasterOnlyNode();
 
@@ -233,10 +236,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             logger.info("--> fail object store repository after warming");
             var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
             var transportService = MockTransportService.getInstance(indexNodeB);
+            // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             transportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
                     assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;
@@ -245,17 +249,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             });
         }), waitForWarmingsCompleted::countDown))) {
             runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, refs.acquire().map(ignored -> null));
-            if (hollowEnabled) {
-                runOnWarmingComplete(indexNodeA, Type.HOLLOWING, refs.acquire().map(ignored -> null));
-            } else {
+            if (hollowEnabled == false) {
                 runOnWarmingComplete(indexNodeB, Type.INDEXING, refs.acquire().map(ignored -> null));
             }
         }
 
         final MockLog.LoggingExpectation[] loggingExpectations = hollowEnabled
-            ? new MockLog.LoggingExpectation[] {
-                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
-                expectCacheWarmingCompleteEvent(Type.HOLLOWING) }
+            ? new MockLog.LoggingExpectation[] { expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY) }
             : new MockLog.LoggingExpectation[] {
                 expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
                 expectCacheWarmingCompleteEvent(Type.INDEXING) };
@@ -289,7 +289,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         }, SharedBlobCacheWarmingService.class, loggingExpectations);
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
     public void testCacheIsWarmedBeforeIndexingShardRelocation_Initial() {
         startMasterOnlyNode();
 
@@ -341,9 +341,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         PlainActionFuture<CompletedWarmingDetails> earlyWarmingIsComplete = new PlainActionFuture<>();
         runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, earlyWarmingIsComplete);
         final MockLog.LoggingExpectation[] loggingExpectations = hollowEnabled
-            ? new MockLog.LoggingExpectation[] {
-                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
-                expectCacheWarmingCompleteEvent(Type.HOLLOWING) }
+            ? new MockLog.LoggingExpectation[] { expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY) }
             : new MockLog.LoggingExpectation[] {
                 expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
                 expectCacheWarmingCompleteEvent(Type.INDEXING) };
@@ -385,7 +383,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         }, SharedBlobCacheWarmingService.class, loggingExpectations);
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
     public void testCacheIsWarmedDuringMerge() {
         var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
@@ -406,7 +404,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         long generation = client().admin().indices().prepareStats(indexName).setFlush(true).get().getShards()[0].getCommitStats()
             .getGeneration();
 
-        client(indexNode).execute(ServerlessStatelessPlugin.CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).actionGet();
+        client(indexNode).execute(StatelessPlugin.CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).actionGet();
 
         PlainActionFuture<Void> warmingFuture = new PlainActionFuture<>();
 
@@ -417,11 +415,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             public void onResponse(Void unused) {
                 warmingFuture.onResponse(null);
                 logger.info("--> fail object store repository after warming");
+                // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+                long generationToBlock = randomLongBetween(2, generation);
+                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-                long generationToBlock = randomLongBetween(2, generation);
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             }
 
             @Override
@@ -439,7 +438,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         safeGet(warmingFuture);
     }
 
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
     public void testCacheIsWarmedBeforeIndexingShardRecovery() {
         startMasterOnlyNode();
 
@@ -489,16 +488,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
     public void testCacheIsWarmedBeforeSearchShardRecovery() {
         startMasterOnlyNode();
 
-        var cacheSettings = Settings.builder()
+        var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), randomIntBetween(1, 10))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
-        startIndexNode(cacheSettings);
+        startIndexNode(nodeSettings);
 
-        var searchNodeA = startSearchNode(cacheSettings);
+        var searchNodeA = startSearchNode(nodeSettings);
         ensureStableCluster(3);
 
         final String indexName = randomIdentifier();
@@ -545,7 +544,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         disableTransportBlocking(searchNodeA);
         ensureSearchHits(indexName, totalDocs);
 
-        var searchNodeB = startSearchNode(cacheSettings);
+        var searchNodeB = startSearchNode(nodeSettings);
         ensureStableCluster(4);
 
         // The cache also gets pre-warmed when a shard gets relocated to a new node
@@ -561,7 +560,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
     }
 
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
-        var cacheSettings = Settings.builder()
+        var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -571,9 +570,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(PAGE_SIZE))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
-        final var indexNode = startMasterAndIndexNode(cacheSettings);
+        final var indexNode = startMasterAndIndexNode(nodeSettings);
 
-        var searchNode = startSearchNode(cacheSettings);
+        var searchNode = startSearchNode(nodeSettings);
         ensureStableCluster(2);
 
         final String indexName = randomIdentifier();
@@ -636,7 +635,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         final var flushCountdown = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.PREWARM_THREAD_POOL);
+                assert SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.get(nodeSettings)
+                    && ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, StatelessPlugin.PREWARM_THREAD_POOL)
+                    || ThreadPool.assertCurrentThreadPool(StatelessPlugin.PREWARM_THREAD_POOL);
                 if (flushed.compareAndExchange(false, true) == false) {
                     // Spawn a new thread to avoid using flush with the prewarm thread pool which could trigger a false assertion
                     // See https://github.com/elastic/elasticsearch-serverless/issues/2518
@@ -701,7 +702,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
      * with the generic threads, the assertion will be tripped. It is likely that a similar issue can happen during
      * opening an engine/recovery which also runs on the generic thread pool. The fix (#2966) is to use the dedicated
      * fillVBCC thread pool to the failure path (onFailure) in addition to the success path (onResponse) in
-     * {@link co.elastic.elasticsearch.stateless.cache.reader.IndexingShardCacheBlobReader}. This test is to demonstrate
+     * {@link org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobReader}. This test is to demonstrate
      * that the fix is effective.
      */
     public void testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection() throws Exception {
@@ -715,7 +716,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "5s")
             .build();
-        startMasterOnlyNode(nodeSettings);
+        final var masterName = startMasterOnlyNode(nodeSettings);
 
         var cacheSettings = Settings.builder()
             .put(nodeSettings)
@@ -776,7 +777,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
 
         // Simulating no free region for warming
         final var searchNodeCacheService = (MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService) internalCluster().getInstance(
-            ServerlessStatelessPlugin.SharedBlobCacheServiceSupplier.class,
+            StatelessPlugin.SharedBlobCacheServiceSupplier.class,
             searchNode
         ).get();
         searchNodeCacheService.noFreeRegionForWarming.set(true);
@@ -788,6 +789,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         blockingWarmingService.addWarmingCompletedListener(warmingCompletedFuture);
 
         final var stoppedLatch = new CountDownLatch(1);
+        final var restartLatch = new CountDownLatch(1);
         final var restartIndexNodeThread = new Thread(() -> {
             try {
                 internalCluster().restartNode(indexNode, new InternalTestCluster.RestartCallback() {
@@ -801,6 +803,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
                         assertThat(ExceptionsHelper.unwrap(e, NodeNotConnectedException.class, IOException.class), notNullValue());
                         // Future search shard warming after indexing node comes back should succeed
                         blockingWarmingService.mustSucceed.set(true);
+                        safeAwait(restartLatch);
                         logger.info("--> continue to restart the indexing node");
                         return super.onNodeStopped(nodeName);
                     }
@@ -845,6 +848,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
 
         // Wait for the indexing node to stop then ensure it comes back up and recovers the index.
         safeAwait(stoppedLatch);
+
+        ensureStableCluster(2, masterName);
+        logger.info("--> Cluster now has 2 nodes only (one master, one search)");
+        restartLatch.countDown();
+
         restartIndexNodeThread.join(60000);
         assertFalse(restartIndexNodeThread.isAlive());
 
@@ -896,12 +904,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         getSharedBlobCacheWarmingService(node).addBeforeWarmingStartsListener(warmingType -> {
             logger.info("Disabling object store access to generation {}", generationToBlock);
             if (Type.INDEXING == warmingType) {
-                mockRepositoryB.setRandomControlIOExceptionRate(1.0);
-                mockRepositoryB.setRandomDataFileIOExceptionRate(1.0);
-                mockRepositoryB.setMaximumNumberOfFailures(Long.MAX_VALUE);
+                // set exception filename pattern FIRST, before toggling IO exceptions for the repo
                 mockRepositoryB.setRandomIOExceptionPattern(
                     ".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*"
                 );
+                mockRepositoryB.setRandomControlIOExceptionRate(1.0);
+                mockRepositoryB.setRandomDataFileIOExceptionRate(1.0);
+                mockRepositoryB.setMaximumNumberOfFailures(Long.MAX_VALUE);
             }
         });
     }
@@ -912,10 +921,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         final var transportService = MockTransportService.getInstance(node);
         runOnWarmingComplete(node, type, ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");
+            // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             transportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
                     assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;
@@ -936,15 +946,15 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
 
     private static BlockingSharedBlobCacheWarmingService getSharedBlobCacheWarmingService(String node) {
         return (BlockingSharedBlobCacheWarmingService) internalCluster().getInstance(PluginsService.class, node)
-            .filterPlugins(TestServerlessStatelessPlugin.class)
+            .filterPlugins(TestStatelessPlugin.class)
             .findFirst()
-            .orElseThrow(() -> new AssertionError(TestServerlessStatelessPlugin.class.getName() + " plugin not found"))
+            .orElseThrow(() -> new AssertionError(TestStatelessPlugin.class.getName() + " plugin not found"))
             .getSharedBlobCacheWarmingService();
     }
 
-    public static class TestServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
-        public TestServerlessStatelessPlugin(Settings settings) {
+        public TestStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -953,9 +963,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            Settings settings
+            ClusterSettings clusterSettings
         ) {
-            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings);
+            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings);
         }
 
         @Override
@@ -1020,9 +1030,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            Settings settings
+            ClusterSettings clusterSettings
         ) {
-            super(cacheService, threadPool, telemetryProvider, settings);
+            super(cacheService, threadPool, telemetryProvider, clusterSettings);
         }
 
         /**
@@ -1066,6 +1076,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
+            @Nullable Map<BlobFile, Integer> regionsToWarm,
             ActionListener<Void> listener
         ) {
             var wrappedListener = new SubscribableListener<Void>();
@@ -1078,7 +1089,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCacheRecovery(type, indexShard, commit, directory, wrappedListener);
+            super.warmCacheRecovery(type, indexShard, commit, directory, regionsToWarm, wrappedListener);
             if (mustSucceed.get()) {
                 safeAwait(wrappedListener);
             } else {

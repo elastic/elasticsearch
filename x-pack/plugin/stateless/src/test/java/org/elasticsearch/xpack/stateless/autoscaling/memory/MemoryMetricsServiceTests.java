@@ -15,12 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ShardMergeMemoryEstimatePublication;
-import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -53,6 +50,9 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ShardMergeMemoryEstimatePublication;
+import org.elasticsearch.xpack.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -73,13 +73,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -112,12 +115,14 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                 MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
                 MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
-                MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+                FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
                 MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
                 MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                 MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
                 MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
-                MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING
+                MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+                ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
+                SETTING_CLUSTER_MAX_SHARDS_PER_NODE
             )
         );
         service = new MemoryMetricsService(
@@ -595,7 +600,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertThat(memoryMetrics.totalMemoryInBytes() + memoryMetrics.nodeMemoryInBytes() * 2, lessThan(ByteSizeUnit.GB.toBytes(6)));
     }
 
-    public void testEstimateMethods() {
+    private void executeTestEstimateMethodsParameterized(ByteSizeValue fixedShardMemoryOverhead) {
         final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
         final boolean selfReportedShardMemoryOverheadEnabled = randomBoolean();
         clusterSettings.applySettings(
@@ -610,6 +615,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
             MeterRegistry.NOOP
         );
+        service.fixedShardMemoryOverhead = fixedShardMemoryOverhead;
 
         int numberOfIndices = between(1, 5);
         int numberOfShards = between(1, 2);
@@ -619,12 +625,12 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
         var shardMetrics = service.getShardMemoryMetrics();
         assertThat(shardMetrics.size(), equalTo(numberOfIndices * numberOfShards));
-        long totalMappingSizeInBytes = 0;
-        int totalShards = 0;
-        int totalSegments = 0;
-        int totalFields = 0;
+
+        long totalMappingSizeInBytes = 0L;
+        long totalShards = 0L;
         long maxPostingsInMemoryBytes = 0L;
-        long totalLiveDocsBytes = 0L;
+        long adaptiveEstimateBytes = 0L;
+
         for (var index : clusterState.metadata().indicesAllProjects()) {
             for (int id = 0; id < numberOfShards; id++) {
                 ShardId shardId = new ShardId(index.getIndex(), id);
@@ -633,13 +639,11 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 assertNotNull(metrics);
                 long mappingSizeInBytes = randomLongBetween(1, 1000);
                 int numSegments = between(1, 10);
-                totalSegments += numSegments;
                 int numFields = between(1, 1000);
-                totalFields += numFields;
                 long postingsInMemoryBytes = randomLongBetween(1, 1000);
                 maxPostingsInMemoryBytes = Math.max(postingsInMemoryBytes, maxPostingsInMemoryBytes);
                 long liveDocsBytes = randomLongBetween(1, 1000);
-                totalLiveDocsBytes += liveDocsBytes;
+
                 service.updateShardsMappingSize(
                     new HeapMemoryUsage(
                         between(1, 10000),
@@ -658,36 +662,29 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                     )
                 );
                 totalMappingSizeInBytes += mappingSizeInBytes;
+                adaptiveEstimateBytes += service.estimateShardMemoryUsageInBytes(service.getShardMemoryMetrics().get(shardId));
             }
         }
 
-        // defaults to the fixed method
-        long fixedEstimateBytes = totalMappingSizeInBytes + totalShards * FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes();
-        assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(fixedEstimateBytes));
-        // switch to the adaptive method
-        service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
-        long adaptiveEstimateBytes = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
-            * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + totalLiveDocsBytes;
-        long extraBytes = (long) (adaptiveEstimateBytes * adaptiveExtraOverheadRatio);
-        assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(totalMappingSizeInBytes + adaptiveEstimateBytes + extraBytes));
-        // switch back to the fixed method
-        ByteSizeValue newOverhead = ByteSizeValue.ofBytes(between(1, 1000));
-        service.fixedShardMemoryOverhead = newOverhead;
-        var newFixedEstimateBytes = totalMappingSizeInBytes + totalShards * newOverhead.getBytes();
-        assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(newFixedEstimateBytes));
+        long estimatedTierMemoryUsage = service.estimateTierMemoryUsage().totalBytes();
+        if (service.fixedShardMemoryOverhead.getBytes() > 0) {
+            long fixedEstimateBytes = totalMappingSizeInBytes + totalShards * service.fixedShardMemoryOverhead.getBytes();
+            assertThat(estimatedTierMemoryUsage, equalTo(fixedEstimateBytes));
+        } else {
+            assertThat(estimatedTierMemoryUsage, equalTo(totalMappingSizeInBytes + adaptiveEstimateBytes));
+        }
 
         assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytes));
 
         // Test handling of self-reported shard memory overheads. E.g. this is used for hollow shards.
         int selfReportedCount = randomIntBetween(1, numberOfIndices * numberOfShards);
         List<ShardId> selfReportedShards = randomSubsetOf(selfReportedCount, service.getShardMemoryMetrics().keySet());
-        long totalOverheadSelfReportedBytes = 0;
+
         long maxPostingsInMemoryBytesAfterSelfReport = 0L;
         for (ShardId shardId : service.getShardMemoryMetrics().keySet()) {
             MemoryMetricsService.ShardMemoryMetrics metrics = service.getShardMemoryMetrics().get(shardId);
             if (selfReportedShards.contains(shardId)) {
                 long overheadSelfReportedBytes = randomLongBetween(1, 1000);
-                totalOverheadSelfReportedBytes += overheadSelfReportedBytes;
                 service.updateShardsMappingSize(
                     new HeapMemoryUsage(
                         metrics.getSeqNo() + 1,
@@ -705,10 +702,11 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                         )
                     )
                 );
-                // We skip regular logic when we have a self reported value supplied
-                totalSegments -= metrics.getNumSegments();
-                totalFields -= metrics.getTotalFields();
-                totalLiveDocsBytes -= metrics.getLiveDocsBytes();
+
+                if (selfReportedShardMemoryOverheadEnabled) {
+                    estimatedTierMemoryUsage -= service.estimateShardMemoryUsageInBytes(service.getShardMemoryMetrics().get(shardId));
+                    estimatedTierMemoryUsage += overheadSelfReportedBytes;
+                }
             } else {
                 maxPostingsInMemoryBytesAfterSelfReport = Math.max(
                     maxPostingsInMemoryBytesAfterSelfReport,
@@ -716,74 +714,60 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
             }
         }
-        var nonSelfReportedCount = totalShards - selfReportedCount;
-        var fixedEstimateBytesWithSelfReport = totalMappingSizeInBytes + nonSelfReportedCount * newOverhead.getBytes()
-            + totalOverheadSelfReportedBytes;
-        if (selfReportedShardMemoryOverheadEnabled) {
-            assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(fixedEstimateBytesWithSelfReport));
-        } else {
-            // No change as self-reported values are ignored
-            assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(newFixedEstimateBytes));
-        }
-        // Switch to the adaptive method and check with the updated aggregates
-        service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
-        long adaptiveEstimateBytesWithSelfReport = nonSelfReportedCount * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
-            * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + totalLiveDocsBytes;
-        long extraBytesWithHollow = (long) (adaptiveEstimateBytesWithSelfReport * adaptiveExtraOverheadRatio);
-        if (selfReportedShardMemoryOverheadEnabled) {
-            assertThat(
-                service.estimateTierMemoryUsage().totalBytes(),
-                equalTo(
-                    totalMappingSizeInBytes + totalOverheadSelfReportedBytes + adaptiveEstimateBytesWithSelfReport + extraBytesWithHollow
-                )
-            );
-            assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytesAfterSelfReport));
-        } else {
-            assertThat(
-                service.estimateTierMemoryUsage().totalBytes(),
-                equalTo(totalMappingSizeInBytes + adaptiveEstimateBytes + extraBytes)
-            );
-            assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytes));
-        }
+
+        assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(estimatedTierMemoryUsage));
+    }
+
+    public void testEstimateMethods() {
+        executeTestEstimateMethodsParameterized(ByteSizeValue.of(randomLongBetween(1, 100), ByteSizeUnit.MB));
+        executeTestEstimateMethodsParameterized(ByteSizeValue.MINUS_ONE);
     }
 
     public void testAdaptiveEstimateValues() {
-        record Stat(String id, int shards, int segments, int fields, int actualMB) {
+        record ShardStat(String id, int segments, int fields, int actualMB) {
 
         }
-        List<Stat> stats = List.of(
-            new Stat("bcd2dc79ea2e4f0d801aa769fdee3dc2", 845, 13623, 1437797, 1986),
-            new Stat("f0d408b52c7e4d43a0f60c6b9e039f08", 123, 2375, 515282, 668),
-            new Stat("f0d408b52c7e4d43a0f60c6b9e039f08", 188, 4415, 793688, 1006),
-            new Stat("e30fc2594a1e44e08c036faf6a3aca46", 188, 2263, 125951, 154),
-            new Stat("e30fc2594a1e44e08c036faf6a3aca46", 197, 2359, 137145, 226),
-            new Stat("b58f9bba9cbc4aa994e40ee38086be8a", 27, 147, 5760, 18),
-            new Stat("d54bfd3da1424828972223c87e9f096f", 53, 475, 35732, 128),
-            new Stat("e949317afc464134b5efef9210c21413", 867, 14127, 3050663, 4841),
-            new Stat("e6cb34ca60a74a3cab2d90dcc561bd71", 123, 702, 35532, 58),
-            new Stat("c028d3e13c3440f5b3e0c99943162c6b", 47, 1383, 1298352, 1460),
-            new Stat("b0e6a8c015c54edbaacc9705746e4c85", 378, 10491, 867764, 1409),
-            new Stat("e6f04f207dbd4187b3c07ef14b92294f", 291, 8210, 618282, 979)
+        List<ShardStat> stats = List.of(
+            new ShardStat("bcd2dc79ea2e4f0d801aa769fdee3dc2", 13623, 1437797, 1986),
+            new ShardStat("f0d408b52c7e4d43a0f60c6b9e039f08", 2375, 515282, 668),
+            new ShardStat("f0d408b52c7e4d43a0f60c6b9e039f08", 4415, 793688, 1006),
+            new ShardStat("e30fc2594a1e44e08c036faf6a3aca46", 2263, 125951, 154),
+            new ShardStat("e30fc2594a1e44e08c036faf6a3aca46", 2359, 137145, 226),
+            new ShardStat("b58f9bba9cbc4aa994e40ee38086be8a", 147, 5760, 18),
+            new ShardStat("d54bfd3da1424828972223c87e9f096f", 475, 35732, 128),
+            new ShardStat("e949317afc464134b5efef9210c21413", 14127, 3050663, 4841),
+            new ShardStat("e6cb34ca60a74a3cab2d90dcc561bd71", 702, 35532, 58),
+            new ShardStat("c028d3e13c3440f5b3e0c99943162c6b", 1383, 1298352, 1460),
+            new ShardStat("b0e6a8c015c54edbaacc9705746e4c85", 10491, 867764, 1409),
+            new ShardStat("e6f04f207dbd4187b3c07ef14b92294f", 8210, 618282, 979)
         );
         StringBuilder sb = new StringBuilder();
-        sb.append("| Project Id                      |shards|segments|  fields | actual |  fixed |adaptive|adjusted|");
+        sb.append("| Project Id                      |segments|  fields | actual |  fixed |adaptive|adjusted|");
         sb.append(System.lineSeparator());
         sb.append("-------------------------------------------------------------------------------------------------");
         sb.append(System.lineSeparator());
-        String format = "| %-32s| %4s | %6s | %7s | %6s | %6s | %6s | %6s |%n";
+        String format = "| %-32s| %6s | %7s | %6s | %6s | %6s | %6s |%n";
+
         for (var stat : stats) {
             service.fixedShardMemoryOverhead = FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
-            var fixedEstimate = service.estimateShardMemoryUsageInBytes(stat.shards, stat.segments, stat.fields, 0);
-            long adaptiveEstimate = stat.shards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + stat.segments
-                * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + stat.fields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
+
+            long fixedEstimate = service.estimateShardMemoryUsageInBytes(
+                new MemoryMetricsService.ShardMemoryMetrics(0, stat.segments, stat.fields, 0, 0, 0, 0, MetricQuality.EXACT, "", 0L)
+            );
+
+            long adaptiveEstimate = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + stat.segments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
+                + stat.fields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
             service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
-            var adjustedEstimate = service.estimateShardMemoryUsageInBytes(stat.shards, stat.segments, stat.fields, 0);
+
+            long adjustedEstimate = service.estimateShardMemoryUsageInBytes(
+                new MemoryMetricsService.ShardMemoryMetrics(0, stat.segments, stat.fields, 0, 0, 0, 0, MetricQuality.EXACT, "", 0L)
+            );
+
             sb.append(
                 String.format(
                     Locale.ROOT,
                     format,
                     stat.id,
-                    stat.shards,
                     stat.segments,
                     stat.fields,
                     stat.actualMB + "mb",
@@ -793,21 +777,26 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 )
             );
         }
+
+        /*
+         * fixed estimation of heap memory usage is now performed at per shard level independent of number of segments, fields and live
+         * document bytes. Thus, fixedEstimate always equals to fixedShardMemoryOverhead.
+         */
         String expectedOutput = """
-            | Project Id                      |shards|segments|  fields | actual |  fixed |adaptive|adjusted|
+            | Project Id                      |segments|  fields | actual |  fixed |adaptive|adjusted|
             -------------------------------------------------------------------------------------------------
-            | bcd2dc79ea2e4f0d801aa769fdee3dc2|  845 |  13623 | 1437797 | 1986mb | 5070mb | 2197mb | 3296mb |
-            | f0d408b52c7e4d43a0f60c6b9e039f08|  123 |   2375 |  515282 |  668mb |  738mb |  639mb |  959mb |
-            | f0d408b52c7e4d43a0f60c6b9e039f08|  188 |   4415 |  793688 | 1006mb | 1128mb | 1025mb | 1538mb |
-            | e30fc2594a1e44e08c036faf6a3aca46|  188 |   2263 |  125951 |  154mb | 1128mb |  258mb |  387mb |
-            | e30fc2594a1e44e08c036faf6a3aca46|  197 |   2359 |  137145 |  226mb | 1182mb |  275mb |  412mb |
-            | b58f9bba9cbc4aa994e40ee38086be8a|   27 |    147 |    5760 |   18mb |  162mb |   15mb |   23mb |
-            | d54bfd3da1424828972223c87e9f096f|   53 |    475 |   35732 |  128mb |  318mb |   64mb |   96mb |
-            | e949317afc464134b5efef9210c21413|  867 |  14127 | 3050663 | 4841mb | 5202mb | 3801mb | 5702mb |
-            | e6cb34ca60a74a3cab2d90dcc561bd71|  123 |    702 |   35532 |   58mb |  738mb |   81mb |  122mb |
-            | c028d3e13c3440f5b3e0c99943162c6b|   47 |   1383 | 1298352 | 1460mb |  282mb | 1345mb | 2018mb |
-            | b0e6a8c015c54edbaacc9705746e4c85|  378 |  10491 |  867764 | 1409mb | 2268mb | 1438mb | 2157mb |
-            | e6f04f207dbd4187b3c07ef14b92294f|  291 |   8210 |  618282 |  979mb | 1746mb | 1066mb | 1599mb |
+            | bcd2dc79ea2e4f0d801aa769fdee3dc2|  13623 | 1437797 | 1986mb |    6mb | 2135mb | 3203mb |
+            | f0d408b52c7e4d43a0f60c6b9e039f08|   2375 |  515282 |  668mb |    6mb |  630mb |  946mb |
+            | f0d408b52c7e4d43a0f60c6b9e039f08|   4415 |  793688 | 1006mb |    6mb | 1012mb | 1518mb |
+            | e30fc2594a1e44e08c036faf6a3aca46|   2263 |  125951 |  154mb |    6mb |  244mb |  366mb |
+            | e30fc2594a1e44e08c036faf6a3aca46|   2359 |  137145 |  226mb |    6mb |  260mb |  391mb |
+            | b58f9bba9cbc4aa994e40ee38086be8a|    147 |    5760 |   18mb |    6mb |   13mb |   20mb |
+            | d54bfd3da1424828972223c87e9f096f|    475 |   35732 |  128mb |    6mb |   60mb |   90mb |
+            | e949317afc464134b5efef9210c21413|  14127 | 3050663 | 4841mb |    6mb | 3738mb | 5607mb |
+            | e6cb34ca60a74a3cab2d90dcc561bd71|    702 |   35532 |   58mb |    6mb |   72mb |  108mb |
+            | c028d3e13c3440f5b3e0c99943162c6b|   1383 | 1298352 | 1460mb |    6mb | 1342mb | 2013mb |
+            | b0e6a8c015c54edbaacc9705746e4c85|  10491 |  867764 | 1409mb |    6mb | 1410mb | 2116mb |
+            | e6f04f207dbd4187b3c07ef14b92294f|   8210 |  618282 |  979mb |    6mb | 1044mb | 1567mb |
             """;
         assertThat(sb.toString(), equalTo(expectedOutput));
     }
@@ -1164,6 +1153,80 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 perNodeMemoryMetrics.get(node1.getId()) - node1EstimateAfterMergeEstimate,
                 equalTo(indexingOperationsHeapMemoryRequirements)
             );
+        }
+    }
+
+    public void testAdaptiveShardMemoryEstimationMinThreshold() {
+        var maxShardsPerNode = randomIntBetween(100, 120);
+        var fixedShardMemoryOverhead = ByteSizeValue.of(randomLongBetween(1, 100), ByteSizeUnit.MB);
+        final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio)
+                .put(ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
+                .put(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), fixedShardMemoryOverhead)
+                .build()
+        );
+
+        long mappingSizeInBytes = randomLongBetween(1, 1000);
+        int numSegments = between(1, 5);
+        int numFields = between(1, 1000);
+        long postingsInMemoryBytes = randomLongBetween(1, 1000);
+        long liveDocsBytes = randomLongBetween(1, 1000);
+
+        var shardMemoryMetrics = new MemoryMetricsService.ShardMemoryMetrics(
+            mappingSizeInBytes,
+            numSegments,
+            numFields,
+            postingsInMemoryBytes,
+            liveDocsBytes,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            randomNonNegativeLong(),
+            MetricQuality.EXACT,
+            randomIdentifier(),
+            randomNonNegativeLong()
+        );
+
+        // Case 1 : Fixed estimation is unaffected.
+        assertThat(service.estimateShardMemoryUsageInBytes(shardMemoryMetrics), equalTo(fixedShardMemoryOverhead.getBytes()));
+
+        // Adaptive shard memory estimation enabled.
+        service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
+        long minThreshold = (HeapToSystemMemory.MAX_HEAP_SIZE - service.getNodeBaseHeapEstimateInBytes()) / maxShardsPerNode;
+
+        for (int i = 0; i < randomIntBetween(10, 20); i++) {
+            mappingSizeInBytes = randomLongBetween(1, 1000);
+            numSegments = between(1, 5500);
+            numFields = between(1, 200000);
+            postingsInMemoryBytes = randomLongBetween(1, 1000);
+            liveDocsBytes = randomLongBetween(1, 1000);
+
+            shardMemoryMetrics = new MemoryMetricsService.ShardMemoryMetrics(
+                mappingSizeInBytes,
+                numSegments,
+                numFields,
+                postingsInMemoryBytes,
+                liveDocsBytes,
+                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                randomNonNegativeLong(),
+                MetricQuality.EXACT,
+                randomIdentifier(),
+                randomNonNegativeLong()
+            );
+
+            long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
+                + numFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + liveDocsBytes;
+            long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
+            long estimatedMemoryBytes = estimateBytes + extraBytes;
+
+            if (estimatedMemoryBytes > minThreshold) {
+                // Case 2: Adaptive memory estimation higher than minimum threshold.
+                assertThat(service.estimateShardMemoryUsageInBytes(shardMemoryMetrics), equalTo(estimatedMemoryBytes));
+            } else {
+                // Case 3: Adaptive memory estimation lower than minimum threshold.
+                assertThat(service.estimateShardMemoryUsageInBytes(shardMemoryMetrics), equalTo(minThreshold));
+            }
         }
     }
 

@@ -15,13 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.objectstore;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeResponse;
-import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
-import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
+package org.elasticsearch.xpack.stateless.objectstore;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -55,6 +49,11 @@ import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodeResponse;
+import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodesRequest;
+import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -81,9 +80,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Integration tests for {@link ObjectStoreService} types.
+ * Integration tests for {@link org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService} types.
  */
-public abstract class AbstractObjectStoreIntegTestCase extends AbstractServerlessStatelessPluginIntegTestCase {
+public abstract class AbstractObjectStoreIntegTestCase extends AbstractStatelessPluginIntegTestCase {
 
     protected abstract String repositoryType();
 
@@ -156,7 +155,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractServerles
         assertThat(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "backup", "snapshot").get().isAcknowledged(), is(true));
 
         GetBlobStoreStatsNodesResponse getBlobStoreStatsNodesResponse = client().execute(
-            ServerlessStatelessPlugin.GET_BLOB_STORE_STATS_ACTION,
+            StatelessPlugin.GET_BLOB_STORE_STATS_ACTION,
             new GetBlobStoreStatsNodesRequest()
         ).actionGet();
 

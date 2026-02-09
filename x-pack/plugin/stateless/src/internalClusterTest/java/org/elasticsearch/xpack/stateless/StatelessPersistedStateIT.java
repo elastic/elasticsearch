@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
@@ -27,13 +25,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.InputStream;
 
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StatelessPersistedStateIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessPersistedStateIT extends AbstractStatelessPluginIntegTestCase {
 
     static final Settings fastFullClusterRestartSettings = Settings.builder()
         // MAX_MISSED_HEARTBEATS x HEARTBEAT_FREQUENCY is how long it takes for the last master heartbeat to expire.

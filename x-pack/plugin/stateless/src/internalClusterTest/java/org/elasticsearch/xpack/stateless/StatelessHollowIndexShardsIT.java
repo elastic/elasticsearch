@@ -15,23 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessFileDeletionIT.TestServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
-import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -124,9 +108,24 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -159,14 +158,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
-import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
-import static co.elastic.elasticsearch.stateless.engine.IndexEngineTestUtils.flushHollow;
-import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -180,6 +171,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
+import static org.elasticsearch.xpack.stateless.engine.IndexEngineTestUtils.flushHollow;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -195,7 +194,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -205,8 +204,8 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestServerlessStatelessPluginCatchUnhollow.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestStatelessPluginCatchUnhollow.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(CustomIngestTestPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
@@ -215,14 +214,14 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         return plugins;
     }
 
-    public static class TestServerlessStatelessPluginCatchUnhollow extends TestServerlessStatelessPlugin {
+    public static class TestStatelessPluginCatchUnhollow extends StatelessFileDeletionIT.TestStatelessPlugin {
         public final AtomicReference<Semaphore> uploadRequestedSemaphoreReference = new AtomicReference<>();
         public final AtomicReference<Semaphore> uploadContinueSemaphoreReference = new AtomicReference<>();
 
         public final AtomicReference<Semaphore> newIndexEngineStartedSemaphoreReference = new AtomicReference<>();
         public final AtomicReference<Semaphore> newIndexEngineContinueSemaphoreReference = new AtomicReference<>();
 
-        public TestServerlessStatelessPluginCatchUnhollow(Settings settings) {
+        public TestStatelessPluginCatchUnhollow(Settings settings) {
             super(settings);
         }
 
@@ -907,7 +906,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         // Fail BCC uploads to pause unhollowing (since the necessary flush will keep being retried to be uploaded)
         setNodeRepositoryFailureStrategy(clusterInfo.indexNodeB, false, true, Map.of(OperationPurpose.INDICES, ".*"));
         // Block snapshots
-        Releasable snapshotsBlock = findPlugin(clusterInfo.indexNodeB, TestServerlessStatelessPlugin.class).blockSnapshots();
+        Releasable snapshotsBlock = findPlugin(clusterInfo.indexNodeB, StatelessFileDeletionIT.TestStatelessPlugin.class).blockSnapshots();
 
         // A force merge thread that unhollows (and could, under buggy conditions, lead to deleted blobs for the racing snapshot)
         final var forceMergeThread = new Thread(() -> {
@@ -1028,7 +1027,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
 
         // Block snapshots
         createRepository("test-repo", "fs");
-        Releasable snapshotsBlock = findPlugin(indexNodeA, TestServerlessStatelessPlugin.class).blockSnapshots();
+        Releasable snapshotsBlock = findPlugin(indexNodeA, StatelessFileDeletionIT.TestStatelessPlugin.class).blockSnapshots();
 
         // Start another indexing node for relocations
         startIndexNode(indexNodeSettings);
@@ -2803,8 +2802,8 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
 
     @TestLogging(
         reason = "https://github.com/elastic/elasticsearch-serverless/issues/4715",
-        value = "co.elastic.elasticsearch.stateless.commits.HollowShardsService:trace,"
-            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:trace,"
+        value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:trace,"
+            + "org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction:trace,"
             + "org.elasticsearch.index.shard.IndexShard:trace,"
             + "org.elasticsearch.index.engine.InternalEngine:trace"
     )
@@ -2865,7 +2864,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
         assertBusy(() -> assertNull(commitServiceA.getCurrentVirtualBcc(shardId)));
 
-        final var testStatelessPlugin = findPlugin(indexNodeA, TestServerlessStatelessPluginCatchUnhollow.class);
+        final var testStatelessPlugin = findPlugin(indexNodeA, TestStatelessPluginCatchUnhollow.class);
         Semaphore uploadRequestedSemaphore = new Semaphore(0);
         testStatelessPlugin.uploadRequestedSemaphoreReference.set(uploadRequestedSemaphore);
         Semaphore uploadContinueSemaphore = new Semaphore(0);
@@ -2998,7 +2997,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         ensureYellow(indexName);
 
         // Now unhollow, and catch engine reset
-        final var testStatelessPlugin = findPlugin(indexNodeB, TestServerlessStatelessPluginCatchUnhollow.class);
+        final var testStatelessPlugin = findPlugin(indexNodeB, TestStatelessPluginCatchUnhollow.class);
         Semaphore newIndexEngineStartedSemaphore = new Semaphore(0);
         testStatelessPlugin.newIndexEngineStartedSemaphoreReference.set(newIndexEngineStartedSemaphore);
         Semaphore newIndexEngineContinueSemaphore = new Semaphore(0);
@@ -3109,6 +3108,81 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         var nonRealTimeMultiGetResponse = client().prepareMultiGet().addIds(indexName, ids).setRealtime(false).get();
         assertTrue(Stream.of(nonRealTimeMultiGetResponse.getResponses()).noneMatch(MultiGetItemResponse::isFailed));
         assertTrue(Stream.of(nonRealTimeMultiGetResponse.getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
+    }
+
+    public void testRelocationOfHollowReadsSingleRegion() throws Exception {
+
+        // This test ensures that the source node of a hollow shard relocation does not perform extra read from the blob store during
+        // hollowing.
+        final var regionSize = ByteSizeValue.ofMb(1);
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "10m")
+            .build();
+        var clusterInfo = startNodesAndHollowShards(nodeSettings, randomIntBetween(1, 4));
+
+        // In order to test that no extra blob read occurs on the source node during hollowing, we need to unhollow the shards on node B
+        // to convert it in regular shards.
+        final int moreDocs = randomIntBetween(clusterInfo.numberOfShards() * 6, clusterInfo.numberOfShards() * 10);
+        logger.info("--> ingesting {} more docs to unhollow shards", moreDocs);
+        indexDocs(clusterInfo.indexName, moreDocs);
+        // Wait until the shards are hollowable again
+        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, clusterInfo.indexNodeB);
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(clusterInfo.index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            assertBusy(() -> assertThat(hollowShardsServiceB.isHollowableIndexShard(indexShard), equalTo(true)));
+        }
+
+        // Before relocating, evict the caches and start counting potential blob accesses, on both nodes
+        clusterInfo.indexNodeACacheService.forceEvict((key) -> true);
+        clusterInfo.indexNodeBCacheService.forceEvict((key) -> true);
+
+        final AtomicInteger nodeABccAccesses = trackBccAccesses(clusterInfo.indexNodeA);
+        final AtomicInteger nodeBBccAccesses = trackBccAccesses(clusterInfo.indexNodeB);
+
+        logger.info("--> relocating back to node A");
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.exclude._name", clusterInfo.indexNodeB),
+            clusterInfo.indexName
+        );
+        // Wait for relocation
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        // Assert that after relocation all shards are hollow
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(clusterInfo.index, i);
+            assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+        }
+
+        // TODO for ES-13400
+        // assert that node A's blob accesses were just the number of shards (1 region read per shard),
+        // since replicated .si files should be in the hollow commit blob
+        // assertThat(nodeABccAccesses.get(0), equalTo(clusterInfo.numberOfShards));
+
+        // assert that node B's blob accesses are 0, since the .si files should be read from memory
+        assertThat(nodeBBccAccesses.get(), equalTo(0));
+    }
+
+    private AtomicInteger trackBccAccesses(String indexNode) {
+        final AtomicInteger bccAccesses = new AtomicInteger(0);
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                    logger.info("--> {} reading BCC {} at position {} for length {}", indexNode, blobName, position, length);
+                    bccAccesses.incrementAndGet();
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            }
+        });
+        return bccAccesses;
     }
 
     private void ensureGreenViaMasterNode(String masterNode, String index, boolean waitForEvents) {

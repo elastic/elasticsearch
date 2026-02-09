@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.search.load;
+package org.elasticsearch.xpack.stateless.autoscaling.search.load;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 
@@ -85,6 +85,7 @@ public class AverageSearchLoadSampler {
     private final Map<String, AverageLoad> averageThreadLoadPerExecutor = new HashMap<>();
 
     private volatile double numProcessors;
+    private final Map<String, QueueBacklogState> queueBacklogStatePerExecutor;
 
     public static AverageSearchLoadSampler create(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         assert MONITORED_EXECUTORS.keySet()
@@ -124,12 +125,11 @@ public class AverageSearchLoadSampler {
             : "threadPoolToAlphaValue must contain a single entry for each of the monitored executors: " + MONITORED_EXECUTORS;
 
         this.threadPool = threadPool;
-        threadPoolToAlphaValue.forEach(
-            (name, alpha) -> averageThreadLoadPerExecutor.put(
-                name,
-                new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, alpha)
-            )
-        );
+        this.queueBacklogStatePerExecutor = new HashMap<>();
+        threadPoolToAlphaValue.forEach((name, alpha) -> {
+            averageThreadLoadPerExecutor.put(name, new AverageLoad(threadPool.info(name).getMax(), samplingFrequency, alpha));
+            queueBacklogStatePerExecutor.put(name, new QueueBacklogState());
+        });
         this.numProcessors = numProcessors;
     }
 
@@ -138,6 +138,21 @@ public class AverageSearchLoadSampler {
             var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(name);
             long currentTotalNanos = executor.getTotalTaskExecutionTime();
             var ongoingTasks = executor.getOngoingTasks();
+            int queueSize = executor.getCurrentQueueSize();
+            long now = threadPool.relativeTimeInNanos();
+
+            QueueBacklogState backlogState = queueBacklogStatePerExecutor.get(name);
+            if (queueSize > 0) {
+                if (backlogState.queueBecameNonEmptyTimestamp == 0) {
+                    backlogState.queueBecameNonEmptyTimestamp = now;
+                }
+            } else {
+                backlogState.queueBecameNonEmptyTimestamp = 0;
+            }
+            // how long did the threadpool queue have tasks in it (precision subject to sampling interval, currently 1 second)
+            backlogState.queueBacklogDurationNanos = backlogState.queueBecameNonEmptyTimestamp == 0
+                ? 0
+                : now - backlogState.queueBecameNonEmptyTimestamp;
             averageThreadLoadPerExecutor.get(name).update(currentTotalNanos, ongoingTasks.values());
         }
     }
@@ -152,7 +167,8 @@ public class AverageSearchLoadSampler {
             executor.getTaskExecutionEWMA(),
             executor.getCurrentQueueSize(),
             executor.getMaximumPoolSize(),
-            numProcessors
+            numProcessors,
+            queueBacklogStatePerExecutor.get(executorName).queueBacklogDurationNanos
         );
     }
 
@@ -178,7 +194,7 @@ public class AverageSearchLoadSampler {
      */
     static class AverageLoad {
         private volatile long previousTotalExecutionTimeNanos = 0;
-        private ExponentiallyWeightedMovingAverage searchLoadEwma;
+        private ExponentiallyWeightedMovingAverage threadsUsed;
         // The maximum execution time possible within a sampling period, which is samplingFrequency * threadpoolSize
         private final long maxExecutionTimePerSamplingPeriodNanos;
         private final TimeValue samplingFrequency;
@@ -186,7 +202,7 @@ public class AverageSearchLoadSampler {
         AverageLoad(int executorMaxSize, TimeValue samplingFrequency, double EWMAAlpha) {
             this.maxExecutionTimePerSamplingPeriodNanos = executorMaxSize * samplingFrequency.nanos();
             this.samplingFrequency = samplingFrequency;
-            this.searchLoadEwma = new ExponentiallyWeightedMovingAverage(EWMAAlpha, 0.0);
+            this.threadsUsed = new ExponentiallyWeightedMovingAverage(EWMAAlpha, 0.0);
         }
 
         public void update(long currentTotalExecutionTimeNanos, Collection<Long> ongoingTasksStartNanos) {
@@ -202,7 +218,7 @@ public class AverageSearchLoadSampler {
                 nowNanos
             );
             synchronized (this) {
-                searchLoadEwma.addValue((double) taskExecutionTimeSinceLastSample / samplingFrequency.nanos());
+                threadsUsed.addValue((double) taskExecutionTimeSinceLastSample / samplingFrequency.nanos());
             }
             previousTotalExecutionTimeNanos = currentTotalExecutionTimeNanos;
         }
@@ -240,7 +256,7 @@ public class AverageSearchLoadSampler {
         }
 
         synchronized void updateEwmaAlpha(double ewmaAlpha) {
-            searchLoadEwma = new ExponentiallyWeightedMovingAverage(ewmaAlpha, searchLoadEwma.getAverage());
+            threadsUsed = new ExponentiallyWeightedMovingAverage(ewmaAlpha, threadsUsed.getAverage());
         }
 
         /**
@@ -248,8 +264,13 @@ public class AverageSearchLoadSampler {
          * minute (including IO time).
          */
         public synchronized double get() {
-            return searchLoadEwma.getAverage();
+            return threadsUsed.getAverage();
         }
+    }
+
+    private static class QueueBacklogState {
+        volatile long queueBecameNonEmptyTimestamp = 0;
+        volatile long queueBacklogDurationNanos = 0;
     }
 
     static long ensureRange(long n, long min, long max) {

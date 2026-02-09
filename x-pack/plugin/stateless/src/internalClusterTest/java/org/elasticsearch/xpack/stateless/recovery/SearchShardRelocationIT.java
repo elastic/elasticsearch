@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.recovery;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -28,16 +26,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
+import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
 
-import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction.START_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.START_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class SearchShardRelocationIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class SearchShardRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testSearchShardRelocationWhenHostingNodeTerminates() throws Exception {
         // MAX_MISSED_HEARTBEATS x HEARTBEAT_FREQUENCY is how long it takes for the last master heartbeat to expire.
@@ -165,30 +164,40 @@ public class SearchShardRelocationIT extends AbstractServerlessStatelessPluginIn
                 }, task);
             });
 
-        var slowClusterStateProcessingDisruption = new SlowClusterStateProcessing(searchNode1, random(), 0, 0, 2000, 3000);
-        setDisruptionScheme(slowClusterStateProcessingDisruption);
-        slowClusterStateProcessingDisruption.startDisrupting();
+        var blockClusterStateProcessingDisruption = new BlockClusterStateProcessing(searchNode1, random());
+        setDisruptionScheme(blockClusterStateProcessingDisruption);
+        blockClusterStateProcessingDisruption.startDisrupting();
 
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1));
+        // We shouldn't block on this request since it waits until the response is acknowledged, and since
+        // we're delaying the cluster state processing, it's likely that the handoff would move on before
+        // we can assert that the latch is still "active"
+        var updateIndexSettingsFuture = indicesAdmin().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1))
+            .execute();
         safeAwait(handoffReceived);
-        assertThat(handoffFinished.getCount(), is(equalTo(1L)));
 
-        var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        var initializingUnpromotableShards = clusterState.routingTable(ProjectId.DEFAULT)
-            .index(indexName)
-            .shard(0)
-            .assignedUnpromotableShards()
+        // Always go through searchNode2 to ensure that we get the latest cluster state
+        var clusterState = client(searchNode2).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var indexShardRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(indexName).shard(0);
+        var initializingUnpromotableShards = indexShardRoutingTable.assignedUnpromotableShards()
             .stream()
             .filter(ShardRouting::initializing)
             .toList();
-        assertThat(initializingUnpromotableShards, hasSize(1));
+        assertThat(
+            "Unexpected number of initializing unpromotable shards " + indexShardRoutingTable.unpromotableShards(),
+            initializingUnpromotableShards,
+            hasSize(1)
+        );
         assertThat(
             initializingUnpromotableShards.get(0).currentNodeId(),
             is(equalTo(clusterState.nodes().resolveNode(searchNode2).getId()))
         );
+        // Ensure that the handoff is still waiting for the cluster state to align
+        assertThat(handoffFinished.getCount(), is(equalTo(1L)));
 
-        slowClusterStateProcessingDisruption.stopDisrupting();
+        blockClusterStateProcessingDisruption.stopDisrupting();
         safeAwait(handoffFinished);
+        assertAcked(updateIndexSettingsFuture.actionGet());
         ensureGreen(indexName);
 
         assertThatUnpromotableShardIsStartedInNode(indexName, searchNode2);

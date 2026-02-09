@@ -13,11 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless.cache.reader;
+package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
@@ -31,6 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 
 import java.util.concurrent.Executor;
@@ -79,21 +78,21 @@ public class CacheBlobReaderService {
 
     /**
      * Returns a {@link CacheBlobReader} for the given shard and the blob specified by the given {@link BlobLocation}.
-     * @param shardId the shard id
-     * @param blobContainer the blob container where the location's blob can be read from
-     * @param location the blob's location. only the blob name, and the BCC primary term and generation are used. the offset and fileLength
-     *                 is disregarded.
-     * @param tracker the tracker to determine if the blob has been uploaded to the object store
+     *
+     * @param shardId                       the shard id
+     * @param blobContainer                 the blob container where the blob can be read from
+     * @param blobFile                      the blob file
+     * @param tracker                       the tracker to determine if the blob has been uploaded to the object store
      * @param totalBytesReadFromObjectStore counts how many bytes were read from object store
-     * @param totalBytesReadFromIndexing counts how many bytes were read from indexing nodes
-     * @param cachePopulationReason The reason that we're reading from the data source
-     * @param fileName The actual (lucene) file that's requested from the blob location
+     * @param totalBytesReadFromIndexing    counts how many bytes were read from indexing nodes
+     * @param cachePopulationReason         The reason that we're reading from the data source
+     * @param fileName                      The actual (lucene) file that's requested from the blob location
      * @return a {@link CacheBlobReader} for the given shard and blob
      */
     public CacheBlobReader getCacheBlobReader(
         ShardId shardId,
         LongFunction<BlobContainer> blobContainer,
-        BlobLocation location,
+        BlobFile blobFile,
         MutableObjectStoreUploadTracker tracker,
         LongConsumer totalBytesReadFromObjectStore,
         LongConsumer totalBytesReadFromIndexing,
@@ -101,12 +100,12 @@ public class CacheBlobReaderService {
         Executor objectStoreFetchExecutor,
         String fileName
     ) {
-        final var locationPrimaryTermAndGeneration = location.getBatchedCompoundCommitTermAndGeneration();
+        final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(
-                blobContainer.apply(location.primaryTerm()),
-                location.blobName(),
+            getObjectStoreCacheBlobReader(
+                blobContainer.apply(blobFile.primaryTerm()),
+                blobFile.blobName(),
                 rangeSize,
                 objectStoreFetchExecutor
             ),
@@ -134,6 +133,16 @@ public class CacheBlobReaderService {
                 indexingShardCacheBlobReader
             );
         }
+    }
+
+    // protected to override in tests
+    protected CacheBlobReader getObjectStoreCacheBlobReader(
+        BlobContainer blobContainer,
+        String blobName,
+        long cacheRangeSize,
+        Executor fetchExecutor
+    ) {
+        return new ObjectStoreCacheBlobReader(blobContainer, blobName, cacheRangeSize, fetchExecutor);
     }
 
     private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(

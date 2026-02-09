@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.engine;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
+package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -27,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class StatelessRefreshThrottlingIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessRefreshThrottlingIT extends AbstractStatelessPluginIntegTestCase {
 
     private RefreshNodeCreditManager getRegularIndicesCreditManager(String indexingNode) {
         var refreshThrottlingService = internalCluster().getInstance(RefreshThrottlingService.class, indexingNode);

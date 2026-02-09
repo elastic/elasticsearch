@@ -15,16 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
 import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlugin;
 import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetrics;
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
-import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
@@ -61,7 +59,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.DeleteShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.autoscaling.MetricQuality;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -85,18 +87,18 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.groupIndexNodesByShutdownStatus;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsService.groupIndexNodesByShutdownStatus;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.TIER_WIDE_WRITE_THREADPOOL_AVG_TASK_EXEC_TIME_METRIC_NAME;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,7 +109,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class AutoscalingIndexingMetricsIT extends AbstractStatelessPluginIntegTestCase {
     public static final double EPSILON = 0.0000001;
 
     @Override
@@ -1176,6 +1178,161 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
         }
     }
 
+    public void testIngestionLoadCappingWriteCoordinationExecutor() throws Exception {
+        final var masterNode = startMasterOnlyNode();
+        String indexNode1 = startIndexNode(
+            settingsForRoles(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.INGEST_ROLE).put(
+                IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(),
+                TimeValue.timeValueSeconds(1)
+            ).build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+        final var testIndex = "test-index";
+        createIndex(testIndex, indexSettings(1, 1).build());
+        ensureGreen();
+
+        var ratio = randomIntBetween(1, 3);
+        updateClusterSettings(
+            Settings.builder()
+                .put(IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), true)
+                .put(IngestLoadProbe.WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_RATIO.getKey(), ratio)
+                .put(IngestLoadProbe.WRITE_COORDINATION_UNCAPPING_THRESHOLD.getKey(), 0.001)
+        );
+
+        // repeatedly use drop pipeline of non-existent documents to increase
+
+        final var dropPipeline = "drop-pipeline";
+        putJsonPipeline(dropPipeline, """
+            {
+              "processors": [
+                {
+                  "drop": {}
+                }
+              ]
+            }""");
+
+        // Create many requests in parallel to stress the write_coordination executor
+        final int numRequests = 200;
+        List<ActionFuture<DocWriteResponse>> futures = new ArrayList<>();
+
+        for (int i = 0; i < numRequests; i++) {
+            futures.add(client().prepareIndex(testIndex).setPipeline(dropPipeline).setSource("foo", "bar" + i).execute());
+        }
+
+        // Numerous requests should generate quite a bit write coordinaiton load.
+        for (var future : futures) {
+            safeGet(future);
+        }
+
+        final String index1 = randomIndexName();
+        createIndex(index1, 1, 0);
+        ensureGreen(index1);
+
+        // Arrange a low tempo steady indexing activity to create some write ingestion load activities.
+        final var indices = Set.of(index1);
+        AtomicBoolean runIndexer = new AtomicBoolean(true);
+        var indexer = new Thread(() -> {
+            while (runIndexer.get()) {
+                for (var index : indices) {
+                    var writeRequests = randomIntBetween(5, 10);
+                    for (int i = 0; i < writeRequests; i++) {
+                        client().prepareBulk().add(new IndexRequest(index).source("field", i)).execute();
+                    }
+                }
+                // We arrange a low tempo write activity.
+                safeSleep(1000);
+            }
+        });
+        indexer.start();
+
+        // This adds behaviour to transport handling of TransportPublishNodeIngestLoadMetric type.
+        // Mainly intended to capture returned PublishNodeIngestLoadRequest, which contains the prepared NodeIngestionLoad
+        // from which we can verify the execution load capping behaviour.
+        final AtomicReference<Consumer<PublishNodeIngestLoadRequest>> afterSendResponseRef = new AtomicReference<>();
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
+                final var afterSendResponse = afterSendResponseRef.get();
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        channel.sendResponse(response);
+                        if (afterSendResponse != null) {
+                            afterSendResponse.accept(asInstanceOf(PublishNodeIngestLoadRequest.class, request));
+                        }
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        fail("unexpected failure: " + exception);
+                    }
+                }, task);
+            });
+
+        // Case 1: Low uncapping threshold. Capping taken place.
+        {
+            final var publicationLatch = new CountDownLatch(1);
+            afterSendResponseRef.set(request -> {
+                double nonWriteCoordinationIngestLoadTotal = AverageWriteLoadSampler.WRITE_EXECUTORS.stream()
+                    .filter(executor -> executor.equals(ThreadPool.Names.WRITE_COORDINATION) == false)
+                    .map(executor -> request.getIngestionLoad().executorIngestionLoads().get(executor).total())
+                    .reduce(Double::sum)
+                    .get();
+
+                // Capping has taken place
+                var cappedCoordination = request.getIngestionLoad().executorIngestionLoads().get(ThreadPool.Names.WRITE).total() * ratio;
+                double tolerance = 1e-9;
+                if (Math.abs(
+                    request.getIngestionLoad().totalIngestionLoad() - nonWriteCoordinationIngestLoadTotal - cappedCoordination
+                ) < tolerance) {
+                    publicationLatch.countDown();
+                }
+
+            });
+            safeAwait(publicationLatch);
+            final var ingestionLoad = getNodesIngestLoad();
+            assertThat(ingestionLoad.size(), equalTo(1));
+        }
+
+        // Case 2: relatively high uncapping threshold. No capping has taken place.
+        {
+            updateClusterSettings(Settings.builder().put(IngestLoadProbe.WRITE_COORDINATION_UNCAPPING_THRESHOLD.getKey(), 1.0));
+
+            final var publicationLatch = new CountDownLatch(1);
+            afterSendResponseRef.set(request -> {
+
+                double nonWriteCoordinationIngestLoadTotal = AverageWriteLoadSampler.WRITE_EXECUTORS.stream()
+                    .filter(executor -> executor.equals(ThreadPool.Names.WRITE_COORDINATION) == false)
+                    .map(executor -> request.getIngestionLoad().executorIngestionLoads().get(executor).total())
+                    .reduce(Double::sum)
+                    .get();
+
+                // No capping has taken place
+                var uncapped = request.getIngestionLoad().executorIngestionLoads().get(ThreadPool.Names.WRITE_COORDINATION).total();
+                double tolerance = 1e-9;
+
+                if (Math.abs(
+                    request.getIngestionLoad().totalIngestionLoad() - nonWriteCoordinationIngestLoadTotal - uncapped
+                ) < tolerance) {
+                    publicationLatch.countDown();
+                }
+
+            });
+            safeAwait(publicationLatch);
+            final var ingestionLoad = getNodesIngestLoad();
+            assertThat(ingestionLoad.size(), equalTo(1));
+
+        }
+
+        runIndexer.set(false);
+        indexer.join();
+    }
+
     public void testUseTierWideWriteAvgTaskExecTimeForNewNode() throws Exception {
         final var nodeSettings = Settings.builder()
             .put(USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING.getKey(), true)
@@ -1266,7 +1423,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
     }
 
     @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker:DEBUG",
+        value = "org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker:DEBUG",
         reason = "test based on logging of tier wide avg usage"
     )
     public void testUseTierWideWriteAvgTaskExecTimeDuringScaling() throws Exception {

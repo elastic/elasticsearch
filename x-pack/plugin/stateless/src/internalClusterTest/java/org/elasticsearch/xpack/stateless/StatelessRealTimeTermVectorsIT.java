@@ -13,11 +13,9 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
-package co.elastic.elasticsearch.stateless;
+package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.Terms;
@@ -47,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StatelessRealTimeTermVectorsIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling;
+package org.elasticsearch.xpack.stateless.autoscaling;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,6 +76,11 @@ public class DesiredClusterTopology implements Writeable {
         return Objects.hash(search, index);
     }
 
+    @Override
+    public String toString() {
+        return "DesiredClusterTopology{" + "search=" + search + ", index=" + index + '}';
+    }
+
     public static class TierTopology implements Writeable {
 
         private static final TransportVersion PARSE_DESIRED_TOPOLOGY_TIER_MEMORY = TransportVersion.fromName(
@@ -118,6 +123,10 @@ public class DesiredClusterTopology implements Writeable {
             this.cpuLimitRatio = in.readFloat();
         }
 
+        /**
+         * The number of nodes in the topology (confusingly called replicas).
+         * @return the number of nodes
+         */
         public int getReplicas() {
             return replicas;
         }
@@ -165,6 +174,22 @@ public class DesiredClusterTopology implements Writeable {
         @Override
         public int hashCode() {
             return Objects.hash(replicas, memory, storageRatio, cpuRatio, cpuLimitRatio);
+        }
+
+        @Override
+        public String toString() {
+            return "TierTopology{"
+                + "replicas="
+                + replicas
+                + ", memory="
+                + memory
+                + ", storageRatio="
+                + storageRatio
+                + ", cpuRatio="
+                + cpuRatio
+                + ", cpuLimitRatio="
+                + cpuLimitRatio
+                + '}';
         }
     }
 

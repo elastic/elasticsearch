@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.xpack;
+package org.elasticsearch.xpack.stateless.xpack;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.injection.guice.Inject;

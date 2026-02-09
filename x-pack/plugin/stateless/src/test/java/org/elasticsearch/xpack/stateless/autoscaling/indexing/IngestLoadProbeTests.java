@@ -15,10 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.indexing;
+package org.elasticsearch.xpack.stateless.autoscaling.indexing;
 
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
-
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -35,7 +34,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
 import org.mockito.Mockito;
 
 import java.util.HashMap;
@@ -47,23 +48,27 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_MAX_TIME_TO_CLEAR_QUEUE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.calculateIngestionLoadForExecutor;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsServiceTests.createShutdownMetadata;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
 import static org.elasticsearch.core.TimeValue.ZERO;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_MAX_TIME_TO_CLEAR_QUEUE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.WRITE_COORDINATION_MAX_CONTRIBUTION_CAPPED_LOG_INTERVAL;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_RATIO;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.WRITE_COORDINATION_UNCAPPING_THRESHOLD;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestLoadProbe.calculateIngestionLoadForExecutor;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.IngestMetricsServiceTests.createShutdownMetadata;
+import static org.elasticsearch.xpack.stateless.autoscaling.indexing.NodeIngestionLoadTracker.INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class IngestLoadProbeTests extends ESTestCase {
 
@@ -448,6 +453,109 @@ public class IngestLoadProbeTests extends ESTestCase {
             .forEach((executor, execTime) -> assertThat(execTime, equalTo(executorStats.get(executor).averageTaskExecutionNanosEWMA())));
     }
 
+    public void testGetCappedWriteCoordinationExecutorIngestionLoad() {
+        int ratio = randomIntBetween(1, 10);
+        int writeCoordinationUncappingThreshold = randomIntBetween(5, 10);
+        ClusterSettings clusterSettings = createClusterSettings(
+            Settings.builder()
+                .put(WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_RATIO.getKey(), ratio)
+                .put(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), "true")
+                .put(WRITE_COORDINATION_UNCAPPING_THRESHOLD.getKey(), writeCoordinationUncappingThreshold)
+                .build()
+        );
+
+        final var executorStats = randomExecutorStats();
+        ExecutorStats writeExecutorStats = executorStats.get(Names.WRITE);
+
+        final var currentTimeMillis = TimeValue.nsecToMSec(Math.abs(System.nanoTime()));
+        AtomicLong now = new AtomicLong(randomLongBetween(-currentTimeMillis, currentTimeMillis));
+        var ingestLoadProbe = new IngestLoadProbe(clusterSettings, executorStats::get, TimeProviderUtils.create(now::get));
+
+        ExecutorStats idlingWriteExecutorStats = new ExecutorStats(
+            writeCoordinationUncappingThreshold - randomIntBetween(2, 3),
+            writeExecutorStats.averageTaskExecutionNanosEWMA(),
+            writeExecutorStats.currentQueueSize(),
+            writeCoordinationUncappingThreshold - randomIntBetween(2, 3),
+            writeExecutorStats.maxThreads()
+        );
+        executorStats.put(Names.WRITE, idlingWriteExecutorStats);
+
+        IngestionLoad.NodeIngestionLoad nodeIngestionLoad = ingestLoadProbe.getNodeIngestionLoad();
+        // Case 1: No capping when write load is low
+        assertThat(
+            nodeIngestionLoad.executorIngestionLoads().get(Names.WRITE).total(),
+            lessThan((double) writeCoordinationUncappingThreshold)
+        );
+        verifyWriteCoordinationExecutorIngestionTotal(
+            nodeIngestionLoad.executorIngestionLoads().get(Names.WRITE_COORDINATION).total(),
+            nodeIngestionLoad
+        );
+
+        // Case 2: No capping when write coordination is lower than 10x write load
+        ExecutorStats aboveUncappingThresholdWriteExecutorStats = new ExecutorStats(
+            writeCoordinationUncappingThreshold + randomIntBetween(2, 3),
+            writeExecutorStats.averageTaskExecutionNanosEWMA(),
+            writeCoordinationUncappingThreshold + randomIntBetween(2, 3),
+            writeCoordinationUncappingThreshold + randomIntBetween(2, 3),
+            writeExecutorStats.maxThreads()
+        );
+
+        executorStats.put(Names.WRITE, aboveUncappingThresholdWriteExecutorStats);
+        ExecutorStats moderateWriteCoordinationStats = new ExecutorStats(
+            aboveUncappingThresholdWriteExecutorStats.averageLoad() * (ratio - 1),
+            aboveUncappingThresholdWriteExecutorStats.averageTaskExecutionNanosEWMA(),
+            aboveUncappingThresholdWriteExecutorStats.currentQueueSize() * (ratio - 1),
+            aboveUncappingThresholdWriteExecutorStats.averageQueueSize() * (ratio - 1),
+            aboveUncappingThresholdWriteExecutorStats.maxThreads()
+        );
+        executorStats.put(Names.WRITE_COORDINATION, moderateWriteCoordinationStats);
+        nodeIngestionLoad = ingestLoadProbe.getNodeIngestionLoad();
+        assertThat(
+            nodeIngestionLoad.executorIngestionLoads().get(Names.WRITE_COORDINATION).total(),
+            lessThan(nodeIngestionLoad.executorIngestionLoads().get(Names.WRITE).total() * ratio)
+        );
+
+        verifyWriteCoordinationExecutorIngestionTotal(
+            nodeIngestionLoad.executorIngestionLoads().get(Names.WRITE_COORDINATION).total(),
+            nodeIngestionLoad
+        );
+
+        // Case 3: Extreme write coordination activities greater than 10 times write executor ingestion load.
+        ExecutorStats writeCoordinationStats = new ExecutorStats(
+            aboveUncappingThresholdWriteExecutorStats.averageLoad() * randomIntBetween(ratio + 1, 200),
+            aboveUncappingThresholdWriteExecutorStats.averageTaskExecutionNanosEWMA(),
+            aboveUncappingThresholdWriteExecutorStats.currentQueueSize() * randomIntBetween(100, 200),
+            aboveUncappingThresholdWriteExecutorStats.averageQueueSize() * randomIntBetween(100, 200),
+            aboveUncappingThresholdWriteExecutorStats.maxThreads()
+        );
+        executorStats.put(Names.WRITE_COORDINATION, writeCoordinationStats);
+
+        MockLog.assertThatLogger(() -> {
+            IngestionLoad.NodeIngestionLoad nodeIngestionLoadWithBusyWriteCoordination = ingestLoadProbe.getNodeIngestionLoad();
+            var capped = nodeIngestionLoadWithBusyWriteCoordination.executorIngestionLoads().get(Names.WRITE).total() * ratio;
+            verifyWriteCoordinationExecutorIngestionTotal(capped, nodeIngestionLoadWithBusyWriteCoordination);
+        },
+            IngestLoadProbe.class,
+            new MockLog.SeenEventExpectation(
+                "capped warning",
+                IngestLoadProbe.class.getCanonicalName(),
+                Level.WARN,
+                "write coordination thread pool ingest load * is capped to * which is write ingest load * cap ratio *"
+            )
+        );
+    }
+
+    private void verifyWriteCoordinationExecutorIngestionTotal(double expected, IngestionLoad.NodeIngestionLoad nodeIngestionLoad) {
+        double nonWriteCoordinationIngestLoadTotal = AverageWriteLoadSampler.WRITE_EXECUTORS.stream()
+            .filter(executor -> executor.equals(Names.WRITE_COORDINATION) == false)
+            .map(executor -> nodeIngestionLoad.executorIngestionLoads().get(executor).total())
+            .reduce(Double::sum)
+            .get();
+
+        // Java double uses binary floating-point, so most decimal numbers cannot be represented exactly.
+        assertEquals(nodeIngestionLoad.totalIngestionLoad(), nonWriteCoordinationIngestLoadTotal + expected, 1e-9);
+    }
+
     private static Map<String, ExecutorStats> randomExecutorStats() {
         return AverageWriteLoadSampler.WRITE_EXECUTORS.stream()
             .collect(
@@ -475,7 +583,10 @@ public class IngestLoadProbeTests extends ESTestCase {
                 INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
                 MAX_MANAGEABLE_QUEUED_WORK,
                 INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE,
-                INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE
+                INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE,
+                WRITE_COORDINATION_MAX_CONTRIBUTION_CAP_RATIO,
+                WRITE_COORDINATION_MAX_CONTRIBUTION_CAPPED_LOG_INTERVAL,
+                WRITE_COORDINATION_UNCAPPING_THRESHOLD
             )
         );
     }

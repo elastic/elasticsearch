@@ -15,10 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
-
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -31,6 +28,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class ObjectStoreFailuresIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class ObjectStoreFailuresIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -71,11 +70,12 @@ public class ObjectStoreFailuresIT extends AbstractServerlessStatelessPluginInte
 
         ObjectStoreService objectStoreService = getObjectStoreService(indexNodeA);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        // This pattern starts failing from file 10. Because file name has 19 digits, and final digit should not be preceded by 18 zeroes.
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+        repository.setRandomIOExceptionPattern(".*translog/\\d{18,18}(?<!000000000000000000)\\d.*");
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-        // This pattern starts failing from file 10. Because file name has 19 digits, and final digit should not be preceded by 18 zeroes.
-        repository.setRandomIOExceptionPattern(".*translog/\\d{18,18}(?<!000000000000000000)\\d.*");
 
         final AtomicInteger docIdGenerator = new AtomicInteger();
         final AtomicInteger docsAcknowledged = new AtomicInteger();
@@ -140,10 +140,11 @@ public class ObjectStoreFailuresIT extends AbstractServerlessStatelessPluginInte
 
         ObjectStoreService objectStoreService = getObjectStoreService(searchNode);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
-        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
 
         logger.info("--> starting search shard");
         setReplicaCount(1, indexName);
@@ -167,10 +168,11 @@ public class ObjectStoreFailuresIT extends AbstractServerlessStatelessPluginInte
 
         ObjectStoreService objectStoreService = getObjectStoreService(searchNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
-        if (randomBoolean()) repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
 
         logger.info("--> move replica shard from: {} to: {}", searchNodeA, searchNodeB);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, searchNodeA, searchNodeB));
@@ -196,14 +198,15 @@ public class ObjectStoreFailuresIT extends AbstractServerlessStatelessPluginInte
 
         ObjectStoreService objectStoreService = getObjectStoreService(indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
-        repository.setRandomControlIOExceptionRate(1.0);
-        repository.setRandomDataFileIOExceptionRate(1.0);
-        repository.setMaximumNumberOfFailures(1);
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
         if (randomBoolean()) {
             repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
         } else if (randomBoolean()) {
             repository.setRandomIOExceptionPattern(".*translog.*");
         }
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(1);
 
         logger.info("--> stopping node [{}]", indexNodeA);
         internalCluster().stopNode(indexNodeA);
@@ -235,12 +238,12 @@ public class ObjectStoreFailuresIT extends AbstractServerlessStatelessPluginInte
         logger.info("--> failures will be on source node? [{}]", failuresOnSource);
         ObjectStoreService objectStoreService = getObjectStoreService(failuresOnSource ? indexNodeA : indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        // set exception filename pattern FIRST, before toggling IO exceptions for the repo
+        logger.info("--> failures will be on stateless commits");
+        repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
-
-        logger.info("--> failures will be on stateless commits");
-        repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
 
         logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));

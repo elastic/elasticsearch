@@ -15,19 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.cache;
-
-import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
-import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.TestStatelessCommitService;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -38,8 +26,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -53,16 +43,28 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +78,7 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_P
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPluginIntegTestCase {
+public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTestCase {
 
     public static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofBytes(6 * PAGE_SIZE);
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofMb(8);
@@ -97,8 +99,8 @@ public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPlug
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(ServerlessStatelessPlugin.class);
-        plugins.add(TestCacheServerlessStatelessPlugin.class);
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(TestCacheStatelessPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
@@ -154,7 +156,7 @@ public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPlug
             // let's have an empty cache
             cacheService.forceEvict(key -> true);
             FileCacheKey cacheKey = new FileCacheKey(indexShard.shardId(), maxBlobLocation.primaryTerm(), maxBlobLocation.blobName());
-            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(cacheKey.fileName(), maxBlobLocation);
+            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(maxBlobLocation.blobFile());
             // aligning the writer offset to be a factor of page size when writing to the cache
             int writerOffset = randomFrom(PAGE_SIZE, 2 * PAGE_SIZE, 3 * PAGE_SIZE);
             logger.info("-> writer offset: {}, blob file: {}", writerOffset, maxBlobLocation);
@@ -287,9 +289,9 @@ public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPlug
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
 
-    public static final class TestCacheServerlessStatelessPlugin extends ServerlessStatelessPlugin {
+    public static final class TestCacheStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
-        public TestCacheServerlessStatelessPlugin(Settings settings) {
+        public TestCacheStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -335,16 +337,17 @@ public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPlug
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
-            Settings settings
+            ClusterSettings clusterSettings
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
                 @Override
                 public void warmCacheForShardRecovery(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
-                    BlobStoreCacheDirectory directory
+                    BlobStoreCacheDirectory directory,
+                    @Nullable Map<BlobFile, Integer> regionsToWarm
                 ) {}
             };
         }

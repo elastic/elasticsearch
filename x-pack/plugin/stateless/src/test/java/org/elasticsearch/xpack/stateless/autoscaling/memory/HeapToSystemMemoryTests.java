@@ -15,16 +15,16 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.autoscaling.memory;
+package org.elasticsearch.xpack.stateless.autoscaling.memory;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.MAX_HEAP_SIZE;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.VECTOR_HEAP_THRESHOLD;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.dataNode;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.tier;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.HeapToSystemMemory.MAX_HEAP_SIZE;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.HeapToSystemMemory.VECTOR_HEAP_THRESHOLD;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.HeapToSystemMemory.dataNode;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.HeapToSystemMemory.tier;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class HeapToSystemMemoryTests extends ESTestCase {

@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.objectstore;
+package org.elasticsearch.xpack.stateless.objectstore;
 
 import com.sun.net.httpserver.HttpHandler;
 
@@ -30,7 +30,8 @@ import org.junit.BeforeClass;
 import java.util.Map;
 
 /**
- * Integration tests for {@link ObjectStoreService} types that rely on mock APIs that emulate cloud-based services.
+ * Integration tests for {@link org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService} types that rely
+ * on mock APIs that emulate cloud-based services.
  */
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
 public abstract class AbstractMockObjectStoreIntegTestCase extends AbstractObjectStoreIntegTestCase {

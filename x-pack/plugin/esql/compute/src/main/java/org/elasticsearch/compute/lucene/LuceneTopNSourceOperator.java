@@ -73,7 +73,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                LuceneSourceOperator::highSpeedAutoStrategy,
                 taskConcurrency,
                 limit,
                 needsScore,

@@ -107,6 +107,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                 for (Function f : Function.values()) {
                     String funcName = switch (f) {
+                        case COSINE -> "cos";
                         case DOT_PRODUCT -> "dot";
                         case SQUARE_DISTANCE -> "sqr";
                     };
@@ -119,6 +120,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         };
 
                         for (DataType type : DataType.values()) {
+                            // Only byte vectors have cosine
+                            // as floats are normalized to unit length to use dot_product instead
+                            if (f == Function.COSINE && type != DataType.INT8) continue;
+
                             String typeName = switch (type) {
                                 case INT7U -> "i7u";
                                 case INT8 -> "i8";
@@ -140,7 +145,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                         for (BBQType type : BBQType.values()) {
                             // not implemented yet...
-                            if (f == Function.SQUARE_DISTANCE) continue;
+                            if (f == Function.COSINE || f == Function.SQUARE_DISTANCE) continue;
 
                             String typeName = switch (type) {
                                 case D1Q4 -> "d1q4";
@@ -324,6 +329,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle cosI8Handle = HANDLES.get(
+            new OperationSignature<>(Function.COSINE, DataType.INT8, Operation.SINGLE)
+        );
+
+        static int cosineI8(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
+            return callSingleDistanceInt(cosI8Handle, a, b, elementCount);
         }
 
         private static final MethodHandle dotI8Handle = HANDLES.get(
@@ -522,6 +537,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             // So have specific hard-coded check methods rather than use guardWithTest
                             // to create the check-and-call methods dynamically
                             String checkMethod = switch (op.getKey().function()) {
+                                case COSINE -> "cosine";
                                 case DOT_PRODUCT -> "dotProduct";
                                 case SQUARE_DISTANCE -> "squareDistance";
                             };

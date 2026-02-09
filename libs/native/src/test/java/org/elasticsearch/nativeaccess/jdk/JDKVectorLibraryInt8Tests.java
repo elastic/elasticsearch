@@ -69,7 +69,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
             var nativeSeg1 = segment.asSlice((long) first * dims, dims);
             var nativeSeg2 = segment.asSlice((long) second * dims, dims);
 
-            int expected = scalarSimilarity(values[first], values[second]);
+            float expected = scalarSimilarity(values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
             if (supportsHeapSegments()) {
                 var heapSeg1 = MemorySegment.ofArray(values[first]);
@@ -251,8 +251,9 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    int scalarSimilarity(byte[] a, byte[] b) {
+    float scalarSimilarity(byte[] a, byte[] b) {
         return switch (function) {
+            case COSINE -> cosineScalar(a, b);
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceScalar(a, b);
         };
@@ -272,6 +273,22 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         }
     }
 
+    /** Computes the cosine of the given vectors a and b. */
+    static float cosineScalar(byte[] a, byte[] b) {
+        int sum = 0;
+        int norm1 = 0;
+        int norm2 = 0;
+
+        for (int i = 0; i < a.length; i++) {
+            byte elem1 = a[i];
+            byte elem2 = b[i];
+            sum += elem1 * elem2;
+            norm1 += elem1 * elem1;
+            norm2 += elem2 * elem2;
+        }
+        return (float) (sum / Math.sqrt((double) norm1 * (double) norm2));
+    }
+
     /** Computes the dot product of the given vectors a and b. */
     static int dotProductScalar(byte[] a, byte[] b) {
         int res = 0;
@@ -281,7 +298,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         return res;
     }
 
-    /** Computes the dot product of the given vectors a and b. */
+    /** Computes the square distance of the given vectors a and b. */
     static int squareDistanceScalar(byte[] a, byte[] b) {
         int squareSum = 0;
         for (int i = 0; i < a.length; i++) {

@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModelTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -221,6 +222,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
 
                 assertThat(completionsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
                 assertThat(completionsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(completionsModel.getServiceSettings().rateLimitSettings(), is(new RateLimitSettings(20)));
                 assertThat(completionsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
 
             }, exception -> fail("Unexpected exception: " + exception));
@@ -229,7 +231,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 getRequestConfigMap(
-                    HuggingFaceChatCompletionServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_ID_VALUE),
+                    HuggingFaceChatCompletionServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_ID_VALUE, 20),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener

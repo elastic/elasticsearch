@@ -10,16 +10,19 @@ package org.elasticsearch.xpack.inference.services.huggingface.elser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,21 +36,44 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         return new HuggingFaceElserServiceSettings(randomAlphaOfLength(15));
     }
 
+    private static final URI TEST_URI = ServiceUtils.createUri("https://test-uri.com");
+    private static final URI INITIAL_TEST_URI = ServiceUtils.createUri("https://initial-test-uri.com");
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = getServiceSettingsMap(TEST_URI.toString(), TEST_RATE_LIMIT);
+
+        var serviceSettings = createInitialServiceSettings().updateServiceSettings(settingsMap, TaskType.SPARSE_EMBEDDING);
+
+        assertThat(serviceSettings, is(new HuggingFaceElserServiceSettings(TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT))));
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = createInitialServiceSettings().updateServiceSettings(new HashMap<>(), TaskType.SPARSE_EMBEDDING);
+
+        assertThat(serviceSettings, is(createInitialServiceSettings()));
+    }
+
+    private static HuggingFaceElserServiceSettings createInitialServiceSettings() {
+        return new HuggingFaceElserServiceSettings(INITIAL_TEST_URI, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+    }
+
     public void testFromMap() {
-        var url = "https://www.abc.com";
         var serviceSettings = HuggingFaceElserServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, url)),
+            new HashMap<>(Map.of(ServiceFields.URL, TEST_URI.toString())),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(new HuggingFaceElserServiceSettings(url), is(serviceSettings));
+        assertThat(new HuggingFaceElserServiceSettings(TEST_URI.toString()), is(serviceSettings));
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {
+        String emptyUrl = "";
         var thrownException = expectThrows(
             ValidationException.class,
             () -> HuggingFaceElserServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.URL, "")),
+                new HashMap<>(Map.of(ServiceFields.URL, emptyUrl)),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -78,11 +104,11 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testFromMap_InvalidUrl_ThrowsError() {
-        var url = "https://www.abc^.com";
+        var invalidUrl = "https://www.abc^.com";
         var thrownException = expectThrows(
             ValidationException.class,
             () -> HuggingFaceElserServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.URL, url)),
+                new HashMap<>(Map.of(ServiceFields.URL, invalidUrl)),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -90,20 +116,24 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]",
+                    invalidUrl,
+                    ServiceFields.URL
+                )
             )
         );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new HuggingFaceElserServiceSettings(createUri("url"), new RateLimitSettings(3));
+        var serviceSettings = new HuggingFaceElserServiceSettings(TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = org.elasticsearch.common.Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"url":"url","max_input_tokens":512,"rate_limit":{"requests_per_minute":3}}"""));
+        assertThat(xContentResult, is(Strings.format("""
+            {"url":"%s","max_input_tokens":512,"rate_limit":{"requests_per_minute":%d}}""", TEST_URI, TEST_RATE_LIMIT)));
     }
 
     @Override
@@ -125,5 +155,18 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
             var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
             return new HuggingFaceElserServiceSettings(instance.uri(), rateLimitSettings);
         }
+    }
+
+    public static HashMap<String, Object> getServiceSettingsMap(String url, Integer rateLimit) {
+        var map = new HashMap<String, Object>();
+
+        if (url != null) {
+            map.put(ServiceFields.URL, url);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+
+        return map;
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.MatcherAssert;
 
 import java.net.URI;
 import java.util.HashMap;
@@ -52,7 +51,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
 
         var serviceSettings = createInitialGroqChatCompletionServiceSettings().updateServiceSettings(settingsMap, TaskType.COMPLETION);
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(new GroqChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, TEST_ORGANIZATION_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
@@ -61,7 +60,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
     public void testUpdateServiceSettings_EmptyMap_Success() {
         var serviceSettings = createInitialGroqChatCompletionServiceSettings().updateServiceSettings(new HashMap<>(), TaskType.COMPLETION);
 
-        MatcherAssert.assertThat(serviceSettings, is(createInitialGroqChatCompletionServiceSettings()));
+        assertThat(serviceSettings, is(createInitialGroqChatCompletionServiceSettings()));
     }
 
     private static GroqChatCompletionServiceSettings createInitialGroqChatCompletionServiceSettings() {

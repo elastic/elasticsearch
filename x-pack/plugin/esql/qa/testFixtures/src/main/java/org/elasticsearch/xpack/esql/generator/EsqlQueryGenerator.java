@@ -481,17 +481,31 @@ public class EsqlQueryGenerator {
             String exp = expression(previousOutput, false, previousCommands);
             name = exp == null ? name : exp;
         }
+        // For type-constrained agg functions (top, sample, first), use a type-safe field/expression
+        // instead of the arbitrary 'name' which may have an incompatible type (e.g. date_range from coalesce)
+        final String anyName = name;
         return switch (randomIntBetween(0, 9)) {
             case 0 -> "count(*)";
-            case 1 -> "count(" + name + ")";
-            case 2 -> "absent(" + name + ")";
-            case 3 -> "present(" + name + ")";
-            case 4 -> "values(" + name + ")";
-            case 5 -> "count_distinct(" + name + ")";
-            case 6 -> "top(" + name + ", " + randomIntBetween(1, 5) + ", \"asc\")";
-            case 7 -> "top(" + name + ", " + randomIntBetween(1, 5) + ", \"desc\")";
-            case 8 -> "sample(" + name + ", " + randomIntBetween(1, 10) + ")";
-            default -> "first(" + name + ", " + randomDateField(previousOutput) + ")";
+            case 1 -> "count(" + anyName + ")";
+            case 2 -> "absent(" + anyName + ")";
+            case 3 -> "present(" + anyName + ")";
+            case 4 -> "values(" + anyName + ")";
+            case 5 -> "count_distinct(" + anyName + ")";
+            case 6, 7 -> {
+                // top() accepts: boolean, double, integer, long, date, ip, keyword, text
+                Set<String> topTypes = Set.of("boolean", "double", "integer", "long", "date", "datetime", "ip", "keyword", "text");
+                String topField = FunctionGenerator.typeSafeExpression(previousOutput, topTypes, allowUnmapped);
+                if (topField == null) topField = anyName;
+                String order = randomIntBetween(0, 1) == 0 ? "asc" : "desc";
+                yield "top(" + topField + ", " + randomIntBetween(1, 5) + ", \"" + order + "\")";
+            }
+            case 8 -> {
+                // sample() - use a commonly supported field to avoid type issues
+                String sampleField = randomName(previousOutput, FunctionGenerator.COMMONLY_SUPPORTED_TYPES);
+                if (sampleField == null) sampleField = anyName;
+                yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
+            }
+            default -> "first(" + anyName + ", " + randomDateField(previousOutput) + ")";
         };
     }
 

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.generator;
 
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -42,6 +44,28 @@ public class FunctionGenerator {
      * Command names that fix the schema - after these commands, no new unmapped fields can be introduced.
      */
     private static final Set<String> SCHEMA_FIXING_COMMANDS = Set.of("stats", "keep", "drop");
+
+    /**
+     * Types that are commonly supported across most scalar and aggregate functions.
+     * Functions like coalesce() can produce expressions of any type, but when those expressions
+     * are used as arguments to other functions (like top(), greatest(), etc.), the type must
+     * be compatible. Restricting to these types avoids type errors when composing function calls.
+     * <p>
+     * Notably excludes: date_range, geo_point, geo_shape, cartesian_point, cartesian_shape,
+     * histogram, unsigned_long, aggregate_metric_double, and other rare types.
+     */
+    static final Set<String> COMMONLY_SUPPORTED_TYPES = Set.of(
+        "integer",
+        "long",
+        "double",
+        "keyword",
+        "text",
+        "date",
+        "datetime",
+        "boolean",
+        "ip",
+        "version"
+    );
 
     /**
      * Checks if unmapped fields are allowed based on the command history.
@@ -166,13 +190,15 @@ public class FunctionGenerator {
 
     /**
      * Generates a clamp function (clamp, clamp_min, clamp_max).
-     * May randomly use unmapped field names to test NULL data type handling.
+     * Note: clamp/clamp_min/clamp_max do NOT accept NULL for the field parameter,
+     * so unmapped fields (which resolve to NULL type) must not be used here.
      *
      * @param columns the available columns
-     * @param allowUnmapped if true, may use unmapped field names
+     * @param allowUnmapped ignored for the field parameter since clamp rejects NULL fields
      */
     public static String clampFunction(List<Column> columns, boolean allowUnmapped) {
-        String numericField = fieldOrUnmapped(EsqlQueryGenerator.randomNumericField(columns), allowUnmapped);
+        // clamp/clamp_min/clamp_max reject NULL for the field parameter, so don't use unmapped fields
+        String numericField = EsqlQueryGenerator.randomNumericField(columns);
         if (numericField == null) {
             return null;
         }
@@ -319,11 +345,21 @@ public class FunctionGenerator {
         if (dateField == null) {
             return null;
         }
-        String datePart = randomFrom("YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND", "DAY_OF_WEEK", "DAY_OF_YEAR", "WEEK");
+        String datePart = randomFrom(
+            "YEAR",
+            "MONTH_OF_YEAR",
+            "DAY_OF_MONTH",
+            "HOUR_OF_DAY",
+            "MINUTE_OF_HOUR",
+            "SECOND_OF_MINUTE",
+            "DAY_OF_WEEK",
+            "DAY_OF_YEAR",
+            "ALIGNED_WEEK_OF_YEAR"
+        );
         String interval = randomFrom("1 day", "1 hour", "1 week", "1 month", "1 year");
         return randomFrom(
             "date_extract(\"" + datePart + "\", " + dateField + ")",
-            "date_trunc(" + dateField + ", " + interval + ")",
+            "date_trunc(" + interval + ", " + dateField + ")",
             "date_format(\"yyyy-MM-dd\", " + dateField + ")",
             "day_name(" + dateField + ")",
             "month_name(" + dateField + ")",
@@ -427,6 +463,8 @@ public class FunctionGenerator {
     /**
      * Generates a COALESCE expression.
      * IMPORTANT: All arguments must be of the same type. COALESCE does NOT do type coercion.
+     * Only uses columns with commonly supported types to ensure the result can be consumed
+     * by other functions (e.g. top(), greatest/least, aggregation functions).
      * May randomly include unmapped field names to test NULL data type handling.
      * This is especially useful for coalesce since it's designed to handle nulls.
      *
@@ -435,8 +473,9 @@ public class FunctionGenerator {
      */
     public static String coalesceFunction(List<Column> columns, boolean allowUnmapped) {
         // COALESCE requires all arguments to be the SAME type
-        // Group columns by type and pick fields from the same type group
+        // Only use commonly supported types so the result type is compatible with other functions
         var columnsByType = columns.stream()
+            .filter(c -> COMMONLY_SUPPORTED_TYPES.contains(c.type()))
             .collect(Collectors.groupingBy(Column::type));
 
         // Find a type that has at least one field
@@ -680,6 +719,85 @@ public class FunctionGenerator {
         }
         String pattern = randomFrom(".*", "a.*", ".*b", ".*test.*", ".{3}");
         return stringField + " RLIKE \"" + pattern + "\"";
+    }
+
+    // ========== TYPE-SAFE EXPRESSION GENERATORS ==========
+
+    /**
+     * Generates a random expression that is guaranteed to return one of the given accepted types.
+     * This should be used when the expression will be passed as an argument to a function with
+     * specific type constraints (e.g. top(), greatest/least, etc.).
+     * <p>
+     * Prefers generating a function expression wrapping a compatible field, but falls back
+     * to a plain field reference if no function can be generated.
+     *
+     * @param columns the available columns
+     * @param acceptedTypes the set of types the calling function accepts (e.g. {"integer", "long", "double", "keyword", "date"})
+     * @param allowUnmapped if true, may use unmapped field names
+     * @return an expression string whose output type is in acceptedTypes, or null if none can be generated
+     */
+    public static String typeSafeExpression(List<Column> columns, Set<String> acceptedTypes, boolean allowUnmapped) {
+        // First try to generate a function expression with a known compatible return type
+        if (randomIntBetween(0, 10) < 5) {
+            String funcExpr = typeSafeFunctionExpression(columns, acceptedTypes, allowUnmapped);
+            if (funcExpr != null) {
+                return funcExpr;
+            }
+        }
+        // Fall back to a direct field reference of a compatible type
+        return EsqlQueryGenerator.randomName(columns, acceptedTypes);
+    }
+
+    /**
+     * Generates a function expression whose return type is guaranteed to be in the accepted types set.
+     * Each generator is mapped to its known return type category.
+     *
+     * @param columns the available columns
+     * @param acceptedTypes types the consuming function accepts
+     * @param allowUnmapped if true, may use unmapped field names
+     * @return a function expression string with a compatible return type, or null
+     */
+    private static String typeSafeFunctionExpression(List<Column> columns, Set<String> acceptedTypes, boolean allowUnmapped) {
+        boolean acceptsNumeric = acceptedTypes.contains("integer") || acceptedTypes.contains("long") || acceptedTypes.contains("double");
+        boolean acceptsString = acceptedTypes.contains("keyword") || acceptedTypes.contains("text");
+        boolean acceptsDate = acceptedTypes.contains("date") || acceptedTypes.contains("datetime");
+
+        // Build a list of candidate generators that produce compatible types
+        // Each entry is a generator function that returns an expression of the stated type
+        ArrayList<Supplier<String>> candidates = new ArrayList<>();
+
+        if (acceptsNumeric) {
+            candidates.add(() -> mathFunction(columns, allowUnmapped));         // returns numeric
+            candidates.add(() -> binaryMathFunction(columns, allowUnmapped));   // returns numeric
+            candidates.add(() -> stringToIntFunction(columns, allowUnmapped));  // returns integer
+            candidates.add(() -> clampFunction(columns, allowUnmapped));        // returns numeric
+        }
+        if (acceptsString) {
+            candidates.add(() -> stringFunction(columns, allowUnmapped));       // returns string
+            candidates.add(() -> concatFunction(columns, allowUnmapped));       // returns keyword
+        }
+        if (acceptsDate) {
+            // date_trunc returns date, now() returns date
+            String dateField = EsqlQueryGenerator.randomName(columns, Set.of("date", "datetime"));
+            if (dateField != null) {
+                String interval = randomFrom("1 day", "1 hour", "1 week", "1 month", "1 year");
+                candidates.add(() -> "date_trunc(" + interval + ", " + dateField + ")");
+                candidates.add(() -> "now()");
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        // Try a few candidates (some may return null if no suitable fields exist)
+        for (int attempt = 0; attempt < 3; attempt++) {
+            String result = randomFrom(candidates).get();
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
     }
 
     // ========== COMBINED GENERATORS ==========

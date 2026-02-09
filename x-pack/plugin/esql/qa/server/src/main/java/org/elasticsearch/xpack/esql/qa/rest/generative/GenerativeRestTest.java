@@ -30,8 +30,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
@@ -71,6 +74,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
+        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
+        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
+        "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -97,6 +104,23 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         .map(x -> ".*" + x + ".*")
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
+
+    /**
+     * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
+     * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
+     * that included a different unmapped field but not this one, making the second one legitimately unknown.
+     * We only allow this error when the unknown column is an unmapped field name, and if a suggestion is present,
+     * the suggested column must also be an unmapped field name.
+     */
+    private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
+        ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(
+        ".*Unknown column \\[([^]]+)].*",
+        Pattern.DOTALL
+    );
+    private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
     public void setup() throws IOException {
@@ -227,6 +251,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return outputValidation;
                 }
             }
+            if (isUnmappedFieldUnknownColumnError(outputValidation.errorMessage())) {
+                return outputValidation;
+            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
@@ -237,6 +264,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
+        }
+        if (isUnmappedFieldUnknownColumnError(query.exception().getMessage())) {
+            return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
     }
@@ -250,6 +280,33 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
         String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    /**
+     * Checks if the error is an "Unknown column" error involving unmapped field names. This happens when a
+     * schema-fixing command (KEEP, DROP, STATS) includes one unmapped field but not another, making the second
+     * one legitimately unknown. Two forms are handled:
+     * <ul>
+     *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
+     *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
+     * </ul>
+     */
+    private static boolean isUnmappedFieldUnknownColumnError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        // Try the more specific pattern first (with suggestion)
+        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            String suggestedColumn = matcher.group(2);
+            return UNMAPPED_NAMES.contains(unknownColumn) && UNMAPPED_NAMES.contains(suggestedColumn);
+        }
+        // Try the simpler pattern (no suggestion)
+        matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            return UNMAPPED_NAMES.contains(unknownColumn);
+        }
+        return false;
     }
 
     @Override

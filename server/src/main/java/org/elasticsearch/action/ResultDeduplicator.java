@@ -63,6 +63,10 @@ public final class ResultDeduplicator<T, R> {
         return requests.size();
     }
 
+    public boolean hasRequest(T request) {
+        return requests.containsKey(request);
+    }
+
     private final class CompositeListener implements ActionListener<R> {
 
         private final List<ActionListener<R>> listeners = new ArrayList<>();

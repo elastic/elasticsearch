@@ -67,4 +67,12 @@ public record DlmStepContext(
             callback
         );
     }
+
+    /*
+     * Returns true if the deduplicator is currently tracking the provided request for the project associated with this context,
+     * false otherwise.
+     */
+    public boolean deduplicatorHasRequest(ProjectId projectId, TransportRequest request) {
+        return transportActionsDeduplicator.hasRequest(Tuple.tuple(projectId, request));
+    }
 }

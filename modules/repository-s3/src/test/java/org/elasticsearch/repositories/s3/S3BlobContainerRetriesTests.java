@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -1548,7 +1549,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     /**
      * Asserts that an InputStream is fully consumed, or aborted, when it is closed
      */
-    private static class AssertingInputStream extends FilterInputStream {
+    private static class AssertingInputStream extends FilterInputStream implements RetryingInputStreamUnwrappable {
 
         private final String blobName;
         private final boolean range;
@@ -1602,6 +1603,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }
+        }
+
+        @Override
+        public RetryingInputStream<?> unwrap() {
+            return in instanceof RetryingInputStream<?> retryingInputStream ? retryingInputStream : null;
         }
     }
 }

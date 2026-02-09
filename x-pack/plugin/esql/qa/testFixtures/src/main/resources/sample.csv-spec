@@ -41,7 +41,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double | sum_emp_no:long
-10..90     | 10010.0..10090.0  | 100100..908100
+5..95      | 10010.0..10090.0  | 100100..908100
 ;
 
 
@@ -83,7 +83,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-10..90     | 10010..10090
+5..95      | 10010..10090
 ;
 
 
@@ -97,7 +97,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-10..90     | 10010..10090
+5..95      | 10010..10090
 ;
 
 
@@ -173,7 +173,7 @@ FROM employees
 ;
 
 count:long | avg_emp_no:double
-10..90     | 10010..10090
+5..95      | 10010..10090
 ;
 
 

@@ -29,9 +29,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class FlattenedFieldBlockLoaderTests extends BlockLoaderTestCase {
+public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
 
-    public FlattenedFieldBlockLoaderTests(Params params) {
+    public FlattenedFieldRootBlockLoaderTests(Params params) {
         super("flattened", List.of(new ASCIIStringsHandler()), params);
     }
 

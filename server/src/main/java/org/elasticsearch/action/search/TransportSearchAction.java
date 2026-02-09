@@ -674,6 +674,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 isProfile,
                 allowPartialSearchResults
             ),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             rewriteListener
         );
     }

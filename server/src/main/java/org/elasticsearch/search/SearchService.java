@@ -2211,6 +2211,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Rewriteable.rewriteAndFetch(
             request.getRewriteable(),
             indicesService.getDataRewriteContext(request::nowInMillis),
+            threadPool.executor(Names.SEARCH),
             request.readerId() == null
                 ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
                 : listener.safeMap(r -> request)

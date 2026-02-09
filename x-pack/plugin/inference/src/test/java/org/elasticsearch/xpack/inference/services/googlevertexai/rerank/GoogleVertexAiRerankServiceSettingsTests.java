@@ -89,7 +89,10 @@ public class GoogleVertexAiRerankServiceSettingsTests extends AbstractBWCWireSer
             {
                 put(GoogleVertexAiServiceFields.PROJECT_ID, projectId);
                 put(ServiceFields.MODEL_ID, modelId);
-                put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimitSettings.requestsPerTimeUnit())));
+                put(
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimitSettings.requestsPerTimeUnit()))
+                );
             }
         }, ConfigurationParseContext.REQUEST);
 

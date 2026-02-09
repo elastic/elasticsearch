@@ -1,0 +1,131 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package org.elasticsearch.xpack.stateless.engine;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+
+import java.io.IOException;
+
+public class RefreshThrottlingService extends AbstractLifecycleComponent {
+
+    public static final String MEMORY_NODE_ATTR = StatelessPlugin.NAME + ".memory";
+    public static final TimeValue BUDGET_INTERVAL = TimeValue.timeValueHours(1);
+    public static final TimeValue THROTTLING_INTERVAL = TimeValue.timeValueSeconds(5);
+    public static final ByteSizeValue NODE_BUDGET_HARDWARE_FACTOR = ByteSizeValue.ofGb(4);
+    private static final Logger logger = LogManager.getLogger(RefreshThrottlingService.class);
+
+    private final Settings settings;
+    private final ClusterService clusterService;
+    private final RefreshNodeCreditManager systemIndicesCreditManager;
+    private final RefreshNodeCreditManager regularIndicesCreditManager;
+
+    public RefreshThrottlingService(Settings settings, ClusterService clusterService) {
+        this.settings = settings;
+        this.clusterService = clusterService;
+        systemIndicesCreditManager = new RefreshNodeCreditManager(clusterService.threadPool()::relativeTimeInMillis, 1.0, "system");
+        regularIndicesCreditManager = new RefreshNodeCreditManager(clusterService.threadPool()::relativeTimeInMillis, 1.0, "regular");
+    }
+
+    public RefreshThrottler.Factory createRefreshThrottlerFactory(IndexSettings indexSettings) {
+        if (clusterService.localNode().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) && indexSettings.isFastRefresh() == false) {
+            long maxCredit = (BUDGET_INTERVAL.seconds() / THROTTLING_INTERVAL.seconds());
+            return refresh -> new RefreshBurstableThrottler(
+                refresh,
+                maxCredit,
+                maxCredit,
+                indexSettings.getIndexMetadata().isSystem() ? systemIndicesCreditManager : regularIndicesCreditManager,
+                clusterService.threadPool()
+            );
+        }
+        return RefreshThrottler.Noop::new;
+    }
+
+    @Override
+    protected void doStart() {
+        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
+            final long hardwareFactorBytes = NODE_BUDGET_HARDWARE_FACTOR.getBytes();
+            clusterService.addListener(event -> {
+                if (event.nodesChanged()) {
+                    String localNodeMemStr = clusterService.localNode().getAttributes().get(MEMORY_NODE_ATTR);
+                    if (localNodeMemStr == null || localNodeMemStr.isEmpty()) {
+                        logger.debug("skipping updating refresh throttling multiplier since local node does not have a memory attribute");
+                    } else {
+                        final long localNodeBytes = Long.parseLong(localNodeMemStr);
+                        long totalClusterBytes = 0;
+                        long totalIndexNodesBytes = 0;
+
+                        for (var node : event.state().nodes()) {
+                            String nodeMemStr = node.getAttributes().get(MEMORY_NODE_ATTR);
+                            if (nodeMemStr == null || nodeMemStr.isEmpty()) {
+                                logger.debug(
+                                    "skipping node [{}] when updating refresh throttling multiplier since it does not "
+                                        + "have a memory attribute",
+                                    node
+                                );
+                            } else {
+                                long nodeBytes = Long.parseLong(nodeMemStr);
+                                totalClusterBytes += nodeBytes;
+                                if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
+                                    totalIndexNodesBytes += nodeBytes;
+                                }
+                            }
+                        }
+
+                        assert totalIndexNodesBytes <= totalClusterBytes
+                            : "index nodes bytes " + totalIndexNodesBytes + " more than total cluster bytes " + totalClusterBytes;
+
+                        double newMultiplier = Math.max(
+                            1.0,
+                            1.0 * localNodeBytes / totalIndexNodesBytes * totalClusterBytes / hardwareFactorBytes
+                        );
+                        logger.debug("Updating multiplier for refresh throttling to [{}]", newMultiplier);
+                        systemIndicesCreditManager.setMultiplier(newMultiplier);
+                        regularIndicesCreditManager.setMultiplier(newMultiplier);
+                    }
+                }
+            });
+        }
+    }
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    protected void doClose() throws IOException {}
+
+    // package private for testing
+    RefreshNodeCreditManager getRegularIndicesCreditManager() {
+        return regularIndicesCreditManager;
+    }
+
+    // package private for testing
+    RefreshNodeCreditManager getSystemIndicesCreditManager() {
+        return systemIndicesCreditManager;
+    }
+
+}

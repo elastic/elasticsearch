@@ -22,7 +22,7 @@ public class ObjectValueTrieTests extends ESTestCase {
     public void testTryAdd_noConflictsWhenBranchingOut() {
         ObjectValueTrie trie = new ObjectValueTrie();
         assertNull(trie.tryAdd(List.of("a", "b", "c"), "v1"));
-        assertNull(trie.tryAdd(List.of("d", "b", "e"), "v2"));
+        assertNull(trie.tryAdd(List.of("a", "b", "e"), "v2"));
     }
 
     public void testTryAdd_noConflictsWhenAddingToExistingValueNode() {
@@ -61,6 +61,14 @@ public class ObjectValueTrieTests extends ESTestCase {
         assertNull(trie.markAsObject(List.of("a", "b")));
 
         List<String> conflict = trie.tryAdd(List.of("a", "b"), "concrete");
+        assertEquals(List.of("a", "b"), conflict);
+    }
+
+    public void testMarkAsObject_returnsConflictOnMarkingExistingValueNode() {
+        ObjectValueTrie trie = new ObjectValueTrie();
+        assertNull(trie.tryAdd(List.of("a", "b"), "value"));
+
+        List<String> conflict = trie.markAsObject(List.of("a", "b"));
         assertEquals(List.of("a", "b"), conflict);
     }
 

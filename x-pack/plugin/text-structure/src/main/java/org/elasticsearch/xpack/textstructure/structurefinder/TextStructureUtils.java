@@ -421,7 +421,7 @@ public final class TextStructureUtils {
 
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             keyParts.add(entry.getKey());
-            var recordValue = (Object) entry.getValue();
+            var recordValue = entry.getValue();
             flattenRecordRecursive(keyParts, recordValue, objectValueTrie, timeoutChecker, remainingDepth - 1);
             keyParts.removeLast();
         }

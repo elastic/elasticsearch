@@ -53,7 +53,7 @@ public class ObjectValueTrie {
                 }
 
                 if (nextNode.isObjectNode()) {
-                    return List.copyOf(path.subList(0, i + 1));
+                    return path.subList(0, i + 1);
                 }
 
                 nextNode.addValue(value);
@@ -64,7 +64,7 @@ public class ObjectValueTrie {
                 nextNode = Node.createObjectNode();
                 currentNode.addChild(nextNodeKey, nextNode);
             } else if (nextNode.isValueNode()) {
-                return List.copyOf(path.subList(0, i + 1));
+                return path.subList(0, i + 1);
             }
             currentNode = nextNode;
         }
@@ -91,7 +91,13 @@ public class ObjectValueTrie {
             if (isLastElement) {
                 if (nextNode == null) {
                     currentNode.addChild(nextNodeKey, Node.createObjectNode());
+                    return null;
                 }
+
+                if (nextNode.isValueNode()) {
+                    return path.subList(0, i + 1);
+                }
+
                 return null;
             }
 
@@ -99,7 +105,7 @@ public class ObjectValueTrie {
                 nextNode = Node.createObjectNode();
                 currentNode.addChild(nextNodeKey, nextNode);
             } else if (nextNode.isValueNode()) {
-                return List.copyOf(path.subList(0, i + 1));
+                return path.subList(0, i + 1);
             }
             currentNode = nextNode;
         }

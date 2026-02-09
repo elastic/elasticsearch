@@ -34,7 +34,6 @@ public class ElasticInferenceServiceDenseEmbeddingsModelCreator extends ElasticI
     public ElasticInferenceServiceDenseEmbeddingsModel createFromMaps(
         String inferenceId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context,
@@ -43,7 +42,6 @@ public class ElasticInferenceServiceDenseEmbeddingsModelCreator extends ElasticI
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             inferenceId,
             taskType,
-            service,
             serviceSettings,
             elasticInferenceServiceComponents,
             context,

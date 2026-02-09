@@ -17,7 +17,6 @@ public class ElasticInferenceServiceRerankModelTests extends ESTestCase {
         return new ElasticInferenceServiceRerankModel(
             "id",
             TaskType.RERANK,
-            "service",
             new ElasticInferenceServiceRerankServiceSettings(modelId),
             ElasticInferenceServiceComponents.of(url)
         );

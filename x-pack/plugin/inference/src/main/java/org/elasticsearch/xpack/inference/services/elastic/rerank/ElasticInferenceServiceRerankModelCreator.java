@@ -32,7 +32,6 @@ public class ElasticInferenceServiceRerankModelCreator extends ElasticInferenceS
     public ElasticInferenceServiceRerankModel createFromMaps(
         String inferenceId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context,
@@ -41,7 +40,6 @@ public class ElasticInferenceServiceRerankModelCreator extends ElasticInferenceS
         return new ElasticInferenceServiceRerankModel(
             inferenceId,
             taskType,
-            service,
             serviceSettings,
             elasticInferenceServiceComponents,
             context,

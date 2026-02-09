@@ -186,10 +186,10 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContentHelper(builder, params, true);
+        return toXContent(builder, params, true);
     }
 
-    public XContentBuilder toXContentHelper(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
+    private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
         builder.startObject();
         if (params.paramAsBoolean(USE_ID_FOR_INDEX, false)) {
             builder.field(INDEX_ONLY_ID_FIELD_NAME, inferenceEntityId);
@@ -219,9 +219,13 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         // progress.
         if (endpointMetadata.isEmpty() == false) {
             if (includeFilteredFields) {
-                builder.field(EndpointMetadata.METADATA, endpointMetadata);
+                builder.field(EndpointMetadata.METADATA_FIELD_NAME, endpointMetadata);
             } else {
-                builder.field(EndpointMetadata.METADATA, endpointMetadata, endpointMetadata.getXContentParamsExcludeInternalFields());
+                builder.field(
+                    EndpointMetadata.METADATA_FIELD_NAME,
+                    endpointMetadata,
+                    endpointMetadata.getXContentParamsExcludeInternalFields()
+                );
             }
         }
 
@@ -231,7 +235,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     @Override
     public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContentHelper(builder, params, false);
+        return toXContent(builder, params, false);
     }
 
     @Override

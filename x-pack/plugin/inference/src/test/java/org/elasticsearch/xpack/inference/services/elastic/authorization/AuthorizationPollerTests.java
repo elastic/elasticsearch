@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -42,7 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
@@ -75,7 +76,7 @@ public class AuthorizationPollerTests extends ESTestCase {
     public void init() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
-        when(inferenceFeatureServiceMock.hasEndpointMetadataFeature()).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(true);
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenModelRegistryIsNotReady() {
@@ -161,7 +162,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         when(mockRegistry.isReady()).thenReturn(true);
 
         var inferenceFeatureService = mock(InferenceFeatureService.class);
-        when(inferenceFeatureService.hasEndpointMetadataFeature()).thenReturn(false);
+        when(inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(false);
 
         var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
 
@@ -300,7 +301,7 @@ public class AuthorizationPollerTests extends ESTestCase {
                                 sparseModel.releaseDate(),
                                 sparseModel.endOfLifeDate()
                             ),
-                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_VERSION),
+                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_SCHEMA_VERSION),
                             sparseModel.kibanaConnectorName() != null
                                 ? new EndpointMetadata.Display(sparseModel.kibanaConnectorName())
                                 : null
@@ -329,7 +330,6 @@ public class AuthorizationPollerTests extends ESTestCase {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             endpointId,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelName, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -402,7 +402,7 @@ public class AuthorizationPollerTests extends ESTestCase {
                                 sparseModel.releaseDate(),
                                 sparseModel.endOfLifeDate()
                             ),
-                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_VERSION),
+                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_SCHEMA_VERSION),
                             sparseModel.kibanaConnectorName() != null
                                 ? new EndpointMetadata.Display(sparseModel.kibanaConnectorName())
                                 : null

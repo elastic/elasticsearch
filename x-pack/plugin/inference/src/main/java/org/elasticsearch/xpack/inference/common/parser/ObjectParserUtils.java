@@ -12,7 +12,7 @@ import org.elasticsearch.core.Strings;
 
 import java.util.Map;
 
-public class ObjectParserUtils {
+public final class ObjectParserUtils {
 
     /**
      * Remove the object from the map and cast to the expected type.
@@ -59,7 +59,7 @@ public class ObjectParserUtils {
             return subPath;
         }
 
-        return root + "." + subPath;
+        return Strings.format("%s.%s", root, subPath);
     }
 
     public static boolean isMapNullOrEmpty(@Nullable Map<String, Object> map) {

@@ -88,10 +88,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             case 3 -> {
                 var endpointMetadata = instance.getEndpointMetadata();
                 if (endpointMetadata.equals(EndpointMetadata.EMPTY_INSTANCE)) {
-                    var heuristics = EndpointMetadataTests.randomHeuristics();
-                    var internal = EndpointMetadataTests.randomInternal();
-                    var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
-                    endpointMetadata = new EndpointMetadata(heuristics, internal, display);
+                    endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
                 } else {
                     endpointMetadata = EndpointMetadata.EMPTY_INSTANCE;
                 }
@@ -201,7 +198,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         modelConfigurations.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String json = Strings.toString(builder);
 
-        assertThat(json, not(containsString(EndpointMetadata.METADATA)));
+        assertThat(json, not(containsString(EndpointMetadata.METADATA_FIELD_NAME)));
     }
 
     public void testToXContentIncludesNonEmptyEndpointMetadata() throws IOException {

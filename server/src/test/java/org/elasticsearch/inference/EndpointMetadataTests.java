@@ -23,24 +23,57 @@ import java.util.stream.IntStream;
 public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<EndpointMetadata> {
 
     public static EndpointMetadata randomInstance() {
+        if (randomBoolean()) {
+            return EndpointMetadata.EMPTY_INSTANCE;
+        }
+
         var heuristics = randomHeuristics();
         var internal = randomInternal();
         var display = randomDisplay();
+
+        if (InferenceFieldUtils.isNull(heuristics, internal, display)) {
+            return EndpointMetadata.EMPTY_INSTANCE;
+        }
+        return new EndpointMetadata(heuristics, internal, display);
+    }
+
+    public static EndpointMetadata randomNonEmptyInstance() {
+        var properties = IntStream.range(1, randomIntBetween(2, 5))
+            .mapToObj(i -> randomAlphaOfLength(randomIntBetween(1, 10)))
+            .collect(Collectors.toList());
+        var status = randomFrom(StatusHeuristic.values());
+        var releaseDate = randomLocalDate();
+        var endOfLifeDate = randomLocalDate();
+        var heuristics = new EndpointMetadata.Heuristics(properties, status, releaseDate, endOfLifeDate);
+
+        var fingerprint = randomAlphaOfLengthBetween(10, 50);
+        var version = randomLongBetween(0, Long.MAX_VALUE);
+        var internal = new EndpointMetadata.Internal(fingerprint, version);
+
+        var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
+
         return new EndpointMetadata(heuristics, internal, display);
     }
 
     public static EndpointMetadata.Display randomDisplay() {
-        var name = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
-        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY_INSTANCE;
+        return randomBoolean() ? EndpointMetadata.Display.EMPTY_INSTANCE : new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
     }
 
     public static EndpointMetadata.Heuristics randomHeuristics() {
+        if (randomBoolean()) {
+            return EndpointMetadata.Heuristics.EMPTY_INSTANCE;
+        }
+
         var properties = IntStream.range(0, randomIntBetween(0, 5))
             .mapToObj(i -> randomAlphaOfLength(randomIntBetween(1, 10)))
             .collect(Collectors.toList());
         var status = randomBoolean() ? null : randomFrom(StatusHeuristic.values());
         var releaseDate = randomBoolean() ? null : randomLocalDate();
         var endOfLifeDate = randomBoolean() ? null : randomLocalDate();
+
+        if (InferenceFieldUtils.isNull(properties, status, releaseDate, endOfLifeDate)) {
+            return EndpointMetadata.Heuristics.EMPTY_INSTANCE;
+        }
         return new EndpointMetadata.Heuristics(properties, status, releaseDate, endOfLifeDate);
     }
 
@@ -51,8 +84,16 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
     }
 
     public static EndpointMetadata.Internal randomInternal() {
+        if (randomBoolean()) {
+            return EndpointMetadata.Internal.EMPTY_INSTANCE;
+        }
+
         var fingerprint = randomBoolean() ? null : randomAlphaOfLengthBetween(10, 50);
         var version = randomBoolean() ? null : randomLongBetween(0, Long.MAX_VALUE);
+
+        if (InferenceFieldUtils.isNull(fingerprint, version)) {
+            return EndpointMetadata.Internal.EMPTY_INSTANCE;
+        }
         return new EndpointMetadata.Internal(fingerprint, version);
     }
 
@@ -74,10 +115,6 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
     @Override
     protected Writeable.Reader<EndpointMetadata> instanceReader() {
         return EndpointMetadata::new;
-    }
-
-    public static EndpointMetadata createRandom() {
-        return randomInstance();
     }
 
     @Override

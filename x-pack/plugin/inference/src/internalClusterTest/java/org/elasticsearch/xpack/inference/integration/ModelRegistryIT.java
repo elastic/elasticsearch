@@ -905,7 +905,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var model = new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId1,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings("model", null, null),
             new ElasticInferenceServiceComponents("url"),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
@@ -982,7 +981,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var eisModel = new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId1,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings("model", null, null),
             new ElasticInferenceServiceComponents("url"),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS

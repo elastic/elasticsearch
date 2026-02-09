@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -54,11 +52,6 @@ public class ElasticInferenceServiceModel extends RateLimitGroupingModel {
 
     public ElasticInferenceServiceComponents elasticInferenceServiceComponents() {
         return elasticInferenceServiceComponents;
-    }
-
-    @Override
-    public SecretSettings getSecretSettings() {
-        return Objects.requireNonNullElse(super.getSecretSettings(), EmptySecretSettings.INSTANCE);
     }
 
     @Override

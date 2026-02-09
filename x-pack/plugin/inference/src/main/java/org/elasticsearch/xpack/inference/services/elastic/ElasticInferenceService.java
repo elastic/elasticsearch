@@ -399,7 +399,6 @@ public class ElasticInferenceService extends SenderService {
         return retrieveModelCreatorFromMapOrThrow(modelCreators, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
-            NAME,
             serviceSettings,
             chunkingSettings,
             context,

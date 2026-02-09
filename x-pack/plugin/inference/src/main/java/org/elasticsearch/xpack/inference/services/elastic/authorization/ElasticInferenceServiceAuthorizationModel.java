@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint.END_OF_LIFE_DATE;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint.RELEASE_DATE;
 
@@ -158,7 +158,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     private static EndpointMetadata.Internal getInternalFields(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
-        return new EndpointMetadata.Internal(authorizedEndpoint.fingerprint(), ENDPOINT_VERSION);
+        return new EndpointMetadata.Internal(authorizedEndpoint.fingerprint(), ENDPOINT_SCHEMA_VERSION);
     }
 
     private static ElasticInferenceServiceCompletionModel createCompletionModel(
@@ -170,7 +170,6 @@ public class ElasticInferenceServiceAuthorizationModel {
         return new ElasticInferenceServiceCompletionModel(
             authorizedEndpoint.id(),
             taskType,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
             components,
             endpointMetadata
@@ -185,7 +184,6 @@ public class ElasticInferenceServiceAuthorizationModel {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             authorizedEndpoint.id(),
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null, null),
             components,
             ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(getConfigurationOrEmpty(authorizedEndpoint))),
@@ -223,7 +221,6 @@ public class ElasticInferenceServiceAuthorizationModel {
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             authorizedEndpoint.id(),
             taskType,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
                 authorizedEndpoint.modelName(),
                 getSimilarityMeasure(config),
@@ -278,7 +275,6 @@ public class ElasticInferenceServiceAuthorizationModel {
         return new ElasticInferenceServiceRerankModel(
             authorizedEndpoint.id(),
             TaskType.RERANK,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceRerankServiceSettings(authorizedEndpoint.modelName()),
             components,
             endpointMetadata

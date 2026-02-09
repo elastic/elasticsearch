@@ -17,19 +17,19 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.util.EnumSet;
 import java.util.Map;
 
-import static org.elasticsearch.inference.EndpointMetadata.DISPLAY;
-import static org.elasticsearch.inference.EndpointMetadata.Display.NAME;
-import static org.elasticsearch.inference.EndpointMetadata.HEURISTICS;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.END_OF_LIFE_DATE;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.PROPERTIES;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.RELEASE_DATE;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.STATUS;
-import static org.elasticsearch.inference.EndpointMetadata.INTERNAL;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.FINGERPRINT;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.VERSION;
-import static org.elasticsearch.inference.EndpointMetadata.METADATA;
+import static org.elasticsearch.inference.EndpointMetadata.DISPLAY_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Display.NAME_FIELD;
+import static org.elasticsearch.inference.EndpointMetadata.HEURISTICS_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.RELEASE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.STATUS_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.INTERNAL_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Internal.VERSION_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.METADATA_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
-import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractNumber;
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractLong;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.isMapNullOrEmpty;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
@@ -49,19 +49,24 @@ public final class EndpointMetadataParser {
             return EndpointMetadata.EMPTY_INSTANCE;
         }
 
-        var metadataMap = ServiceUtils.removeFromMap(map, METADATA);
+        var metadataMap = ServiceUtils.removeFromMap(map, METADATA_FIELD_NAME);
         if (isMapNullOrEmpty(metadataMap)) {
             return EndpointMetadata.EMPTY_INSTANCE;
         }
 
-        var metadataRoot = pathToKey(root, METADATA);
-        var heuristicsMap = ServiceUtils.removeFromMap(metadataMap, HEURISTICS);
-        var internalMap = ServiceUtils.removeFromMap(metadataMap, INTERNAL);
-        var displayMap = ServiceUtils.removeFromMap(metadataMap, DISPLAY);
+        var metadataRoot = pathToKey(root, METADATA_FIELD_NAME);
+        var heuristicsMap = ServiceUtils.removeFromMap(metadataMap, HEURISTICS_FIELD_NAME);
+        var internalMap = ServiceUtils.removeFromMap(metadataMap, INTERNAL_FIELD_NAME);
+        var displayMap = ServiceUtils.removeFromMap(metadataMap, DISPLAY_FIELD_NAME);
 
-        var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(metadataRoot, HEURISTICS));
-        var internal = internalFromMap(internalMap, pathToKey(metadataRoot, INTERNAL));
-        var display = displayFromMap(displayMap, pathToKey(metadataRoot, DISPLAY));
+        var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(metadataRoot, HEURISTICS_FIELD_NAME));
+        var internal = internalFromMap(internalMap, pathToKey(metadataRoot, INTERNAL_FIELD_NAME));
+        var display = displayFromMap(displayMap, pathToKey(metadataRoot, DISPLAY_FIELD_NAME));
+
+        if (heuristics.isEmpty() && internal.isEmpty() && display.isEmpty()) {
+            return EndpointMetadata.EMPTY_INSTANCE;
+        }
+
         return new EndpointMetadata(heuristics, internal, display);
     }
 
@@ -74,10 +79,14 @@ public final class EndpointMetadataParser {
         if (map == null || map.isEmpty()) {
             return EndpointMetadata.Heuristics.EMPTY_INSTANCE;
         }
-        var properties = extractStringList(map, PROPERTIES, root);
-        var status = extractEnum(map, STATUS, root, StatusHeuristic::fromString, EnumSet.allOf(StatusHeuristic.class));
-        var releaseDate = DateParser.parseLocalDate(map, RELEASE_DATE, root);
-        var endOfLifeDate = DateParser.parseLocalDate(map, END_OF_LIFE_DATE, root);
+        var properties = extractStringList(map, PROPERTIES_FIELD_NAME, root);
+        var status = extractEnum(map, STATUS_FIELD_NAME, root, StatusHeuristic::fromString, EnumSet.allOf(StatusHeuristic.class));
+        var releaseDate = DateParser.parseLocalDate(map, RELEASE_DATE_FIELD_NAME, root);
+        var endOfLifeDate = DateParser.parseLocalDate(map, END_OF_LIFE_DATE_FIELD_NAME, root);
+
+        if (properties.isEmpty() && status == null && releaseDate == null && endOfLifeDate == null) {
+            return EndpointMetadata.Heuristics.EMPTY_INSTANCE;
+        }
 
         return new EndpointMetadata.Heuristics(properties, status, releaseDate, endOfLifeDate);
     }
@@ -90,9 +99,14 @@ public final class EndpointMetadataParser {
         if (map == null || map.isEmpty()) {
             return EndpointMetadata.Internal.EMPTY_INSTANCE;
         }
-        var fingerprint = ObjectParserUtils.removeAsType(map, FINGERPRINT, root, String.class);
-        var version = extractNumber(map, VERSION, root);
-        return new EndpointMetadata.Internal(fingerprint, version == null ? null : version.longValue());
+        var fingerprint = ObjectParserUtils.removeAsType(map, FINGERPRINT_FIELD_NAME, root, String.class);
+        var version = extractLong(map, VERSION_FIELD_NAME, root);
+
+        if (fingerprint == null && version == null) {
+            return EndpointMetadata.Internal.EMPTY_INSTANCE;
+        }
+
+        return new EndpointMetadata.Internal(fingerprint, version);
     }
 
     /**
@@ -103,8 +117,13 @@ public final class EndpointMetadataParser {
         if (map == null || map.isEmpty()) {
             return EndpointMetadata.Display.EMPTY_INSTANCE;
         }
-        var name = ObjectParserUtils.removeAsType(map, NAME, root, String.class);
-        return name != null ? new EndpointMetadata.Display(name) : EndpointMetadata.Display.EMPTY_INSTANCE;
+        var name = ObjectParserUtils.removeAsType(map, NAME_FIELD, root, String.class);
+
+        if (name == null) {
+            return EndpointMetadata.Display.EMPTY_INSTANCE;
+        }
+
+        return new EndpointMetadata.Display(name);
     }
 
     private EndpointMetadataParser() {}

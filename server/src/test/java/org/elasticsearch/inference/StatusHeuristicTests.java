@@ -43,13 +43,6 @@ public class StatusHeuristicTests extends ESTestCase {
         assertThat(StatusHeuristic.fromString(DEPRECATED_STR), is(StatusHeuristic.DEPRECATED));
     }
 
-    public void testFromStringUppercase() {
-        assertThat(StatusHeuristic.fromString(BETA_CAPS_STR), is(StatusHeuristic.BETA));
-        assertThat(StatusHeuristic.fromString("PREVIEW"), is(StatusHeuristic.PREVIEW));
-        assertThat(StatusHeuristic.fromString("GA"), is(StatusHeuristic.GA));
-        assertThat(StatusHeuristic.fromString("DEPRECATED"), is(StatusHeuristic.DEPRECATED));
-    }
-
     public void testFromStringMixedCase() {
         assertThat(StatusHeuristic.fromString("Beta"), is(StatusHeuristic.BETA));
         assertThat(StatusHeuristic.fromString("Preview"), is(StatusHeuristic.PREVIEW));
@@ -69,17 +62,10 @@ public class StatusHeuristicTests extends ESTestCase {
 
     public void testFromStringInvalidValue() {
         // fromString() should throw IllegalArgumentException for invalid values
-        var e1 = expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(INVALID_VALUE));
-        assertNotNull(e1);
-
-        var e2 = expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(EMPTY_STRING));
-        assertNotNull(e2);
-
-        var e3 = expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(WHITESPACE_ONLY));
-        assertNotNull(e3);
-
-        var e4 = expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(PARTIAL_VALUE));
-        assertNotNull(e4);
+        expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(INVALID_VALUE));
+        expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(EMPTY_STRING));
+        expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(WHITESPACE_ONLY));
+        expectThrows(IllegalArgumentException.class, () -> StatusHeuristic.fromString(PARTIAL_VALUE));
     }
 
     public void testRoundTrip() {

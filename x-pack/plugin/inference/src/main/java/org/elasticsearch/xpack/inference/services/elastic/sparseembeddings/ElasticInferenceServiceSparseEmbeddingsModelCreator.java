@@ -34,7 +34,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModelCreator extends Elastic
     public ElasticInferenceServiceSparseEmbeddingsModel createFromMaps(
         String inferenceId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context,
@@ -43,7 +42,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModelCreator extends Elastic
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId,
             taskType,
-            service,
             serviceSettings,
             elasticInferenceServiceComponents,
             context,

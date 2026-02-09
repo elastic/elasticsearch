@@ -27,7 +27,6 @@ public class ElasticInferenceServiceDenseEmbeddingsModelTests {
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             "id",
             taskType,
-            "elastic",
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null),
             ElasticInferenceServiceComponents.of(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
@@ -59,7 +58,6 @@ public class ElasticInferenceServiceDenseEmbeddingsModelTests {
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             "id",
             taskType,
-            "elastic",
             serviceSettings,
             ElasticInferenceServiceComponents.of(url),
             chunkingSettings

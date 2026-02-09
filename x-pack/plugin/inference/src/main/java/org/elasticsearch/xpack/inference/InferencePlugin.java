@@ -665,7 +665,7 @@ public class InferencePlugin extends Plugin
                 .setAliasName(InferenceIndex.INDEX_ALIAS)
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
                 .setDescription(INFERENCE_INDEX_DESCRIPTION)
-                .setMappings(InferenceIndex.mappings())
+                .setMappings(InferenceIndex.currentMappings())
                 .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor, inferenceIndexV2Descriptor))

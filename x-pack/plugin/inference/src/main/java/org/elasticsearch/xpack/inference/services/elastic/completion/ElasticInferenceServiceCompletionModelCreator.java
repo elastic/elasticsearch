@@ -33,7 +33,6 @@ public class ElasticInferenceServiceCompletionModelCreator extends ElasticInfere
     public ElasticInferenceServiceCompletionModel createFromMaps(
         String inferenceId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context,
@@ -42,7 +41,6 @@ public class ElasticInferenceServiceCompletionModelCreator extends ElasticInfere
         return new ElasticInferenceServiceCompletionModel(
             inferenceId,
             taskType,
-            service,
             serviceSettings,
             elasticInferenceServiceComponents,
             context,

@@ -27,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
-import static org.elasticsearch.inference.EndpointMetadata.METADATA;
+import static org.elasticsearch.inference.EndpointMetadata.METADATA_FIELD_NAME;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.RERANK;
@@ -48,9 +48,12 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
  * </ul>
  *
  * @param taskType the type of task the inference model performs.
- * @param dimensions the number of dimensions for the embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
- * @param similarity the similarity measure used for embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
- * @param elementType the type of elements in the embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
+ * @param dimensions the number of dimensions for the embeddings,
+ *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param similarity the similarity measure used for embeddings,
+ *                   applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
+ * @param elementType the type of elements in the embeddings,
+ *                    applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
  * @param endpointMetadata the metadata associated with the inference endpoint.
  */
 public record MinimalServiceSettings(
@@ -95,7 +98,7 @@ public record MinimalServiceSettings(
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> EndpointMetadata.parse(p),
-            new ParseField(METADATA)
+            new ParseField(METADATA_FIELD_NAME)
         );
     }
 
@@ -229,7 +232,7 @@ public record MinimalServiceSettings(
             builder.field(ELEMENT_TYPE_FIELD, elementType);
         }
         if (endpointMetadata.isEmpty() == false) {
-            builder.field(METADATA, endpointMetadata);
+            builder.field(METADATA_FIELD_NAME, endpointMetadata);
         }
         return builder.endObject();
     }

@@ -59,7 +59,7 @@ public class InferenceIndex {
      *
      * @return The index mappings
      */
-    public static XContentBuilder mappings() {
+    public static XContentBuilder currentMappings() {
         try {
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)

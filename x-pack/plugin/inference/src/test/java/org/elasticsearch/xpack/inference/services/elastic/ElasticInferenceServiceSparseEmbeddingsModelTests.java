@@ -39,7 +39,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             "id",
             TaskType.SPARSE_EMBEDDING,
-            "service",
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize),
             ElasticInferenceServiceComponents.of(url),
             chunkingSettings

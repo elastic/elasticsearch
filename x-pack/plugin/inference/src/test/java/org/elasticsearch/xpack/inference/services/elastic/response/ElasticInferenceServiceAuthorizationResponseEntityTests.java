@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
-import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
@@ -356,13 +356,12 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             ELSER_V2_ENDPOINT_ID,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ELSER_V2_MODEL_NAME, null, null),
             new ElasticInferenceServiceComponents(url),
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal(ELSER_V2_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(ELSER_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(ELSER_V2_KIBANA_CONNECTOR_NAME)
             )
         );
@@ -445,12 +444,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceCompletionModel(
             GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal(GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(GP_LLM_V2_CHAT_COMPLETION_KIBANA_CONNECTOR_NAME)
             )
         );
@@ -460,12 +458,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceCompletionModel(
             GP_LLM_V2_COMPLETION_ENDPOINT_ID,
             TaskType.COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal(GP_LLM_V2_COMPLETION_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(GP_LLM_V2_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(GP_LLM_V2_COMPLETION_KIBANA_CONNECTOR_NAME)
             )
         );
@@ -505,7 +502,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceCompletionModel(
             RAINBOW_SPRINKLES_ENDPOINT_ID,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
@@ -515,7 +511,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     RELEASE_DATE_PARSED,
                     END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal(RAINBOW_SPRINKLES_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(RAINBOW_SPRINKLES_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME)
             )
         );
@@ -575,7 +571,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             JINA_EMBED_V3_ENDPOINT_ID,
             TaskType.TEXT_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
@@ -586,7 +581,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     RELEASE_DATE_PARSED,
                     null
                 ),
-                new EndpointMetadata.Internal(JINA_EMBED_V3_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(JINA_EMBED_V3_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(JINA_EMBED_V3_KIBANA_CONNECTOR_NAME)
             )
         );
@@ -616,7 +611,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             JINA_CLIP_V2_ENDPOINT_ID,
             TaskType.EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_CLIP_V2_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
@@ -627,7 +621,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     LocalDate.parse(RELEASE_DATE_FEB_1_26_STRING),
                     null
                 ),
-                new EndpointMetadata.Internal(JINA_CLIPS_V2_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(JINA_CLIPS_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(JINA_CLIPS_V2_KIBANA_CONNECTOR_NAME)
             )
         );
@@ -652,12 +646,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceRerankModel(
             RERANK_V1_ENDPOINT_ID,
             TaskType.RERANK,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceRerankServiceSettings(RERANK_V1_MODEL_NAME),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal(RERANK_V1_FINGERPRINT, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(RERANK_V1_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(RERANK_V1_KIBANA_CONNECTOR_NAME)
             )
         );

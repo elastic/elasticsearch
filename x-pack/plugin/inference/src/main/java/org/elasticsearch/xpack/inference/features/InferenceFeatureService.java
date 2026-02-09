@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.features;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.features.NodeFeature;
 
 import java.util.Objects;
 
@@ -27,9 +27,9 @@ public class InferenceFeatureService {
     }
 
     /**
-     * Returns true if the cluster has the ENDPOINT_METADATA_FIELD feature available.
+     * Returns true if the cluster has the provided feature available.
      */
-    public boolean hasEndpointMetadataFeature() {
-        return featureService.clusterHasFeature(clusterService.state(), InferenceFeatures.ENDPOINT_METADATA_FIELD);
+    public boolean hasFeature(NodeFeature nodeFeature) {
+        return featureService.clusterHasFeature(clusterService.state(), nodeFeature);
     }
 }

@@ -15,9 +15,9 @@ import org.elasticsearch.inference.EndpointMetadata;
  * and update the endpoints that were already stored in the index. If the endpoint is new we can simply store it instead of updating it.
  * <p>
  * To determine if an endpoint is new or existing, we will use the internal version field within {@link EndpointMetadata#internal()}.
- * We will compare the version field of the existing endpoint with the value of {@link #ENDPOINT_VERSION}. If the endpoint's version is
- * less than the current version, we will migrate the endpoint to the latest schema. If it is the same (or greater for some reason),
- * we will leave it as is.
+ * We will compare the version field of the existing endpoint with the value of {@link #ENDPOINT_SCHEMA_VERSION}.
+ * If the endpoint's version is less than the current version, we will migrate the endpoint to the latest schema.
+ * If it is the same (or greater for some reason), we will leave it as is.
  */
 public class EndpointSchemaMigration {
 
@@ -27,7 +27,7 @@ public class EndpointSchemaMigration {
      * retrieving the latest preconfigured endpoints and updating existing ones to include any new fields included in the authorization
      * response.
      */
-    public static final Long ENDPOINT_VERSION = 0L;
+    public static final Long ENDPOINT_SCHEMA_VERSION = 0L;
 
     private EndpointSchemaMigration() {}
 }

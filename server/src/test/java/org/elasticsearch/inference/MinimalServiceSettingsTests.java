@@ -48,10 +48,6 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
 
     @Override
     protected MinimalServiceSettings createTestInstance() {
-        return createRandom();
-    }
-
-    public static MinimalServiceSettings createRandom() {
         return randomInstance();
     }
 
@@ -64,23 +60,19 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         var elementType = instance.elementType();
         var endpointMetadata = instance.endpointMetadata();
 
-        boolean isEmbeddingTask = taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING;
+        boolean instanceHasEmbeddingTaskType = taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING;
 
         switch (randomIntBetween(0, 5)) {
-            case 0 -> {
-                if (service == null) {
-                    service = randomAlphaOfLength(10);
-                } else {
-                    service = null;
-                }
-            }
+            case 0 -> service = randomValueOtherThan(service, () -> randomAlphaOfLengthOrNull(10));
             case 1 -> {
                 taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
                 // Update dimensions, similarity, elementType based on new taskType
-                if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING) {
-                    dimensions = randomIntBetween(2, 1024);
-                    similarity = randomFrom(SimilarityMeasure.values());
-                    elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+                if ((taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING)) {
+                    if (instanceHasEmbeddingTaskType == false) {
+                        dimensions = randomIntBetween(2, 1024);
+                        similarity = randomFrom(SimilarityMeasure.values());
+                        elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+                    }
                 } else {
                     dimensions = null;
                     similarity = null;
@@ -88,7 +80,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
                 }
             }
             case 2 -> {
-                if (isEmbeddingTask) {
+                if (instanceHasEmbeddingTaskType) {
                     dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(2, 1024));
                 } else {
                     // Change taskType to TEXT_EMBEDDING to make dimensions applicable
@@ -99,7 +91,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
                 }
             }
             case 3 -> {
-                if (isEmbeddingTask) {
+                if (instanceHasEmbeddingTaskType) {
                     similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
                 } else {
                     // Change taskType to TEXT_EMBEDDING to make similarity applicable
@@ -110,7 +102,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
                 }
             }
             case 4 -> {
-                if (isEmbeddingTask) {
+                if (instanceHasEmbeddingTaskType) {
                     elementType = randomValueOtherThan(elementType, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()));
                 } else {
                     // Change taskType to TEXT_EMBEDDING to make elementType applicable
@@ -123,16 +115,9 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             case 5 -> {
                 // Ensure we always get a different value: if EMPTY, use non-EMPTY; if non-EMPTY, use EMPTY or different instance
                 if (endpointMetadata.equals(EndpointMetadata.EMPTY_INSTANCE)) {
-                    // Generate a non-EMPTY instance by ensuring at least one field is non-empty
-                    var heuristics = EndpointMetadataTests.randomHeuristics();
-                    var internal = EndpointMetadataTests.randomInternal();
-                    var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
-                    endpointMetadata = new EndpointMetadata(heuristics, internal, display);
+                    endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
                 } else {
-                    endpointMetadata = randomValueOtherThan(
-                        endpointMetadata,
-                        () -> randomBoolean() ? EndpointMetadata.EMPTY_INSTANCE : EndpointMetadataTests.randomInstance()
-                    );
+                    endpointMetadata = randomValueOtherThan(endpointMetadata, EndpointMetadataTests::randomInstance);
                 }
             }
         }

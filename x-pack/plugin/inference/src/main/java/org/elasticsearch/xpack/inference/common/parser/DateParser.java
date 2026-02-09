@@ -15,7 +15,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
 
-public class DateParser {
+public final class DateParser {
 
     public static LocalDate parseLocalDate(Map<String, Object> sourceMap, String key, String root) {
         var dateString = ObjectParserUtils.removeAsType(sourceMap, key, root, String.class);

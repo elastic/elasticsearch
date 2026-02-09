@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_CHAT_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_MULTIMODAL_EMBED_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_SPARSE_PATH;
@@ -59,7 +59,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TEST_RELEASE_DATE_PARSED,
             TEST_END_OF_LIFE_DATE_PARSED
         ),
-        new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+        new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
         new EndpointMetadata.Display((String) null)
     );
 
@@ -197,7 +197,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var chatCompletionEndpoint = new ElasticInferenceServiceCompletionModel(
             id1,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
@@ -263,7 +262,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var chatCompletionEndpoint = new ElasticInferenceServiceCompletionModel(
             id1,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
@@ -271,7 +269,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingEndpoint = new ElasticInferenceServiceDenseEmbeddingsModel(
             id2,
             TaskType.TEXT_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name2, similarity, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -342,7 +339,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var chatCompletionEndpoint = new ElasticInferenceServiceCompletionModel(
             id1,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
@@ -485,7 +481,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var chatCompletionEndpoint = new ElasticInferenceServiceCompletionModel(
             id1,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             DEFAULT_ENDPOINT_METADATA
@@ -618,7 +613,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingsModel1 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id1,
             TaskType.TEXT_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -628,7 +622,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingsModel2 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id2,
             TaskType.TEXT_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -638,7 +631,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingsModel3 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id3,
             TaskType.TEXT_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -768,7 +760,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionModel(
                     idCompletion,
                     TaskType.COMPLETION,
-                    ElasticInferenceService.NAME,
                     new ElasticInferenceServiceCompletionServiceSettings(nameCompletion),
                     new ElasticInferenceServiceComponents(url),
                     DEFAULT_ENDPOINT_METADATA
@@ -776,7 +767,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionModel(
                     idChat,
                     TaskType.CHAT_COMPLETION,
-                    ElasticInferenceService.NAME,
                     new ElasticInferenceServiceCompletionServiceSettings(nameChat),
                     new ElasticInferenceServiceComponents(url),
                     DEFAULT_ENDPOINT_METADATA
@@ -784,7 +774,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceSparseEmbeddingsModel(
                     idSparse,
                     TaskType.SPARSE_EMBEDDING,
-                    ElasticInferenceService.NAME,
                     new ElasticInferenceServiceSparseEmbeddingsServiceSettings(nameSparse, null, null),
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -793,7 +782,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceDenseEmbeddingsModel(
                     idDenseMultimodal,
                     TaskType.EMBEDDING,
-                    ElasticInferenceService.NAME,
                     new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseMultimodal, similarity, dimensions, null),
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -802,7 +790,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceDenseEmbeddingsModel(
                     idDenseText,
                     TaskType.TEXT_EMBEDDING,
-                    ElasticInferenceService.NAME,
                     new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseText, similarity, dimensions, null),
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
@@ -811,7 +798,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceRerankModel(
                     idRerank,
                     TaskType.RERANK,
-                    ElasticInferenceService.NAME,
                     new ElasticInferenceServiceRerankServiceSettings(nameRerank),
                     new ElasticInferenceServiceComponents(url),
                     DEFAULT_ENDPOINT_METADATA
@@ -850,12 +836,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
             id,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -893,7 +878,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
             id,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
@@ -903,7 +887,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE_PARSED,
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal(fingerprint, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -941,7 +925,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
             id,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
@@ -951,7 +934,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE_PARSED,
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(kibanaConnectorName)
             )
         );
@@ -989,12 +972,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
             id,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -1032,12 +1014,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
             id,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -1166,7 +1147,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceSparseEmbeddingsModel(
             id,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(name, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
@@ -1177,7 +1157,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE_PARSED,
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -1229,7 +1209,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceDenseEmbeddingsModel(
             id,
             TaskType.TEXT_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarity, dimensions, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
@@ -1240,7 +1219,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE_PARSED,
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -1277,7 +1256,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceSparseEmbeddingsModel(
             id,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(name, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(Map.of()),
@@ -1288,7 +1266,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE_PARSED,
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -1323,7 +1301,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
             id1,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
@@ -1333,7 +1310,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE_PARSED,
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
-                new EndpointMetadata.Internal(null, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );
@@ -1417,12 +1394,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
             id1,
             TaskType.CHAT_COMPLETION,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(name1),
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, null),
-                new EndpointMetadata.Internal(fingerprint, ENDPOINT_VERSION),
+                new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display((String) null)
             )
         );

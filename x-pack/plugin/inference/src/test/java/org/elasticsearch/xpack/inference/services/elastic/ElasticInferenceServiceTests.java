@@ -1055,7 +1055,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var model = new ElasticInferenceServiceCompletionModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
-                "elastic",
                 new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
@@ -1702,7 +1701,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var model = new ElasticInferenceServiceCompletionModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
-                "elastic",
                 new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );

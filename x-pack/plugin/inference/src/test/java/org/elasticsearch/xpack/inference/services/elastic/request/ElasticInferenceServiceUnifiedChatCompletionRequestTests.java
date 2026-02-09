@@ -132,7 +132,6 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var model = new ElasticInferenceServiceCompletionModel(
             inferenceEntityId,
             TaskType.COMPLETION,
-            "elastic",
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
             ElasticInferenceServiceComponents.of(url)
         );

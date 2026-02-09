@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
@@ -30,7 +31,6 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
     public ElasticInferenceServiceRerankModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
@@ -39,7 +39,6 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
         this(
             inferenceEntityId,
             taskType,
-            service,
             ElasticInferenceServiceRerankServiceSettings.fromMap(serviceSettings, context),
             elasticInferenceServiceComponents,
             endpointMetadata
@@ -49,17 +48,15 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
     public ElasticInferenceServiceRerankModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         ElasticInferenceServiceRerankServiceSettings serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
-        this(inferenceEntityId, taskType, service, serviceSettings, elasticInferenceServiceComponents, null);
+        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, null);
     }
 
     public ElasticInferenceServiceRerankModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         ElasticInferenceServiceRerankServiceSettings serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         @Nullable EndpointMetadata endpointMetadata
@@ -68,13 +65,13 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
-                service,
+                ElasticInferenceService.NAME,
                 serviceSettings,
                 EmptyTaskSettings.INSTANCE,
                 null,
                 endpointMetadata
             ),
-            new ModelSecrets(),
+            ModelSecrets.emptySecrets(),
             elasticInferenceServiceComponents
         );
     }

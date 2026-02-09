@@ -64,7 +64,6 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         var model = new ElasticInferenceServiceCompletionModel(
             inferenceEntityId,
             TaskType.COMPLETION,
-            "elastic",
             new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
             ElasticInferenceServiceComponents.of("http://eis-gateway.com")
         );
@@ -87,7 +86,6 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         return new ElasticInferenceServiceCompletionModel(
             "id",
             taskType,
-            "elastic",
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
             ElasticInferenceServiceComponents.of(url)
         );

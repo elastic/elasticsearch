@@ -16,16 +16,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.EndpointMetadata.DISPLAY;
-import static org.elasticsearch.inference.EndpointMetadata.Display.NAME;
-import static org.elasticsearch.inference.EndpointMetadata.HEURISTICS;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.END_OF_LIFE_DATE;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.PROPERTIES;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.RELEASE_DATE;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.STATUS;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.FINGERPRINT;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.VERSION;
-import static org.elasticsearch.inference.EndpointMetadata.METADATA;
+import static org.elasticsearch.inference.EndpointMetadata.DISPLAY_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Display.NAME_FIELD;
+import static org.elasticsearch.inference.EndpointMetadata.HEURISTICS_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.RELEASE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Heuristics.STATUS_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.Internal.VERSION_FIELD_NAME;
+import static org.elasticsearch.inference.EndpointMetadata.METADATA_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,13 +63,13 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testFromMap_ReturnsEmpty_WhenMetadataValueIsNull() {
         Map<String, Object> map = new HashMap<>();
-        map.put(METADATA, null);
+        map.put(METADATA_FIELD_NAME, null);
         assertThat(EndpointMetadataParser.fromMap(map, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMetadataValueIsEmptyMap() {
         var map = new HashMap<String, Object>();
-        map.put(METADATA, new HashMap<String, Object>());
+        map.put(METADATA_FIELD_NAME, new HashMap<String, Object>());
         assertThat(EndpointMetadataParser.fromMap(map, ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
@@ -78,25 +78,25 @@ public class EndpointMetadataParserTests extends ESTestCase {
         var endOfLifeDate = "2026-06-30";
 
         var heuristicsMap = new HashMap<String, Object>();
-        heuristicsMap.put(PROPERTIES, PROPERTIES_LIST);
-        heuristicsMap.put(STATUS, "ga");
-        heuristicsMap.put(RELEASE_DATE, releaseDate);
-        heuristicsMap.put(END_OF_LIFE_DATE, endOfLifeDate);
+        heuristicsMap.put(PROPERTIES_FIELD_NAME, PROPERTIES_LIST);
+        heuristicsMap.put(STATUS_FIELD_NAME, "ga");
+        heuristicsMap.put(RELEASE_DATE_FIELD_NAME, releaseDate);
+        heuristicsMap.put(END_OF_LIFE_DATE_FIELD_NAME, endOfLifeDate);
 
         var internalMap = new HashMap<String, Object>();
-        internalMap.put(FINGERPRINT, FINGERPRINT_FP123);
-        internalMap.put(VERSION, 2L);
+        internalMap.put(FINGERPRINT_FIELD_NAME, FINGERPRINT_FP123);
+        internalMap.put(VERSION_FIELD_NAME, 2L);
 
         var displayMap = new HashMap<String, Object>();
-        displayMap.put(NAME, MY_ENDPOINT);
+        displayMap.put(NAME_FIELD, MY_ENDPOINT);
 
         var metadataMap = new HashMap<String, Object>();
-        metadataMap.put(HEURISTICS, heuristicsMap);
-        metadataMap.put(org.elasticsearch.inference.EndpointMetadata.INTERNAL, internalMap);
-        metadataMap.put(DISPLAY, displayMap);
+        metadataMap.put(HEURISTICS_FIELD_NAME, heuristicsMap);
+        metadataMap.put(org.elasticsearch.inference.EndpointMetadata.INTERNAL_FIELD_NAME, internalMap);
+        metadataMap.put(DISPLAY_FIELD_NAME, displayMap);
 
         var rootMap = new HashMap<String, Object>();
-        rootMap.put(METADATA, metadataMap);
+        rootMap.put(METADATA_FIELD_NAME, metadataMap);
 
         var result = EndpointMetadataParser.fromMap(rootMap, CONFIG);
 
@@ -113,10 +113,10 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testFromMap_ParsesPartialMetadata() {
         var metadataMap = new HashMap<String, Object>();
-        metadataMap.put(HEURISTICS, Map.<String, Object>of());
+        metadataMap.put(HEURISTICS_FIELD_NAME, Map.<String, Object>of());
 
         var rootMap = new HashMap<String, Object>();
-        rootMap.put(METADATA, metadataMap);
+        rootMap.put(METADATA_FIELD_NAME, metadataMap);
 
         var result = EndpointMetadataParser.fromMap(rootMap, EMPTY_ROOT);
 
@@ -138,10 +138,10 @@ public class EndpointMetadataParserTests extends ESTestCase {
         var endOfLifeDate = "2027-12-31";
 
         var map = new HashMap<String, Object>();
-        map.put(PROPERTIES, PROPERTIES_LIST);
-        map.put(STATUS, "beta");
-        map.put(RELEASE_DATE, releaseDate);
-        map.put(END_OF_LIFE_DATE, endOfLifeDate);
+        map.put(PROPERTIES_FIELD_NAME, PROPERTIES_LIST);
+        map.put(STATUS_FIELD_NAME, "beta");
+        map.put(RELEASE_DATE_FIELD_NAME, releaseDate);
+        map.put(END_OF_LIFE_DATE_FIELD_NAME, endOfLifeDate);
 
         var result = EndpointMetadataParser.heuristicsFromMap(map, ROOT);
 
@@ -153,20 +153,20 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testHeuristicsFromMap_Throws_WhenStatusInvalid() {
         var map = new HashMap<String, Object>();
-        map.put(STATUS, INVALID_STATUS);
+        map.put(STATUS_FIELD_NAME, INVALID_STATUS);
 
         var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.heuristicsFromMap(map, ROOT));
         assertThat(e.getMessage(), containsString(ROOT));
-        assertThat(e.getMessage(), containsString(STATUS));
+        assertThat(e.getMessage(), containsString(STATUS_FIELD_NAME));
         assertThat(e.getMessage(), containsString(INVALID_STATUS));
     }
 
     public void testHeuristicsFromMap_Throws_WhenReleaseDateInvalid() {
         var map = new HashMap<String, Object>();
-        map.put(RELEASE_DATE, NOT_A_DATE);
+        map.put(RELEASE_DATE_FIELD_NAME, NOT_A_DATE);
 
         var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.heuristicsFromMap(map, ROOT));
-        assertThat(e.getMessage(), containsString(RELEASE_DATE));
+        assertThat(e.getMessage(), containsString(RELEASE_DATE_FIELD_NAME));
         assertThat(e.getMessage(), containsString(NOT_A_DATE));
         assertThat(e.getMessage(), containsString("Failed to parse"));
     }
@@ -181,8 +181,8 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testInternalFromMap_ParsesFingerprintAndVersion() {
         var map = new HashMap<String, Object>();
-        map.put(FINGERPRINT, FINGERPRINT_ABC);
-        map.put(VERSION, 42);
+        map.put(FINGERPRINT_FIELD_NAME, FINGERPRINT_ABC);
+        map.put(VERSION_FIELD_NAME, 42);
 
         var result = EndpointMetadataParser.internalFromMap(map, ROOT);
 
@@ -192,7 +192,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testInternalFromMap_AcceptsIntegerVersion() {
         var map = new HashMap<String, Object>();
-        map.put(VERSION, 1);
+        map.put(VERSION_FIELD_NAME, 1);
 
         var result = EndpointMetadataParser.internalFromMap(map, ROOT);
 
@@ -201,10 +201,10 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testInternalFromMap_Throws_WhenFingerprintWrongType() {
         var map = new HashMap<String, Object>();
-        map.put(FINGERPRINT, WRONG_TYPE_VERSION);
+        map.put(FINGERPRINT_FIELD_NAME, WRONG_TYPE_VERSION);
 
         var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.internalFromMap(map, ROOT));
-        assertThat(e.getMessage(), containsString(FINGERPRINT));
+        assertThat(e.getMessage(), containsString(FINGERPRINT_FIELD_NAME));
         assertThat(e.getMessage(), containsString(String.valueOf(WRONG_TYPE_VERSION)));
         assertThat(e.getMessage(), containsString(STRING_CLASS_FAILURE));
     }
@@ -219,7 +219,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testDisplayFromMap_ParsesName() {
         var map = new HashMap<String, Object>();
-        map.put(NAME, DISPLAY_NAME);
+        map.put(NAME_FIELD, DISPLAY_NAME);
 
         var result = EndpointMetadataParser.displayFromMap(map, ROOT);
 
@@ -236,10 +236,10 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
     public void testDisplayFromMap_Throws_WhenNameWrongType() {
         var map = new HashMap<String, Object>();
-        map.put(NAME, WRONG_TYPE_DISPLAY);
+        map.put(NAME_FIELD, WRONG_TYPE_DISPLAY);
 
         var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.displayFromMap(map, ROOT));
-        assertThat(e.getMessage(), containsString(NAME));
+        assertThat(e.getMessage(), containsString(NAME_FIELD));
         assertThat(e.getMessage(), containsString(String.valueOf(WRONG_TYPE_DISPLAY)));
         assertThat(e.getMessage(), containsString(STRING_CLASS_FAILURE));
     }

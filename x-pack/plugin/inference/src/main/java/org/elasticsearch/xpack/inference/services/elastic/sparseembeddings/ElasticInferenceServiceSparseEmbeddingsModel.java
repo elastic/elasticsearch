@@ -17,6 +17,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
@@ -31,7 +32,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     public ElasticInferenceServiceSparseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
@@ -41,7 +41,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         this(
             inferenceEntityId,
             taskType,
-            service,
             ElasticInferenceServiceSparseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             elasticInferenceServiceComponents,
             chunkingSettings,
@@ -60,18 +59,16 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     public ElasticInferenceServiceSparseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ChunkingSettings chunkingSettings
     ) {
-        this(inferenceEntityId, taskType, service, serviceSettings, elasticInferenceServiceComponents, chunkingSettings, null);
+        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, chunkingSettings, null);
     }
 
     public ElasticInferenceServiceSparseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ChunkingSettings chunkingSettings,
@@ -81,13 +78,13 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             new ModelConfigurations(
                 inferenceEntityId,
                 taskType,
-                service,
+                ElasticInferenceService.NAME,
                 serviceSettings,
                 EmptyTaskSettings.INSTANCE,
                 chunkingSettings,
                 endpointMetadata
             ),
-            new ModelSecrets(),
+            ModelSecrets.emptySecrets(),
             elasticInferenceServiceComponents
         );
     }

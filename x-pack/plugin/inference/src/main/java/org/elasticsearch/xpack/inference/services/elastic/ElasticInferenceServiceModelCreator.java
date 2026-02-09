@@ -28,7 +28,6 @@ public abstract class ElasticInferenceServiceModelCreator<M extends ElasticInfer
      * Creates a {@link Model} instance from configuration maps.
      * @param inferenceId the inference entity ID
      * @param taskType the task type
-     * @param service the service name
      * @param serviceSettings the service settings map
      * @param chunkingSettings the chunking settings
      * @param context the configuration parse context
@@ -38,7 +37,6 @@ public abstract class ElasticInferenceServiceModelCreator<M extends ElasticInfer
     public abstract M createFromMaps(
         String inferenceId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context,

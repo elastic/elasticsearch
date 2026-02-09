@@ -22,47 +22,47 @@ public class NumberParserTests extends ESTestCase {
     private static final String VERSION = "version";
     private static final String NOT_A_NUMBER = "not_a_number";
 
-    public void testExtractNumber_ReturnsInteger() {
+    public void testExtractLong_HandlesInteger() {
         var map = new HashMap<String, Object>();
         map.put(VERSION, 1);
 
-        var result = NumberParser.extractNumber(map, VERSION, ROOT);
+        var result = NumberParser.extractLong(map, VERSION, ROOT);
 
-        assertThat(result, equalTo(1));
+        assertThat(result, equalTo(1L));
     }
 
-    public void testExtractNumber_ReturnsLong() {
+    public void testExtractLong_HandlesLong() {
         var version = 1000L;
         var map = new HashMap<String, Object>();
         map.put(VERSION, version);
 
-        var result = NumberParser.extractNumber(map, VERSION, ROOT);
+        var result = NumberParser.extractLong(map, VERSION, ROOT);
 
         assertThat(result, equalTo(version));
     }
 
-    public void testExtractNumber_ReturnsNull_WhenKeyMissing() {
+    public void testExtractLong_ReturnsNull_WhenKeyMissing() {
         var map = new HashMap<String, Object>();
 
-        var result = NumberParser.extractNumber(map, VERSION, ROOT);
+        var result = NumberParser.extractLong(map, VERSION, ROOT);
 
         assertThat(result, nullValue());
     }
 
-    public void testExtractNumber_ReturnsNull_WhenValueNull() {
+    public void testExtractLong_ReturnsNull_WhenValueNull() {
         var map = new HashMap<String, Object>();
         map.put(VERSION, null);
 
-        var result = NumberParser.extractNumber(map, VERSION, ROOT);
+        var result = NumberParser.extractLong(map, VERSION, ROOT);
 
         assertThat(result, nullValue());
     }
 
-    public void testExtractNumber_Throws_WhenWrongType() {
+    public void testExtractLong_Throws_WhenWrongType() {
         var map = new HashMap<String, Object>();
         map.put(VERSION, NOT_A_NUMBER);
 
-        var e = expectThrows(IllegalArgumentException.class, () -> NumberParser.extractNumber(map, VERSION, ROOT));
+        var e = expectThrows(IllegalArgumentException.class, () -> NumberParser.extractLong(map, VERSION, ROOT));
         assertThat(e.getMessage(), containsString(pathToKey(ROOT, VERSION)));
         assertThat(e.getMessage(), containsString(NOT_A_NUMBER));
     }

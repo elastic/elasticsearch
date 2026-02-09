@@ -3139,7 +3139,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         var expectedIndices = new String[] { "bar", "foobarfoo", "bar-closed", "foofoobar", "foofoo-closed", "foofoo" };
 
-        assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedIndices));
         assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:_all", "P2:_all", "P3:_all"));
 
         final var resolved = request.getResolvedIndexExpressions();
@@ -3225,7 +3225,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         var expectedIndices = new String[] { "bar", "foobarfoo", "bar-closed", "foofoobar", "foofoo-closed", "foofoo" };
 
-        assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedIndices));
         assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:_all", "P2:_all", "P3:_all"));
 
         final var resolved = request.getResolvedIndexExpressions();
@@ -3255,7 +3255,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         var expectedIndices = new String[] { "bar", "foobarfoo", "bar-closed", "foofoobar", "foofoo-closed", "foofoo" };
 
-        assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedIndices));
         assertThat(resolvedIndices.getRemote(), is(empty()));
 
         final var resolved = request.getResolvedIndexExpressions();
@@ -3375,7 +3375,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         var expectedIndices = new String[] { "bar" };
 
-        assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedIndices));
         assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:bar", "P2:bar", "P3:bar"));
 
         final var resolved = request.getResolvedIndexExpressions();

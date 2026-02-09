@@ -156,11 +156,7 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    workerListenerWithRelocationAndMetrics(
-                        listenerWithRelocations,
-                        startTime,
-                        request.getRemoteInfo() != null
-                    )
+                    workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request.getRemoteInfo() != null)
                 );
                 searchAction.start();
             }
@@ -177,7 +173,12 @@ public class Reindexer {
             return wrapWithMetrics(potentiallyWrappedRelocationListener, reindexMetrics, startTime, isRemote);
         }
 
-        final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(potentiallyWrappedRelocationListener, reindexMetrics, startTime, isRemote);
+        final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
+            potentiallyWrappedRelocationListener,
+            reindexMetrics,
+            startTime,
+            isRemote
+        );
 
         return metricListener.delegateFailure((l, resp) -> {
             // note: implicitly relies on TaskResumeInfo only being populated if a suitable node exists for relocating to.

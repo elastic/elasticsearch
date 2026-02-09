@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",
@@ -28,7 +28,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",
@@ -53,7 +53,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",
@@ -71,7 +71,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",

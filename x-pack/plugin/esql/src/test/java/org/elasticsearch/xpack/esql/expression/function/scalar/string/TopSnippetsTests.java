@@ -99,7 +99,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
                     new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
                 ),
-                "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
                     + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                 DataType.KEYWORD,
@@ -147,7 +147,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
                         + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
                     DataType.KEYWORD,

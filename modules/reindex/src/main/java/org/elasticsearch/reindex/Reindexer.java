@@ -158,7 +158,6 @@ public class Reindexer {
                     request,
                     workerListenerWithRelocationAndMetrics(
                         listenerWithRelocations,
-                        reindexMetrics,
                         startTime,
                         request.getRemoteInfo() != null
                     )
@@ -171,7 +170,6 @@ public class Reindexer {
     /** Wraps the listener with metrics tracking and relocation handling (if applicable). Visible for testing. */
     ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
         ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
-        ReindexMetrics reindexMetrics,
         long startTime,
         boolean isRemote
     ) {

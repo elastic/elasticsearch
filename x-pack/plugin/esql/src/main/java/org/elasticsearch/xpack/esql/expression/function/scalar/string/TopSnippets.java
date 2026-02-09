@@ -245,7 +245,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         if (queryValueCount > 1) {
             throw new IllegalArgumentException("single-value function encountered multi-value");
         }
-        
+
         BytesRef queryValue = query.getBytesRef(query.getFirstValueIndex(position), new BytesRef());
         String queryString = queryValue.utf8ToString();
 

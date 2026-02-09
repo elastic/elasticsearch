@@ -702,7 +702,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long cost() {
                     int maxDoc = lastDocId + 1;
-                    return maxDoc * 5L;
+                    return maxDoc;
                 }
 
                 @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -1066,6 +1067,15 @@ public abstract class TransportReplicationAction<
                     try {
                         // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                         final Throwable cause = exp.unwrapCause();
+                        boolean markAsRetry = true;
+                        // When the request is forwarded to the relocated primary (during relocation handoff),
+                        // and that node throws a RetryOnPrimaryException, the request has NOT been executed yet.
+                        // In this case, we should NOT mark the request as a retry to avoid unnecessary version lookups.
+                        if (isPrimaryAction
+                            && cause.getClass() == ReplicationOperation.RetryOnPrimaryException.class
+                            && request instanceof BulkShardRequest) {
+                            markAsRetry = false;
+                        }
                         if (cause instanceof ConnectTransportException
                             || cause instanceof NodeClosedException
                             || (isPrimaryAction && retryPrimaryException(cause))) {
@@ -1077,7 +1087,7 @@ public abstract class TransportReplicationAction<
                                 ),
                                 exp
                             );
-                            retry(exp);
+                            retry(exp, markAsRetry);
                         } else {
                             finishAsFailed(exp);
                         }
@@ -1090,6 +1100,10 @@ public abstract class TransportReplicationAction<
         }
 
         void retry(Exception failure) {
+            retry(failure, false);
+        }
+
+        void retry(Exception failure, boolean markRequestAsRetry) {
             assert failure != null;
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
@@ -1097,7 +1111,9 @@ public abstract class TransportReplicationAction<
                 return;
             }
             setPhase(task, "waiting_for_retry");
-            request.onRetry();
+            if (markRequestAsRetry) {
+                request.onRetry();
+            }
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {

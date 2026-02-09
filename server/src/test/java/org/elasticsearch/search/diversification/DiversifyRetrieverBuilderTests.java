@@ -333,7 +333,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             () -> retriever.combineInnerRetrieverResults(docs, false)
         );
         assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
+            "Failed to retrieve vectors for field [dense_vector_field]. "
+                + "Is it a [dense_vector] or [semantic_text] field with text embeddings?",
             badDocFieldEx.getMessage()
         );
         assertEquals(400, badDocFieldEx.status().getStatus());

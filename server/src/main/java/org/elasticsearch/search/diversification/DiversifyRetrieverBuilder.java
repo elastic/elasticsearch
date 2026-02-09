@@ -335,7 +335,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                     return new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
-                            "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
+                            "Failed to retrieve vectors for field [%s]. "
+                                + "Is it a [dense_vector] or [semantic_text] field with text embeddings?",
                             diversificationField
                         ),
                         ex
@@ -380,7 +381,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             throw new ElasticsearchStatusException(
                 String.format(
                     Locale.ROOT,
-                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
+                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] or [semantic_text] field with text embeddings?",
                     diversificationField
                 ),
                 RestStatus.BAD_REQUEST

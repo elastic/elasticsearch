@@ -50,7 +50,7 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantBytesRefVector(value, positions.length);
     }
 

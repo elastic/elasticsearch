@@ -11,13 +11,14 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.is;
 
-public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
+public class ElasticInferenceServiceDenseTextEmbeddingsModelTests extends ESTestCase {
 
     public void testUriCreation() {
         var model = createModel("http://eis-gateway.com", "my-model-id");

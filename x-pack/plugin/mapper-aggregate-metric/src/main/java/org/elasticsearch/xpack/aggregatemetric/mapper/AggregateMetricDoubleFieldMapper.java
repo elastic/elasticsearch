@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -563,14 +564,12 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     if (singleMetric != null) {
                         return new SortedNumericSortField(subfieldName(name(), singleMetric), SortField.Type.DOUBLE, reverse);
                     }
-                    return AggregateMetricAverageFieldScript.sortField(
-                        name(),
-                        fieldDataContext.lookupSupplier().get(),
-                        missingValue,
-                        sortMode,
-                        nested,
-                        reverse
-                    );
+                    return new SortField(fieldName, new DoubleValuesComparatorSource(null, missingValue, sortMode, nested) {
+                        @Override
+                        protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
+                            return load(context).getAggregateMetricValues();
+                        }
+                    }, reverse);
                 }
 
                 @Override

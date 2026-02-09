@@ -8,20 +8,15 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.SortField;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.field.DoubleDocValuesField;
 import org.elasticsearch.script.field.LongDocValuesField;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -83,59 +78,5 @@ class AggregateMetricAverageFieldScript extends DoubleFieldScript {
             Long count = countIterator.next();
             emit(sum / count);
         }
-    }
-
-    /**
-     * @return a SortField that uses the average script of the aggregate metric double to sort.
-     */
-    static SortField sortField(
-        String fieldName,
-        SearchLookup lookup,
-        Object missingValue,
-        MultiValueMode sortMode,
-        IndexFieldData.XFieldComparatorSource.Nested nested,
-        boolean reverse
-    ) {
-        LeafFactory leafFactory = newLeafFactory(fieldName, lookup);
-        return new SortField(fieldName, new DoubleValuesComparatorSource(null, missingValue, sortMode, nested) {
-            @Override
-            protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
-                DoubleFieldScript script = leafFactory.newInstance(context);
-                return new SortedNumericDoubleValues() {
-                    private double[] values = new double[0];
-                    private int count;
-                    private int index;
-
-                    @Override
-                    public boolean advanceExact(int doc) {
-                        script.runForDoc(doc);
-                        count = script.count();
-                        if (count == 0) {
-                            index = 0;
-                            return false;
-                        }
-                        if (values.length < count) {
-                            values = new double[count];
-                        }
-                        System.arraycopy(script.values(), 0, values, 0, count);
-                        if (count > 1) {
-                            Arrays.sort(values, 0, count);
-                        }
-                        index = 0;
-                        return true;
-                    }
-
-                    @Override
-                    public double nextValue() {
-                        return values[index++];
-                    }
-
-                    @Override
-                    public int docValueCount() {
-                        return count;
-                    }
-                };
-            }
-        }, reverse);
     }
 }

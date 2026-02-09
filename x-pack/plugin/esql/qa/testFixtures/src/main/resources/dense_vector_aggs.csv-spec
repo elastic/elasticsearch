@@ -95,3 +95,45 @@ FROM colors
 sum_rgb:dense_vector | count_colors:long | count_vectors:long
 [471.0, 76.0, 76.0]  | 3                 | 3
 ;
+
+# Grouping tests for SUM with dense_vector
+sumDenseVectorGroupByBooleanMoreRows
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE id < 10
+| STATS total = SUM(rgb_vector) BY primary
+| SORT primary
+;
+
+total:dense_vector    | primary:boolean
+[1961.0, 830.0, 401.0] | false
+[255.0, 0.0, 0.0]      | true
+;
+
+sumDenseVectorGroupByWithCount
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE id < 10
+| STATS total = SUM(rgb_vector), cnt = COUNT(*) BY primary
+| SORT primary
+;
+
+total:dense_vector    | cnt:long | primary:boolean
+[1961.0, 830.0, 401.0] | 9        | false
+[255.0, 0.0, 0.0]      | 1        | true
+;
+
+sumDenseVectorGroupBySingleGroup
+required_capability: dense_vector_additional_agg_functions
+
+FROM colors
+| WHERE color IN ("red", "green", "blue")
+| STATS total = SUM(rgb_vector) BY primary
+;
+
+total:dense_vector  | primary:boolean
+[255.0, 128.0, 255.0] | true
+;
+

@@ -775,7 +775,7 @@ required_capability: optional_fields
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
 | KEEP _index, message
-| SORT message, _index
+| SORT message
 | LIMIT 5
 ;
 

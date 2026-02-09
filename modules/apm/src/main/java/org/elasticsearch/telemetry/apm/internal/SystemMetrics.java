@@ -9,6 +9,8 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -19,28 +21,29 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.ThreadMXBean;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 public final class SystemMetrics {
 
     private static final String SUN_OS_MX_BEAN = "com.sun.management.OperatingSystemMXBean";
     private static final String UNIX_OS_MX_BEAN = "com.sun.management.UnixOperatingSystemMXBean";
-    private static final MethodHandle NOOP_HANDLE = MethodHandles.dropArguments(MethodHandles.constant(long.class, -1L), 0, Object.class);
 
     private static final OperatingSystemMXBean OS_MX_BEAN = ManagementFactory.getOperatingSystemMXBean();
     private static final ThreadMXBean THREAD_MX_BEAN = ManagementFactory.getThreadMXBean();
-    private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
     private static final MethodHandle GET_MAX_FILE_DESCRIPTOR_COUNT = osLongHandle("getMaxFileDescriptorCount");
-    private static final MethodHandle GET_TOTAL_MEMORY_SIZE = osLongHandle("getTotalMemorySize");
-    private static final MethodHandle GET_FREE_MEMORY_SIZE = osLongHandle("getFreeMemorySize");
+
+    private static final MethodHandle GET_TOTAL_PHYSICAL_MEMORY_SIZE = osLongHandle("getTotalPhysicalMemorySize");
+    private static final MethodHandle GET_FREE_PHYSICAL_MEMORY_SIZE = osLongHandle("getFreePhysicalMemorySize");
     private static final MethodHandle GET_COMMITTED_VIRTUAL_MEMORY_SIZE = osLongHandle("getCommittedVirtualMemorySize");
 
     private static final AllocatedBytesMetrics ALLOCATED_BYTES_METRICS = AllocatedBytesMetrics.create();
@@ -51,25 +54,53 @@ public final class SystemMetrics {
         registerFileDescriptorsMetrics(registry);
         registerSystemMemoryMetrics(registry);
         registerCgroupMemoryMetrics(registry);
-        registerJvmMemoryMetrics(registry);
         registerJvmGcMetrics(registry);
     }
 
     private static void registerFileDescriptorsMetrics(MeterRegistry registry) {
-        registerLongGauge(registry, "jvm.fd.max", "Maximum number of file descriptors", "{file_descriptor}", GET_MAX_FILE_DESCRIPTOR_COUNT);
+        registerLongGaugeUnlessNegative(
+            registry,
+            "jvm.fd.max",
+            "The maximum number of opened file descriptors.",
+            "{file_descriptor}",
+            () -> invokeLong(GET_MAX_FILE_DESCRIPTOR_COUNT)
+        );
     }
 
     private static void registerSystemMemoryMetrics(MeterRegistry registry) {
-        registerLongGauge(registry, "system.memory.total", "Total physical memory", "By", GET_TOTAL_MEMORY_SIZE);
-        registerLongGauge(registry, "system.memory.actual.free", "Free physical memory", "By", GET_FREE_MEMORY_SIZE);
-        registerLongGauge(registry, "system.process.memory.size", "Process virtual memory size", "By", GET_COMMITTED_VIRTUAL_MEMORY_SIZE);
+        final boolean useProcMeminfo = isLinux() && Files.isReadable(memInfoPath());
+        final LongSupplier actualFreeBytes = useProcMeminfo
+            ? SystemMetrics::linuxActualFreeMemoryBytes
+            : () -> invokeLong(GET_FREE_PHYSICAL_MEMORY_SIZE);
+        final LongSupplier totalBytes = useProcMeminfo
+            ? SystemMetrics::linuxTotalMemoryBytes
+            : () -> invokeLong(GET_TOTAL_PHYSICAL_MEMORY_SIZE);
+
+        registerLongGaugeUnlessNegative(
+            registry,
+            "system.memory.actual.free",
+            "Actual free memory in bytes. It is calculated based on the OS. On Linux it consists of the free memory plus caches "
+                + "and buffers. On OSX it is a sum of free memory and the inactive memory. On Windows, this value does not include memory "
+                + "consumed by system caches and buffers.",
+            "By",
+            actualFreeBytes
+        );
+        registerLongGaugeUnlessNegative(registry, "system.memory.total", "Total memory.", "By", totalBytes);
+
+        registerLongGaugeUnlessNegative(
+            registry,
+            "system.process.memory.size",
+            "The total virtual memory the process has.",
+            "By",
+            () -> invokeLong(GET_COMMITTED_VIRTUAL_MEMORY_SIZE)
+        );
 
         if (ALLOCATED_BYTES_METRICS != null) {
             registry.registerLongGauge(
                 "jvm.gc.alloc",
-                "Bytes allocated since last observation",
+                "An approximation of the total amount of memory, in bytes, allocated in heap memory.",
                 "By",
-                ALLOCATED_BYTES_METRICS::observeAllocatedBytesDelta
+                ALLOCATED_BYTES_METRICS::readAllocatedBytes
             );
         }
     }
@@ -79,18 +110,25 @@ public final class SystemMetrics {
             return;
         }
 
-        registry.registerLongGauge(
-            "system.process.cgroup.memory.mem.limit.bytes",
-            "Memory limit for current cgroup slice",
-            "By",
-            () -> new LongWithAttributes(cgroupBytes(OsStats.Cgroup::getMemoryLimitInBytes))
-        );
-        registry.registerLongGauge(
-            "system.process.cgroup.memory.mem.usage.bytes",
-            "Memory usage in current cgroup slice",
-            "By",
-            () -> new LongWithAttributes(cgroupBytes(OsStats.Cgroup::getMemoryUsageInBytes))
-        );
+        long usage = cgroupBytes(OsStats.Cgroup::getMemoryUsageInBytes);
+        if (usage >= 0) {
+            registry.registerLongGauge(
+                "system.process.cgroup.memory.mem.usage.bytes",
+                "Memory usage in current cgroup slice.",
+                "By",
+                () -> new LongWithAttributes(cgroupBytes(OsStats.Cgroup::getMemoryUsageInBytes))
+            );
+        }
+
+        long limit = cgroupBytes(OsStats.Cgroup::getMemoryLimitInBytes);
+        if (limit >= 0) {
+            registry.registerLongGauge(
+                "system.process.cgroup.memory.mem.limit.bytes",
+                "Memory limit for current cgroup slice.",
+                "By",
+                () -> new LongWithAttributes(cgroupBytes(OsStats.Cgroup::getMemoryLimitInBytes))
+            );
+        }
     }
 
     private static long cgroupBytes(java.util.function.Function<OsStats.Cgroup, String> extractor) {
@@ -116,53 +154,13 @@ public final class SystemMetrics {
         }
     }
 
-    private static void registerJvmMemoryMetrics(MeterRegistry registry) {
-        registry.registerLongGauge(
-            "jvm.memory.heap.used",
-            "Used heap memory",
-            "By",
-            () -> new LongWithAttributes(MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed())
-        );
-        registry.registerLongGauge(
-            "jvm.memory.heap.committed",
-            "Committed heap memory",
-            "By",
-            () -> new LongWithAttributes(MEMORY_MX_BEAN.getHeapMemoryUsage().getCommitted())
-        );
-        registry.registerLongGauge(
-            "jvm.memory.heap.max",
-            "Max heap memory",
-            "By",
-            () -> new LongWithAttributes(MEMORY_MX_BEAN.getHeapMemoryUsage().getMax())
-        );
-
-        registry.registerLongGauge(
-            "jvm.memory.non_heap.used",
-            "Used non-heap memory",
-            "By",
-            () -> new LongWithAttributes(MEMORY_MX_BEAN.getNonHeapMemoryUsage().getUsed())
-        );
-        registry.registerLongGauge(
-            "jvm.memory.non_heap.committed",
-            "Committed non-heap memory",
-            "By",
-            () -> new LongWithAttributes(MEMORY_MX_BEAN.getNonHeapMemoryUsage().getCommitted())
-        );
-        registry.registerLongGauge(
-            "jvm.memory.non_heap.max",
-            "Max non-heap memory",
-            "By",
-            () -> new LongWithAttributes(MEMORY_MX_BEAN.getNonHeapMemoryUsage().getMax())
-        );
-    }
-
     private static void registerJvmGcMetrics(MeterRegistry registry) {
         List<GarbageCollectorMXBean> beans = ManagementFactory.getGarbageCollectorMXBeans();
         if (beans.isEmpty()) {
             return;
         }
 
-        registry.registerLongsAsyncCounter("jvm.gc.count", "GC collection count", "1", () -> {
+        registry.registerLongsAsyncCounter("jvm.gc.count", "The total number of collections that have occurred.", "1", () -> {
             var measurements = new ArrayList<LongWithAttributes>(beans.size());
             for (GarbageCollectorMXBean bean : beans) {
                 long count = bean.getCollectionCount();
@@ -173,26 +171,27 @@ public final class SystemMetrics {
             return measurements;
         });
 
-        registry.registerLongsAsyncCounter("jvm.gc.time", "GC collection time", "ms", () -> {
-            var measurements = new ArrayList<LongWithAttributes>(beans.size());
-            for (GarbageCollectorMXBean bean : beans) {
-                long timeMs = bean.getCollectionTime();
-                if (timeMs >= 0) {
-                    measurements.add(new LongWithAttributes(timeMs, Map.of("name", bean.getName())));
+        registry.registerLongsAsyncCounter(
+            "jvm.gc.time",
+            "The approximate accumulated collection elapsed time in " + "milliseconds.",
+            "ms",
+            () -> {
+                var measurements = new ArrayList<LongWithAttributes>(beans.size());
+                for (GarbageCollectorMXBean bean : beans) {
+                    long timeMs = bean.getCollectionTime();
+                    if (timeMs >= 0) {
+                        measurements.add(new LongWithAttributes(timeMs, Map.of("name", bean.getName())));
+                    }
                 }
+                return measurements;
             }
-            return measurements;
-        });
-    }
-
-    private static void registerLongGauge(MeterRegistry registry, String name, String description, String unit, MethodHandle method) {
-        if (method == NOOP_HANDLE) {
-            return;
-        }
-        registry.registerLongGauge(name, description, unit, () -> new LongWithAttributes(invokeLong(method)));
+        );
     }
 
     private static long invokeLong(MethodHandle method) {
+        if (method == null) {
+            return -1L;
+        }
         try {
             return (long) method.invokeExact((Object) SystemMetrics.OS_MX_BEAN);
         } catch (Throwable e) {
@@ -203,14 +202,14 @@ public final class SystemMetrics {
     private static MethodHandle osLongHandle(String methodName) {
         Class<?> targetClass = osTargetClass();
         if (targetClass == null) {
-            return NOOP_HANDLE;
+            return null;
         }
         try {
             return MethodHandles.publicLookup()
                 .findVirtual(targetClass, methodName, MethodType.methodType(long.class))
                 .asType(MethodType.methodType(long.class, Object.class));
         } catch (Exception e) {
-            return NOOP_HANDLE;
+            return null;
         }
     }
 
@@ -233,18 +232,99 @@ public final class SystemMetrics {
         return osName.startsWith("Linux");
     }
 
+    @SuppressForbidden(reason = "access /proc/meminfo")
+    private static Path memInfoPath() {
+        return PathUtils.get("/proc/meminfo");
+    }
+
+    private static long linuxActualFreeMemoryBytes() {
+        long memAvailable = -1;
+        long memFree = -1;
+        long buffers = -1;
+        long cached = -1;
+
+        try {
+            List<String> lines = Files.readAllLines(memInfoPath(), StandardCharsets.UTF_8);
+            for (String line : lines) {
+                if (line.isEmpty()) {
+                    continue;
+                }
+                if (line.startsWith("MemAvailable:")) {
+                    memAvailable = parseMeminfoKbToBytes(line);
+                    break;
+                } else if (line.startsWith("MemFree:")) {
+                    memFree = parseMeminfoKbToBytes(line);
+                } else if (line.startsWith("Buffers:")) {
+                    buffers = parseMeminfoKbToBytes(line);
+                } else if (line.startsWith("Cached:")) {
+                    cached = parseMeminfoKbToBytes(line);
+                }
+            }
+        } catch (Exception e) {
+            return -1L;
+        }
+
+        if (memAvailable >= 0) {
+            return memAvailable;
+        }
+        if (memFree >= 0 && buffers >= 0 && cached >= 0) {
+            return memFree + buffers + cached;
+        }
+        return -1L;
+    }
+
+    private static long linuxTotalMemoryBytes() {
+        try {
+            List<String> lines = Files.readAllLines(memInfoPath(), StandardCharsets.UTF_8);
+            for (String line : lines) {
+                if (line.isEmpty()) {
+                    continue;
+                }
+                if (line.startsWith("MemTotal:")) {
+                    return parseMeminfoKbToBytes(line);
+                }
+            }
+            return -1L;
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    private static long parseMeminfoKbToBytes(String line) {
+        // Example: "MemTotal: 51539607552 kB"
+        int colon = line.indexOf(':');
+        if (colon < 0) {
+            return -1L;
+        }
+        String rest = line.substring(colon + 1).trim();
+        if (rest.isEmpty()) {
+            return -1L;
+        }
+        int space = rest.indexOf(' ');
+        String number = space >= 0 ? rest.substring(0, space) : rest;
+        long kb = Long.parseLong(number);
+        return kb * 1024L;
+    }
+
+    private static void registerLongGaugeUnlessNegative(
+        MeterRegistry registry,
+        String name,
+        String description,
+        String unit,
+        LongSupplier supplier
+    ) {
+        long initial = supplier.getAsLong();
+        if (initial < 0) {
+            return;
+        }
+        registry.registerLongGauge(name, description, unit, () -> new LongWithAttributes(supplier.getAsLong()));
+    }
+
     private static final class AllocatedBytesMetrics {
         private static final String SUN_THREAD_MXBEAN = "com.sun.management.ThreadMXBean";
-        private static final MethodHandle NOOP_ALLOCATED_BYTES = MethodHandles.dropArguments(
-            MethodHandles.constant(long[].class, null),
-            0,
-            Object.class,
-            long[].class
-        );
 
         private final Object sunThreadMxBean;
         private final MethodHandle getThreadAllocatedBytes;
-        private final AtomicLong lastTotalAllocatedBytes = new AtomicLong(-1);
 
         private AllocatedBytesMetrics(Object sunThreadMxBean, MethodHandle getThreadAllocatedBytes) {
             this.sunThreadMxBean = sunThreadMxBean;
@@ -257,81 +337,35 @@ public final class SystemMetrics {
                 if (clazz.isInstance(THREAD_MX_BEAN) == false) {
                     return null;
                 }
-                Object sun = THREAD_MX_BEAN;
-                MethodHandle isSupported = booleanHandle(clazz, "isThreadAllocatedMemorySupported");
-                if (isSupported == null || invokeBoolean(sun, isSupported) == false) {
-                    return null;
-                }
-
-                MethodHandle isEnabled = booleanHandle(clazz, "isThreadAllocatedMemoryEnabled");
-                if (isEnabled == null) {
-                    return null;
-                }
-
-                if (invokeBoolean(sun, isEnabled) == false) {
-                    MethodHandle setEnabled = setThreadAllocatedMemoryEnabledHandle(clazz);
-                    if (setEnabled == null) {
-                        return null;
-                    }
-                    try {
-                        setEnabled.invokeExact(sun, true);
-                    } catch (Throwable e) {
-                        return null;
-                    }
-                    if (invokeBoolean(sun, isEnabled) == false) {
-                        return null;
-                    }
-                }
 
                 MethodHandle getAllocatedBytes = getThreadAllocatedBytesHandle(clazz);
-                if (getAllocatedBytes == NOOP_ALLOCATED_BYTES) {
+                if (getAllocatedBytes == null) {
                     return null;
                 }
 
-                return new AllocatedBytesMetrics(sun, getAllocatedBytes);
-            } catch (Exception e) {
+                // try reading once before registering.
+                long[] threadIds = THREAD_MX_BEAN.getAllThreadIds();
+                getAllocatedBytes.invokeExact((Object) THREAD_MX_BEAN, threadIds);
+
+                return new AllocatedBytesMetrics(THREAD_MX_BEAN, getAllocatedBytes);
+            } catch (Throwable t) {
                 return null;
             }
         }
 
-        LongWithAttributes observeAllocatedBytesDelta() {
+        LongWithAttributes readAllocatedBytes() {
             try {
-                long[] threadIds = THREAD_MX_BEAN.getAllThreadIds();
-                if (threadIds.length == 0) {
-                    return new LongWithAttributes(0);
-                }
-
-                long[] allocated = (long[]) getThreadAllocatedBytes.invokeExact(sunThreadMxBean, threadIds);
+                long[] allocated = (long[]) getThreadAllocatedBytes.invokeExact(sunThreadMxBean, THREAD_MX_BEAN.getAllThreadIds());
                 long total = 0;
                 for (long l : allocated) {
-                    total += Math.max(l, 0);
+                    if (l > 0) {
+                        total += l;
+                    }
                 }
 
-                long previous = lastTotalAllocatedBytes.getAndSet(total);
-                long delta = previous >= 0 && total >= previous ? total - previous : 0;
-                return new LongWithAttributes(delta);
+                return new LongWithAttributes(total);
             } catch (Throwable e) {
                 return new LongWithAttributes(0);
-            }
-        }
-
-        private static MethodHandle booleanHandle(Class<?> clazz, String methodName) {
-            try {
-                return MethodHandles.publicLookup()
-                    .findVirtual(clazz, methodName, MethodType.methodType(boolean.class))
-                    .asType(MethodType.methodType(boolean.class, Object.class));
-            } catch (Exception e) {
-                return null;
-            }
-        }
-
-        private static MethodHandle setThreadAllocatedMemoryEnabledHandle(Class<?> clazz) {
-            try {
-                return MethodHandles.publicLookup()
-                    .findVirtual(clazz, "setThreadAllocatedMemoryEnabled", MethodType.methodType(void.class, boolean.class))
-                    .asType(MethodType.methodType(void.class, Object.class, boolean.class));
-            } catch (Exception e) {
-                return null;
             }
         }
 
@@ -341,15 +375,7 @@ public final class SystemMetrics {
                     .findVirtual(clazz, "getThreadAllocatedBytes", MethodType.methodType(long[].class, long[].class))
                     .asType(MethodType.methodType(long[].class, Object.class, long[].class));
             } catch (Exception e) {
-                return NOOP_ALLOCATED_BYTES;
-            }
-        }
-
-        private static boolean invokeBoolean(Object target, MethodHandle method) {
-            try {
-                return (boolean) method.invokeExact(target);
-            } catch (Throwable e) {
-                return false;
+                return null;
             }
         }
     }

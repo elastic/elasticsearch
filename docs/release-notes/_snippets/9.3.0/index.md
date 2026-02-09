@@ -1,5 +1,5 @@
 ﻿## 9.3.0 [elasticsearch-release-notes-9.3.0]
-_[Known issues](/release-notes/known-issues.md#elasticsearch-9.3.0-known-issues) and [Breaking changes](/release-notes/breaking-changes.md#elasticsearch-9.3.0-breaking-changes) and [Deprecations](/release-notes/deprecations.md#elasticsearch-9.3.0-deprecations)._
+_[Highlights](/release-notes/highlights.md#elasticsearch-9.3.0-highlights) and [Known issues](/release-notes/known-issues.md#elasticsearch-9.3.0-known-issues) and [Breaking changes](/release-notes/breaking-changes.md#elasticsearch-9.3.0-breaking-changes) and [Deprecations](/release-notes/deprecations.md#elasticsearch-9.3.0-deprecations)._
 
 ### Features and enhancements [elasticsearch-9.3.0-features-enhancements]
 * New Cloud Connect UI for self-managed installations. 

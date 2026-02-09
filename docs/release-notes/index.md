@@ -20,14 +20,14 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-<!-- :::{include} _snippets/9.3.0/index.md
-::: -->
+:::{include} _snippets/9.3.0/index.md
+:::
 
-:::{changelog} /changelog/new/bundles
+<!-- :::{changelog} /changelog/new/bundles
 :subsections:
 :config: /changelog.yml
 :product: elasticsearch
-:::
+::: -->
 
 ## 9.3.0 [elasticsearch-9.3.0-release-notes]
 

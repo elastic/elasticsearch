@@ -717,6 +717,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .settings(
                     settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
                         .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+                        .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
                         .build()
                 )
                 .numberOfShards(shards)
@@ -744,6 +745,7 @@ public class IndexRoutingTests extends ESTestCase {
             .settings(
                 settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
                     .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+                    .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
                     .build()
             )
             .numberOfShards(shards)

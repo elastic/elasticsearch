@@ -649,6 +649,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             pageSize = randomIntBetween(1, 100);
         }
 
+        assert rowsCount == pages.stream().mapToInt(Page::getPositionCount).sum();
         return pages;
     }
 
@@ -673,8 +674,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected Object toJavaObjectUnsignedLongAware(Block block, int position) {
-        Object result;
-        result = toJavaObject(block, position);
+        Object result = toJavaObject(block, position);
+        return normalizeResultUnsignedLongAware(result);
+    }
+
+    protected Object normalizeResultUnsignedLongAware(Object result) {
         if (result == null || testCase.expectedType() != DataType.UNSIGNED_LONG) {
             return result;
         }
@@ -918,7 +922,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     @SuppressWarnings("unchecked")
-    protected final void assertTestCaseResultAndWarnings(Object result) {
+    protected final void assertTestCaseResultAndWarnings(Object originalResult) {
+        Object result = normalizeResultUnsignedLongAware(originalResult);
         if (result instanceof Iterable<?>) {
             var collectionResult = (Iterable<Object>) result;
             assertThat(collectionResult, not(hasItem(Double.NaN)));

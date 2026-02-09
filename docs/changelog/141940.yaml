@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141628
+pr: 141940
+summary: Fix IP_PREFIX function leaking data in scratch
+type: bug

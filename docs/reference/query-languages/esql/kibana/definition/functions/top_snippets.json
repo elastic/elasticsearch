@@ -16,7 +16,7 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         }
       ],
       "variadic" : false,
@@ -34,7 +34,7 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         },
         {
           "name" : "options",
@@ -59,7 +59,7 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         }
       ],
       "variadic" : false,
@@ -77,7 +77,7 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         },
         {
           "name" : "options",

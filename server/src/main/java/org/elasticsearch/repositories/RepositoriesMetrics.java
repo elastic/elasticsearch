@@ -43,6 +43,12 @@ public record RepositoriesMetrics(
      *
      * Exposed as {@link #requestCounter()}
      */
+    public static final String METRIC_REQUESTS_TOTAL = "es.repositories.requests.total";
+    /**
+     * Is incremented each time the first attempt of an action fails and we start retrying
+     *
+     * Exposed as {@link #inputStreamRetryStartedCounter()}
+     */
     public static final String METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL = "es.repositories.input_stream.retry.event.total";
     /**
      * Is incremented for each retry success on a blob store input stream
@@ -56,8 +62,6 @@ public record RepositoriesMetrics(
      * Exposed via {@link #inputStreamRetryHistogram()}
      */
     public static final String METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM = "es.repositories.input_stream.retry.attempts.histogram";
-
-    public static final String METRIC_REQUESTS_TOTAL = "es.repositories.requests.total";
     /**
      * Is incremented for each request which returns a non <code>2xx</code> response OR fails to return a response
      * (includes throttling and retryable errors)

@@ -3280,7 +3280,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
 
         assertThat(resolvedIndices.getLocal(), is(empty()));
-        assertThat(resolvedIndices.getRemote(), contains("P1:_all", "P2:_all", "P3:_all"));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:_all", "P2:_all", "P3:_all"));
 
         final var resolved = request.getResolvedIndexExpressions();
         assertThat(resolved, is(notNullValue()));

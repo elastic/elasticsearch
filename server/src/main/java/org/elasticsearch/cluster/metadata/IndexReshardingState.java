@@ -347,9 +347,9 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
 
                 assert targetShardNum >= 0 && targetShardNum < targetShards.length : "target shardNum is out of bounds";
                 // This is possible due to retries in HANDOFF state
-                assert (targetShards[targetShardNum].ordinal() + 1 == targetShardState.ordinal()) ||
-                    ((targetShards[targetShardNum].ordinal() == targetShardState.ordinal()) &&
-                        (targetShardState == TargetShardState.HANDOFF));
+                assert (targetShards[targetShardNum].ordinal() + 1 == targetShardState.ordinal())
+                    || ((targetShards[targetShardNum].ordinal() == targetShardState.ordinal())
+                        && (targetShardState == TargetShardState.HANDOFF));
 
                 targetShards[targetShardNum] = targetShardState;
             }

@@ -182,9 +182,7 @@ public final class AnalyzerTestUtils {
         var statement = EsqlParser.INSTANCE.createStatement(query);
         var relations = statement.plan().collectFirstChildren(UnresolvedRelation.class::isInstance);
         var indexName = relations.isEmpty() ? null : ((UnresolvedRelation) relations.getFirst()).indexPattern().indexPattern();
-        var indexResolutions = indexResolutions(indexName);
-        var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
-        return analyzer.analyze(statement.plan());
+        return analyzeStatement(query, indexResolutions(indexName));
     }
 
     public static LogicalPlan analyzeStatement(String query, Map<IndexPattern, IndexResolution> indexResolutions) {

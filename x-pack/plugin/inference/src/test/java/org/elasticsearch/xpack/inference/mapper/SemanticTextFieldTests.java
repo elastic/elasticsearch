@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.inference.mapper;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
+import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -20,20 +23,26 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +52,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
@@ -186,6 +196,75 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
+    public void testGetVectorFromSearchHitBasic() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+            DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+
+            List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
+            var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
+            var firstEmbedding = inferenceResults.chunks().getFirst().embedding();
+
+            var firstVector = switch (firstEmbedding) {
+                case EmbeddingFloatResults.Embedding efr -> new VectorData(efr.values());
+                case EmbeddingByteResults.Embedding ebr -> new VectorData(ebr.values());
+                default -> {
+                    fail("invalid embedding type: " + firstEmbedding.getClass());
+                    yield null;
+                }
+            };
+
+            var field = semanticTextFieldFromChunkedInferenceResults(
+                useLegacyFormat,
+                "testfield",
+                model,
+                generateRandomChunkingSettings(),
+                inputs,
+                inferenceResults,
+                randomFrom(XContentType.values())
+            );
+
+            var searchHit = new SearchHit(1);
+            var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, null);
+            assertEquals(firstVector, vector);
+        }
+    }
+
+    public void testGetVectorFromSearchHitWithMatchQuery() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+            DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+            int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+
+            String documentText = generateRandomDocumentText();
+            List<String> inputs = getChunksForTextInput(documentText, randomIntBetween(3, 10));
+            var contentType = randomFrom(XContentType.values());
+            var field = randomSemanticText(useLegacyFormat, "testfield", model, generateRandomChunkingSettings(), inputs, contentType);
+
+            var matchChunk = inputs.get(randomIntBetween(0, inputs.size() - 1));
+            var matchChunkTerms = matchChunk.split(" ");
+            var queryPhrase = matchChunkTerms[randomIntBetween(0, matchChunkTerms.length - 1)];
+            var chunkInputs = useLegacyFormat ? inputs : getChunkInputsFromField(documentText, field);
+
+            MemoryIndexChunkScorer chunkScorer = new MemoryIndexChunkScorer();
+            var scoredChunks = chunkScorer.scoreChunks(chunkInputs, queryPhrase, 1, false);
+            var whichScoredChunk = scoredChunks.isEmpty() ? 0 : scoredChunks.getFirst().chunkIndex();
+            var matchedVector = getTextEmbeddingVectorFromChunk(
+                field.inference().chunks().get("testfield").get(whichScoredChunk),
+                embeddingLength,
+                contentType,
+                elementType
+            );
+
+            var searchHit = new SearchHit(1);
+            searchHit.setDocumentField(new DocumentField("testfield", List.of(documentText)));
+            var matchQuery = new MatchQueryBuilder("testfield", queryPhrase);
+            var queryWrapper = new InterceptedQueryBuilderWrapper(new InterceptedInferenceMatchQueryBuilder(matchQuery));
+            var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, queryWrapper);
+            assertEquals(matchedVector, vector);
+        }
+    }
+
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbedding(Model model, List<String> inputs) {
         return switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
@@ -204,11 +283,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            byte[] values = new byte[embeddingLength];
-            for (int j = 0; j < values.length; j++) {
-                // to avoid vectors with zero magnitude
-                values[j] = (byte) Math.max(1, randomByte());
-            }
+            byte[] values = randomByteVectorOfLength(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingByteResults.Embedding(values),
@@ -219,6 +294,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return new ChunkedInferenceEmbedding(chunks);
     }
 
+    public static byte[] randomByteVectorOfLength(int embeddingLength) {
+        byte[] values = new byte[embeddingLength];
+        for (int j = 0; j < values.length; j++) {
+            // to avoid vectors with zero magnitude
+            values[j] = (byte) Math.max(1, randomByte());
+        }
+        return values;
+    }
+
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
@@ -226,11 +310,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            float[] values = new float[embeddingLength];
-            for (int j = 0; j < values.length; j++) {
-                // to avoid vectors with zero magnitude
-                values[j] = Math.max(1e-6f, randomFloat());
-            }
+            float[] values = randomFloatVectorOfLength(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingFloatResults.Embedding(values),
@@ -239,6 +319,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             );
         }
         return new ChunkedInferenceEmbedding(chunks);
+    }
+
+    public static float[] randomFloatVectorOfLength(int embeddingLength) {
+        float[] values = new float[embeddingLength];
+        for (int j = 0; j < values.length; j++) {
+            // to avoid vectors with zero magnitude
+            values[j] = Math.max(1e-6f, randomFloat());
+        }
+        return values;
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingSparse(List<String> inputs) {
@@ -497,4 +586,73 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
         return byteArray;
     }
+
+    private static List<String> getChunkInputsFromField(String inputText, SemanticTextField field) {
+        List<String> ret = new ArrayList<>();
+        var chunks = field.inference().chunks().get("testfield");
+        for (var chunk : chunks) {
+            ret.add(inputText.substring(chunk.startOffset(), chunk.endOffset()));
+        }
+        return ret;
+    }
+
+    private static String generateRandomDocumentText() {
+        int numTerms = randomIntBetween(20, 100);
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < numTerms; i++) {
+            if (i > 0) {
+                b.append(" ");
+            }
+            b.append(testMatchQueryVocabulary.get(randomIntBetween(0, testMatchQueryVocabulary.size() - 1)));
+        }
+        return b.toString();
+    }
+
+    private static List<String> getChunksForTextInput(String input, int maxChunkSize) {
+        List<String> ret = new ArrayList<>();
+
+        var terms = input.split(" ");
+        StringBuilder thisChunk = new StringBuilder();
+        int currentChunkLength = 0;
+        for (int i = 0; i < terms.length; i++) {
+            if (thisChunk.isEmpty() == false) {
+                thisChunk.append(" ");
+            }
+            thisChunk.append(terms[i]);
+            currentChunkLength++;
+            if (currentChunkLength >= maxChunkSize) {
+                ret.add(thisChunk.toString());
+                thisChunk = new StringBuilder();
+                currentChunkLength = 0;
+            }
+        }
+        if (currentChunkLength > 0) {
+            ret.add(thisChunk.toString());
+        }
+
+        return ret;
+    }
+
+    private static List<String> testMatchQueryVocabulary = List.of(
+        "absurd",
+        "color",
+        "elegant",
+        "queue",
+        "multiply",
+        "murky",
+        "snobbish",
+        "memorize",
+        "bad",
+        "eggnog",
+        "past",
+        "island",
+        "scared",
+        "injure",
+        "chess",
+        "rhyme",
+        "common",
+        "wood",
+        "well",
+        "jumpy"
+    );
 }

@@ -235,6 +235,8 @@ class MutableSearchResponse extends AbstractRefCounted {
     /**
      * Creates an {@link AsyncSearchResponse} based on the current state of the mutable response.
      * The final reduce of the aggregations is executed if needed (partial response).
+     * If returnPartialResultsInResponse is false, the response is built without partial aggregations or partial hits if the response is
+     * not final.
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      * This method also restores the response headers in the current thread context when requested, if the final response is available.
      */

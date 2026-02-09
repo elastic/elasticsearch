@@ -14,6 +14,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -247,7 +248,19 @@ public interface BlockLoader {
         NumericDocValues toLengthValues();
 
         default DocIdSetIterator lengthIterator(int length) throws IOException {
-            return null;
+            NumericDocValues lengthReader = toLengthValues();
+            assert lengthReader != null;
+            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(lengthReader) {
+                @Override
+                public boolean matches() throws IOException {
+                    return lengthReader.longValue() == length;
+                }
+
+                @Override
+                public float matchCost() {
+                    return 10;
+                }
+            });
         }
     }
 

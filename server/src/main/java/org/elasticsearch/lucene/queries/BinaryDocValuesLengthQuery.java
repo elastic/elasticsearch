@@ -63,24 +63,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                 assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 final DocIdSetIterator iterator;
                 if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
-                    var directIterator = direct.lengthIterator(length);
-                    if (directIterator != null) {
-                        iterator = directIterator;
-                    } else {
-                        NumericDocValues lengthReader = direct.toLengthValues();
-                        assert lengthReader != null;
-                        iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(lengthReader) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                return lengthReader.longValue() == length;
-                            }
-
-                            @Override
-                            public float matchCost() {
-                                return matchCost;
-                            }
-                        });
-                    }
+                    iterator = direct.lengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                     iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {

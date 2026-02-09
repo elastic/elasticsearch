@@ -20,6 +20,8 @@ import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.IncludingAltitude;
@@ -28,10 +30,12 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.closeTo;
 
 @FunctionName("st_centroid_agg")
@@ -46,12 +50,20 @@ public class SpatialCentroidTests extends SpatialAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        var suppliers = Stream.of(
+        var suppliers = new ArrayList<TestCaseSupplier>();
+
+        // Point types (original support)
+        Stream.of(
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.NO),
-            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.NO)
+        ).flatMap(List::stream).map(SpatialCentroidTests::makeSupplier).forEach(suppliers::add);
+
+        // Shape types (added in 9.4.0)
+        FunctionAppliesTo shapeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.4.0", "", true);
+        Stream.of(
             MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 1000, IncludingAltitude.NO)
-        ).flatMap(List::stream).map(SpatialCentroidTests::makeSupplier).toList();
+        ).flatMap(List::stream).map(s -> s.withAppliesTo(shapeAppliesTo)).map(SpatialCentroidTests::makeSupplier).forEach(suppliers::add);
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));

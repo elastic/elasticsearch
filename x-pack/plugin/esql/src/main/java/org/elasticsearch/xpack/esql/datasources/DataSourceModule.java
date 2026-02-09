@@ -56,7 +56,12 @@ public final class DataSourceModule implements Closeable {
     private final Settings settings;
     private final BlockFactory blockFactory;
 
-    public DataSourceModule(List<DataSourcePlugin> dataSourcePlugins, Settings settings, BlockFactory blockFactory, ExecutorService executor) {
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor
+    ) {
         this.settings = settings;
         this.blockFactory = blockFactory;
         this.storageProviderRegistry = new StorageProviderRegistry();

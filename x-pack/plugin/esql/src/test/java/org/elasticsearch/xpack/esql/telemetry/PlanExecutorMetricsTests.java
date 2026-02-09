@@ -140,14 +140,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
         // Create a minimal DataSourceModule for testing
         BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
-        try (
-            DataSourceModule dataSourceModule = new DataSourceModule(
-                List.of(new DataSourcePlugin() {}),
-                Settings.EMPTY,
-                blockFactory,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            )
-        ) {
+        try (DataSourceModule dataSourceModule = new DataSourceModule(List.of(new DataSourcePlugin() {
+        }), Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE)) {
             var planExecutor = new PlanExecutor(
                 indexResolver,
                 MeterRegistry.NOOP,

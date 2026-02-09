@@ -448,7 +448,11 @@ public class DataSourceModuleTests extends ESTestCase {
         // In production with proper plugin isolation, each plugin would have its own classloader.
         // In unit tests, they may share a classloader. This test verifies the tracking works.
         // Note: pluginsByClassloader may be empty if no plugins are on the test classpath.
-        logger.info("Classloader differentiation test found {} classloaders for {} plugins", pluginsByClassloader.size(), discoveredPluginClasses.size());
+        logger.info(
+            "Classloader differentiation test found {} classloaders for {} plugins",
+            pluginsByClassloader.size(),
+            discoveredPluginClasses.size()
+        );
     }
 
     /**

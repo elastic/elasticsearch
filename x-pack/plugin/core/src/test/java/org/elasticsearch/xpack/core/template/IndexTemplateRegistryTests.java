@@ -878,6 +878,79 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             .build();
     }
 
+    public void testRejectsTemplateWithFleetManagedPriorityAndManagedType() throws Exception {
+        // Create a registry that returns a template with the reserved Fleet priority and a managed data stream type
+        String indexPattern = randomFrom(List.of("logs", "metrics", "traces", "synthetics", "profiling")) + "-test-*";
+        IndexTemplateRegistry registryWithReservedPriority = new IndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        ) {
+            @Override
+            protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+                return Map.of(
+                    "test-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("this-is-fine", indexPattern))
+                        .priority(200L)
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                );
+            }
+
+            @Override
+            protected String getOrigin() {
+                return "test";
+            }
+        };
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, registryWithReservedPriority::initialize);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Composable index template [test-template] uses reserved priority [200] "
+                    + "and has index pattern ["
+                    + indexPattern
+                    + "] that starts with a reserved prefix. "
+                    + "Please change the template to use a different priority."
+            )
+        );
+    }
+
+    public void testAllowsFleetManagedPriorityForNonReservedPattern() {
+        // A composable template with the Fleet-managed priority (200) should be allowed
+        // as long as its index patterns don't start with logs-, metrics-, or traces-
+        IndexTemplateRegistry registryWithNonReservedPattern = new IndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        ) {
+            @Override
+            protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+                return Map.of(
+                    "test-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-custom-*"))
+                        .priority(200L)
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                );
+            }
+
+            @Override
+            protected String getOrigin() {
+                return "test";
+            }
+        };
+
+        // Should not throw because the pattern does not start with a reserved prefix
+        registryWithNonReservedPattern.initialize();
+    }
+
     // ------------- functionality unit test --------
 
     public void testFindRolloverTargetDataStreams() {

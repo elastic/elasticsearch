@@ -62,6 +62,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -76,6 +77,20 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Abstracts the logic of managing versioned index templates, ingest pipelines and lifecycle policies for plugins that require such things.
  */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
+
+    /**
+     * The priority value reserved for Fleet-managed index templates.
+     * Index templates for {@link #FLEET_MANAGED_DATA_STREAM_TYPES} via the template registry must not use this
+     * priority as it would conflict with Fleet-managed templates when index patterns overlap,
+     * preventing Fleet packages from being installed.
+     */
+    private static final long FLEET_MANAGED_INDEX_TEMPLATE_PRIORITY = 200;
+
+    /**
+     * The data stream types for which Fleet manages index templates.
+     * @see <a href="https://github.com/elastic/package-spec/blob/c50462123feb966fe82873124d3f65945ea4d743/spec/integration/data_stream/manifest.spec.yml#L546-L554">Package spec</a>
+     */
+    private static final Set<String> FLEET_MANAGED_DATA_STREAM_TYPES = Set.of("logs", "metrics", "traces", "synthetics", "profiling");
 
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
 
@@ -136,6 +151,31 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      */
     public void initialize() {
         clusterService.addListener(this);
+        final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplateConfigs();
+        for (Map.Entry<String, ComposableIndexTemplate> newTemplate : indexTemplates.entrySet()) {
+            final String templateName = newTemplate.getKey();
+            final long priority = newTemplate.getValue().priorityOrZero();
+            if (priority != FLEET_MANAGED_INDEX_TEMPLATE_PRIORITY) {
+                continue;
+            }
+            for (String indexPattern : newTemplate.getValue().indexPatterns()) {
+                for (String managedType : FLEET_MANAGED_DATA_STREAM_TYPES) {
+                    if (indexPattern.startsWith(managedType)) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "Composable index template [%s] uses reserved priority [%d] "
+                                    + "and has index pattern [%s] that starts with a reserved prefix. "
+                                    + "Please change the template to use a different priority.",
+                                templateName,
+                                priority,
+                                indexPattern
+                            )
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /**

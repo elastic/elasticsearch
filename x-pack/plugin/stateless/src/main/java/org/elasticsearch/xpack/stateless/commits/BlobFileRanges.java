@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.Collections;
@@ -179,4 +180,8 @@ public class BlobFileRanges {
         return blobLocation.toString();
     }
 
+    // for tests only
+    public @Nullable Long locationOfFirstReplicatedContents() {
+        return replicatedRanges.isEmpty() ? null : replicatedRanges.firstEntry().getValue().copy;
+    }
 }

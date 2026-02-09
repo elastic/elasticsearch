@@ -21,6 +21,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.Map;
 
 public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
@@ -60,12 +61,14 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
         @Override
         public void onRetryStarted(StreamAction action) {
-            // No metrics for Azure
+            blobStore.getRepositoriesMetrics().inputStreamRetryEventCounter().incrementBy(1, metricAttributes(action));
         }
 
         @Override
         public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            // No metrics for Azure
+            final Map<String, Object> attributes = metricAttributes(action);
+            blobStore.getRepositoriesMetrics().inputStreamRetryCompletedCounter().incrementBy(1, attributes);
+            blobStore.getRepositoriesMetrics().inputStreamRetryHistogram().record(numberOfRetries, attributes);
         }
 
         @Override
@@ -93,6 +96,21 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
             return true;
+        }
+
+        private Map<String, Object> metricAttributes(StreamAction action) {
+            return Map.of(
+                "repo_type",
+                AzureRepository.TYPE,
+                "repo_name",
+                blobStore.getRepositoryMetadata().name(),
+                "operation",
+                AzureBlobStore.Operation.GET_BLOB.getKey(),
+                "purpose",
+                purpose.getKey(),
+                "action",
+                action.getPastTense()
+            );
         }
     }
 }

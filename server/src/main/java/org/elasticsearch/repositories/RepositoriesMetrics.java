@@ -30,7 +30,10 @@ public record RepositoriesMetrics(
     LongCounter unsuccessfulOperationCounter,
     LongHistogram exceptionHistogram,
     LongHistogram throttleHistogram,
-    LongHistogram httpRequestTimeInMillisHistogram
+    LongHistogram httpRequestTimeInMillisHistogram,
+    LongCounter inputStreamRetryEventCounter,
+    LongCounter inputStreamRetryCompletedCounter,
+    LongHistogram inputStreamRetryHistogram
 ) {
 
     public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
@@ -40,6 +43,20 @@ public record RepositoriesMetrics(
      *
      * Exposed as {@link #requestCounter()}
      */
+    public static final String METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL = "es.repositories.input_stream.retry.event.total";
+    /**
+     * Is incremented for each retry success on a blob store input stream
+     *
+     * Exposed as {@link #inputStreamRetryCompletedCounter()}
+     */
+    public static final String METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL = "es.repositories.input_stream.retry.success.total";
+    /**
+     * Each time an operation on a blob store input stream has one or more retries, the count of those is sampled
+     *
+     * Exposed via {@link #inputStreamRetryHistogram()}
+     */
+    public static final String METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM = "es.repositories.input_stream.retry.attempts.histogram";
+
     public static final String METRIC_REQUESTS_TOTAL = "es.repositories.requests.total";
     /**
      * Is incremented for each request which returns a non <code>2xx</code> response OR fails to return a response
@@ -115,6 +132,13 @@ public record RepositoriesMetrics(
                 HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM,
                 "HttpRequestTime in milliseconds expressed as as a histogram",
                 "ms"
+            ),
+            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL, "input stream retry event count", "unit"),
+            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL, "input stream retry success count", "unit"),
+            meterRegistry.registerLongHistogram(
+                METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM,
+                "input stream retry attempts histogram",
+                "unit"
             )
         );
     }

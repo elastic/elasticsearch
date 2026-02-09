@@ -105,14 +105,14 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
 
         @Override
         public void onRetryStarted(StreamAction action) {
-            blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes(action));
+            blobStore.getS3RepositoriesMetrics().common().inputStreamRetryEventCounter().incrementBy(1, metricAttributes(action));
         }
 
         @Override
         public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
             final Map<String, Object> attributes = metricAttributes(action);
-            blobStore.getS3RepositoriesMetrics().retryCompletedCounter().incrementBy(1, attributes);
-            blobStore.getS3RepositoriesMetrics().retryHistogram().record(numberOfRetries, attributes);
+            blobStore.getS3RepositoriesMetrics().common().inputStreamRetryCompletedCounter().incrementBy(1, attributes);
+            blobStore.getS3RepositoriesMetrics().common().inputStreamRetryHistogram().record(numberOfRetries, attributes);
         }
 
         @Override

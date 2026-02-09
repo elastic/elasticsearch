@@ -25,6 +25,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.Map;
 
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
@@ -124,12 +125,14 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public void onRetryStarted(StreamAction action) {
-            // No retry metrics for GCS
+            blobStore.getRepositoriesMetrics().inputStreamRetryEventCounter().incrementBy(1, metricAttributes(action));
         }
 
         @Override
         public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            // No retry metrics for GCS
+            final Map<String, Object> attributes = metricAttributes(action);
+            blobStore.getRepositoriesMetrics().inputStreamRetryCompletedCounter().incrementBy(1, attributes);
+            blobStore.getRepositoriesMetrics().inputStreamRetryHistogram().record(numberOfRetries, attributes);
         }
 
         @Override
@@ -153,6 +156,21 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
                 case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
                 case READ -> e instanceof StorageException;
             };
+        }
+
+        private Map<String, Object> metricAttributes(StreamAction action) {
+            return Map.of(
+                "repo_type",
+                GoogleCloudStorageRepository.TYPE,
+                "repo_name",
+                blobStore.getRepositoryName(),
+                "operation",
+                "GetObject", // GCS doesn't have a direct equivalent of S3's Operation.GET_OBJECT.getKey() for RetryingInputStream
+                "purpose",
+                purpose.getKey(),
+                "action",
+                action.getPastTense()
+            );
         }
     }
 

@@ -2558,8 +2558,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             assert eventIngestedRange != null : "eventIngestedRange must be set (non-null) when building IndexMetadata";
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
-            String indexModeString = settings.get(IndexSettings.MODE.getKey());
-            final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
+            final IndexMode indexMode = IndexSettings.MODE.get(settings);
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
             boolean useTimeSeriesSyntheticId = false;
             if (isTsdb
@@ -2614,7 +2613,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
                 isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
-                indexMode,
+                settings.get(IndexSettings.MODE.getKey()) == null ? null : indexMode,
                 isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
                 isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null,
                 SETTING_INDEX_VERSION_COMPATIBILITY.get(settings),

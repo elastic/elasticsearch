@@ -16,6 +16,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -25,6 +28,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -34,6 +38,7 @@ import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RetryingInputStreamTests extends ESTestCase {
 
@@ -225,10 +230,121 @@ public class RetryingInputStreamTests extends ESTestCase {
         }
     }
 
+    public void testRetryMetricsArePublished() throws IOException {
+        final var recordingMeterRegistry = new RecordingMeterRegistry();
+        final int maxRetries = randomIntBetween(8, 10);
+        final int getRetries = randomIntBetween(1, maxRetries - 1);
+        final var getRetriesRemaining = new AtomicInteger(getRetries);
+        final int readRetries = randomIntBetween(1, maxRetries - getRetries);
+        final var readRetriesRemaining = new AtomicInteger(readRetries);
+        final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final var eTag = randomUUID();
+
+        final var services = new BlobStoreServicesAdapter(maxRetries) {
+            @Override
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                if (getRetriesRemaining.get() > 0) {
+                    getRetriesRemaining.decrementAndGet();
+                    throw new RuntimeException("This is retry-able");
+                }
+                if (readRetriesRemaining.get() > 0) {
+                    readRetriesRemaining.decrementAndGet();
+                    // we need to fail to read any bytes for the read attempts to accumulate
+                    // we consider the first successful read as a success
+                    return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true, 0, 0);
+                }
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, false);
+            }
+        };
+
+        final byte[] result = copyToBytes(
+            new ShortDelayRetryingInputStream(new RepositoriesMetrics(recordingMeterRegistry), services, randomRetryingPurpose())
+        );
+        assertThat(new BytesArray(result), equalBytes(resourceBytes));
+        recordingMeterRegistry.getRecorder().collect();
+        assertThat(
+            getMeasurement(
+                recordingMeterRegistry,
+                InstrumentType.LONG_COUNTER,
+                RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL,
+                OPEN
+            ).getLong(),
+            equalTo(1L)
+        );
+        assertThat(
+            getMeasurement(
+                recordingMeterRegistry,
+                InstrumentType.LONG_COUNTER,
+                RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL,
+                OPEN
+            ).getLong(),
+            equalTo(1L)
+        );
+        assertThat(
+            getMeasurement(
+                recordingMeterRegistry,
+                InstrumentType.LONG_HISTOGRAM,
+                RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM,
+                OPEN
+            ).getLong(),
+            equalTo((long) getRetries)
+        );
+        assertThat(
+            getMeasurement(
+                recordingMeterRegistry,
+                InstrumentType.LONG_COUNTER,
+                RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL,
+                READ
+            ).getLong(),
+            equalTo(1L)
+        );
+        assertThat(
+            getMeasurement(
+                recordingMeterRegistry,
+                InstrumentType.LONG_COUNTER,
+                RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL,
+                READ
+            ).getLong(),
+            equalTo(1L)
+        );
+        assertThat(
+            getMeasurement(
+                recordingMeterRegistry,
+                InstrumentType.LONG_HISTOGRAM,
+                RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM,
+                READ
+            ).getLong(),
+            equalTo((long) readRetries)
+        );
+    }
+
+    private Measurement getMeasurement(
+        RecordingMeterRegistry meterRegistry,
+        InstrumentType instrumentType,
+        String metricName,
+        RetryingInputStream.StreamAction action
+    ) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(instrumentType, metricName)
+            .stream()
+            .filter(measurement -> Objects.equals(measurement.attributes().get("action"), action.getPastTense()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Measurement not found for action " + action));
+    }
+
     /**
      * RetryingInputStream with a short fixed delay so these tests run quickly
      */
     private static final class ShortDelayRetryingInputStream extends RetryingInputStream<String> {
+
+        ShortDelayRetryingInputStream(
+            RepositoriesMetrics repositoriesMetrics,
+            BlobStoreServices<String> blobStoreServices,
+            OperationPurpose operationPurpose
+        ) throws IOException {
+            super(repositoriesMetrics, blobStoreServices, operationPurpose);
+        }
 
         ShortDelayRetryingInputStream(BlobStoreServices<String> blobStoreServices, OperationPurpose purpose) throws IOException {
             super(RepositoriesMetrics.NOOP, blobStoreServices, purpose);
@@ -315,7 +431,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         @Override
         public Map<String, Object> getMetricsAttributes(RetryingInputStream.StreamAction action) {
-            return Map.of();
+            return Map.of("action", action.getPastTense());
         }
 
         record Success(RetryingInputStream.StreamAction action, long numberOfRetries) {};
@@ -369,7 +485,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             throws IOException {
             this.inputStream = inputStreamAtIndex(bytesReference, startIndex);
             final int remainingBytes = bytesReference.length() - startIndex;
-            this.readRemaining = randomIntBetween(Math.max(1, minimumSuccess), Math.min(maximumSuccess, remainingBytes / 2));
+            this.readRemaining = randomIntBetween(minimumSuccess, Math.min(maximumSuccess, remainingBytes / 2));
         }
 
         @Override

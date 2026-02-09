@@ -188,7 +188,9 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        RemoteWriteResponse response = executeRequest(new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray())));
+        RemoteWriteResponse response = executeRequest(
+            new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray()), "generic", "default")
+        );
 
         // Per remote write spec: MUST return 400 for requests containing invalid samples
         assertThat(response.getStatus(), equalTo(RestStatus.BAD_REQUEST));

@@ -3387,9 +3387,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(expectedFailure));
     }
 
-    private void verificationFailureWithResolution(String statement, String expectedFailure, IndexResolution resolution) {
-        var a = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(statement));
-        var e = expectThrows(VerificationException.class, () -> analyze(statement, a));
+    private void verificationFailureWithResolution(String statementWithSet, String expectedFailure, IndexResolution resolution) {
+        var e = expectThrows(VerificationException.class, () -> analyzeStatement(statementWithSet, indexResolutions(resolution)));
         assertThat(e.getMessage(), containsString(expectedFailure));
     }
 

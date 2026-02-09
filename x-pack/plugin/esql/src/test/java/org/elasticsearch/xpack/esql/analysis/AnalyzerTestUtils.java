@@ -187,6 +187,12 @@ public final class AnalyzerTestUtils {
         return analyzer.analyze(statement.plan());
     }
 
+    public static LogicalPlan analyzeStatement(String query, Map<IndexPattern, IndexResolution> indexResolutions) {
+        var statement = EsqlParser.INSTANCE.createStatement(query);
+        var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
+        return analyzer.analyze(statement.plan());
+    }
+
     public static LogicalPlan analyze(String query, String mapping) {
         return analyze(query, indexFromQuery(query), mapping);
     }

@@ -133,11 +133,11 @@ public record RepositoriesMetrics(
                 "HttpRequestTime in milliseconds expressed as as a histogram",
                 "ms"
             ),
-            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL, "input stream retry event count", "unit"),
-            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL, "input stream retry success count", "unit"),
+            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL, "retrying input stream retry event count", "unit"),
+            meterRegistry.registerLongCounter(METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL, "retrying input stream retry success count", "unit"),
             meterRegistry.registerLongHistogram(
                 METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM,
-                "input stream retry attempts histogram",
+                "retrying input stream retry attempts histogram",
                 "unit"
             )
         );

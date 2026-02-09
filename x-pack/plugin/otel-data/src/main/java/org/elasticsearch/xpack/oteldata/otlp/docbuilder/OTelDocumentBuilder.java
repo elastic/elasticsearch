@@ -114,17 +114,4 @@ public abstract class OTelDocumentBuilder {
             default -> throw new IllegalArgumentException("Unsupported attribute value type: " + value.getValueCase());
         }
     }
-
-    protected void addSpanId(XContentBuilder builder, byte[] spanId) throws IOException {
-        if (spanId.length > 0) {
-            builder.field("span_id", HexFormat.of().formatHex(spanId));
-        }
-    }
-
-    protected void addTraceId(XContentBuilder builder, byte[] traceId) throws IOException {
-        if (traceId.length > 0) {
-            builder.field("trace_id", HexFormat.of().formatHex(traceId));
-        }
-    }
-
 }

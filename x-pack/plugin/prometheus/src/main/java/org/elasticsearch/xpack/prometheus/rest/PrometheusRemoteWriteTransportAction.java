@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -101,11 +102,11 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
-            int dropCount = 0;
+            int droppedMissingName = 0;
             for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
                 String metricName = extractMetricName(timeSeries.getLabelsList());
                 if (metricName == null) {
-                    dropCount += timeSeries.getSamplesCount();
+                    droppedMissingName += timeSeries.getSamplesCount();
                     continue;
                 }
 
@@ -118,16 +119,17 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }
 
             if (bulkRequestBuilder.numberOfActions() == 0) {
-                listener.onResponse(new RemoteWriteResponse(RestStatus.NO_CONTENT));
+                String message = buildFailureSummary(totalSamples, droppedMissingName, droppedMissingName, Map.of());
+                listener.onResponse(new RemoteWriteResponse(RestStatus.BAD_REQUEST, message));
                 return;
             }
 
-            final int finalDropCount = dropCount;
+            final int finalDroppedMissingName = droppedMissingName;
             bulkRequestBuilder.execute(new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse bulkResponse) {
-                    if (bulkResponse.hasFailures()) {
-                        handlePartialSuccess(bulkResponse, totalSamples, finalDropCount, listener);
+                    if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
+                        handlePartialSuccess(bulkResponse, totalSamples, finalDroppedMissingName, listener);
                     } else {
                         listener.onResponse(new RemoteWriteResponse(RestStatus.NO_CONTENT));
                     }
@@ -217,20 +219,25 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private static void handlePartialSuccess(
         BulkResponse bulkResponse,
         int totalSamples,
-        int dropCount,
+        int droppedMissingName,
         ActionListener<RemoteWriteResponse> listener
     ) {
         // Count failures and group by status
-        Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
-        RestStatus responseStatus = RestStatus.NO_CONTENT;
-        int failures = dropCount;
+        Map<String, Map<RestStatus, FailureGroup>> failureGroups = null;
+        // Default to returning 400 per the remote write spec for requests that should not be retried.
+        RestStatus responseStatus = RestStatus.BAD_REQUEST;
+        int failures = droppedMissingName;
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
             BulkItemResponse.Failure failure = item.getFailure();
             if (failure != null) {
                 failures++;
                 if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                    // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
                     responseStatus = RestStatus.TOO_MANY_REQUESTS;
+                }
+                if (failureGroups == null) {
+                    failureGroups = new HashMap<>();
                 }
                 failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
                     .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()))
@@ -239,30 +246,43 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }
         }
 
-        if (failures == bulkResponse.getItems().length) {
-            // All samples failed
-            failures = totalSamples;
-        }
+        String message = buildFailureSummary(totalSamples, droppedMissingName, failures, failureGroups);
+        listener.onResponse(new RemoteWriteResponse(responseStatus, message));
+    }
 
-        // Log failure summary
+    private static String buildFailureSummary(
+        int totalSamples,
+        int droppedMissingName,
+        int failures,
+        @Nullable Map<String, Map<RestStatus, FailureGroup>> failureGroups
+    ) {
         StringBuilder failureMessage = new StringBuilder();
-        for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
-            for (Map.Entry<RestStatus, FailureGroup> statusEntry : indexEntry.getValue().entrySet()) {
-                FailureGroup group = statusEntry.getValue();
-                failureMessage.append("Index [")
-                    .append(indexEntry.getKey())
-                    .append("] returned status [")
-                    .append(statusEntry.getKey())
-                    .append("] for ")
-                    .append(group.failureCount())
-                    .append(" documents. Sample error: ")
-                    .append(group.failureMessageSample())
-                    .append("\n");
+        failureMessage.append("Prometheus remote write request partially failed: ")
+            .append(failures)
+            .append(" of ")
+            .append(totalSamples)
+            .append(" samples failed.\n");
+        if (droppedMissingName > 0) {
+            failureMessage.append(droppedMissingName).append(" sample(s) dropped due to missing __name__ label\n");
+        }
+        if (failureGroups != null) {
+            for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
+                for (Map.Entry<RestStatus, FailureGroup> statusEntry : indexEntry.getValue().entrySet()) {
+                    FailureGroup group = statusEntry.getValue();
+                    failureMessage.append("Index [")
+                        .append(indexEntry.getKey())
+                        .append("] returned status [")
+                        .append(statusEntry.getKey())
+                        .append("] for ")
+                        .append(group.failureCount())
+                        .append(" documents. Sample error: ")
+                        .append(group.failureMessageSample())
+                        .append("\n");
+                }
             }
         }
-        logger.warn("Prometheus remote write partial failure: {} of {} samples failed. {}", failures, totalSamples, failureMessage);
 
-        listener.onResponse(new RemoteWriteResponse(responseStatus));
+        return failureMessage.toString();
     }
 
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
@@ -293,9 +313,16 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     public static class RemoteWriteResponse extends ActionResponse {
         private final RestStatus status;
+        @Nullable
+        private final String message;
 
         public RemoteWriteResponse(RestStatus status) {
+            this(status, null);
+        }
+
+        public RemoteWriteResponse(RestStatus status, @Nullable String message) {
             this.status = status;
+            this.message = message;
         }
 
         @Override
@@ -305,6 +332,11 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
         public RestStatus getStatus() {
             return status;
+        }
+
+        @Nullable
+        public String getMessage() {
+            return message;
         }
     }
 }

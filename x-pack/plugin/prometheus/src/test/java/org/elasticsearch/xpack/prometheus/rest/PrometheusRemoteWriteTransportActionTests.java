@@ -27,6 +27,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -120,8 +121,10 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             new BulkResponse(bulkItemResponses, 0)
         );
 
-        // Partial success still returns NO_CONTENT for Prometheus (no protobuf response body)
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        // Per remote write spec: MUST return 400 for requests containing invalid samples
+        assertThat(response.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertNotNull(response.getMessage());
+        assertThat(response.getMessage(), containsString("bad request"));
     }
 
     public void testBulkFailure() {
@@ -147,8 +150,8 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         assertThat(response.getValue().getStatus(), equalTo(RestStatus.BAD_REQUEST));
     }
 
-    public void testTimeseriesWithoutNameLabelSkipped() {
-        // Timeseries without __name__ label should be skipped
+    public void testTimeseriesWithoutNameLabelReturns400() {
+        // Timeseries without __name__ label are invalid samples
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
                 RemoteWrite.TimeSeries.newBuilder()
@@ -160,8 +163,31 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
 
         RemoteWriteResponse response = executeRequest(new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray())));
 
-        // Should return NO_CONTENT since no valid samples were indexed
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        // Per remote write spec: MUST return 400 for requests containing invalid samples
+        assertThat(response.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertNotNull(response.getMessage());
+        assertThat(response.getMessage(), containsString("missing __name__ label"));
+    }
+
+    public void testPartialSuccessWithDroppedSamples() {
+        // Mix of valid timeseries and timeseries without __name__ label, bulk succeeds for valid ones
+        long now = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(createTimeSeries("valid_metric", 1.0, now))
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("job").setValue("test").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(42.0).setTimestamp(now).build())
+                    .build()
+            )
+            .build();
+
+        RemoteWriteResponse response = executeRequest(new RemoteWriteRequest(new BytesArray(writeRequest.toByteArray())));
+
+        // Per remote write spec: MUST return 400 for requests containing invalid samples
+        assertThat(response.getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertNotNull(response.getMessage());
+        assertThat(response.getMessage(), containsString("missing __name__ label"));
     }
 
     public void testInferMetricType() {

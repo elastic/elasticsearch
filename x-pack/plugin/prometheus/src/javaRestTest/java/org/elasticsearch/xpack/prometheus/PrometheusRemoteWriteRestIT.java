@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.prometheus;
 
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -25,6 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -130,6 +133,19 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         assertThat(hits2.get(0), hasKey(metric2));
     }
 
+    public void testRemoteWriteMissingNameLabelReturns400() throws Exception {
+        long timestamp = System.currentTimeMillis();
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder().addLabels(label("job", "test_job")).addSamples(sample(42.0, timestamp)).build()
+            )
+            .build();
+
+        String body = sendAndAssertBadRequest(writeRequest);
+        assertThat(body, containsString("missing __name__ label"));
+    }
+
     // --- helpers ---
 
     private static RemoteWrite.TimeSeries timeSeries(String metricName, Map<String, String> labels, RemoteWrite.Sample... samples) {
@@ -154,6 +170,14 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
+    }
+
+    private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest) throws IOException {
+        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        return EntityUtils.toString(e.getResponse().getEntity());
     }
 
     /**

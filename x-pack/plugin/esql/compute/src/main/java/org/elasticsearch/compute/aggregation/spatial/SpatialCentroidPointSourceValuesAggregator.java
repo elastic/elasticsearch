@@ -14,11 +14,11 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.geometry.Point;
 
 /**
- * This aggregator calculates the centroid of a set of cartesian points.
- * It is assumes that the cartesian points are encoded as WKB BytesRef.
+ * This aggregator calculates the centroid of a set of points (geo_point or cartesian_point).
+ * It is assumed that the points are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialCentroidCartesianPointSourceValuesAggregator}.
+ * even if the local node partial aggregation is done with doc-values aggregators.
  */
 @Aggregator(
     {
@@ -29,7 +29,7 @@ import org.elasticsearch.geometry.Point;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-class SpatialCentroidCartesianPointSourceValuesAggregator extends CentroidPointAggregator {
+class SpatialCentroidPointSourceValuesAggregator extends CentroidPointAggregator {
     public static void combine(CentroidState current, BytesRef wkb) {
         Point point = SpatialAggregationUtils.decodePoint(wkb);
         current.add(point.getX(), point.getY());

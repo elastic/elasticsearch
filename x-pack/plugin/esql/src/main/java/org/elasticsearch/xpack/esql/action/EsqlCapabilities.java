@@ -1853,6 +1853,12 @@ public class EsqlCapabilities {
         LAST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
+         * Allow FIRST/LAST aggs to accept DATE/DATE_NANOS in the search field
+         * https://github.com/elastic/elasticsearch/issues/142137
+         */
+        FIRST_LAST_AGG_WITH_DATES,
+
+        /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
          */
         ST_EXTENT_AGG_NULL_SUPPORT,

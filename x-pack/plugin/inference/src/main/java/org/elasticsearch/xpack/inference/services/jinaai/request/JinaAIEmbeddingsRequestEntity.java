@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
+import static org.elasticsearch.inference.InputType.INTERNAL_SEARCH;
+import static org.elasticsearch.inference.InputType.SEARCH;
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
 public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, InputType inputType, JinaAIEmbeddingsModel model)
@@ -41,6 +43,7 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
     // Late chunking models have a token limit of 8000 or ~6000 words (using a rough 1 token:0.75 words ratio). We set the maximum word
     // count with a bit of extra room to 5500 words.
     static final int MAX_WORD_COUNT_FOR_LATE_CHUNKING = 5500;
+    public static final String JINA_CLIP_V_2_MODEL_NAME = "jina-clip-v2";
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -55,12 +58,16 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
 
         builder.field(EMBEDDING_TYPE_FIELD, model.getServiceSettings().getEmbeddingType().toRequestString());
 
-        // prefer the root level inputType over task settings input type
+        // Prefer the root level inputType over task settings input type.
+        // Do not specify the "task" field if the provided input type is not supported by the model
         JinaAIEmbeddingsTaskSettings taskSettings = model.getTaskSettings();
-        if (InputType.isSpecified(inputType)) {
+        if (InputType.isSpecified(inputType) && modelSupportsInputType(model, inputType)) {
             builder.field(TASK_TYPE_FIELD, convertInputType(inputType));
-        } else if (InputType.isSpecified(taskSettings.getInputType())) {
-            builder.field(TASK_TYPE_FIELD, convertInputType(taskSettings.getInputType()));
+        } else {
+            var taskSettingsInputType = taskSettings.getInputType();
+            if (InputType.isSpecified(taskSettingsInputType) && modelSupportsInputType(model, taskSettingsInputType)) {
+                builder.field(TASK_TYPE_FIELD, convertInputType(taskSettingsInputType));
+            }
         }
 
         if (taskSettings.getLateChunking() != null) {
@@ -121,5 +128,13 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
         }
 
         return wordCount;
+    }
+
+    private static boolean modelSupportsInputType(JinaAIEmbeddingsModel model, InputType inputType) {
+        if (JINA_CLIP_V_2_MODEL_NAME.equalsIgnoreCase(model.getServiceSettings().modelId())) {
+            // jina-clip-v2 only accepts "retrieval.query" for the "task" field
+            return SEARCH.equals(inputType) || INTERNAL_SEARCH.equals(inputType);
+        }
+        return true;
     }
 }

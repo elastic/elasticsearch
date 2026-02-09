@@ -213,12 +213,12 @@ abstract class CentroidShapeAggregator {
     static class GroupingShapeCentroidState implements GroupingAggregatorState {
         private final BigArrays bigArrays;
 
-        DoubleArray xValues;
-        DoubleArray xDeltas;
-        DoubleArray yValues;
-        DoubleArray yDeltas;
-        DoubleArray weights;
-        IntArray shapeTypes;
+        private DoubleArray xValues;
+        private DoubleArray xDeltas;
+        private DoubleArray yValues;
+        private DoubleArray yDeltas;
+        private DoubleArray weights;
+        private IntArray shapeTypes;
 
         GroupingShapeCentroidState(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
@@ -304,6 +304,9 @@ abstract class CentroidShapeAggregator {
                 yValues = bigArrays.grow(yValues, requiredSize);
                 yDeltas = bigArrays.grow(yDeltas, requiredSize);
                 weights = bigArrays.grow(weights, requiredSize);
+            }
+            // Since shape types are stored as ints, we grow them in different increments
+            if (shapeTypes.size() < requiredSize) {
                 shapeTypes = bigArrays.grow(shapeTypes, requiredSize);
             }
         }

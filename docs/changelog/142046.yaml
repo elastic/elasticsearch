@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 141906
+pr: 142046
+summary: Fix Top Hits Incompatible Field Types on Sort Across Indices
+type: bug

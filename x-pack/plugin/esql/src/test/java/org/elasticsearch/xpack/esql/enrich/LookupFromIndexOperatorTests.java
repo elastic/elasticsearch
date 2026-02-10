@@ -489,7 +489,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     @Override
-    public void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() throws Exception {
         // only test field based join and EQ to prevents timeouts in Ci
         if (operation == null || operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ)) {
             super.testSimpleCircuitBreaking();

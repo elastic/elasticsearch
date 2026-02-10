@@ -88,41 +88,8 @@ public class CloneStep implements DlmStep {
 
         String cloneIndexName = getCloneIndexName(indexName);
         if (projectMetadata.indices().containsKey(cloneIndexName)) {
-            // Clone index exists but step not completed - check if it's been stuck for too long
-            IndexMetadata cloneIndexMetadata = projectMetadata.index(cloneIndexName);
-            long cloneCreationTime = cloneIndexMetadata.getCreationDate();
-            long currentTime = System.currentTimeMillis();
-            long timeSinceCreation = currentTime - cloneCreationTime;
-            if (isCloneIndexStuck(cloneIndexMetadata, timeSinceCreation, stepContext)) {
-                // Clone has been stuck for > 12 hours, clean it up so a new clone can be attempted
-                logger.info(
-                    "DLM cleaning up clone index [{}] for index [{}] as it has been in progress for [{}ms], exceeding timeout of [{}ms]",
-                    cloneIndexName,
-                    indexName,
-                    timeSinceCreation,
-                    CLONE_TIMEOUT.millis()
-                );
-                deleteCloneIndexIfExists(
-                    stepContext,
-                    ActionListener.wrap(
-                        resp -> logger.info("DLM successfully cleaned up clone index [{}] for index [{}]", cloneIndexName, indexName),
-                        err -> logger.error(
-                            () -> Strings.format("DLM failed to clean up clone index [%s] for index [%s]", cloneIndexName, indexName),
-                            err
-                        )
-                    )
-                );
-            } else {
-                // Clone is still fresh, wait for it to complete
-                logger.debug(
-                    "DLM clone index [{}] for index [{}] exists and has been in progress for [{}ms], "
-                        + "waiting for completion or timeout of [{}ms]",
-                    cloneIndexName,
-                    indexName,
-                    timeSinceCreation,
-                    CLONE_TIMEOUT.millis()
-                );
-                // Wait for next DLM run to check again
+            // Clone index exists but step not completed - check if it's been stuck for too long and clean up if so
+            if (maybeCleanUpStuckCloneTask(stepContext) == false) {
                 return;
             }
         }
@@ -133,6 +100,53 @@ public class CloneStep implements DlmStep {
     @Override
     public String stepName() {
         return "Clone Index";
+    }
+
+    /*
+     * Checks if the clone index has been stuck for too long and if so, deletes it to allow a new clone attempt.
+     * @return true if the clone index was stuck and a cleanup was initiated,
+     * false if the clone index is still fresh and waiting for completion.
+     */
+    private static boolean maybeCleanUpStuckCloneTask(DlmStepContext stepContext) {
+        String indexName = stepContext.indexName();
+        String cloneIndexName = getCloneIndexName(indexName);
+        IndexMetadata cloneIndexMetadata = stepContext.projectState().metadata().index(cloneIndexName);
+        long cloneCreationTime = cloneIndexMetadata.getCreationDate();
+        long currentTime = System.currentTimeMillis();
+        long timeSinceCreation = currentTime - cloneCreationTime;
+        if (isCloneIndexStuck(cloneIndexMetadata, timeSinceCreation, stepContext)) {
+            // Clone has been stuck for > 12 hours, clean it up so a new clone can be attempted
+            logger.info(
+                "DLM cleaning up clone index [{}] for index [{}] as it has been in progress for [{}ms], exceeding timeout of [{}ms]",
+                cloneIndexName,
+                indexName,
+                timeSinceCreation,
+                CLONE_TIMEOUT.millis()
+            );
+            deleteCloneIndexIfExists(
+                stepContext,
+                ActionListener.wrap(
+                    resp -> logger.info("DLM successfully cleaned up clone index [{}] for index [{}]", cloneIndexName, indexName),
+                    err -> logger.error(
+                        () -> Strings.format("DLM failed to clean up clone index [%s] for index [%s]", cloneIndexName, indexName),
+                        err
+                    )
+                )
+            );
+            return true;
+        } else {
+            // Clone is still fresh, wait for it to complete
+            logger.debug(
+                "DLM clone index [{}] for index [{}] exists and has been in progress for [{}ms], "
+                    + "waiting for completion or timeout of [{}ms]",
+                cloneIndexName,
+                indexName,
+                timeSinceCreation,
+                CLONE_TIMEOUT.millis()
+            );
+            // Wait for next DLM run to check again
+            return false;
+        }
     }
 
     private static boolean isCloneIndexStuck(IndexMetadata cloneIndexMetadata, long timeSinceCreation, DlmStepContext stepContext) {

@@ -72,9 +72,14 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -99,6 +104,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -665,6 +671,54 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         + "] generation [1] unavailable on resume (contents changed, or object deleted):"
                 )
             );
+        }
+    }
+
+    public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
+        final GoogleCloudStorageBlobContainer blobContainer = asInstanceOf(
+            GoogleCloudStorageBlobContainer.class,
+            blobContainerBuilder().maxRetries(randomIntBetween(1000, 2000)).build()
+        );
+        final byte[] blobContents = randomByteArrayOfLength(1024);
+        final int incompleteLength = 10;
+        final CountDownLatch haveSentSomeContents = new CountDownLatch(1);
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_while_store_closes"), exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("GET".equals(exchange.getRequestMethod())) {
+                    final int rangeStart = getRangeStart(exchange);
+                    assertThat(rangeStart, lessThan(blobContents.length));
+                    final OptionalInt rangeEnd = getRangeEnd(exchange);
+                    final int requestedLength = rangeEnd.orElse(blobContents.length) - rangeStart;
+                    if (rangeEnd.isPresent()) {
+                        assertThat(rangeEnd.getAsInt(), greaterThanOrEqualTo(rangeStart));
+                    }
+                    assertThat(requestedLength, lessThanOrEqualTo(blobContents.length - rangeStart));
+                    assertThat(requestedLength, greaterThan(incompleteLength));
+                    addSuccessfulDownloadHeaders(exchange, blobContents, requestedLength);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
+                    exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
+                    haveSentSomeContents.countDown();
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        try (ExecutorService executorService = Executors.newSingleThreadExecutor()) {
+            final var downloadFuture = executorService.submit(() -> {
+                try (
+                    InputStream readBlobWhileStoreCloses = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes")
+                ) {
+                    Streams.consumeFully(readBlobWhileStoreCloses);
+                } catch (IOException e) {
+                    fail(e);
+                }
+            });
+            safeAwait(haveSentSomeContents);
+            blobContainer.getBlobStore().close();
+            ExecutionException executionException = assertThrows(ExecutionException.class, downloadFuture::get);
+            assertNotNull(ExceptionsHelper.unwrap(executionException, GoogleCloudStorageBlobStore.BlobStoreClosedException.class));
         }
     }
 

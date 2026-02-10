@@ -115,6 +115,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final int bufferSize;
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
+    private boolean closed = false;
 
     GoogleCloudStorageBlobStore(
         ProjectId projectId,
@@ -138,7 +139,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.casBackoffPolicy = casBackoffPolicy;
     }
 
-    MeteredStorage client() throws IOException {
+    /**
+     * @throws BlobStoreClosedException if the blob store is closed
+     */
+    synchronized MeteredStorage client() throws IOException {
+        if (closed) {
+            throw new BlobStoreClosedException("blob store for repository " + repositoryName + "is closed");
+        }
         return storageService.client(projectId, clientName, repositoryName, statsCollector);
     }
 
@@ -152,7 +159,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        closed = true;
         storageService.closeRepositoryClients(projectId, repositoryName);
     }
 
@@ -810,5 +818,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             t = t.getCause();
         }
         return null;
+    }
+
+    public static class BlobStoreClosedException extends IllegalStateException {
+        BlobStoreClosedException(String message) {
+            super(message);
+        }
     }
 }

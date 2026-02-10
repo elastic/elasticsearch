@@ -67,4 +67,13 @@ public record DlmStepContext(
             callback
         );
     }
+
+    /*
+     * @return true if the request is in-progress (deduplicator is currently
+     * tracking the provided projectId, request tuple),
+     * false otherwise.
+     */
+    public boolean isRequestInProgress(TransportRequest request) {
+        return transportActionsDeduplicator.hasRequest(Tuple.tuple(projectId(), request));
+    }
 }

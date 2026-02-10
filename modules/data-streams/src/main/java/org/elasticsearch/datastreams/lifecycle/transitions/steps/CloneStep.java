@@ -196,7 +196,7 @@ public class CloneStep implements DlmStep {
 
     private void cloneIndex(String sourceIndex, String targetIndex, ActionListener<Void> listener, DlmStepContext stepContext) {
         ResizeRequest cloneIndexRequest = formCloneRequest(sourceIndex, targetIndex);
-        cloneIndexRequest.setTargetIndexSettings(Settings.builder().put("index.number_of_replicas", 0));
+        cloneIndexRequest.setTargetIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         stepContext.executeDeduplicatedRequest(
             TransportResizeAction.TYPE.name(),
             cloneIndexRequest,

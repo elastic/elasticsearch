@@ -118,7 +118,7 @@ public class CloneStepTests extends ESTestCase {
 
     @After
     public void cleanup() {
-        threadPool.shutdownNow();
+        terminate(threadPool);
     }
 
     public void testStepName() {

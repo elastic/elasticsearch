@@ -17,8 +17,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
@@ -27,8 +25,6 @@ import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -123,12 +119,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.componentTemplateConfigs = loadComponentTemplateConfigs();
+        this.componentTemplateConfigs = parseComponentTemplates(getComponentTemplateConfigsAsConfigs());
     }
 
-    private Map<String, ComponentTemplate> loadComponentTemplateConfigs() {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
+    static IndexTemplateConfig[] getComponentTemplateConfigsAsConfigs() {
+        return new IndexTemplateConfig[] {
             new IndexTemplateConfig(
                 DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/data-streams@mappings.json",
@@ -226,18 +221,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
-            )
-        )) {
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        return Map.copyOf(componentTemplates);
+            ) };
     }
 
     @Override
@@ -286,48 +270,53 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         return componentTemplateConfigs;
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(
-            LOGS_INDEX_TEMPLATE_NAME,
-            "/logs@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
-        new IndexTemplateConfig(
-            METRICS_INDEX_TEMPLATE_NAME,
-            "/metrics@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
-        new IndexTemplateConfig(
-            SYNTHETICS_INDEX_TEMPLATE_NAME,
-            "/synthetics@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
-        new IndexTemplateConfig(
-            AGENTLESS_INDEX_TEMPLATE_NAME,
-            "/agentless@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
-        new IndexTemplateConfig(
-            KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
-            "/kibana-reporting@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        )
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplateConfigs = parseComposableTemplates(
+        getComposableTemplateConfigsAsConfigs()
     );
+
+    static IndexTemplateConfig[] getComposableTemplateConfigsAsConfigs() {
+        return new IndexTemplateConfig[] {
+            new IndexTemplateConfig(
+                LOGS_INDEX_TEMPLATE_NAME,
+                "/logs@template.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_INDEX_TEMPLATE_NAME,
+                "/metrics@template.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_INDEX_TEMPLATE_NAME,
+                "/synthetics@template.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                AGENTLESS_INDEX_TEMPLATE_NAME,
+                "/agentless@template.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
+                "/kibana-reporting@template.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ) };
+    }
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (stackTemplateEnabled) {
-            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+            return composableIndexTemplateConfigs;
         } else {
             return Map.of();
         }

@@ -34,8 +34,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.io.IOException;
@@ -383,9 +381,9 @@ public final class MlIndexAndAlias {
         }
 
         TransportPutComposableIndexTemplateAction.Request request;
-        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+        try {
             request = new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                ComposableIndexTemplate.parse(parser)
+                templateConfig.load(ComposableIndexTemplate::parse)
             ).masterNodeTimeout(masterTimeout);
         } catch (IOException e) {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);

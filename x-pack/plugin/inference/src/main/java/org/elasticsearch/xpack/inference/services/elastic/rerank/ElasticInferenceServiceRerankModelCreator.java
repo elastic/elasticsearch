@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModelCreator;

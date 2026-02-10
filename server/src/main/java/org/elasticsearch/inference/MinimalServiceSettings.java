@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,8 +27,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
-import static org.elasticsearch.inference.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.RERANK;
@@ -290,7 +291,6 @@ public record MinimalServiceSettings(
         return taskType == other.taskType
             && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
-            && elementType == other.elementType
-            && Objects.equals(endpointMetadata, other.endpointMetadata);
+            && elementType == other.elementType;
     }
 }

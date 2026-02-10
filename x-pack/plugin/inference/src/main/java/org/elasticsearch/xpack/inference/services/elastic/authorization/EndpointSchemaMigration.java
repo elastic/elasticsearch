@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
-import org.elasticsearch.inference.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 
 /**
  * Placeholder class for endpoint migration logic. When a new field is added to the Elastic Inference Service authorization API schema,

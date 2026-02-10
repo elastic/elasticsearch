@@ -12,12 +12,20 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCase<MinimalServiceSettings> {
+
+    private static final int TEST_DIMENSIONS_384 = 384;
+    private static final int TEST_DIMENSIONS_768 = 768;
+    private static final String SERVICE_A = "service-a";
+    private static final String SERVICE_B = "service-b";
+    private static final String SERVICE = "service";
+    private static final String OTHER_SERVICE = "other-service";
 
     public static MinimalServiceSettings randomInstance() {
         TaskType taskType = randomFrom(TaskType.values());
@@ -151,5 +159,147 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public void testCanMergeWith_SettingsWithDifferentEndpointMetadata() {
+        var settings = new MinimalServiceSettings(
+            SERVICE_A,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        var same = new MinimalServiceSettings(
+            SERVICE_A,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadataTests.randomNonEmptyInstance()
+        );
+        assertTrue(settings.canMergeWith(same));
+    }
+
+    public void testCanMergeWithSameSettings() {
+        var settings = new MinimalServiceSettings(
+            SERVICE_A,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        var same = new MinimalServiceSettings(
+            SERVICE_A,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        assertTrue(settings.canMergeWith(same));
+    }
+
+    public void testCanMergeWithDifferentServiceName_ReturnsTrue() {
+        // Embedding task type
+        {
+            var settings = new MinimalServiceSettings(
+                SERVICE_A,
+                TaskType.TEXT_EMBEDDING,
+                TEST_DIMENSIONS_384,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                EndpointMetadata.EMPTY_INSTANCE
+            );
+            var other = new MinimalServiceSettings(
+                SERVICE_B,
+                TaskType.TEXT_EMBEDDING,
+                TEST_DIMENSIONS_384,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                EndpointMetadata.EMPTY_INSTANCE
+            );
+            assertTrue(settings.canMergeWith(other));
+        }
+        // Non-embedding task type
+        {
+            var settings = new MinimalServiceSettings(SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+            var other = new MinimalServiceSettings(OTHER_SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+            assertTrue(settings.canMergeWith(other));
+        }
+    }
+
+    public void testCanMergeWithDifferentTaskType_ReturnsFalse() {
+        var settings = new MinimalServiceSettings(
+            null,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        var other = new MinimalServiceSettings(null, TaskType.SPARSE_EMBEDDING, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+        assertFalse(settings.canMergeWith(other));
+    }
+
+    public void testCanMergeWithDifferentDimensions_ReturnsFalse() {
+        var settings = new MinimalServiceSettings(
+            null,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        var other = new MinimalServiceSettings(
+            null,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_768,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        assertFalse(settings.canMergeWith(other));
+    }
+
+    public void testCanMergeWithDifferentSimilarity_ReturnsFalse() {
+        var settings = new MinimalServiceSettings(
+            null,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        var other = new MinimalServiceSettings(
+            null,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.DOT_PRODUCT,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        assertFalse(settings.canMergeWith(other));
+    }
+
+    public void testCanMergeWithDifferentElementType_ReturnsFalse() {
+        var settings = new MinimalServiceSettings(
+            null,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        var other = new MinimalServiceSettings(
+            null,
+            TaskType.TEXT_EMBEDDING,
+            TEST_DIMENSIONS_384,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.BYTE,
+            EndpointMetadata.EMPTY_INSTANCE
+        );
+        assertFalse(settings.canMergeWith(other));
     }
 }

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.parser;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.StatusHeuristic;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -17,17 +17,17 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.util.EnumSet;
 import java.util.Map;
 
-import static org.elasticsearch.inference.EndpointMetadata.DISPLAY_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Display.NAME_FIELD;
-import static org.elasticsearch.inference.EndpointMetadata.HEURISTICS_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.RELEASE_DATE_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.STATUS_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.INTERNAL_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.VERSION_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.RELEASE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.STATUS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.INTERNAL_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractLong;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.isMapNullOrEmpty;
@@ -47,7 +47,7 @@ public final class EndpointMetadataParser {
      * @param map The map to parse from
      * @return the {@link EndpointMetadata}. {@link EndpointMetadata#EMPTY_INSTANCE} is returned if the map is null or empty
      */
-    public static EndpointMetadata fromMap(@Nullable Map<String, Object> map, String root) {
+    public static EndpointMetadata fromMap(@Nullable Map<String, Object> map) {
         if (isMapNullOrEmpty(map)) {
             return EndpointMetadata.EMPTY_INSTANCE;
         }
@@ -57,14 +57,13 @@ public final class EndpointMetadataParser {
             return EndpointMetadata.EMPTY_INSTANCE;
         }
 
-        var metadataRoot = pathToKey(root, METADATA_FIELD_NAME);
         var heuristicsMap = ServiceUtils.removeFromMap(metadataMap, HEURISTICS_FIELD_NAME);
         var internalMap = ServiceUtils.removeFromMap(metadataMap, INTERNAL_FIELD_NAME);
         var displayMap = ServiceUtils.removeFromMap(metadataMap, DISPLAY_FIELD_NAME);
 
-        var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(metadataRoot, HEURISTICS_FIELD_NAME));
-        var internal = internalFromMap(internalMap, pathToKey(metadataRoot, INTERNAL_FIELD_NAME));
-        var display = displayFromMap(displayMap, pathToKey(metadataRoot, DISPLAY_FIELD_NAME));
+        var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(METADATA_FIELD_NAME, HEURISTICS_FIELD_NAME));
+        var internal = internalFromMap(internalMap, pathToKey(METADATA_FIELD_NAME, INTERNAL_FIELD_NAME));
+        var display = displayFromMap(displayMap, pathToKey(METADATA_FIELD_NAME, DISPLAY_FIELD_NAME));
 
         if (heuristics.isEmpty() && internal.isEmpty() && display.isEmpty()) {
             return EndpointMetadata.EMPTY_INSTANCE;

@@ -138,7 +138,7 @@ public class ModelRegistry implements ClusterStateListener {
         String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
         String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
         TaskType taskType = TaskType.fromString(taskTypeStr);
-        var endpointMetadata = EndpointMetadataParser.fromMap(modelConfigMap.config(), "");
+        var endpointMetadata = EndpointMetadataParser.fromMap(modelConfigMap.config());
 
         return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets(), endpointMetadata);
     }

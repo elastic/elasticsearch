@@ -11,6 +11,7 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 

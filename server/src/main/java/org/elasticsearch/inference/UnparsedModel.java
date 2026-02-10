@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.inference.metadata.EndpointMetadata;
+
 import java.util.Map;
 
 /**

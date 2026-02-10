@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.parser;
 
-import org.elasticsearch.inference.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,24 +16,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.EndpointMetadata.DISPLAY_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Display.NAME_FIELD;
-import static org.elasticsearch.inference.EndpointMetadata.HEURISTICS_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.RELEASE_DATE_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Heuristics.STATUS_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.Internal.VERSION_FIELD_NAME;
-import static org.elasticsearch.inference.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.RELEASE_DATE_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.STATUS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EndpointMetadataParserTests extends ESTestCase {
 
     private static final String ROOT = "root";
-    private static final String CONFIG = "config";
-    private static final String EMPTY_ROOT = "";
     private static final String OTHER_KEY = "other";
     private static final String VALUE = "value";
     private static final String DISPLAY_NAME = "Display Name";
@@ -48,29 +46,29 @@ public class EndpointMetadataParserTests extends ESTestCase {
     private static final List<String> PROPERTIES_LIST = List.of("prop1", "prop2");
 
     public void testFromMap_ReturnsEmpty_WhenMapIsNull() {
-        assertThat(EndpointMetadataParser.fromMap(null, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(EndpointMetadataParser.fromMap(null), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMapIsEmpty() {
-        assertThat(EndpointMetadataParser.fromMap(Map.of(), EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(EndpointMetadataParser.fromMap(Map.of()), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMetadataKeyMissing() {
         var map = new HashMap<String, Object>();
         map.put(OTHER_KEY, VALUE);
-        assertThat(EndpointMetadataParser.fromMap(map, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(EndpointMetadataParser.fromMap(map), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMetadataValueIsNull() {
         Map<String, Object> map = new HashMap<>();
         map.put(METADATA_FIELD_NAME, null);
-        assertThat(EndpointMetadataParser.fromMap(map, EMPTY_ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(EndpointMetadataParser.fromMap(map), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ReturnsEmpty_WhenMetadataValueIsEmptyMap() {
         var map = new HashMap<String, Object>();
         map.put(METADATA_FIELD_NAME, new HashMap<String, Object>());
-        assertThat(EndpointMetadataParser.fromMap(map, ROOT), equalTo(EndpointMetadata.EMPTY_INSTANCE));
+        assertThat(EndpointMetadataParser.fromMap(map), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
     public void testFromMap_ParsesFullMetadata() {
@@ -92,13 +90,13 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var metadataMap = new HashMap<String, Object>();
         metadataMap.put(HEURISTICS_FIELD_NAME, heuristicsMap);
-        metadataMap.put(org.elasticsearch.inference.EndpointMetadata.INTERNAL_FIELD_NAME, internalMap);
+        metadataMap.put(EndpointMetadata.INTERNAL_FIELD_NAME, internalMap);
         metadataMap.put(DISPLAY_FIELD_NAME, displayMap);
 
         var rootMap = new HashMap<String, Object>();
         rootMap.put(METADATA_FIELD_NAME, metadataMap);
 
-        var result = EndpointMetadataParser.fromMap(rootMap, CONFIG);
+        var result = EndpointMetadataParser.fromMap(rootMap);
 
         assertThat(result.heuristics().properties(), equalTo(PROPERTIES_LIST));
         assertThat(result.heuristics().status(), equalTo(StatusHeuristic.GA));
@@ -118,7 +116,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
         var rootMap = new HashMap<String, Object>();
         rootMap.put(METADATA_FIELD_NAME, metadataMap);
 
-        var result = EndpointMetadataParser.fromMap(rootMap, EMPTY_ROOT);
+        var result = EndpointMetadataParser.fromMap(rootMap);
 
         assertThat(result.heuristics(), equalTo(EndpointMetadata.Heuristics.EMPTY_INSTANCE));
         assertThat(result.internal(), equalTo(EndpointMetadata.Internal.EMPTY_INSTANCE));

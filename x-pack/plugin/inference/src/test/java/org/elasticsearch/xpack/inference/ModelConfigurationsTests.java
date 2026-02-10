@@ -13,13 +13,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -177,8 +177,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings(),
-                instance.getChunkingSettings(),
-                EndpointMetadata.EMPTY_INSTANCE
+                instance.getChunkingSettings()
             );
         }
     }

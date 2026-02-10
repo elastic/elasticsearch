@@ -14,12 +14,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 
 public class ModelConfigurations implements ToFilteredXContentObject, VersionedNamedWriteable {
 
@@ -124,7 +125,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
         this.chunkingSettings = chunkingSettings;
-        this.endpointMetadata = Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY_INSTANCE);
+        this.endpointMetadata = endpointMetadata;
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {
@@ -136,9 +137,9 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.chunkingSettings = in.readOptionalNamedWriteable(ChunkingSettings.class);
 
         if (in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
-            this.endpointMetadata = new EndpointMetadata(in);
+            this.endpointMetadata = in.readOptionalWriteable(EndpointMetadata::new);
         } else {
-            this.endpointMetadata = EndpointMetadata.EMPTY_INSTANCE;
+            this.endpointMetadata = null;
         }
     }
 
@@ -152,7 +153,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeOptionalNamedWriteable(chunkingSettings);
 
         if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
-            endpointMetadata.writeTo(out);
+            out.writeOptionalWriteable(endpointMetadata);
         }
     }
 
@@ -181,7 +182,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     }
 
     public EndpointMetadata getEndpointMetadata() {
-        return endpointMetadata;
+        return Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY_INSTANCE);
     }
 
     @Override
@@ -214,10 +215,10 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
 
-        // If the endpoint metadata is empty it means the instance is the default empty state. This will happen for endpoints other than
-        // EIS ones. By not serializing the empty metadata, we avoid causing a StrictDynamicMappingException while an upgrade is in
-        // progress.
-        if (endpointMetadata.isEmpty() == false) {
+        // If the endpoint metadata is null or empty it means the instance is the default empty state.
+        // This will happen for endpoints other than EIS ones. By not serializing the empty metadata,
+        // we avoid causing a StrictDynamicMappingException while an upgrade is in progress.
+        if (endpointMetadata != null && endpointMetadata.isEmpty() == false) {
             if (includeFilteredFields) {
                 builder.field(EndpointMetadata.METADATA_FIELD_NAME, endpointMetadata);
             } else {

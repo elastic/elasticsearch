@@ -40,16 +40,18 @@ public final class TimeSeriesBlockHash extends BlockHash {
 
     private final int tsidChannel;
     private final int timestampChannel;
+    private final boolean reverseOutput;
     private final BytesRefHashTable tsidHash;
     private final LongLongHashTable finalHash;
     private final BytesRef scratch = new BytesRef();
     private long minTimestamp = Long.MAX_VALUE;
     private long maxTimestamp = Long.MIN_VALUE;
 
-    public TimeSeriesBlockHash(int tsidChannel, int timestampChannel, BlockFactory blockFactory) {
+    public TimeSeriesBlockHash(int tsidChannel, int timestampChannel, boolean reverseOutput, BlockFactory blockFactory) {
         super(blockFactory);
         this.tsidChannel = tsidChannel;
         this.timestampChannel = timestampChannel;
+        this.reverseOutput = reverseOutput;
         boolean success = false;
         try {
             this.tsidHash = HashImplFactory.newBytesRefHash(blockFactory);
@@ -248,11 +250,16 @@ public final class TimeSeriesBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         final int positionCount = (int) finalHash.size();
+        final Block[] blocks;
         if (OrdinalBytesRefBlock.isDense(positionCount, tsidHash.size())) {
-            return buildOrdinalKeys(positionCount);
+            blocks = buildOrdinalKeys(positionCount);
         } else {
-            return buildNonOrdinalKeys(positionCount);
+            blocks = buildNonOrdinalKeys(positionCount);
         }
+        if (reverseOutput) {
+            return new Block[] { blocks[1], blocks[0] };
+        }
+        return blocks;
     }
 
     private Block[] buildOrdinalKeys(int positionCount) {

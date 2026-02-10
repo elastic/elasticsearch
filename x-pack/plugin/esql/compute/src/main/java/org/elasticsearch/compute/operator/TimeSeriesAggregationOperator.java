@@ -68,9 +68,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                         var g1 = groups.get(0);
                         var g2 = groups.get(1);
                         if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                            return new TimeSeriesBlockHash(g1.channel(), g2.channel(), driverContext.blockFactory());
+                            return new TimeSeriesBlockHash(g1.channel(), g2.channel(), false, driverContext.blockFactory());
                         } else if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                            return new TimeSeriesBlockHash(g2.channel(), g1.channel(), driverContext.blockFactory());
+                            return new TimeSeriesBlockHash(g2.channel(), g1.channel(), true, driverContext.blockFactory());
                         }
                     }
                     // Broken optimizations are allowed as the inputs are vectors.

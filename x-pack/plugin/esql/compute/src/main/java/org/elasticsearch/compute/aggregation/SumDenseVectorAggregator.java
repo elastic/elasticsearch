@@ -24,7 +24,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * <p>This uses the block-only aggregation path where the combine method receives
  * the entire FloatBlock and a position, rather than individual float values.
  */
-@Aggregator({ @IntermediateState(name = "sum", type = "FLOAT_BLOCK") })
+@Aggregator({ @IntermediateState(name = "sum", type = "DENSE_VECTOR_BLOCK") })
 @GroupingAggregator
 class SumDenseVectorAggregator {
 

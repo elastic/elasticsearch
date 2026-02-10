@@ -140,6 +140,8 @@ public class Types {
     public static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
     public static final ClassName EXPONENTIAL_HISTOGRAM = ClassName.get("org.elasticsearch.exponentialhistogram", "ExponentialHistogram");
     public static final ClassName TDIGEST = ClassName.get("org.elasticsearch.compute.data", "TDigestHolder");
+    // Marker type for dense vectors - uses FloatBlock for storage but has distinct semantic meaning
+    public static final ClassName DENSE_VECTOR = ClassName.get(DATA_PACKAGE, "DenseVector");
 
     public static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     public static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
@@ -165,7 +167,9 @@ public class Types {
         TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector", null),
         TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector", BYTES_REF),
         TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null, EXPONENTIAL_HISTOGRAM_SCRATCH),
-        TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, null)
+        TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, null),
+        // Dense vectors are stored as multi-valued FloatBlocks, with no vector representation
+        TypeDef.of(DENSE_VECTOR, "DENSE_VECTOR", "FloatBlock", null, null)
     )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

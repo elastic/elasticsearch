@@ -636,6 +636,7 @@ public final class CsvTestUtils {
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
                 case TDIGEST -> TDIGEST;
                 case LONG_RANGE -> DATE_RANGE;
+                case DENSE_VECTOR -> DENSE_VECTOR;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

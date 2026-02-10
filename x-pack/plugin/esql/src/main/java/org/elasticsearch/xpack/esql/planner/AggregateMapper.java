@@ -115,9 +115,8 @@ public final class AggregateMapper {
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> DataType.TDIGEST;
             case LONG_RANGE -> DataType.DATE_RANGE;
-            // FLOAT is used for dense vector aggregations whose intermediate state is a FloatBlock
-            case FLOAT -> DataType.DENSE_VECTOR;
-            case NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+            case DENSE_VECTOR -> DataType.DENSE_VECTOR;
+            case FLOAT, NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );
         };

@@ -36,7 +36,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
-    private static final String DATA_STREAM = "metrics-generic.prometheus-default";
+    private static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -146,7 +146,29 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         assertThat(body, containsString("missing __name__ label"));
     }
 
+    public void testRemoteWriteWithCustomDataset() throws Exception {
+        String metricName = "custom_dataset_metric";
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/api/v1/write");
+
+        Map<String, Object> source = searchSingleDoc("metrics-myapp.prometheus-default", metricName);
+        assertDataStream(source, "metrics", "myapp.prometheus", "default");
+    }
+
+    public void testRemoteWriteWithCustomDatasetAndNamespace() throws Exception {
+        String metricName = "custom_ns_metric";
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/production/api/v1/write");
+
+        Map<String, Object> source = searchSingleDoc("metrics-myapp.prometheus-production", metricName);
+        assertDataStream(source, "metrics", "myapp.prometheus", "production");
+    }
+
     // --- helpers ---
+
+    private static RemoteWrite.WriteRequest simpleWriteRequest(String metricName) {
+        return RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of(), sample(1.0, System.currentTimeMillis())))
+            .build();
+    }
 
     private static RemoteWrite.TimeSeries timeSeries(String metricName, Map<String, String> labels, RemoteWrite.Sample... samples) {
         RemoteWrite.TimeSeries.Builder builder = RemoteWrite.TimeSeries.newBuilder().addLabels(label("__name__", metricName));
@@ -166,7 +188,11 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest) throws IOException {
-        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        sendAndAssertSuccess(writeRequest, "/_prometheus/api/v1/write");
+    }
+
+    private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
+        Request request = new Request("POST", endpoint);
         request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
@@ -184,10 +210,14 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
      * Searches for all indexed documents matching the given metric name and returns their _source maps.
      */
     private List<Map<String, Object>> searchDocs(String metricName) throws IOException {
-        Request refresh = new Request("POST", "/" + DATA_STREAM + "/_refresh");
+        return searchDocs(DEFAULT_DATA_STREAM, metricName);
+    }
+
+    private List<Map<String, Object>> searchDocs(String dataStream, String metricName) throws IOException {
+        Request refresh = new Request("POST", "/" + dataStream + "/_refresh");
         client().performRequest(refresh);
 
-        Request search = new Request("GET", "/" + DATA_STREAM + "/_search");
+        Request search = new Request("GET", "/" + dataStream + "/_search");
         search.setJsonEntity(org.elasticsearch.common.Strings.format("""
             {
               "query": {
@@ -216,7 +246,11 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
      * Convenience method that asserts exactly one document was indexed for the given metric and returns its _source.
      */
     private Map<String, Object> searchSingleDoc(String metricName) throws IOException {
-        List<Map<String, Object>> docs = searchDocs(metricName);
+        return searchSingleDoc(DEFAULT_DATA_STREAM, metricName);
+    }
+
+    private Map<String, Object> searchSingleDoc(String dataStream, String metricName) throws IOException {
+        List<Map<String, Object>> docs = searchDocs(dataStream, metricName);
         assertThat(docs, hasSize(1));
         return docs.get(0);
     }

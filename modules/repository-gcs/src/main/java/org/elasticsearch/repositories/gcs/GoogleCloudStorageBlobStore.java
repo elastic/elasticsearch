@@ -21,6 +21,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
@@ -140,11 +141,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
-     * @throws BlobStoreClosedException if the blob store is closed
+     * @throws org.apache.lucene.store.AlreadyClosedException if the blob store is closed
      */
     synchronized MeteredStorage client() throws IOException {
         if (closed) {
-            throw new BlobStoreClosedException("blob store for repository " + repositoryName + "is closed");
+            throw new AlreadyClosedException("blob store for repository " + repositoryName + "is closed");
         }
         return storageService.client(projectId, clientName, repositoryName, statsCollector);
     }
@@ -818,11 +819,5 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             t = t.getCause();
         }
         return null;
-    }
-
-    public static class BlobStoreClosedException extends IllegalStateException {
-        BlobStoreClosedException(String message) {
-            super(message);
-        }
     }
 }

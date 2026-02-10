@@ -24,6 +24,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -718,7 +719,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             safeAwait(haveSentSomeContents);
             blobContainer.getBlobStore().close();
             ExecutionException executionException = assertThrows(ExecutionException.class, downloadFuture::get);
-            assertNotNull(ExceptionsHelper.unwrap(executionException, GoogleCloudStorageBlobStore.BlobStoreClosedException.class));
+            assertNotNull(ExceptionsHelper.unwrap(executionException, AlreadyClosedException.class));
         }
     }
 

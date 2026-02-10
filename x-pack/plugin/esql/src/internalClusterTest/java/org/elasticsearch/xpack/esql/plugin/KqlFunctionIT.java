@@ -11,17 +11,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -94,7 +96,7 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getRootCause().getMessage(), containsString("line 1:1: extraneous input ':' "));
     }
 
-    public void testKqlhWithStats() {
+    public void testKqlWithStats() {
         var errorQuery = """
             FROM test
             | STATS c = count(*) BY kql("content: fox")
@@ -130,12 +132,56 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testKqlOnConstantKeywordField() {
+        final String constKeywordValue = "foobar";
+        final Consumer<String> assertQuery = q -> {
+            try (var resp = run(q)) {
+                assertColumnNames(resp.columns(), List.of("id", "const_keyword"));
+                assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+                assertValues(
+                    resp.values(),
+                    List.of(
+                        List.of(1, constKeywordValue),
+                        List.of(2, constKeywordValue),
+                        List.of(3, constKeywordValue),
+                        List.of(4, constKeywordValue),
+                        List.of(5, constKeywordValue)
+                    )
+                );
+            }
+        };
+
+        var matchTermQuery = """
+                FROM test
+                | WHERE kql("const_keyword: foobar")
+                | KEEP id, const_keyword
+                | SORT id
+            """;
+        assertQuery.accept(matchTermQuery);
+
+        var prefixQuery = """
+                FROM test
+                | WHERE kql("const_keyword: foo*")
+                | KEEP id, const_keyword
+                | SORT id
+            """;
+        assertQuery.accept(prefixQuery);
+
+        var wildcardQuery = """
+                FROM test
+                | WHERE kql("const_keyword: *bar")
+                | KEEP id, const_keyword
+                | SORT id
+            """;
+        assertQuery.accept(wildcardQuery);
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
+            .setMapping("id", "type=integer", "content", "type=text", "const_keyword", "type=constant_keyword,value=foobar");
         assertAcked(CreateRequest);
         client().prepareBulk()
             .add(
@@ -179,6 +225,9 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), KqlPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(KqlPlugin.class);
+        plugins.add(ConstantKeywordMapperPlugin.class);
+        return plugins;
     }
 }

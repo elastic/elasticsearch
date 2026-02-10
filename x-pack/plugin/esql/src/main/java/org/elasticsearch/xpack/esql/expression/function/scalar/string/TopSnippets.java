@@ -19,8 +19,8 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,14 +31,15 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -148,31 +149,19 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         }
 
         return isString(field(), sourceText(), FIRST).and(() -> isString(query(), sourceText(), SECOND))
-            .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS))
-            .and(this::validateOptions);
+            .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS, TopSnippets::validateOptions));
     }
 
-    private TypeResolution validateOptions() {
-        if (options() == null) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        MapExpression optionsMap = (MapExpression) options();
-        return validateOptionValueIsPositiveInteger(optionsMap, NUM_SNIPPETS).and(
-            validateOptionValueIsPositiveInteger(optionsMap, NUM_WORDS)
-        );
+    private static void validateOptions(Map<String, Object> options) {
+        validateOptionValueIsPositiveInteger(options, NUM_SNIPPETS);
+        validateOptionValueIsPositiveInteger(options, NUM_WORDS);
     }
 
-    private TypeResolution validateOptionValueIsPositiveInteger(MapExpression optionsMap, String paramName) {
-        Expression expr = optionsMap.keyFoldedMap().get(paramName);
-        if (expr != null) {
-            Object value = expr.fold(FoldContext.small());
-            if (value != null && ((Number) value).intValue() <= 0) {
-                return new TypeResolution(
-                    "'" + paramName + "' option must be a positive integer, found [" + ((Number) value).intValue() + "]"
-                );
-            }
+    private static void validateOptionValueIsPositiveInteger(Map<String, Object> options, String paramName) {
+        Object value = options.get(paramName);
+        if (value != null && ((Number) value).intValue() <= 0) {
+            throw new InvalidArgumentException("'{}' option must be a positive integer, found [{}]", paramName, value);
         }
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -207,25 +196,16 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         return options;
     }
 
-    private int numSnippets() {
-        return extractIntegerOption(NUM_SNIPPETS, DEFAULT_NUM_SNIPPETS);
+    private int numSnippets(Map<String, Object> options) {
+        return extractIntegerOption(options, NUM_SNIPPETS, DEFAULT_NUM_SNIPPETS);
     }
 
-    private int numWords() {
-        return extractIntegerOption(NUM_WORDS, DEFAULT_WORD_SIZE);
+    private int numWords(Map<String, Object> options) {
+        return extractIntegerOption(options, NUM_WORDS, DEFAULT_WORD_SIZE);
     }
 
-    private int extractIntegerOption(String option, int defaultValue) {
-        if (options == null) {
-            return defaultValue;
-        }
-
-        MapExpression optionsMap = (MapExpression) options;
-        Expression expr = optionsMap.keyFoldedMap().get(option);
-        if (expr == null) {
-            return defaultValue;
-        }
-        Object value = expr.fold(FoldContext.small());
+    private int extractIntegerOption(Map<String, Object> options, String option, int defaultValue) {
+        Object value = options.get(option);
         return value != null ? ((Number) value).intValue() : defaultValue;
     }
 
@@ -248,22 +228,19 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        TopSnippets chunk = (TopSnippets) o;
-        return Objects.equals(field, chunk.field) && Objects.equals(query, chunk.query) && Objects.equals(options, chunk.options);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, query, options);
-    }
-
-    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        int numSnippets;
+        int numWords;
+        if (options != null) {
+            Map<String, Object> opts = new HashMap<>();
+            Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
+            numSnippets = numSnippets(opts);
+            numWords = numWords(opts);
+        } else {
+            numSnippets = DEFAULT_NUM_SNIPPETS;
+            numWords = DEFAULT_WORD_SIZE;
+        }
 
-        int numSnippets = numSnippets();
-        int numWords = numWords();
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 

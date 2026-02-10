@@ -3,7 +3,7 @@ Building Elasticsearch with Gradle
 
 Elasticsearch is built using the [Gradle](https://gradle.org/) open source build tools.
 
-This document provides a general guidelines for using and working on the Elasticsearch build logic.
+This document provides general guidelines for using and working on the Elasticsearch build logic.
 
 ## Build logic organisation
 
@@ -55,7 +55,7 @@ Gradle build logic at http://autonomousapps.com/blog/rules-for-gradle-plugin-aut
 Our current build does not yet tick off all those rules everywhere but the ultimate goal is to follow these principles.
 The reasons for following those rules besides better readability or maintenance are also the goal to support newer Gradle
 features that we will benefit from in terms of performance and reliability.
-E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issues/57918), [Project Isolation]([https://gradle.github.io/configuration-cache/#project_isolation) or
+E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issues/57918), [Project Isolation](https://gradle.github.io/configuration-cache/#project_isolation) or
 [predictive test selection](https://gradle.com/gradle-enterprise-solutions/predictive-test-selection/)
 
 ### Make a change in the build
@@ -118,7 +118,7 @@ We use two main types of component metadata rules at this point to manage transi
 - **`ExcludeAllTransitivesRule`** - Excludes all transitive dependencies for libraries where we want complete control over dependencies or the transitive dependencies are unused.
 
 - **`ExcludeOtherGroupsTransitiveRule`** - Excludes transitive dependencies that don't belong to the same group as the direct dependency, while keeping same-group dependencies.
--
+
 - **`ExcludeByGroup`** - Excludes transitive dependencies that match a specific groupId while keeping all other transitive dependencies with different groupIds.
 
 Examples from the `ComponentMetadataRulesPlugin`:
@@ -288,7 +288,7 @@ To run against a specific build number of the EA build you can pass a second sys
 #### How to use a Maven built based third party dependency with JitPack repository?
 
 https://jitpack.io is an adhoc repository that supports building Maven projects transparently in the background when
-resolving unreleased snapshots from a GitHub repository. This approach also works as temporally solution
+resolving unreleased snapshots from a GitHub repository. This approach also works as a temporary solution
 and is compliant with our CI builds.
 
 1. Add the JitPack repository to the root build file:
@@ -343,6 +343,12 @@ allprojects {
   }
   ```
 4. Run the Gradle build as needed with `--write-verification-metadata` to ensure the Gradle dependency verification does not fail on your custom dependency.
+
+```bash
+
+# write verification metadata and run the precommit task
+./gradlew --write-verification-metadata sha256 precommit
+```
 
 > [!Note]
 > As Gradle prefers to use modules whose descriptor has been created from real meta-data rather than being generated,

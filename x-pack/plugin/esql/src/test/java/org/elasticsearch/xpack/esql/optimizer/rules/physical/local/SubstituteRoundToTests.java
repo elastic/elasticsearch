@@ -1004,6 +1004,17 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
             }
         };
+        // enable filter-by-filter for rate aggregations
+        {
+            String q = """
+                TS k8s
+                | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
+                | LIMIT 10
+                """;
+            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            int queryAndTags = plainQueryAndTags(plan);
+            assertThat(queryAndTags, equalTo(4));
+        }
         // disable filter-by-filter for non-rate aggregations
         {
             String q = """

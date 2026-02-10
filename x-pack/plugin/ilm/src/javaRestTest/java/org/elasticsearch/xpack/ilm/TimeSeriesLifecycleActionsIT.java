@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -262,6 +263,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(
             client(),
@@ -282,7 +284,19 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
-            assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+            if (indexILMState.containsKey("failed_step")) {
+                assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+            } else {
+                // The failed step gets reset every time ILM retries, so we introduce an alternative check
+                // We check that ILM is re-trying the wait-for-snapshot step
+                assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+                assertThat(indexILMState.get(FAILED_STEP_RETRY_COUNT_FIELD), notNullValue());
+                assertThat((int) indexILMState.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThan(0));
+                // And that the previous step failed because the SLM policy was missing
+                assertThat(indexILMState.get("previous_step_info"), notNullValue());
+                Map<String, Object> previousStepInfo = (Map<String, Object>) indexILMState.get("previous_step_info");
+                assertThat(previousStepInfo.get("reason"), equalTo("configured policy '" + slmPolicy + "' not found"));
+            }
         }, slmPolicy);
         createSlmPolicy(slmPolicy, snapshotRepo); // put the slm policy back
         assertBusy(() -> {

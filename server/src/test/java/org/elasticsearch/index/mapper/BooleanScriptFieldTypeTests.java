@@ -540,7 +540,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
                 try (
-                    BlockLoader.ColumnAtATimeReader columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())
+                    BlockLoader.ColumnAtATimeReader columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst())
+                        .apply(breaker)
                 ) {
                     assertThat(columnAtATimeLoader, instanceOf(BooleanScriptBlockDocValuesReader.class));
                 }
@@ -592,7 +593,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
                 // ignored source doesn't support column at a time loading:
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
                     assertThat(columnAtATimeLoader, nullValue());
                 }
 

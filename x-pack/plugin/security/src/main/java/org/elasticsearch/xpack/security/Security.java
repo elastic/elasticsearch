@@ -1676,6 +1676,7 @@ public class Security extends Plugin
         Set<RestHeaderDefinition> headers = new HashSet<>();
         headers.add(new RestHeaderDefinition(UsernamePasswordToken.BASIC_AUTH_HEADER, false));
         headers.add(new RestHeaderDefinition(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME, false));
+        headers.add(new RestHeaderDefinition(SecondaryAuthenticator.SECONDARY_X_CLIENT_AUTH_HEADER_NAME, false));
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             headers.add(new RestHeaderDefinition(AuditTrail.X_FORWARDED_FOR_HEADER, true));
         }
@@ -1720,7 +1721,9 @@ public class Security extends Plugin
                             },
                             null,
                             // Don't use runtime mappings in the security query
-                            emptyMap()
+                            emptyMap(),
+                            null,
+                            null
                         ),
                         dlsBitsetCache.get(),
                         securityContext.get(),
@@ -2468,7 +2471,7 @@ public class Security extends Plugin
         future.actionGet();
     }
 
-    public Map<String, String> getAuthContextForSlowLog() {
+    public Map<String, String> getAuthContextForLogging() {
         if (this.securityContext.get() != null && this.securityContext.get().getAuthentication() != null) {
             Authentication authentication = this.securityContext.get().getAuthentication();
             Map<String, String> authContext;

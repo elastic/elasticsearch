@@ -26,19 +26,6 @@ import static org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderContext.
  * Values for cluster level settings used in physical planning.
  */
 public class PlannerSettings {
-    public static List<Setting<?>> allSettings() {
-        return List.of(
-            DEFAULT_DATA_PARTITIONING,
-            VALUES_LOADING_JUMBO_SIZE,
-            RATE_BUFFER_SIZE,
-            LUCENE_TOPN_LIMIT,
-            INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
-            REDUCTION_LATE_MATERIALIZATION,
-            BLOCK_LOADER_SIZE_ORDINALS,
-            BLOCK_LOADER_SIZE_SCRIPT
-        );
-    }
-
     public static final Setting<DataPartitioning> DEFAULT_DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,
         "esql.default_data_partitioning",
@@ -52,15 +39,6 @@ public class PlannerSettings {
         return ByteSizeValue.ofBytes(Math.max(proportional, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
     },
         s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.values_loading_jumbo_size"),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<ByteSizeValue> RATE_BUFFER_SIZE = new Setting<>("esql.rate_buffer_size", settings -> {
-        long oneTenth = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 10;
-        return ByteSizeValue.ofBytes(Math.max(oneTenth, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
-    },
-        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.rate_buffer_size"),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -99,6 +77,26 @@ public class PlannerSettings {
     );
 
     /**
+     * The threshold number of grouping keys for a partial aggregation to start emitting intermediate results early.
+     * While emitting partial results can reduce memory pressure and allow for incremental downstream processing,
+     * it might emit the same keys multiple times, incurring serialization and network overhead. This setting,
+     * in conjunction with {@link #PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD}, helps mitigate these costs by
+     * only triggering early emission when a significant number of keys have been collected and most are unique,
+     * thus lowering the probability of re-emitting the same keys.
+     * <p>
+     * NOTE that the defaults are chosen somewhat arbitrarily but are partially based on other systems.
+     * Other systems sometimes default to a lower threshold (e.g., 10,000) without a uniqueness threshold.
+     * We may lower these defaults after benchmarking more use cases.
+     */
+    public static final Setting<Integer> PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD = Setting.intSetting(
+        "esql.partial_agg_emit_keys_threshold",
+        100_000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
      * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
      * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
@@ -113,13 +111,60 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The uniqueness threshold of grouping keys for partial aggregation to start emitting keys early.
+     * This threshold controls the trade-off between the benefits of early emission and the costs of
+     * repeated serialization and network transfer of the same keys. A higher uniqueness ratio ensures early emission
+     * only if keys are not repeatedly seen in incoming data and are unlikely to appear again in future data.
+     */
+    public static final Setting<Double> PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD = Setting.doubleSetting(
+        "esql.partial_agg_emit_unique_threshold",
+        0.1,
+        0.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * If we're loading more than this many fields at a time we discard column loaders after each
+     * page regardless of whether we can reuse them. They have significant per-field memory overhead
+     * so discarding them between pages allows some queries that would have OOMed to succeed. Usually
+     * the paths that need very high performance don't load more than a handful of fields at a time,
+     * so they <strong>do</strong> reuse fields.
+     */
+    public static final Setting<Integer> REUSE_COLUMN_LOADERS_THRESHOLD = Setting.intSetting(
+        "esql.reuse_column_loaders_threshold",
+        30,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static List<Setting<?>> settings() {
+        return List.of(
+            DEFAULT_DATA_PARTITIONING,
+            VALUES_LOADING_JUMBO_SIZE,
+            LUCENE_TOPN_LIMIT,
+            INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            REDUCTION_LATE_MATERIALIZATION,
+            PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
+            PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
+            REUSE_COLUMN_LOADERS_THRESHOLD,
+            BLOCK_LOADER_SIZE_ORDINALS,
+            BLOCK_LOADER_SIZE_SCRIPT
+        );
+    }
+
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
-    private volatile ByteSizeValue rateBufferSize;
     private volatile int luceneTopNLimit;
     private volatile ByteSizeValue intermediateLocalRelationMaxSize;
     private volatile ByteSizeValue blockLoaderSizeOrdinals;
     private volatile ByteSizeValue blockLoaderSizeScript;
+
+    private volatile int partialEmitKeysThreshold;
+    private volatile double partialEmitUniquenessThreshold;
+    private volatile int reuseColumnLoadersThreshold;
 
     /**
      * Ctor for prod that listens for updates from the {@link ClusterService}.
@@ -128,9 +173,11 @@ public class PlannerSettings {
         var clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
         clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
-        clusterSettings.initializeAndWatch(RATE_BUFFER_SIZE, v -> this.rateBufferSize = v);
         clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
         clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
+        clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD, v -> this.partialEmitKeysThreshold = v);
+        clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD, v -> this.partialEmitUniquenessThreshold = v);
+        clusterSettings.initializeAndWatch(REUSE_COLUMN_LOADERS_THRESHOLD, v -> this.reuseColumnLoadersThreshold = v);
         clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_ORDINALS, v -> this.blockLoaderSizeOrdinals = v);
         clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_SCRIPT, v -> this.blockLoaderSizeScript = v);
     }
@@ -141,17 +188,21 @@ public class PlannerSettings {
     public PlannerSettings(
         DataPartitioning defaultDataPartitioning,
         ByteSizeValue valuesLoadingJumboSize,
-        ByteSizeValue rateBufferSize,
         int luceneTopNLimit,
         ByteSizeValue intermediateLocalRelationMaxSize,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
+        int reuseColumnLoadersThreshold,
         ByteSizeValue blockLoaderSizeOrdinals,
         ByteSizeValue blockLoaderSizeScript
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
-        this.rateBufferSize = rateBufferSize;
         this.luceneTopNLimit = luceneTopNLimit;
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
+        this.partialEmitKeysThreshold = partialEmitKeysThreshold;
+        this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
+        this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
     }
@@ -186,11 +237,23 @@ public class PlannerSettings {
         return intermediateLocalRelationMaxSize;
     }
 
+    public int partialEmitKeysThreshold() {
+        return partialEmitKeysThreshold;
+    }
+
+    public double partialEmitUniquenessThreshold() {
+        return partialEmitUniquenessThreshold;
+    }
+
     /**
-     * Returns the memory size allocated for buffering data points during rate calculations.
+     * If we're loading more than this many fields at a time we discard column loaders after each
+     * page regardless of whether we can reuse them. They have significant per-field memory overhead
+     * so discarding them between pages allows some queries that would have OOMed to succeed. Usually
+     * the paths that need very high performance don't load more than a handful of fields at a time,
+     * so they <strong>do</strong> reuse fields.
      */
-    public ByteSizeValue getRateBufferSize() {
-        return rateBufferSize;
+    public int reuseColumnLoadersThreshold() {
+        return reuseColumnLoadersThreshold;
     }
 
     /**

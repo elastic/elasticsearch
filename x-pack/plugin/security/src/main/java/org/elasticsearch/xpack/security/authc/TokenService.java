@@ -43,9 +43,9 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -679,27 +679,29 @@ public class TokenService {
                 final BytesKey decodedSalt = new BytesKey(in.readByteArray());
                 final BytesKey passphraseHash = new BytesKey(in.readByteArray());
                 final byte[] iv = in.readByteArray();
-                final BytesStreamOutput out = new BytesStreamOutput();
-                Streams.copy(in, out);
-                final byte[] encryptedTokenId = BytesReference.toBytes(out.bytes());
                 final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
                 if (keyAndCache != null) {
-                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
+                    final ReleasableBytesReference encryptedTokenId;
+                    try (var recyclerBytesStreamOutput = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
+                        recyclerBytesStreamOutput.writeAllBytesFrom(in);
+                        encryptedTokenId = recyclerBytesStreamOutput.moveToBytesReference();
+                    }
+                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.releaseAfter(listener.delegateFailure((delegate, decodeKey) -> {
                         if (decodeKey != null) {
                             try {
                                 final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
                                 final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                                getAndValidateUserToken(tokenId, version, null, validateUserToken, listener);
+                                getAndValidateUserToken(tokenId, version, null, validateUserToken, delegate);
                             } catch (IOException | GeneralSecurityException e) {
                                 // could happen with a token that is not ours
                                 logger.warn("invalid token", e);
-                                listener.onResponse(null);
+                                delegate.onResponse(null);
                             }
                         } else {
                             // could happen with a token that is not ours
-                            listener.onResponse(null);
+                            delegate.onResponse(null);
                         }
-                    }, listener::onFailure));
+                    }), encryptedTokenId));
                 } else {
                     logger.debug(() -> format("invalid key %s key: %s", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
@@ -2138,10 +2140,9 @@ public class TokenService {
         }
     }
 
-    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
+    private static String decryptTokenId(BytesReference encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
         try (
-            ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
-            CipherInputStream cis = new CipherInputStream(bais, cipher);
+            CipherInputStream cis = new CipherInputStream(encryptedTokenId.streamInput(), cipher);
             StreamInput decryptedInput = new InputStreamStreamInput(cis)
         ) {
             decryptedInput.setTransportVersion(version);

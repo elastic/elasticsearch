@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
@@ -38,7 +40,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) {
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 

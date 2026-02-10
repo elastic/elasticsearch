@@ -1,0 +1,6 @@
+pr: 140003
+summary: Add provider validation call to Update Inference Endpoint operation
+area: Inference
+type: enhancement
+issues:
+  - 122356

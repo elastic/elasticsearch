@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.util.ArrayList;
@@ -207,7 +208,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
+                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                 extraCheckers
             ),
             new ExchangeService(
@@ -220,7 +221,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
-            components.add(new ViewService(services.clusterService(), services.projectResolver(), settings));
+            components.add(new ViewResolver(services.clusterService(), services.projectResolver()));
+            components.add(new ViewService(services.clusterService()));
         }
         return components;
     }
@@ -258,11 +260,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
             )
         );
-        settings.addAll(PlannerSettings.allSettings());
+        settings.addAll(PlannerSettings.settings());
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             settings.add(ViewService.MAX_VIEWS_COUNT_SETTING);
             settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
-            settings.add(ViewService.MAX_VIEW_DEPTH_SETTING);
+            settings.add(ViewResolver.MAX_VIEW_DEPTH_SETTING);
         }
 
         // Inference command settings

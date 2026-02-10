@@ -368,7 +368,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
                 // ignored source doesn't support column at a time loading:
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
                     assertThat(columnAtATimeLoader, instanceOf(IpScriptBlockDocValuesReader.class));
                 }
 
@@ -420,7 +420,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
                 // ignored source doesn't support column at a time loading:
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
                     assertThat(columnAtATimeLoader, nullValue());
                 }
 

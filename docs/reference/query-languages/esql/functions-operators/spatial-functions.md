@@ -9,7 +9,9 @@ mapped_pages:
 
 # {{esql}} spatial functions [esql-spatial-functions]
 
-{{esql}} supports these spatial functions:
+{{esql}} supports several spatial functions, all of which are
+[aligned with the underlying spatial index grid](/reference/query-languages/esql/limitations.md#esql-limitations-spatial-precision)
+used in Lucene:
 
 :::{include} ../_snippets/lists/spatial-functions.md
 :::

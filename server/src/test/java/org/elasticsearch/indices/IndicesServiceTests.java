@@ -41,15 +41,15 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogContext;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -210,16 +210,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static class TestSlowLogFieldProvider implements SlowLogFieldProvider {
+    public static class TestActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestSlowLogFieldProvider.fields = fields;
+            TestActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create(SlowLogContext context) {
-            return new SlowLogFields(context) {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
                 public Map<String, String> logFields() {
                     return fields;
@@ -228,17 +228,17 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
+    public static class TestAnotherActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
 
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestAnotherSlowLogFieldProvider.fields = fields;
+            TestAnotherActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create(SlowLogContext context) {
-            return new SlowLogFields(context) {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
                 public Map<String, String> logFields() {
                     return fields;
@@ -821,31 +821,31 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testLoadSlowLogFieldProvider() {
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
-        SlowLogFields fields = fieldProvider.create(new SlowLogContext());
+        ActionLoggingFieldsProvider fieldProvider = indicesService.loggingFieldsProvider;
+        ActionLoggingFields fields = fieldProvider.create(new ActionLoggingFieldsContext());
 
         // The map of fields from the two providers are merged to a single map of fields
         assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
         assertThrows(IllegalStateException.class, fields::logFields);
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // One provider has no fields
         assertEquals(Map.of("key1", "value1"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of());
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of());
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // Both providers have no fields
         assertEquals(Map.of(), fields.logFields());

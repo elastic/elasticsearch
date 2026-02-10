@@ -15,12 +15,16 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
@@ -79,6 +83,10 @@ import static org.mockito.Mockito.when;
 public class AnthropicServiceTests extends InferenceServiceTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String MODEL_NAME_VALUE = "some model name";
+    private static final int MAX_TOKENS_VALUE = 2;
+    private static final String API_KEY_VALUE = "secret";
+    private static final String INFERENCE_ENTITY_ID_VALUE = "id";
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
 
@@ -99,25 +107,22 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesACompletionModel() throws IOException {
-        var apiKey = "apiKey";
-        var modelId = "model";
-
         try (var service = createServiceWithMockSender()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
                 var completionModel = (AnthropicChatCompletionModel) model;
-                assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
+                assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                     new HashMap<>(Map.of(AnthropicServiceFields.MAX_TOKENS, 1)),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -132,12 +137,12 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                     new HashMap<>(Map.of()),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 failureListener
             );
@@ -147,9 +152,9 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createServiceWithMockSender()) {
             var config = getRequestConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             config.put("extra_key", "value");
 
@@ -157,26 +162,26 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            Map<String, Object> serviceSettings = new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model"));
+            Map<String, Object> serviceSettings = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE));
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
                 serviceSettings,
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null),
-                getSecretSettingsMap("api_key")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -186,26 +191,26 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 taskSettingsMap,
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            Map<String, Object> secretSettings = getSecretSettingsMap("secret");
+            Map<String, Object> secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null),
                 secretSettings
             );
@@ -214,23 +219,20 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesACompletionModel() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
         try (var service = createServiceWithMockSender()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -239,26 +241,23 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
         try (var service = createServiceWithMockSender()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             persistedConfig.config().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -267,28 +266,25 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
-            assertThat(completionModel.getSecretSettings().apiKey(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
         try (var service = createServiceWithMockSender()) {
-            var secretSettingsMap = getSecretSettingsMap(apiKey);
+            var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3),
                 secretSettingsMap
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -297,28 +293,25 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
         try (var service = createServiceWithMockSender()) {
-            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId));
+            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE));
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
                 serviceSettingsMap,
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -327,28 +320,25 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
         try (var service = createServiceWithMockSender()) {
             Map<String, Object> taskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3);
             taskSettings.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 taskSettings,
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -357,58 +347,52 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfig_CreatesACompletionModel() throws IOException {
-        var modelId = "model";
-
         try (var service = createServiceWithMockSender()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3)
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
             assertNull(completionModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        var modelId = "model";
-
         try (var service = createServiceWithMockSender()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3)
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
             assertNull(completionModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        var modelId = "model";
-
         try (var service = createServiceWithMockSender()) {
-            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId));
+            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE));
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -416,32 +400,30 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3)
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
             assertNull(completionModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        var modelId = "model";
-
         try (var service = createServiceWithMockSender()) {
             Map<String, Object> taskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3);
             taskSettings.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), taskSettings);
+            var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)), taskSettings);
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, persistedConfig.config());
 
             assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
             var completionModel = (AnthropicChatCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_NAME_VALUE));
             assertThat(completionModel.getTaskSettings(), is(new AnthropicChatCompletionTaskSettings(1, 1.0, 2.1, 3)));
             assertNull(completionModel.getSecretSettings());
         }
@@ -453,7 +435,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var mockModel = getInvalidModel("model_id", "service_name");
+        var mockModel = getInvalidModel(MODEL_NAME_VALUE, "service_name");
 
         try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -473,7 +455,12 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+                is(
+                    Strings.format(
+                        "The internal model was invalid, please delete the service [service_name] with id [%s] and add it again.",
+                        MODEL_NAME_VALUE
+                    )
+                )
             );
 
             verify(factory, times(1)).createSender();
@@ -512,7 +499,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = AnthropicChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model", 1);
+            var model = AnthropicChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_NAME_VALUE, 1);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -532,7 +519,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             var request = webServer.requests().get(0);
             assertNull(request.getUri().getQuery());
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
-            assertThat(request.getHeader(AnthropicRequestUtils.X_API_KEY), Matchers.equalTo("secret"));
+            assertThat(request.getHeader(AnthropicRequestUtils.X_API_KEY), Matchers.equalTo(API_KEY_VALUE));
             assertThat(
                 request.getHeader(AnthropicRequestUtils.VERSION),
                 Matchers.equalTo(AnthropicRequestUtils.ANTHROPIC_VERSION_2023_06_01)
@@ -541,7 +528,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             var requestMap = entityAsMap(request.getBody());
             assertThat(
                 requestMap,
-                is(Map.of("messages", List.of(Map.of("role", "user", "content", "input")), "model", "model", "max_tokens", 1))
+                is(Map.of("messages", List.of(Map.of("role", "user", "content", "input")), "model", MODEL_NAME_VALUE, "max_tokens", 1))
             );
         }
     }
@@ -584,8 +571,8 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
         try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
                 getUrl(webServer),
-                "secret",
-                "model",
+                API_KEY_VALUE,
+                MODEL_NAME_VALUE,
                 Integer.MAX_VALUE
             );
             var listener = new PlainActionFuture<InferenceServiceResults>();
@@ -694,5 +681,47 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     @Override
     public InferenceService createInferenceService() {
         return createServiceWithMockSender();
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = AnthropicChatCompletionModelTests.createChatCompletionModel(API_KEY_VALUE, MODEL_NAME_VALUE, MAX_TOKENS_VALUE);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.CHAT_COMPLETION,
+            AnthropicService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ENTITY_ID_VALUE,
+                        AnthropicService.NAME,
+                        AnthropicService.NAME,
+                        TaskType.CHAT_COMPLETION
+                    )
+                )
+
+            );
+        }
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

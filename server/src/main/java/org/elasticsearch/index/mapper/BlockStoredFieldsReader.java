@@ -13,7 +13,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -59,7 +61,7 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) {
+        public final IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
             return null;
         }
 

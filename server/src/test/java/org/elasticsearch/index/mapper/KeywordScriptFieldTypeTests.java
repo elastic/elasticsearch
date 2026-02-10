@@ -494,7 +494,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 assertThat(loader, instanceOf(KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader.class));
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
                     assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
                 }
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
@@ -534,7 +534,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
                     assertThat(columnAtATimeLoader, nullValue());
                 }
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {

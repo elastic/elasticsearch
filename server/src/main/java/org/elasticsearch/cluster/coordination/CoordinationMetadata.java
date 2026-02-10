@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,30 +51,13 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     }
 
     @SuppressWarnings("unchecked")
-    private static VotingConfiguration lastCommittedConfig(Object[] fields) {
-        List<String> nodeIds = (List<String>) fields[1];
-        return new VotingConfiguration(new HashSet<>(nodeIds));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static VotingConfiguration lastAcceptedConfig(Object[] fields) {
-        List<String> nodeIds = (List<String>) fields[2];
-        return new VotingConfiguration(new HashSet<>(nodeIds));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Set<VotingConfigExclusion> votingConfigExclusions(Object[] fields) {
-        Set<VotingConfigExclusion> votingTombstones = new HashSet<>((List<VotingConfigExclusion>) fields[3]);
-        return votingTombstones;
-    }
-
     private static final ConstructingObjectParser<CoordinationMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "coordination_metadata",
         fields -> new CoordinationMetadata(
             term(fields),
-            lastCommittedConfig(fields),
-            lastAcceptedConfig(fields),
-            votingConfigExclusions(fields)
+            new VotingConfiguration((List<String>) fields[1]),
+            new VotingConfiguration((List<String>) fields[2]),
+            (List<VotingConfigExclusion>) fields[3]
         )
     );
     static {
@@ -87,7 +71,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         long term,
         VotingConfiguration lastCommittedConfiguration,
         VotingConfiguration lastAcceptedConfiguration,
-        Set<VotingConfigExclusion> votingConfigExclusions
+        Collection<VotingConfigExclusion> votingConfigExclusions
     ) {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
@@ -161,11 +145,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        int result = (int) (term ^ (term >>> 32));
-        result = 31 * result + lastCommittedConfiguration.hashCode();
-        result = 31 * result + lastAcceptedConfiguration.hashCode();
-        result = 31 * result + votingConfigExclusions.hashCode();
-        return result;
+        return Objects.hash(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingConfigExclusions);
     }
 
     @Override
@@ -188,9 +168,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         private VotingConfiguration lastAcceptedConfiguration = VotingConfiguration.EMPTY_CONFIG;
         private final Set<VotingConfigExclusion> votingConfigExclusions = new HashSet<>();
 
-        public Builder() {
-
-        }
+        public Builder() {}
 
         public Builder(CoordinationMetadata state) {
             this.term = state.term;
@@ -311,7 +289,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            if (nodeName.length() > 0) {
+            if (Strings.hasLength(nodeName) == false) {
                 sb.append('{').append(nodeName).append('}');
             }
             sb.append('{').append(nodeId).append('}');
@@ -332,7 +310,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
         private final Set<String> nodeIds;
 
-        public VotingConfiguration(Set<String> nodeIds) {
+        public VotingConfiguration(Collection<String> nodeIds) {
             this.nodeIds = Set.copyOf(nodeIds);
         }
 

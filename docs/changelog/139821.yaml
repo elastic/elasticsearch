@@ -1,5 +1,0 @@
-pr: 139821
-summary: "GPU: add support for cosine with cuvs 2025.12"
-area: Vector Search
-type: upgrade
-issues: []

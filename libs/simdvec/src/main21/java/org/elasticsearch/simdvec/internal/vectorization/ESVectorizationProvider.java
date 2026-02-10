@@ -13,7 +13,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -50,9 +49,6 @@ public abstract class ESVectorizationProvider {
         int bulkSize
     ) throws IOException;
 
-    /** Create a new {@link ES91Int4VectorsScorer} for the given {@link IndexInput}. */
-    public abstract ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
-
     /** Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}. */
     public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
@@ -60,40 +56,31 @@ public abstract class ESVectorizationProvider {
     static ESVectorizationProvider lookup(boolean testMode) {
         final int runtimeVersion = Runtime.version().feature();
         assert runtimeVersion >= 21;
-        if (runtimeVersion <= 25) {
-            // only use vector module with Hotspot VM
-            if (Constants.IS_HOTSPOT_VM == false) {
-                logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");
-                return new DefaultESVectorizationProvider();
-            }
-            // is the incubator module present and readable (JVM providers may to exclude them or it is
-            // build with jlink)
-            final var vectorMod = lookupVectorModule();
-            if (vectorMod.isEmpty()) {
-                logger.warn(
-                    "Java vector incubator module is not readable. "
-                        + "For optimal vector performance, pass '--add-modules jdk.incubator.vector' to enable Vector API."
-                );
-                return new DefaultESVectorizationProvider();
-            }
-            vectorMod.ifPresent(ESVectorizationProvider.class.getModule()::addReads);
-            var impl = new PanamaESVectorizationProvider();
-            logger.info(
-                String.format(
-                    Locale.ENGLISH,
-                    "Java vector incubator API enabled; uses preferredBitSize=%d",
-                    PanamaESVectorUtilSupport.VECTOR_BITSIZE
-                )
-            );
-            return impl;
-        } else {
-            logger.warn(
-                "You are running with unsupported Java "
-                    + runtimeVersion
-                    + ". To make full use of the Vector API, please update Elasticsearch."
-            );
+        // only use vector module with Hotspot VM
+        if (Constants.IS_HOTSPOT_VM == false) {
+            logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");
+            return new DefaultESVectorizationProvider();
         }
-        return new DefaultESVectorizationProvider();
+        // is the incubator module present and readable (JVM providers may to exclude them or it is
+        // build with jlink)
+        final var vectorMod = lookupVectorModule();
+        if (vectorMod.isEmpty()) {
+            logger.warn(
+                "Java vector incubator module is not readable. "
+                    + "For optimal vector performance, pass '--add-modules jdk.incubator.vector' to enable Vector API."
+            );
+            return new DefaultESVectorizationProvider();
+        }
+        vectorMod.ifPresent(ESVectorizationProvider.class.getModule()::addReads);
+        var impl = new PanamaESVectorizationProvider();
+        logger.info(
+            String.format(
+                Locale.ENGLISH,
+                "Java vector incubator API enabled; uses preferredBitSize=%d",
+                PanamaESVectorUtilSupport.VECTOR_BITSIZE
+            )
+        );
+        return impl;
     }
 
     private static Optional<Module> lookupVectorModule() {

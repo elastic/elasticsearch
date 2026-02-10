@@ -133,8 +133,10 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -425,6 +427,8 @@ public class SnapshotResiliencyTestHelper {
 
             private ClusterService clusterService;
 
+            protected SearchService searchService;
+
             private RecoverySettings recoverySettings;
 
             private PeerRecoverySourceService peerRecoverySourceService;
@@ -660,18 +664,46 @@ public class SnapshotResiliencyTestHelper {
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
                     .build();
-                final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
+
+                this.searchService = new SearchService(
+                    clusterService,
+                    indicesService,
+                    threadPool,
+                    scriptService,
+                    bigArrays,
+                    new FetchPhase(Collections.emptyList()),
+                    new NoneCircuitBreakerService(),
+                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                    Tracer.NOOP,
+                    OnlinePrewarmingService.NOOP
+                );
+
+                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
+                peerRecoveryTargetService = new PeerRecoveryTargetService(
+                    client,
+                    threadPool,
+                    transportService,
+                    recoverySettings,
+                    clusterService,
+                    snapshotFilesProvider
+                );
+
+                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
+
+                // Inject initialization from subclass which may be needed by initializations after this point.
+                doInit(actions, actionFilters);
+
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
                     clusterService,
                     repositoriesService,
                     transportService,
-                    indicesService
+                    indicesService,
+                    createSnapshotShardContextFactory()
                 );
                 shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
-                Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
                 actions.put(
                     TransportUpdateSnapshotStatusAction.TYPE,
                     new TransportUpdateSnapshotStatusAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
@@ -723,28 +755,7 @@ public class SnapshotResiliencyTestHelper {
                     client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
-                final SearchService searchService = new SearchService(
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    scriptService,
-                    bigArrays,
-                    new FetchPhase(Collections.emptyList()),
-                    new NoneCircuitBreakerService(),
-                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    Tracer.NOOP,
-                    OnlinePrewarmingService.NOOP
-                );
 
-                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-                peerRecoveryTargetService = new PeerRecoveryTargetService(
-                    client,
-                    threadPool,
-                    transportService,
-                    recoverySettings,
-                    clusterService,
-                    snapshotFilesProvider
-                );
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
@@ -1083,8 +1094,6 @@ public class SnapshotResiliencyTestHelper {
                     )
                 );
 
-                doInit(actions, actionFilters);
-
                 client.initialize(
                     actions,
                     transportService.getTaskManager(),
@@ -1103,6 +1112,10 @@ public class SnapshotResiliencyTestHelper {
             }
 
             protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
+
+            protected SnapshotShardContextFactory createSnapshotShardContextFactory() {
+                return new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService);
+            }
 
             /**
              * Maybe execute the given transport runnable inline. If executed, return true, else return false to schedule it.

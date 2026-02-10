@@ -97,12 +97,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         }
 
         if (onSnapshotBuild == false) {
-            if (timeZone != null) {
-                validationException = addValidationError(
-                    "[" + RequestXContent.TIME_ZONE_FIELD + "] only allowed in snapshot builds",
-                    validationException
-                );
-            }
             if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",

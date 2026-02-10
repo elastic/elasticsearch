@@ -2,16 +2,33 @@
 
 **Supported types**
 
-| value | sort | result |
+| field | sortField | result |
 | --- | --- | --- |
+| boolean | date | boolean |
+| boolean | date_nanos | boolean |
+| boolean | long | boolean |
+| date | date | date |
+| date | date_nanos | date |
+| date | long | date |
+| date_nanos | date | date_nanos |
+| date_nanos | date_nanos | date_nanos |
+| date_nanos | long | date_nanos |
 | double | date | double |
 | double | date_nanos | double |
+| double | long | double |
 | integer | date | integer |
 | integer | date_nanos | integer |
+| integer | long | integer |
+| ip | date | ip |
+| ip | date_nanos | ip |
+| ip | long | ip |
 | keyword | date | keyword |
 | keyword | date_nanos | keyword |
+| keyword | long | keyword |
 | long | date | long |
 | long | date_nanos | long |
+| long | long | long |
 | text | date | keyword |
 | text | date_nanos | keyword |
+| text | long | keyword |
 

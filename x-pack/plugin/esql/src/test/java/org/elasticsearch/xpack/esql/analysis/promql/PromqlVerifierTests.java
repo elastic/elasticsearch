@@ -37,10 +37,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
-        assertThat(
-            error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
-            equalTo("1:32: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
-        );
+        assertThat(error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb), containsString("Unknown column [__name__]"));
     }
 
     public void testPromqlSubquery() {
@@ -90,7 +87,7 @@ public class PromqlVerifierTests extends ESTestCase {
         List.of("and", "or", "unless").forEach(op -> {
             assertThat(
                 error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
-                containsString("VectorBinarySet queries are not supported at this time")
+                containsString("set operators are not supported at this time")
             );
         });
     }
@@ -120,6 +117,20 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(
             error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
             containsString("queries with group modifiers are not supported at this time")
+        );
+    }
+
+    public void testNonScalarComparison() {
+        assertThat(
+            error("PROMQL index=test step=5m foo > bar", tsdb),
+            containsString("comparison operators with non-literal right-hand side are not supported at this time")
+        );
+    }
+
+    public void testNestedComparisons() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo > 5)", tsdb),
+            containsString("comparison operators are only supported at the top-level at this time")
         );
     }
 

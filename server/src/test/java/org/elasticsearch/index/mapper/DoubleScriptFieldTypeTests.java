@@ -339,7 +339,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 assertThat(loader, instanceOf(DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader.class));
                 // ignored source doesn't support column at a time loading:
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
                     assertThat(columnAtATimeLoader, instanceOf(DoubleScriptBlockDocValuesReader.class));
                 }
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
@@ -373,7 +373,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
                     assertThat(columnAtATimeLoader, nullValue());
                 }
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {

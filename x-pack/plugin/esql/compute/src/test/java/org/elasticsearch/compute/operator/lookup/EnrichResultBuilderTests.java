@@ -65,7 +65,7 @@ public class EnrichResultBuilderTests extends ESTestCase {
                 }
             }
         }
-        try (IntVector selected = IntVector.range(0, maxPosition + 1, blockFactory)) {
+        try (IntVector selected = blockFactory.newIntRangeVector(0, maxPosition + 1)) {
             try (BytesRefBlock actualOutput = (BytesRefBlock) resultBuilder.build(selected.asBlock())) {
                 assertThat(actualOutput.getPositionCount(), equalTo(maxPosition + 1));
                 for (int i = 0; i < actualOutput.getPositionCount(); i++) {
@@ -163,7 +163,7 @@ public class EnrichResultBuilderTests extends ESTestCase {
                 }
             }
         }
-        try (IntVector selected = IntVector.range(0, maxPosition + 1, blockFactory)) {
+        try (IntVector selected = blockFactory.newIntRangeVector(0, maxPosition + 1)) {
             try (LongBlock actualOutput = (LongBlock) resultBuilder.build(selected.asBlock())) {
                 assertThat(actualOutput.getPositionCount(), equalTo(maxPosition + 1));
                 for (int i = 0; i < actualOutput.getPositionCount(); i++) {

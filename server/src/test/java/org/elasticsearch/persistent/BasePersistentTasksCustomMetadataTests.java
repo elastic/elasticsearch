@@ -210,7 +210,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams(
                 null,
-                getNextVersion(streamVersion),
+                getNextVersion(streamVersion, true),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()

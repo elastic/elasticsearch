@@ -290,11 +290,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public boolean canSubstituteRoundToWithQueryBuilderAndTags() {
-        boolean queryWithoutTag = queryBuilderAndTags == null
-            || queryBuilderAndTags.isEmpty()
-            || (queryBuilderAndTags.size() == 1 && queryBuilderAndTags.getFirst().tags.isEmpty());
         // LuceneTopNSourceOperator doesn't support QueryAndTags
-        return queryWithoutTag && (sorts == null || sorts.isEmpty());
+        return sorts == null || sorts.isEmpty();
     }
 
     /**

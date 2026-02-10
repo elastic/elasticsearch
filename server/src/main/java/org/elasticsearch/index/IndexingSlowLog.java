@@ -104,7 +104,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
-    private final SlowLogFields slowLogFields;
+    private final ActionLoggingFields loggingFields;
 
     /**
      * Reads how much of the source to log. The user can specify any value they
@@ -126,14 +126,16 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldsProvider) {
+    IndexingSlowLog(IndexSettings indexSettings, ActionLoggingFieldsProvider slowLogFieldsProvider) {
         this.index = indexSettings.getIndex();
 
-        SlowLogContext logContext = new SlowLogContext(indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING));
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext(
+            indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING)
+        );
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
 
-        this.slowLogFields = slowLogFieldsProvider.create(logContext);
+        this.loggingFields = slowLogFieldsProvider.create(logContext);
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
         this.reformat = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
@@ -184,7 +186,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             Supplier<ESLogMessage> messageProducer = () -> IndexingSlowLogMessage.of(
-                slowLogFields.logFields(),
+                loggingFields.logFields(),
                 index,
                 doc,
                 tookInNanos,

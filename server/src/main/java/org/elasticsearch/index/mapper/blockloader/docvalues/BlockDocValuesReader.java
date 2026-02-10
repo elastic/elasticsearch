@@ -12,7 +12,9 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -47,8 +49,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public abstract AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            return reader(breaker, context);
+        public final IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+            return breaker -> reader(breaker, context);
         }
 
         @Override

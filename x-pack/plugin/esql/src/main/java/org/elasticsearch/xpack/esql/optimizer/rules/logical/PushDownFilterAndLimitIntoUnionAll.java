@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -82,11 +83,17 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
             PushDownFilterAndLimitIntoUnionAll::pushFilterPastSubquery
         );
 
-        // Append limit to a subquery if there is knn in the subquery with implicitK, but there is no limit after knn
-        return planWithFilterPushedDownPastSubquery.transformDown(
+        // Append limit to a subquery if:
+        // 1. there is knn in the subquery with implicitK, but there is no limit after knn,
+        // 2. there is unbounded sort in the subquery
+        LogicalPlan planWithImplicitLimitAdded = planWithFilterPushedDownPastSubquery.transformDown(
             UnionAll.class,
-            unionAll -> maybeAppendLimitForKnnInSubquery(unionAll, context)
+            unionAll -> maybeAppendLimitToSubquery(unionAll, context)
         );
+
+        // push down the implicit limit below Subquery, this is mainly to push limit close to sort,
+        // so that they can be transformed to TopN later
+        return planWithImplicitLimitAdded.transformDown(Limit.class, PushDownFilterAndLimitIntoUnionAll::pushLimitPastSubquery);
     }
 
     private static LogicalPlan maybePushDownPastUnionAll(Filter filter, UnionAll unionAll) {
@@ -284,16 +291,21 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
      *
      * The input to this method is an {@code UnionAll} branch, check if there is {@code Knn} in the plan, if so collect its implicitK,
      * and append a {@code Limit} to the subquery if there isn't one already.
+     *
+     * A similar situation happens to {@code Sort} without limit, which means unbounded sort, we also need to append a limit to the subquery
+     * to avoid unbounded sort in the subquery.
      */
-    private static LogicalPlan maybeAppendLimitForKnnInSubquery(UnionAll unionAll, LogicalOptimizerContext context) {
-        List<LogicalPlan> newChildren = new ArrayList<>();
+    private static LogicalPlan maybeAppendLimitToSubquery(UnionAll unionAll, LogicalOptimizerContext context) {
+        List<LogicalPlan> oldChildren = unionAll.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(oldChildren.size());
         boolean changed = false;
-        for (LogicalPlan child : unionAll.children()) {
-            LogicalPlan newChild = appendLimitIfNeededForKnn(child, context);
-            if (newChild != child) {
+        for (LogicalPlan child : oldChildren) {
+            LogicalPlan newChildAfterCheckingKnn = appendLimitIfNeededForKnn(child, context);
+            LogicalPlan newChildAfterCheckingOrderBy = appendLimitIfNeededForOrderBy(newChildAfterCheckingKnn, context);
+            if (newChildAfterCheckingOrderBy != child) {
                 changed = true;
             }
-            newChildren.add(newChild);
+            newChildren.add(newChildAfterCheckingOrderBy);
         }
         return changed ? unionAll.replaceChildren(newChildren) : unionAll;
     }
@@ -320,11 +332,56 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
         // there is knn with implicitK and there is no limit after knn, append a limit
         Integer k = maxImplicitK.get();
         if (k != null && foundLimitAfterKnn == false) {
-            Source source = subquery.source();
             // check the implicit K against default and maximum implicit limit
             int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
-            return new Limit(source, new Literal(source, Math.max(k, maxImplicitLimit), DataType.INTEGER), subquery);
+            return planWithLimit(subquery, Math.max(k, maxImplicitLimit));
         }
         return subquery;
+    }
+
+    private static LogicalPlan appendLimitIfNeededForOrderBy(LogicalPlan subquery, LogicalOptimizerContext context) {
+        Holder<OrderBy> unboundedSort = new Holder<>(null);
+
+        boolean foundLimitAfterSort = subquery.forEachDownMayReturnEarly((plan, hasLimitAfterSort) -> {
+            if (plan instanceof Limit && unboundedSort.get() == null) { // found a limit before finding sort
+                hasLimitAfterSort.set(true);
+                return;
+            }
+
+            if (unboundedSort.get() != null) {
+                return; // already found unbounded sort, return early
+            }
+
+            if (plan instanceof OrderBy orderBy) {
+                unboundedSort.set(orderBy);
+            }
+        });
+
+        // there is unbounded sort, append a limit right on top of the sort
+        if (unboundedSort.get() != null && foundLimitAfterSort == false) {
+            // append a limit with maximum implicit limit
+            int maxImplicitLimit = context.configuration().resultTruncationMaxSize(false);
+            return planWithLimit(subquery, maxImplicitLimit);
+        }
+
+        return subquery;
+    }
+
+    private static Limit planWithLimit(LogicalPlan plan, int limitValue) {
+        Source source = plan.source();
+        return new Limit(source, new Literal(source, limitValue, DataType.INTEGER), plan);
+    }
+
+    /**
+     * {@code Subquery} does not create any new attributes, so {@code limit} can be pushed down safely.
+     */
+    private static LogicalPlan pushLimitPastSubquery(Limit limit) {
+        LogicalPlan child = limit.child();
+        if (child instanceof Subquery subquery) {
+            // push limit - added by AddImplicitForkLimit, below subquery
+            Limit newLimit = limit.replaceChild(subquery.child());
+            return subquery.replaceChild(newLimit);
+        }
+        return limit;
     }
 }

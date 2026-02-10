@@ -592,11 +592,14 @@ public final class EsqlTestUtils {
     public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
         DataPartitioning.AUTO,
         ByteSizeValue.ofMb(1),
-        ByteSizeValue.ofMb(2),
         10_000,
         ByteSizeValue.ofMb(1),
+        1000,
+        0.1,
+        PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY),
         MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
         MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE
+
     );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
@@ -656,7 +659,8 @@ public final class EsqlTestUtils {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null
+            null,
+            Map.of()
         );
     }
 

@@ -322,51 +322,14 @@ public class BlockTestUtils {
         return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
     }
 
-    public static List<List<Object>> valuesAtPositions(Block block, int from, int to) {
-        List<List<Object>> result = new ArrayList<>(to - from);
-        for (int p = from; p < to; p++) {
-            if (block.isNull(p)) {
-                result.add(null);
-                continue;
-            }
-            int count = block.getValueCount(p);
-            List<Object> positionValues = new ArrayList<>(count);
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                positionValues.add(switch (block.elementType()) {
-                    case INT -> ((IntBlock) block).getInt(i++);
-                    case LONG -> ((LongBlock) block).getLong(i++);
-                    case FLOAT -> ((FloatBlock) block).getFloat(i++);
-                    case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
-                    case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
-                    case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
-                    case AGGREGATE_METRIC_DOUBLE -> {
-                        AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
-                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
-                            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                                b.minBlock().getDouble(i),
-                                b.maxBlock().getDouble(i),
-                                b.sumBlock().getDouble(i),
-                                b.countBlock().getInt(i)
-                            );
-                        i += 1;
-                        yield literal;
+    public static <T> List<List<T>> valuesAtPositions(Block block, int from, int to) {
+        return valuesAtPositions(block, from, to, false);
+    }
 
-                    }
-                    case LONG_RANGE -> {
-                        var b = (LongRangeBlock) block;
-                        var lit = new LongRangeBlockBuilder.LongRange(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
-                        i++;
-                        yield lit;
-                    }
-                    case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
-                        i++,
-                        new ExponentialHistogramScratch()
-                    );
-                    case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++);
-                    default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
-                });
-            }
+    public static <T> List<List<T>> valuesAtPositions(Block block, int from, int to, boolean emptyIfNull) {
+        List<List<T>> result = new ArrayList<>(to - from);
+        for (int p = from; p < to; p++) {
+            List<T> positionValues = valuesAtPosition(block, p, emptyIfNull);
             result.add(positionValues);
         }
         return result;
@@ -376,18 +339,56 @@ public class BlockTestUtils {
      * Extracts values from a block at a particular position.
      *
      * @param block The block to extract the values from
-     * @param position The position at which to extract the values
+     * @param position The position at which to extract values
      * @param emptyIfNull Whether to return an empty list if there are no values at the position
      *
      * @return List of values
      */
     @SuppressWarnings("unchecked")
     public static <T> List<T> valuesAtPosition(Block block, int position, boolean emptyIfNull) {
-        List<Object> values = valuesAtPositions(block, position, position + 1).getFirst();
-        if (values == null) {
+        if (block.isNull(position)) {
             return emptyIfNull ? new ArrayList<>() : null;
         }
-        return (List<T>) values;
+
+        int count = block.getValueCount(position);
+        List<Object> positionValues = new ArrayList<>(count);
+        int i = block.getFirstValueIndex(position);
+        for (int v = 0; v < count; v++) {
+            positionValues.add(switch (block.elementType()) {
+                case INT -> ((IntBlock) block).getInt(i++);
+                case LONG -> ((LongBlock) block).getLong(i++);
+                case FLOAT -> ((FloatBlock) block).getFloat(i++);
+                case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
+                case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
+                case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                case AGGREGATE_METRIC_DOUBLE -> {
+                    AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
+                    AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
+                        new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                            b.minBlock().getDouble(i),
+                            b.maxBlock().getDouble(i),
+                            b.sumBlock().getDouble(i),
+                            b.countBlock().getInt(i)
+                        );
+                    i += 1;
+                    yield literal;
+                }
+                case LONG_RANGE -> {
+                    var b = (LongRangeBlock) block;
+                    var lit = new LongRangeBlockBuilder.LongRange(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                    i++;
+                    yield lit;
+                }
+                case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
+                    i++,
+                    new ExponentialHistogramScratch()
+                );
+                case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++);
+                default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
+            });
+        }
+
+        return (List<T>) positionValues;
     }
 
     /**
@@ -507,6 +508,15 @@ public class BlockTestUtils {
             fail(e);
         }
         return returnValue;
+    }
+
+    public static Block asBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {
+        try (var wrapper = BlockUtils.wrapperFor(blockFactory, elementType, values.size())) {
+            for (Object value : values) {
+                wrapper.accept(value);
+            }
+            return wrapper.builder().build();
+        }
     }
 
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {

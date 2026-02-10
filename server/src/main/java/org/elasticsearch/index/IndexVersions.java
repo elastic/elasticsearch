@@ -219,6 +219,9 @@ public class IndexVersions {
     public static final IndexVersion READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS = def(9_066_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion FLATTENED_FIELD_TSDB_CODEC_USE_BINARY_DOC_VALUES = def(9_067_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_PATTERN_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_068_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISK_BBQ_QUANTIZE_BITS = def(9_069_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion ID_FIELD_USE_ES812_POSTINGS_FORMAT = def(9_070_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_94 = def(9_071_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

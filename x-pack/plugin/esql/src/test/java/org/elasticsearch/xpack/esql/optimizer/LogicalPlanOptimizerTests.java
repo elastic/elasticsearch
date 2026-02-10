@@ -2099,6 +2099,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("emp_no"));
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
+        assertWarnings(
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -2206,6 +2210,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         join = as(limit7300Before.child(), Join.class);
         var limit = asLimit(join.left(), 7300, false);
         as(limit.child(), LocalRelation.class);
+        assertWarnings(
+            "Line 5:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -2368,6 +2376,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var join = as(limit.child(), Join.class);
         var topN = as(join.left(), TopN.class);
         var row = as(topN.child(), LocalRelation.class);
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -2420,6 +2433,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(join.left(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), is(20));
         var row = as(topN.child(), EsRelation.class);
+        assertWarnings(
+            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     /**
@@ -8978,6 +8995,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
         assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT y] please add a LIMIT"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:5: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testUnboundedSortWithMvExpandAndFilter() {
@@ -9008,6 +9030,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
         assertThat(e.getMessage(), containsString("line 5:3: Unbounded SORT not supported yet [SORT foo] please add a LIMIT"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 5:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testUnboundedSortExpandFilter() {
@@ -10281,6 +10308,21 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(tsStats.timestamp().dataType(), equalTo(DataType.DATETIME));
         LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
         assertThat(lastOverTime.timestamp(), equalTo(tsStats.timestamp()));
+
+        String errorMessage = expectThrows(
+            VerificationException.class,
+            () -> logicalOptimizerWithLatestVersion.optimize(
+                metricsAnalyzer.analyze(parser.parseQuery("TS k8s | KEEP network.total_bytes_in | STATS count(*)"))
+            )
+        ).getMessage();
+        assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
+        assertThat(
+            errorMessage,
+            containsString(
+                "[STATS count(*)] requires the [@timestamp] field, which was either not present "
+                    + "in the source index, or has been dropped or renamed"
+            )
+        );
     }
 
     /**
@@ -11156,5 +11198,137 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvAvgAlias = mvAvgEval.fields().getFirst();
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
+    }
+
+    /**
+     * SORT followed by LOOKUP JOIN should warn because the order is lost.
+     */
+    public void testWarnSortBeforeLookupJoin() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        as(plan, Limit.class);
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
+    }
+
+    /**
+     * SORT followed by LOOKUP JOIN followed by another SORT should NOT warn
+     * because the final SORT restores order.
+     */
+    public void testNoWarnSortBeforeLookupJoinWithSortAfter() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT first_name
+            """);
+
+        as(plan, TopN.class);
+        // Only the default limit warning, no sort order warning
+        assertWarnings("No limit defined, adding default limit of [1000]");
+    }
+
+    /**
+     * LOOKUP JOIN without a preceding SORT should NOT warn.
+     */
+    public void testNoWarnLookupJoinWithoutSort() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        as(plan, Limit.class);
+        // Only the default limit warning, no sort order warning
+        assertWarnings("No limit defined, adding default limit of [1000]");
+    }
+
+    /**
+     * TopN (which includes SORT) followed by LOOKUP JOIN should warn.
+     */
+    public void testWarnTopNBeforeLookupJoin() {
+        var plan = optimizedPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | SORT emp_no
+            | LIMIT 10
+            | LOOKUP JOIN languages_lookup ON language_code
+            """);
+
+        as(plan, Limit.class);
+        assertWarnings(
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
+    }
+
+    public void testTranslateMetricsWithAliasToDimensionInGroup() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery("""
+            TS k8s |
+            STATS max(max_over_time(network.bytes_in)) by p = pod, bucket(@timestamp, 1 minute)
+            """)));
+
+        // Project[[max(max_over_time(network.bytes_in)){r}#420, pod{r}#426, bucket(@timestamp, 1 minute){r}#418]]
+        var project = as(plan, Project.class);
+        // Eval[[UNPACKDIMENSION(group_pod_$1{r}#454) AS pod#426]]
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var unpackAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(unpackAlias.name(), equalTo("pod"));
+        var unpack = as(unpackAlias.child(), UnpackDimension.class);
+        var unpackField = as(unpack.field(), ReferenceAttribute.class);
+        assertThat(unpackField.name(), equalTo("group_pod_$1"));
+        // Limit[1000000[INTEGER],false,false]
+        var limit = as(eval.child(), Limit.class);
+        // Aggregate[[pack_pod_$1{r}#453,
+        // bucket(@timestamp, 1 minute){r}#418],
+        // [MAX(MAXOVERTIME_$1{r}#451,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(max_over_time(network.bytes_in))#420,
+        // pack_pod_$1{r}#453 AS group_pod_$1#454,
+        // bucket(@timestamp, 1 minute){r}#418 AS bucket(@timestamp, 1 minute)#418]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(2));
+        assertThat(aggregate.aggregates(), hasSize(3));
+        as(Alias.unwrap(aggregate.aggregates().get(0)), Max.class);
+        var podAlias = as(aggregate.aggregates().get(1), Alias.class);
+        var podAttribute = as(podAlias.child(), ReferenceAttribute.class);
+        assertThat(podAttribute.name(), equalTo("pack_pod_$1"));
+        assertThat(aggregate.groupings().get(0), is(podAttribute));
+        var bucket = as(Alias.unwrap(aggregate.aggregates().get(2)), ReferenceAttribute.class);
+        assertThat(aggregate.groupings().get(1), is(bucket));
+
+        // Eval[[PACKDIMENSION(pod{r}#452) AS pack_pod_$1#453]]
+        var eval2 = as(aggregate.child(), Eval.class);
+        assertThat(eval2.fields(), hasSize(1));
+        var packAlias = as(eval2.fields().getFirst(), Alias.class);
+        assertThat(packAlias.name(), equalTo("pack_pod_$1"));
+        var pack = as(packAlias.child(), PackDimension.class);
+        var packField = as(pack.field(), ReferenceAttribute.class);
+        assertThat(packField.name(), equalTo("pod"));
+
+        // TimeSeriesAggregate[[_tsid{m}#450,
+        // bucket(@timestamp, 1 minute){r}#418],
+        // [MAX(network.bytes_in{f}#438,true[BOOLEAN],PT0S[TIME_DURATION]) AS MAXOVERTIME_$1#451,
+        // DIMENSIONVALUES(pod{f}#426,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#452,
+        // bucket(@timestamp, 1 minute){r}#418],
+        // BUCKET(@timestamp{f}#424,PT1M[TIME_DURATION]),@timestamp{f}#424]
+        var timeSeriesAggregate = as(eval2.child(), TimeSeriesAggregate.class);
+        assertThat(timeSeriesAggregate.groupings(), hasSize(2));
+        assertThat(timeSeriesAggregate.aggregates(), hasSize(3));
+        var dimensionValues = as(Alias.unwrap(timeSeriesAggregate.aggregates().get(1)), DimensionValues.class);
+        assertThat(Expressions.attribute(dimensionValues.field()).name(), equalTo("pod"));
+
+        // Eval[[BUCKET(@timestamp{f}#424,PT1M[TIME_DURATION]) AS bucket(@timestamp, 1 minute)#418]]
+        var eval3 = as(timeSeriesAggregate.child(), Eval.class);
+        // EsRelation[k8s][@timestamp{f}#424, client.ip{f}#428, cluster{f}#425, ..]
+        as(eval3.child(), EsRelation.class);
     }
 }

@@ -33,7 +33,6 @@ import java.util.Map;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
-import static org.elasticsearch.index.mapper.BlockLoaderTestRunner.PrettyEqual.prettyEqualTo;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -43,21 +42,30 @@ public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
     private final boolean allowDummyDocs;
 
+    public interface ResultMatcher {
+        void match(Object expected, Object actual);
+    }
+
     public BlockLoaderTestRunner(BlockLoaderTestCase.Params params, boolean allowDummyDocs) {
         this.params = params;
         this.allowDummyDocs = allowDummyDocs;
     }
 
-    /**
-     * Run the test.
-     * @param breaker breaker to use during the test. Callers are responible for making surethis is cleared.
-     */
+    public void defaultMatcher(Object expected, Object actual) {
+        assertThat(actual, PrettyEqual.prettyEqualTo(expected));
+    }
+
+    public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)
+        throws IOException {
+        runTest(mapperService, document, expected, blockLoaderFieldName, this::defaultMatcher);
+    }
+
     public void runTest(
         MapperService mapperService,
-        CircuitBreaker breaker,
         Map<String, Object> document,
         Object expected,
-        String blockLoaderFieldName
+        String blockLoaderFieldName,
+        ResultMatcher matcher
     ) throws IOException {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
         var source = new SourceToParse(

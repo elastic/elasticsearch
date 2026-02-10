@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -33,12 +35,12 @@ public abstract class DelegatingBlockLoader implements BlockLoader {
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        ColumnAtATimeReader reader = delegate.columnAtATimeReader(breaker, context);
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
+        IOFunction<CircuitBreaker, ColumnAtATimeReader> reader = delegate.columnAtATimeReader(context);
         if (reader == null) {
             return null;
         }
-        return new ColumnReader(reader);
+        return breaker -> new ColumnReader(reader.apply(breaker));
     }
 
     @Override

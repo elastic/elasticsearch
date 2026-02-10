@@ -10,10 +10,12 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -32,10 +34,19 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      */
     public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
 
-    private final String fieldName;
+    private final IOFunction<LeafReader, BinaryDocValues> docValuesSupplier;
 
     public BytesRefsFromBinaryBlockLoader(String fieldName) {
-        this.fieldName = fieldName;
+        this(leafReader -> leafReader.getBinaryDocValues(fieldName));
+    }
+
+    /**
+     * Create a block loader from a {@link BinaryDocValues} supplier.
+     * This is useful when the doc values are not directly stored in a single field
+     * but are composed of multiple sources, as is the case for Pattern Text.
+     */
+    public BytesRefsFromBinaryBlockLoader(IOFunction<LeafReader, BinaryDocValues> docValuesSupplier) {
+        this.docValuesSupplier = docValuesSupplier;
     }
 
     @Override
@@ -45,16 +56,8 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        AllReader result = null;
-        try {
-            result = createReader(breaker, ESTIMATED_SIZE, context.reader().getBinaryDocValues(fieldName));
-            return result;
-        } finally {
-            if (result == null) {
-                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-            }
-        }
+        BinaryDocValues docValues = docValuesSupplier.apply(context.reader());
+        return createReader(breaker, ESTIMATED_SIZE, docValues);
     }
 
     public static AllReader createReader(CircuitBreaker breaker, long estimatedSize, @Nullable BinaryDocValues docValues) {
@@ -69,10 +72,10 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * Read BinaryDocValues with no additional structure in the BytesRefs.
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
-    static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+    public static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
         private final long estimatedSize;
 
-        BytesRefsFromBinary(CircuitBreaker breaker, long estimatedSize, BinaryDocValues docValues) {
+        public BytesRefsFromBinary(CircuitBreaker breaker, long estimatedSize, BinaryDocValues docValues) {
             super(breaker, docValues);
             this.estimatedSize = estimatedSize;
         }

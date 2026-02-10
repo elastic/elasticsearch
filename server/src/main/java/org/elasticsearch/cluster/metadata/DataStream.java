@@ -1213,40 +1213,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing or failure indices depending on <code>failureStore</code> and return the ones that are managed by the
-     * data stream lifecycle and past the configured retention in their lifecycle.
+     * Iterate over either the backing indices, failure indices or both depending on the types param
+     * and return the ones that are managed by the data stream lifecycle and older than the supplied
+     * {@link TimeValue}.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesPastRetention(
-        Function<String, IndexMetadata> indexMetadataSupplier,
-        LongSupplier nowSupplier,
-        TimeValue effectiveRetention,
-        boolean failureStore
-    ) {
-        return getIndicesPastRetention(
-            indexMetadataSupplier,
-            nowSupplier,
-            effectiveRetention,
-            failureStore ? DatastreamIndexTypes.FAILURE_INDICES : DatastreamIndexTypes.BACKING_INDICES
-        );
-    }
-
-    /**
-     * Iterate over all backing indices and return the ones that are managed by the
-     * data stream lifecycle and past the configured retention in their lifecycle.
-     * NOTE that this specifically does not return the write index of the data stream as usually retention
-     * is treated differently for the write index (i.e. they first need to be rolled over)
-     */
-    public List<Index> getIndicesPastRetention(
-        Function<String, IndexMetadata> indexMetadataSupplier,
-        LongSupplier nowSupplier,
-        TimeValue effectiveRetention
-    ) {
-        return getIndicesPastRetention(indexMetadataSupplier, nowSupplier, effectiveRetention, DatastreamIndexTypes.ALL);
-    }
-
-    private List<Index> getIndicesPastRetention(
+    public List<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
@@ -2204,7 +2177,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
     }
 
-    private enum DatastreamIndexTypes {
+    public enum DatastreamIndexTypes {
         BACKING_INDICES,
         FAILURE_INDICES,
         ALL

@@ -74,14 +74,9 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
         private TDigestState tDigestState = null;
 
         Aggregate(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            this(name, fieldType, fieldData, DEFAULT_TYPE, DEFAULT_COMPRESSION);
-
-        }
-
-        Aggregate(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData, TDigestState.Type type, double compression) {
             super(name, fieldType, fieldData);
-            this.type = type;
-            this.compression = compression;
+            this.type = DEFAULT_TYPE;
+            this.compression = DEFAULT_COMPRESSION;
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {

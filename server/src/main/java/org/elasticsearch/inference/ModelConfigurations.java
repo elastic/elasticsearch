@@ -222,11 +222,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             && taskType == model.taskType
             && Objects.equals(service, model.service)
             && Objects.equals(serviceSettings, model.serviceSettings)
-            && Objects.equals(taskSettings, model.taskSettings);
+            && Objects.equals(taskSettings, model.taskSettings)
+            && Objects.equals(chunkingSettings, model.chunkingSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings);
     }
 }

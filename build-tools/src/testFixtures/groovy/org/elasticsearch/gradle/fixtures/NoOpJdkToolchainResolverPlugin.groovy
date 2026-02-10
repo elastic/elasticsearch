@@ -35,13 +35,16 @@ abstract class NoOpJdkToolchainResolverPlugin implements Plugin<Settings> {
         Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
             println "request.javaToolchainSpec.languageVersion = $request.javaToolchainSpec.languageVersion"
 
+            def uriProperty = System.getProperty("toolchain.uri")
+            if (uriProperty == null || uriProperty.isEmpty()) {
+                return Optional.empty()
+            }
+            def uri = URI.create(uriProperty)
             return Optional.of(
                 new JavaToolchainDownload() {
                     @Override
                     URI getUri() {
-                        System.getProperty("toolchain.uri")?.with { return URI.create(it) }
-                        def uriProperty = System.getProperty("toolchain.uri");
-                        return URI.create(uriProperty)
+                        return uri
                     }
                 }
             )

@@ -87,7 +87,6 @@ gradlePlugin {
             implementationClass = 'org.elasticsearch.gradle.test.YamlRestTestPlugin'
         }
     }
-//    testSourceSets project.sourceSets.integTest, project.sourceSets.testFixtures
 }
 
 // we update the version property to reflect if we are building a snapshot or a release build
@@ -145,6 +144,7 @@ dependencies {
     implementation buildLibs.jackson.core
     implementation buildLibs.jackson.databind
 
+    testFixturesApi buildLibs.commmons.io
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi buildLibs.junit

@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle
 
 import spock.lang.IgnoreIf
-import spock.lang.IgnoreRest
 import spock.lang.Unroll
 import spock.util.environment.RestoreSystemProperties
 
@@ -281,8 +280,9 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         then:
         def output = result.output
         assert output.contains("Running")
-        assert output.contains("ES_JAVA_HOME=")
-        assert output.contains("eclipse_adoptium-17")
+        assert output.lines().anyMatch { line ->
+            line.contains("ES_JAVA_HOME=") && line.contains("eclipse_adoptium-17")
+        }
     }
 
     boolean assertEsOutputContains(String testCluster, String expectedOutput) {

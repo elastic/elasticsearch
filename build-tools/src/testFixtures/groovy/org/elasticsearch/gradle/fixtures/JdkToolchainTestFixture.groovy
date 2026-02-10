@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import org.apache.commons.io.FileUtils
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 
@@ -34,7 +35,10 @@ class JdkToolchainTestFixture {
      * @param vendor The vendor name (e.g., "eclipse_adoptium")
      * @return The BuildResult from running the build
      */
-    static BuildResult withMockedJdkDownload(GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure, int javaVersion, String vendor) {
+    static BuildResult withMockedJdkDownload(GradleRunner gradleRunner,
+                                             Closure<BuildResult> buildRunClosure,
+                                             int javaVersion,
+                                             String vendor) {
         // Create a temp directory to hold the fake JDK installation
         Path tempDir = Files.createTempDirectory("fake-jdk-")
         try {
@@ -49,7 +53,7 @@ class JdkToolchainTestFixture {
             List<String> filteredArguments = givenArguments.findAll { arg ->
                 String argStr = arg.toString()
                 !argStr.contains('org.gradle.java.installations.auto-detect') &&
-                !argStr.contains('org.gradle.java.installations.paths')
+                    !argStr.contains('org.gradle.java.installations.paths')
             }
 
             // Use toRealPath() to get the canonical path (with /private prefix on macOS)
@@ -67,7 +71,7 @@ class JdkToolchainTestFixture {
             return buildRunClosure.call(effectiveRunner)
         } finally {
             // Clean up temp directory
-            deleteRecursively(tempDir.toFile())
+            FileUtils.deleteDirectory(tempDir.toFile())
         }
     }
 
@@ -183,7 +187,8 @@ IMAGE_TYPE="JDK"
 """
         Files.write(releaseFile, releaseContent.getBytes())
 
-        return jdkDir
+        // Return the JDK home path (where bin/java and release live) for org.gradle.java.installations.paths
+        return homeDir
     }
 
     /**
@@ -208,15 +213,4 @@ IMAGE_TYPE="JDK"
         }
     }
 
-    /**
-     * Recursively deletes a directory and all its contents.
-     */
-    private static void deleteRecursively(File file) {
-        if (file.isDirectory()) {
-            file.listFiles()?.each { child ->
-                deleteRecursively(child)
-            }
-        }
-        file.delete()
-    }
 }

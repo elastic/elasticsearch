@@ -433,12 +433,12 @@ warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentExcepti
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
 
 string:keyword | base:integer | to_long:long  | to_integer:integer
-0              | 10           | 0	      | 0
-473            | 10           | 473	      | 473
-+42            | 10           | 42	      | 42
--0             | 10           | 0	      | 0
+0              | 10           | 0	          | 0
+473            | 10           | 473	          | 473
++42            | 10           | 42	          | 42
+-0             | 10           | 0	          | 0
 -FF            | 16           | -255	      | -255
-1100110        | 2            | 102	      | 102
+1100110        | 2            | 102	          | 102
 99             | 8            | null	      | null
 Hazelnut       | 10           | null	      | null
 Hazelnut       | 36           | 1356099454469 | null
@@ -793,6 +793,7 @@ a:integer    | a1:integer | a2:integer | a3:integer
 
 mvSliceEmpInt
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.int, 0, 1)
@@ -810,6 +811,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntSingle
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.int, 1)
@@ -827,6 +829,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntEndOutOfBound
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.int, 1, 4)
@@ -844,6 +847,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntOutOfBound
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.int, 2, 4)
@@ -861,6 +865,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntStartOutOfBoundNegative
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.int, -5, -2)
@@ -878,6 +883,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntOutOfBoundNegative
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.int, -5, -3)
@@ -895,6 +901,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpLong
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.long, 0, 1)

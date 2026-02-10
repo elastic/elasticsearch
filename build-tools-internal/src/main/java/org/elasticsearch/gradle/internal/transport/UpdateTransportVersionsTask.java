@@ -61,8 +61,7 @@ public abstract class UpdateTransportVersionsTask extends DefaultTask {
         var csvFile = getTransportVersionsFile().getAsFile().get().toPath();
 
         String versionPrefix = stackVersion.toString() + ",";
-        return Files.readAllLines(csvFile).stream()
-            .anyMatch(line -> line.trim().startsWith(versionPrefix));
+        return Files.readAllLines(csvFile).stream().anyMatch(line -> line.trim().startsWith(versionPrefix));
     }
 
     private void addTransportVersionRecord(Version stackVersion, int transportVersionId) throws IOException {

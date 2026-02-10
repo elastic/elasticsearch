@@ -75,6 +75,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
 
     public void testTerms() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTest((writer, parser) -> {
 
             final var now = Instant.now();
@@ -182,6 +183,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSeek() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final int routing = randomNonNegativeInt();
         final int maxHosts = randomIntBetween(1, 25);
 

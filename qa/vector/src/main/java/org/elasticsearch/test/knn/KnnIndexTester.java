@@ -298,6 +298,9 @@ public class KnnIndexTester {
             System.out.println();
             System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
             System.out.println("Every combination of each parameter will be run.");
+            System.out.println();
+            System.out.println(TestConfiguration.formattedParameterHelp());
+            System.out.println();
             System.out.println(
                 "This example configuration runs 4 searches with different combinations of num_candidates and early_termination:"
             );
@@ -489,9 +492,9 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
+                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
                     Boolean.toString(queryResult.filterCached),
-                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
                     Boolean.toString(queryResult.earlyTermination) };

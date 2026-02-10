@@ -95,9 +95,7 @@ public class FunctionGenerator {
      * @return a field name of a type accepted by most scalar functions, or null if none available
      */
     static String randomScalarField(List<Column> columns) {
-        List<Column> suitable = columns.stream()
-            .filter(c -> SCALAR_UNSUPPORTED_TYPES.contains(c.type()) == false)
-            .toList();
+        List<Column> suitable = columns.stream().filter(c -> SCALAR_UNSUPPORTED_TYPES.contains(c.type()) == false).toList();
         if (suitable.isEmpty()) {
             return null;
         }
@@ -491,10 +489,7 @@ public class FunctionGenerator {
         // String to various types
         String stringField = EsqlQueryGenerator.randomStringField(columns);
         if (stringField != null) {
-            return randomFrom(
-                "to_string(" + stringField + ")",
-                "to_lower(" + stringField + ")"
-            );
+            return randomFrom("to_string(" + stringField + ")", "to_lower(" + stringField + ")");
         }
 
         return null;
@@ -679,10 +674,7 @@ public class FunctionGenerator {
         }
         int start = randomIntBetween(0, 3);
         int end = start + randomIntBetween(1, 5);
-        return randomFrom(
-            "mv_slice(" + field + ", " + start + ", " + end + ")",
-            "mv_slice(" + field + ", " + start + ")"
-        );
+        return randomFrom("mv_slice(" + field + ", " + start + ", " + end + ")", "mv_slice(" + field + ", " + start + ")");
     }
 
     // ========== IP FUNCTIONS ==========

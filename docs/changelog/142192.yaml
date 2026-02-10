@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 142192
+summary: Ensure deletion of snapshot clone propogate state changes
+type: bug

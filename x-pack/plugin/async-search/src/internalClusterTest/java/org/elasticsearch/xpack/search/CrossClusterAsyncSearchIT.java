@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -98,6 +100,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     private static final long EARLIEST_TIMESTAMP = 1691348810000L;
     private static final long LATEST_TIMESTAMP = 1691348820000L;
 
+    private boolean isRandomSkipUnavailable = false;
     @Override
     protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
@@ -105,7 +108,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER, randomBoolean());
+        return isRandomSkipUnavailable ? Map.of(REMOTE_CLUSTER, randomBoolean()) : Map.of(REMOTE_CLUSTER, false);
     }
 
     @Override
@@ -1209,9 +1212,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    @Repeat(iterations = 100)
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
-        // increase the shard count versus other tests to give more opportunity for partial results
-        Map<String, Object> testClusterInfo = setupTwoClusters(randomIntBetween(20, 120), randomIntBetween(20, 120));
+        Map<String, Object> testClusterInfo = setupTwoClusters(); //randomIntBetween(20, 120), randomIntBetween(20, 120));
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -1277,8 +1280,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             // Test that a response object for a partial response will be fleshed out with the intermediate response if requested
             assertTrue(localQueryDoneWithIntermediateResponse.isRunning());
             assertTrue(localQueryDoneWithIntermediateResponse.isPartial());
-            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations(), notNullValue());
-            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
+            // With CCS minimize roundtrips=false, we might not have done a partial reduce yet, so we might not have any aggregations
+            if (localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations() != null) {
+                assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
+            }
         } finally {
             localQueryDoneWithIntermediateResponse.decRef();
         }

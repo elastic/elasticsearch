@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -134,7 +135,15 @@ public class VectorScorerOSQBenchmark {
         };
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-            generateData(random, output);
+            byte[] correctionBytes = new byte[16 * bulkSize];
+            for (int i = 0; i < numVectors; i += bulkSize) {
+                for (int j = 0; j < bulkSize; j++) {
+                    output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
+                }
+                random.nextBytes(correctionBytes);
+                output.writeBytes(correctionBytes, 0, correctionBytes.length);
+            }
+            CodecUtil.writeFooter(output);
         }
 
         input = directory.openInput("vectors", IOContext.DEFAULT);
@@ -187,17 +196,6 @@ public class VectorScorerOSQBenchmark {
     Path createTempDirectory(String name) throws IOException {
         tempDir = Files.createTempDirectory(name);
         return tempDir;
-    }
-
-    void generateData(Random random, IndexOutput out) throws IOException {
-        byte[] correctionBytes = new byte[16 * bulkSize];
-        for (int i = 0; i < numVectors; i += bulkSize) {
-            for (int j = 0; j < bulkSize; j++) {
-                out.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
-            }
-            random.nextBytes(correctionBytes);
-            out.writeBytes(correctionBytes, 0, correctionBytes.length);
-        }
     }
 
     @TearDown

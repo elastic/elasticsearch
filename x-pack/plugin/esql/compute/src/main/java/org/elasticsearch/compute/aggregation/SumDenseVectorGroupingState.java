@@ -29,28 +29,32 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
         this.sums = bigArrays.newObjectArray(1);
     }
 
-    void add(int groupId, float[] vector) {
-        if (vector == null) {
-            return;
-        }
+    /**
+     * Add a vector from a FloatBlock to the sum for a specific group.
+     * @param groupId the group ID
+     * @param block the FloatBlock containing the vector
+     * @param start the starting index in the block
+     * @param valueCount the number of values (dimensions) in the vector
+     */
+    void add(int groupId, FloatBlock block, int start, int valueCount) {
         ensureCapacity(groupId);
 
         if (expectedDimensions == -1) {
-            expectedDimensions = vector.length;
-        } else if (vector.length != expectedDimensions) {
+            expectedDimensions = valueCount;
+        } else if (valueCount != expectedDimensions) {
             throw new IllegalArgumentException(
-                "Cannot sum dense vectors with different dimensions: expected [" + expectedDimensions + "] but got [" + vector.length + "]"
+                "Cannot sum dense vectors with different dimensions: expected [" + expectedDimensions + "] but got [" + valueCount + "]"
             );
         }
 
         float[] currentSum = sums.get(groupId);
         if (currentSum == null) {
-            currentSum = new float[vector.length];
+            currentSum = new float[valueCount];
             sums.set(groupId, currentSum);
         }
 
-        for (int i = 0; i < vector.length; i++) {
-            currentSum[i] += vector[i];
+        for (int i = 0; i < valueCount; i++) {
+            currentSum[i] += block.getFloat(start + i);
         }
         trackGroupId(groupId);
     }

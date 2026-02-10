@@ -480,7 +480,8 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
 
     @TestLogging(
         value = "org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService:DEBUG,"
-            + "org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler:DEBUG",
+            + "org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasScalerCacheBudget:DEBUG",
         reason = "new feature debugging"
     )
     public void testReplicasLoadBalancingScalesUpWithHighSearchLoad() throws Exception {
@@ -495,6 +496,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
             .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 250)
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false)
             .put(ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING.getKey(), false)
+            .put(ReplicasScalerCacheBudget.REPLICA_CACHE_BUDGET_RATIO.getKey(), 1.0)
             .build();
         startMasterAndIndexNode(settings);
         startSearchNode(settings);

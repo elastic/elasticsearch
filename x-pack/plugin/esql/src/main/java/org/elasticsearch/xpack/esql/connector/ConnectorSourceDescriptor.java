@@ -46,7 +46,7 @@ import java.util.Map;
  * @param dataSourceName The registered data source name, or null if inline
  * @param source Source location for error reporting
  */
-public record SourceDescriptor(
+public record ConnectorSourceDescriptor(
     String type,
     Map<String, Object> configuration,
     Map<String, Object> settings,
@@ -67,7 +67,7 @@ public record SourceDescriptor(
      * @param expression The expression after {@code :} (e.g., "logs", "logs/*.parquet")
      * @param source Source location for error reporting
      */
-    public static SourceDescriptor registered(
+    public static ConnectorSourceDescriptor registered(
         String dataSourceName,
         String type,
         Map<String, Object> configuration,
@@ -75,7 +75,7 @@ public record SourceDescriptor(
         String expression,
         Source source
     ) {
-        return new SourceDescriptor(type, configuration, settings, expression, dataSourceName, source);
+        return new ConnectorSourceDescriptor(type, configuration, settings, expression, dataSourceName, source);
     }
 
     /**
@@ -89,14 +89,14 @@ public record SourceDescriptor(
      * @param expression The expression after {@code :} (e.g., "logs", "logs/*.parquet")
      * @param source Source location for error reporting
      */
-    public static SourceDescriptor inline(
+    public static ConnectorSourceDescriptor inline(
         String type,
         Map<String, Object> configuration,
         Map<String, Object> settings,
         String expression,
         Source source
     ) {
-        return new SourceDescriptor(type, configuration, settings, expression, null, source);
+        return new ConnectorSourceDescriptor(type, configuration, settings, expression, null, source);
     }
 
     /**

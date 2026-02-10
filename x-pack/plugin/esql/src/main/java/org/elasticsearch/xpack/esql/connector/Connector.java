@@ -106,7 +106,7 @@ public interface Connector {
      * the connector-specific {@link ConnectorPlan} node that will serve as the leaf
      * in the logical plan tree.
      *
-     * <p><b>Expression interpretation:</b> The {@link SourceDescriptor#expression()} is
+     * <p><b>Expression interpretation:</b> The {@link ConnectorSourceDescriptor#expression()} is
      * connector-specific and opaque to ES|QL. By the time it reaches the connector,
      * the parser has resolved all three expression forms (unquoted, quoted, query function)
      * into a plain string. Examples:
@@ -121,7 +121,7 @@ public interface Connector {
      * @param context Resolution context providing cluster state and configuration
      * @return Connector-specific logical plan node with schema
      */
-    ConnectorPlan resolve(SourceDescriptor source, ResolutionContext context);
+    ConnectorPlan resolve(ConnectorSourceDescriptor source, ResolutionContext context);
 
     // =========================================================================
     // PHASE 2: LOGICAL OPTIMIZATION

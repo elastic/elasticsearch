@@ -19,9 +19,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceBytesRefBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -30,6 +30,7 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -64,14 +65,10 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         List<String> sampleInput = getSampleInputForSimple();
-        List<Page> pages = new ArrayList<>();
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(size)) {
-            for (int i = 0; i < size; i++) {
-                builder.appendBytesRef(new BytesRef(sampleInput.get(i % sampleInput.size())));
-            }
-            pages.add(new Page(builder.build()));
-        }
-        return new CannedSourceOperator(pages.iterator());
+        return new SequenceBytesRefBlockSourceOperator(
+            blockFactory,
+            IntStream.range(0, size).mapToObj(i -> new BytesRef(sampleInput.get(i % sampleInput.size())))
+        );
     }
 
     @Override

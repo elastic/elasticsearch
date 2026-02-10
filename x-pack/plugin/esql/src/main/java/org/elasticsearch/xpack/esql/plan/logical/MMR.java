@@ -33,6 +33,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
 
 public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordinator, PostAnalysisVerificationAware {
@@ -237,6 +238,10 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
 
         if (queryVector.dataType().isNumeric()) {
+            return new ToDenseVector(queryVector.source(), queryVector);
+        }
+
+        if (queryVector instanceof Literal litQueryVector && litQueryVector.dataType() == KEYWORD) {
             return new ToDenseVector(queryVector.source(), queryVector);
         }
 

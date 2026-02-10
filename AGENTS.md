@@ -11,9 +11,9 @@
 - Refer to CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
 
 ## Verification & Lint Tasks
-- `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce the Eclipse formatter profile in `build-conventions/formatterConfig.xml`.
+- `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce formatter profile in `build-conventions/formatterConfig.xml`.
 
-### Project Structure
+## Project Structure
 The repository is organized into several key directories:
 *   `server`: The core Elasticsearch server.
 *   `modules`: Features shipped with Elasticsearch by default.
@@ -36,12 +36,20 @@ The repository is organized into several key directories:
 - Debugging: append `--debug-jvm` to the Gradle test task and attach a debugger on port 5005.
 - CI reproductions: copy the `REPRODUCE WITH` line from CI logs; it includes project path, seed, and JVM flags.
 - Yaml REST tests: `./gradlew ":rest-api-spec:yamlRestTest" --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=<relative_test_file_path>}"`
+- Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
+- Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
+- Ensure mocks or stubs are well-documented and clearly indicate why they were necessary. 
+
+### Test Types
+- Unit Tests: Preferred. Extend `ESTestCase`.
+- Single Node: Extend `ESSingleNodeTestCase` (lighter than full integ test).
+- Integration: Extend `ESIntegTestCase`.
+- REST API: Extend `ESRestTestCase` or `ESClientYamlSuiteTestCase`. **YAML based REST tests are preferred** for integration/API testing.
 
 ## Dependency Hygiene
 - Never add a dependency without checking for existing alternatives in the repo.
 
 ## Formatting & Imports
-- Run Spotless to auto-format; Java indent is 4 spaces, max width 140 columns.
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
 
 ## Types, Generics, and Suppressions
@@ -70,19 +78,12 @@ The repository is organized into several key directories:
 ## Javadoc & Comments
 - New packages/classes/public or abstract methods require Javadoc explaining the "why" rather than the implementation details.
 - Avoid documenting trivial getters/setters; focus on behavior, preconditions, or surprises.
-- Use `@link` for inline references; highlight performance caveats or contract obligations directly in docs.
 - For tests, Javadoc can describe scenario setup/expectations to aid future contributors.
 - Do not remove existing comments from code unless the code is also being removed or the comment has become incorrect.
 
 ## License Headers
 - Default header (outside `x-pack`): Elastic License 2.0, SSPL v1, or AGPL v3—they are already codified at the top of Java files; copy from existing sources.
 - Files under `x-pack` require the Elastic License 2.0-only header; IDEs configured per CONTRIBUTING.md can insert correct text automatically.
-
-## Testing Parameters Reference
-- Persistent data directories: add `--data-dir=/tmp/foo --preserve-data` to `run` if you need state between restarts.
-- Heap overrides: `-Dtests.heap.size=512m` for tests; `-Dtests.heap.size=4G` for runtime nodes when reproducing memory issues.
-- JVM args: `-Dtests.jvm.argline="-XX:HeapDumpPath=/tmp/heap`"; combine multiple args inside the quoted string.
-- License toggles: `-Drun.license_type=trial` enables full-stack features plus superuser credentials.
 
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
@@ -92,6 +93,6 @@ The repository is organized into several key directories:
 - Do not add "Co-Authored-By" lines to commit messages. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary
 
 ## Backwards compatibility
-- For items that require changes to the `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName(<unique_descriptive_name>)` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.
+- For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName(<unique_descriptive_name>)` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.

@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
@@ -248,7 +249,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
-        String sessionId = sessionID(task);
+        String sessionId = task instanceof EsqlQueryTask eqt ? eqt.sessionId() : newSessionID();
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
@@ -442,11 +443,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     /**
      * Returns the ID for this compute session. The ID is unique within the cluster, and is used
-     * to identify the compute-session across nodes. The ID is just the TaskID of the task that
-     * initiated the session.
+     * to identify the compute-session across nodes. The ID is a cryptographically secure random
+     * value to avoid leaking internal node IDs or task IDs.
      */
-    final String sessionID(Task task) {
-        return new TaskId(clusterService.localNode().getId(), task.getId()).toString();
+    static String newSessionID() {
+        return UUIDs.randomBase64UUID();
     }
 
     public ExchangeService exchangeService() {
@@ -469,6 +470,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         AsyncExecutionId asyncExecutionId
     ) {
         return new EsqlQueryTask(
+            newSessionID(),
             id,
             type,
             action,

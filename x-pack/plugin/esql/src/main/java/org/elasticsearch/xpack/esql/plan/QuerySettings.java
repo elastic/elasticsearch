@@ -8,31 +8,37 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
+
     @Param(
         name = "project_routing",
         type = { "keyword" },
         description = "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled."
+        // TODO add a link to CPS docs when available
     )
+    @Example(file = "from", tag = "project-routing", description = "Routes the query to the specified project.")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
@@ -47,14 +53,17 @@ public class QuerySettings {
     @Param(
         name = "time_zone",
         type = { "keyword" },
-        description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC"
+        since = "9.4+",
+        description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. "
+            + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones)."
     )
+    @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
         "time_zone",
         DataType.KEYWORD,
         false,
         true,
-        true,
+        false,
         (value) -> {
             String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
@@ -66,71 +75,69 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    @Param(name = "approximate", type = { "boolean", "map_param" }, description = "TODO - add description here")
+    @Param(
+        name = "unmapped_fields",
+        type = { "keyword" },
+        since = "9.3.0",
+        description = "Defines how unmapped fields are treated. Possible values are: "
+            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
+            + "\"NULLIFY\" - treats unmapped fields as null values. "
+        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
+    )
+    @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
+    public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
+        "unmapped_fields",
+        DataType.KEYWORD,
+        false,
+        true,
+        false,
+        (value) -> {
+            String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
+            try {
+                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled() == false) {
+                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
+                }
+                return res;
+            } catch (Exception exc) {
+                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+                    ? UnmappedResolution.values()
+                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
+
+                throw new IllegalArgumentException(
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
+                );
+            }
+        },
+        UnmappedResolution.FAIL
+    );
+
+    @Param(name = "approximation", type = { "boolean", "map_param" }, description = "TODO - add description here")
     @MapParam(
-        name = "approximate",
+        name = "approximation",
         params = {
             @MapParam.MapParamEntry(name = "num_rows", type = { "integer" }, description = "Number of rows."),
             @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
     )
-    @SuppressWarnings("unchecked")
-    public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
-        "approximate",
+    // TODO add examples when approximate is implemented, eg.
+    // @Example(file = "approximate", tag = "approximate-with-boolean")
+    // @Example(file = "approximate", tag = "approximate-with-map")
+    public static final QuerySettingDef<ApproximationSettings> APPROXIMATION = new QuerySettingDef<>(
+        "approximation",
         null,
         false,
         false,
         true,
-        (value, ctx) -> {
-            Object res = null;
-            if (value instanceof Literal l) {
-                res = l.value();
-            } else if (value instanceof MapExpression me) {
-                try {
-                    res = me.toFoldedMap(FoldContext.small());
-                } catch (IllegalStateException ex) {
-                    return "Approximate configuration must be a constant value [" + me + "]";
-                }
-
-                Map<String, Object> map = (Map<String, Object>) res;
-                for (Map.Entry<String, Object> entry : map.entrySet()) {
-                    if (entry.getKey().equals("num_rows")) {
-                        if (entry.getValue() instanceof Integer == false) {
-                            return "Approximate configuration [num_rows] must be an integer value";
-                        }
-                    } else if (entry.getKey().equals("confidence_level")) {
-                        if (entry.getValue() instanceof Double == false) {
-                            return "Approximate configuration [confidence_level] must be a double value";
-                        }
-                    } else {
-                        return "Approximate configuration contains unknown key [" + entry.getKey() + "]";
-                    }
-                }
-            }
-            if (res instanceof Boolean || res instanceof Map || res == null) {
-                return null; // all good, no error
-            }
-            return "Invalid approximate configuration [" + value + "]";
-        },
-
-        value -> {
-            Object folded = null;
-            if (value instanceof Literal l) {
-                folded = l.value();
-            } else if (value instanceof MapExpression me) {
-                folded = me.toFoldedMap(FoldContext.small());
-            }
-            if (folded instanceof Boolean b) {
-                folded = b ? Map.of() : null;
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) folded;
-            return map;
-        },
+        ApproximationSettings::parse,
         null
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE, APPROXIMATE)
-        .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(
+        UNMAPPED_FIELDS,
+        PROJECT_ROUTING,
+        TIME_ZONE,
+        APPROXIMATION
+    ).collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         for (QuerySetting setting : statement.settings()) {

@@ -23,6 +23,7 @@ import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
+import java.util.Map;
 
 public class SimpleEmbeddingServiceIntegrationValidator implements ServiceIntegrationValidator {
     // The below data URI represents the base64 encoding of 28x28 pixel black square .jpg image
@@ -44,7 +45,13 @@ public class SimpleEmbeddingServiceIntegrationValidator implements ServiceIntegr
 
     @Override
     public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        EmbeddingRequest request = new EmbeddingRequest(List.of(TEST_TEXT_INPUT, TEST_IMAGE_BASE64_INPUT), InputType.INTERNAL_INGEST);
+        List<InferenceStringGroup> inputList;
+        if (model.getServiceSettings().isMultimodal()) {
+            inputList = List.of(TEST_TEXT_INPUT, TEST_IMAGE_BASE64_INPUT);
+        } else {
+            inputList = List.of(TEST_TEXT_INPUT);
+        }
+        EmbeddingRequest request = new EmbeddingRequest(inputList, InputType.INTERNAL_INGEST, Map.of());
         service.embeddingInfer(model, request, timeout, ActionListener.wrap(r -> {
             if (r != null) {
                 listener.onResponse(r);

@@ -1,0 +1,6 @@
+pr: 140385
+summary: "Bugfix: Deleted async search won't show on any API"
+area: Search
+type: bug
+issues:
+ - 132423

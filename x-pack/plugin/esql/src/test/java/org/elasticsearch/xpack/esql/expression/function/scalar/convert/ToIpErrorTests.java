@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -17,13 +16,14 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ToIpErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return Iterators.toList(Iterators.map(ToIpTests.parameters().iterator(), p -> (TestCaseSupplier) p[0]));
+        return paramsToSuppliers(ToIpTests.parameters());
     }
 
     @Override
@@ -34,5 +34,11 @@ public class ToIpErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "ip or string"));
+    }
+
+    @Override
+    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
+        // Don't test options types, as options are not checked by type. See Options.resolve()
+        return super.testCandidates(cases, valid).filter(sig -> sig.size() == 1 || sig.get(1) == DataType.UNSUPPORTED);
     }
 }

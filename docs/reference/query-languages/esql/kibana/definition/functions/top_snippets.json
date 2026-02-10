@@ -41,7 +41,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='num_words', values=[300], description='The maximum number of words to return in each snippet.\nThis allows better control of inference costs by limiting the size of tokens per snippet.\n', type=[integer]}, {name='num_snippets', values=[3], description='The maximum number of matching snippets to return.', type=[integer]}",
           "optional" : true,
-          "description" : "(Optional) TopSnippets additional options as [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params)."
+          "description" : "(Optional) `TOP_SNIPPETS` additional options as [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params)."
         }
       ],
       "variadic" : false,
@@ -84,7 +84,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='num_words', values=[300], description='The maximum number of words to return in each snippet.\nThis allows better control of inference costs by limiting the size of tokens per snippet.\n', type=[integer]}, {name='num_snippets', values=[3], description='The maximum number of matching snippets to return.', type=[integer]}",
           "optional" : true,
-          "description" : "(Optional) TopSnippets additional options as [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params)."
+          "description" : "(Optional) `TOP_SNIPPETS` additional options as [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params)."
         }
       ],
       "variadic" : false,

@@ -38,7 +38,6 @@ public class CohereCompletionModelTests extends ESTestCase {
         return new CohereCompletionModel(
             "id",
             new CohereCompletionServiceSettings(url, model, null, CohereServiceSettings.CohereApiVersion.V2),
-            EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

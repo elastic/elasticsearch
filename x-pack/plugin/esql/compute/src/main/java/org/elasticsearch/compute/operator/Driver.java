@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -22,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
@@ -196,7 +198,16 @@ public class Driver implements Releasable, Describable {
                 LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
                 throw e;
             } catch (RuntimeException e) {
-                LOGGER.warn(Strings.format("Error running driver [%s]", shortDescription), e);
+                RestStatus status = ExceptionsHelper.status(e);
+                // HTTP 4xx status codes (400-499) indicate client/user errors: malformed requests, authentication
+                // failures, cancellations, etc. These are expected user actions, not system failures, so log at
+                // DEBUG level to reduce noise. HTTP 5xx status codes (500+) indicate server errors: internal
+                // failures, timeouts, etc. These are system failures that need attention, so log at WARN level.
+                if (status.getStatus() >= 400 && status.getStatus() < 500) {
+                    LOGGER.debug(Strings.format("User error running driver [%s]", shortDescription), e);
+                } else {
+                    LOGGER.warn(Strings.format("Error running driver [%s]", shortDescription), e);
+                }
                 throw e;
             } finally {
                 assert driverContext.assertEndRunLoop();

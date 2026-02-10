@@ -51,6 +51,10 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
         // we use an inline example here because ?pattern not supported in csv-spec test
         detailedDescription = """
+            When used on `text` fields, `LIKE` treats the field as a `keyword` and does not use the analyzer.
+            This means the pattern matching is case-sensitive and must match the exact string indexed.
+            To perform full-text search, use the `MATCH` or `QSTR` functions.
+
             Matching the exact characters `*` and `.` will require escaping.
             The escape character is backslash `\\`. Since also backslash is a special character in string literals,
             it will require further escaping.

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.transport.netty4;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -18,10 +17,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -35,7 +34,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.OutboundHandler;
@@ -329,9 +327,11 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         authenticationException.set(new ElasticsearchSecurityException("authn failure"));
         TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
         InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
-        try (Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort())) {
-            Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        try (
+            Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort());
+            var recycler = new MockBytesRefRecycler();
+            var out = new RecyclerBytesStreamOutput(recycler)
+        ) {
             BytesReference bytesReference = OutboundHandler.serialize(
                 OutboundHandler.MessageDirection.REQUEST,
                 "internal:whatever",
@@ -341,15 +341,18 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
                 new EmptyRequest(),
                 threadPool.getThreadContext(),
-                out
+                out,
+                recycler
             );
-            socket.getOutputStream().write(Arrays.copyOfRange(bytesReference.array(), 0, bytesReference.length()));
-            socket.getOutputStream().flush();
+            final var socketOut = socket.getOutputStream();
+            bytesReference.writeTo(socketOut);
+            socketOut.flush();
 
-            final String response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            final var socketIn = socket.getInputStream();
+            final String response = new String(socketIn.readAllBytes(), StandardCharsets.UTF_8);
             assertThat(response, containsString("authn failure"));
             // -1 means the other side has disconnected
-            assertThat(socket.getInputStream().read(), equalTo(-1));
+            assertThat(socketIn.read(), equalTo(-1));
         }
     }
 

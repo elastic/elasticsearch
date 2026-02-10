@@ -44,7 +44,7 @@ public final class AllFirstIntByTimestampAggregatorFunction implements Aggregato
 
   public static AllFirstIntByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllFirstIntByTimestampAggregatorFunction(driverContext, channels, AllFirstIntByTimestampAggregator.initSingle());
+    return new AllFirstIntByTimestampAggregatorFunction(driverContext, channels, AllFirstIntByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

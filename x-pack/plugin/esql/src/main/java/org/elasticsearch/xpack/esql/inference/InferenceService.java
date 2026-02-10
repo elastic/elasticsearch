@@ -7,20 +7,25 @@
 
 package org.elasticsearch.xpack.esql.inference;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
+
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class InferenceService {
 
     private InferenceSettings inferenceSettings;
 
+    private final Client client;
+    private final ThreadPool threadPool;
     private final InferenceResolver.Factory inferenceResolverFactory;
-
-    private final BulkInferenceRunner.Factory bulkInferenceRunnerFactory;
 
     /**
      * Creates a new inference service with the given client.
@@ -29,18 +34,15 @@ public class InferenceService {
      * @param clusterService used to read and update inference settings
      */
     public InferenceService(Client client, ClusterService clusterService) {
-        this(InferenceResolver.factory(client), BulkInferenceRunner.factory(client), clusterService.getSettings());
+        this(client, clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(this::updateInferenceSettings, InferenceSettings.getSettings());
 
     }
 
-    private InferenceService(
-        InferenceResolver.Factory inferenceResolverFactory,
-        BulkInferenceRunner.Factory bulkInferenceRunnerFactory,
-        Settings settings
-    ) {
-        this.inferenceResolverFactory = inferenceResolverFactory;
-        this.bulkInferenceRunnerFactory = bulkInferenceRunnerFactory;
+    private InferenceService(Client client, Settings settings) {
+        this.client = client;
+        this.threadPool = client.threadPool();
+        this.inferenceResolverFactory = InferenceResolver.factory(client);
         updateInferenceSettings(settings);
     }
 
@@ -68,11 +70,21 @@ public class InferenceService {
         return inferenceResolverFactory.create(functionRegistry);
     }
 
-    public BulkInferenceRunner bulkInferenceRunner() {
-        return bulkInferenceRunner(BulkInferenceRunnerConfig.DEFAULT);
+    /**
+     * Executes an inference request.
+     *
+     * @param request  the inference request to execute
+     * @param listener the listener to notify upon completion
+     */
+    public void executeInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
+        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, request, listener);
     }
 
-    public BulkInferenceRunner bulkInferenceRunner(BulkInferenceRunnerConfig bulkInferenceRunnerConfig) {
-        return bulkInferenceRunnerFactory.create(bulkInferenceRunnerConfig);
+    public ThreadPool threadPool() {
+        return threadPool;
+    }
+
+    public ThreadContext threadContext() {
+        return threadPool.getThreadContext();
     }
 }

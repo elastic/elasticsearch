@@ -727,7 +727,7 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     private BlockFactory blockFactory() {

@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,20 +27,33 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Class that collects all raw values for an exponential histogram metric field and computes its aggregate (downsampled)
+ * Class that collects all raw values for a (tdigest) histogram metric field and computes its aggregate (downsampled)
  * values.
  */
 abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler<HistogramValues> {
 
-    static final String TYPE = "histogram";
-    public static final int COMPRESSION = 100;
+    static final double DEFAULT_COMPRESSION = 100;
+    // MergingDigest is the best fit because we have pre-constructed histograms
+    static final TDigestState.Type DEFAULT_TYPE = TDigestState.Type.MERGING;
+    static final String VALUES_FIELD = "values";
+    static final String CENTROIDS_FIELD = "centroids";
+    protected final String valueLabel;
 
     TDigestHistogramFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         super(name, new TDigestHistogramFieldFetcher(name, fieldType, fieldData));
+        valueLabel = getValueLabel(fieldType);
+    }
+
+    private static String getValueLabel(MappedFieldType fieldType) {
+        if (TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
+            return CENTROIDS_FIELD;
+        } else {
+            return VALUES_FIELD;
+        }
     }
 
     /**
-     * @return the requested produces based on the sampling method for metric of type exponential histogram
+     * @return the requested produces based on the sampling method for metric of type tdigest histogram
      */
     public static TDigestHistogramFieldDownsampler create(
         String name,
@@ -55,10 +69,19 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
 
     private static class Aggregate extends TDigestHistogramFieldDownsampler {
 
+        private final TDigestState.Type type;
+        private final double compression;
         private TDigestState tDigestState = null;
 
         Aggregate(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            this(name, fieldType, fieldData, DEFAULT_TYPE, DEFAULT_COMPRESSION);
+
+        }
+
+        Aggregate(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData, TDigestState.Type type, double compression) {
             super(name, fieldType, fieldData);
+            this.type = type;
+            this.compression = compression;
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -70,7 +93,7 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
                 isEmpty = false;
                 if (tDigestState == null) {
                     // TODO: figure out what circuit breaker to use here and in the other histogram
-                    tDigestState = TDigestState.create(new NoopCircuitBreaker("downsampling-histograms"), COMPRESSION);
+                    tDigestState = TDigestState.createOfType(new NoopCircuitBreaker("downsampling-histograms"), type, compression);
                 }
                 final HistogramValue sketch = docValues.histogram();
                 while (sketch.next()) {
@@ -96,7 +119,7 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
                     values.add(centroid.mean());
                     counts.add(centroid.count());
                 }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
+                builder.startObject(name()).field("counts", counts).field(valueLabel, values).endObject();
                 tDigestState.close();
             }
         }
@@ -141,7 +164,7 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
                     values.add(histogramValue.value());
                     counts.add(histogramValue.count());
                 }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
+                builder.startObject(name()).field("counts", counts).field(valueLabel, values).endObject();
             }
         }
     }

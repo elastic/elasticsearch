@@ -2,6 +2,6 @@
   "match": {
     "indices": "colors_cmyk",
     "match_field": "id",
-    "enrich_fields": ["color_name"]
+    "enrich_fields": ["color_name", "cmyk_vector"]
   }
 }

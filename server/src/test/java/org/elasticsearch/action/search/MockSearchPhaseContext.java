@@ -16,6 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -57,6 +60,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             logger,
             new NamedWriteableRegistry(List.of()),
             mock(SearchTransportService.class),
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (clusterAlias, nodeId) -> null,
             null,
             null,
@@ -71,7 +75,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             5,
             null,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-            Map.of()
+            Map.of(),
+            false
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
@@ -91,9 +96,11 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
 
     @Override
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
+        String scrollId = getRequest().scroll() != null
+            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler())
+            : null;
         BytesReference searchContextId = getRequest().pointInTimeBuilder() != null
-            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults))
+            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()))
             : null;
         var existing = searchResponse.getAndSet(
             new SearchResponse(
@@ -152,8 +159,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
-        onShardResult(new SearchPhaseResult() {
-        });
+        onShardResult(new SearchPhaseResult() {});
     }
 
     @Override

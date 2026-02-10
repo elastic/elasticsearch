@@ -601,7 +601,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             version,
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
+            IndexVersionUtils.randomCompatibleVersion()
         );
     }
 

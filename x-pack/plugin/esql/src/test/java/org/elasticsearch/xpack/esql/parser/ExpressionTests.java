@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -360,7 +361,12 @@ public class ExpressionTests extends ESTestCase {
                 new ArrayList<>(
                     List.of(
                         new UnresolvedAttribute(EMPTY, "a"),
-                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "b"), new UnresolvedAttribute(EMPTY, "c"))
+                        new Add(
+                            EMPTY,
+                            new UnresolvedAttribute(EMPTY, "b"),
+                            new UnresolvedAttribute(EMPTY, "c"),
+                            ConfigurationAware.CONFIGURATION_MARKER
+                        )
                     )
                 )
             ),

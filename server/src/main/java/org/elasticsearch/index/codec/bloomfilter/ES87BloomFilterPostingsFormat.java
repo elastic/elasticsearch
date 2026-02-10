@@ -101,6 +101,10 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
         return new FieldsReader(state);
     }
 
+    public Function<String, PostingsFormat> getPostingsFormats() {
+        return postingsFormats;
+    }
+
     @Override
     public String toString() {
         return BLOOM_CODEC_NAME;

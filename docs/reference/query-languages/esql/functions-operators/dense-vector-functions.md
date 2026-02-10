@@ -9,9 +9,13 @@ mapped_pages:
 
 # {{esql}} dense vector functions [esql-dense-vector-functions]
 
+:::{tip}
+For more examples of these functions in action, refer to [the {{esql}} for search tutorial](/reference/query-languages/esql/esql-search-tutorial.md#vector-search-with-knn-similarity-functions-and-text_embedding).
+:::
+
 {{esql}} supports dense vector functions for vector similarity calculations and
 k-nearest neighbor search.
-Dsense vector functions work with [
+Dense vector functions work with [
 `dense_vector` fields](/reference/elasticsearch/mapping-reference/dense-vector.md)
 and require appropriate field mappings.
 
@@ -25,6 +29,10 @@ and require appropriate field mappings.
 
 :::{include} ../_snippets/functions/layout/text_embedding.md
 :::
+
+## Vector similarity functions
+
+Vector similarity functions calculate the similarity between two vectors as a double value, that represents how similar the vectors are.
 
 :::{include} ../_snippets/functions/layout/v_cosine.md
 :::

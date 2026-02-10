@@ -195,7 +195,7 @@ public abstract class Foldables {
             return n.doubleValue();
         }
         throw new EsqlIllegalArgumentException(
-            Strings.format(null, "[{}] value must be a constant number in [{}], found [{}]", fieldName, sourceText, field)
+            Strings.format("[%s] value must be a constant number in [%s], found [%s]", fieldName, sourceText, field)
         );
     }
 }

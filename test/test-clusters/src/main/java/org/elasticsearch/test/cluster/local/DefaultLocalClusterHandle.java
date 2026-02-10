@@ -210,6 +210,10 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return nodes.get(index).getLog(logType);
     }
 
+    public Path getNodeConfigPath(int index) {
+        return nodes.get(index).getConfigDir();
+    }
+
     @Override
     public void updateStoredSecureSettings() {
         execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));

@@ -16,6 +16,8 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,7 +135,8 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     ) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
-        if (TDigestHistogramFieldDownsampler.TYPE.equals(fieldType.typeName())) {
+        if (HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())
+            || TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         if (ExponentialHistogramFieldDownsampler.TYPE.equals(fieldType.typeName())) {

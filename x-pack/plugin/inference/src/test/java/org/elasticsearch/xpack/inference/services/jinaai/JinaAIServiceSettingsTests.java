@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.jinaai;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIServiceSettings> {
@@ -104,10 +106,14 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
         return new JinaAIServiceSettings(modelId, rateLimitSettings);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(String model) {
+    public static Map<String, Object> getServiceSettingsMap(String model, @Nullable Integer requestsPerMinute) {
         var map = new HashMap<String, Object>();
 
         map.put(ServiceFields.MODEL_ID, model);
+
+        if (requestsPerMinute != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(REQUESTS_PER_MINUTE_FIELD, requestsPerMinute)));
+        }
 
         return map;
     }

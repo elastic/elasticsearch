@@ -319,7 +319,8 @@ keyword with normalizer and skip store original value:
   - match:
       docs.2._source:
         keyword: [ "do or do not, there is no try", "may the force be with you!" ]
-        keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        # ignore_above uses binary doc values, which are sorted, so we expect the output to be sorted as well
+        keyword_with_ignore_above: [ "Do or Do Not, There is no Try", "May the FORCE be with You!" ]
         keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
 
 ---
@@ -399,7 +400,8 @@ keyword with built-in normalizer:
   - match:
       docs.2._source:
         keyword: [ "do or do not, there is no try", "may the force be with you!" ]
-        keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        # ignore_above uses binary doc values, which are sorted, so we expect the output to be sorted as well
+        keyword_with_ignore_above: [ "Do or Do Not, There is no Try", "May the FORCE be with You!" ]
         keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
 
 ---

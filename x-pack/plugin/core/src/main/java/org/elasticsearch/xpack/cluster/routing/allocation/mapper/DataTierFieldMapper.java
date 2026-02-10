@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -78,7 +79,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             final String tierPreference = SearchExecutionContext.getFirstTierPreference(blContext.indexSettings().getSettings(), "");
-            return BlockLoader.constantBytes(new BytesRef(tierPreference));
+            return new ConstantBytes(new BytesRef(tierPreference));
         }
 
         @Override

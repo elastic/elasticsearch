@@ -1,5 +1,0 @@
-pr: 139679
-summary: "Bug fix: the filter of a data stream alias is not always properly removed"
-area: Data streams
-type: bug
-issues: []

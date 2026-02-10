@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTe
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
@@ -70,7 +69,11 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
         return instance;
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
-        return new HashMap<>(JinaAIServiceSettingsTests.getServiceSettingsMap(model));
+    public static Map<String, Object> getServiceSettingsMap(String model) {
+        return getServiceSettingsMap(model, null);
+    }
+
+    public static Map<String, Object> getServiceSettingsMap(String model, @Nullable Integer requestsPerMinute) {
+        return JinaAIServiceSettingsTests.getServiceSettingsMap(model, requestsPerMinute);
     }
 }

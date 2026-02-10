@@ -28,27 +28,7 @@ public class DefaultMachineLearningExtension implements MachineLearningExtension
         MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey() };
 
     @Override
-    public boolean useIlm() {
-        return true;
-    }
-
-    @Override
     public boolean includeNodeInfo() {
-        return true;
-    }
-
-    @Override
-    public boolean isAnomalyDetectionEnabled() {
-        return true;
-    }
-
-    @Override
-    public boolean isDataFrameAnalyticsEnabled() {
-        return true;
-    }
-
-    @Override
-    public boolean isNlpEnabled() {
         return true;
     }
 

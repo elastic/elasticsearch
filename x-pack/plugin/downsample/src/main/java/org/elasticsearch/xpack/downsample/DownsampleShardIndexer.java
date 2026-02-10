@@ -134,7 +134,9 @@ class DownsampleShardIndexer {
                 searcher,
                 () -> 0L,
                 null,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                null,
+                null
             );
             this.dimensions = dimensions;
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
@@ -353,11 +355,11 @@ class DownsampleShardIndexer {
     private class TimeSeriesBucketCollector extends BucketCollector {
         private final BulkProcessor2 bulkProcessor;
         private final DownsampleBucketBuilder downsampleBucketBuilder;
-        private final List<LeafDownsampleCollector> leafBucketCollectors = new ArrayList<>();
-        private final NumericMetricFieldDownsampler[] numericDownsamplers;
+        private LeafDownsampleCollector currentLeafCollector;
         private final LastValueFieldDownsampler[] formattedDocValuesDownsamplers;
         private final ExponentialHistogramFieldDownsampler[] exponentialHistogramDownsamplers;
         private final TDigestHistogramFieldDownsampler[] tDigestHistogramDownsamplers;
+        private final NumericMetricFieldDownsampler[] numericDownsamplers;
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
@@ -404,7 +406,7 @@ class DownsampleShardIndexer {
                 tDigestHistogramValues[i] = tDigestHistogramDownsamplers[i].getLeaf(ctx);
             }
 
-            var leafBucketCollector = new LeafDownsampleCollector(
+            return new LeafDownsampleCollector(
                 aggCtx,
                 docCountProvider,
                 numericValues,
@@ -412,15 +414,11 @@ class DownsampleShardIndexer {
                 exponentialHistogramValues,
                 tDigestHistogramValues
             );
-            leafBucketCollectors.add(leafBucketCollector);
-            return leafBucketCollector;
         }
 
         void bulkCollection() throws IOException {
-            // The leaf bucket collectors with newer timestamp go first, to correctly capture the last value for counters and labels.
-            leafBucketCollectors.sort((o1, o2) -> -Long.compare(o1.firstTimeStampForBulkCollection, o2.firstTimeStampForBulkCollection));
-            for (LeafDownsampleCollector leafBucketCollector : leafBucketCollectors) {
-                leafBucketCollector.leafBulkCollection();
+            if (currentLeafCollector != null) {
+                currentLeafCollector.leafBulkCollection();
             }
         }
 
@@ -433,8 +431,6 @@ class DownsampleShardIndexer {
             final ExponentialHistogramValuesReader[] exponentialHistogramValues;
             final HistogramValues[] tDigestHistogramValues;
 
-            // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
-            long firstTimeStampForBulkCollection;
             final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
@@ -456,6 +452,10 @@ class DownsampleShardIndexer {
 
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {
+                if (currentLeafCollector != this) {
+                    bulkCollection();
+                    currentLeafCollector = this;
+                }
                 task.addNumReceived(1);
                 final BytesRef tsidHash = aggCtx.getTsidHash();
                 assert tsidHash != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
@@ -499,9 +499,6 @@ class DownsampleShardIndexer {
                     bucketsCreated++;
                 }
 
-                if (docIdBuffer.isEmpty()) {
-                    firstTimeStampForBulkCollection = aggCtx.getTimestamp();
-                }
                 // buffer.add() always delegates to system.arraycopy() and checks buffer size for resizing purposes:
                 docIdBuffer.buffer[docIdBuffer.elementsCount++] = docId;
                 if (docIdBuffer.size() == DOCID_BUFFER_SIZE) {

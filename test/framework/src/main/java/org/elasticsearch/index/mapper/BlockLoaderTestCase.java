@@ -11,8 +11,10 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
@@ -30,7 +32,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
-    private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
+    protected static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
@@ -55,7 +57,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private final Collection<DataSourceHandler> customDataSourceHandlers;
     private final BlockLoaderTestRunner runner;
 
-    private final String fieldName;
+    protected final String fieldName;
 
     protected BlockLoaderTestCase(String fieldType, Params params) {
         this(fieldType, List.of(), params);
@@ -80,6 +82,14 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         assumeTrue("random test inherited from MapperServiceTestCase", false);
     }
 
+    protected BlockLoaderTestRunner.ResultMatcher getResultMatcher(Settings.Builder settings, Mapping mapping, String fullFieldName) {
+        return runner::defaultMatcher;
+    }
+
+    protected String getFieldNameToLoad(String fieldName, Object value) {
+        return fieldName;
+    }
+
     public void testBlockLoader() throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
         var specification = buildSpecification(customDataSourceHandlers);
@@ -87,14 +97,20 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var mapping = new MappingGenerator(specification).generate(template);
         var document = new DocumentGenerator(specification).generate(template, mapping);
 
-        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), new TestContext(false, false));
+        var fieldNameToLoad = getFieldNameToLoad(fieldName, getFieldValue(document, fieldName));
 
+        Object expected = expected(
+            mapping.lookup().get(fieldName),
+            getFieldValue(document, fieldNameToLoad),
+            new TestContext(false, false)
+        );
+
+        var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperService(settings.build(), mappingXContent);
 
-        runner.runTest(mapperService, document, expected, fieldName);
+        var matcher = getResultMatcher(settings, mapping, fieldNameToLoad);
+        runner.runTest(mapperService, document, expected, fieldNameToLoad, matcher);
     }
 
     @SuppressWarnings("unchecked")
@@ -133,18 +149,16 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext = new TestContext(true, false);
         }
 
+        var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperService(settings.build(), mappingXContent);
 
-        Object expected = expected(
-            mapping.lookup().get(fullFieldName.toString()),
-            getFieldValue(document, fullFieldName.toString()),
-            testContext
-        );
+        var fieldNameToLoad = getFieldNameToLoad(fullFieldName.toString(), getFieldValue(document, fullFieldName.toString()));
 
-        runner.runTest(mapperService, document, expected, fullFieldName.toString());
+        Object expected = expected(mapping.lookup().get(fullFieldName.toString()), getFieldValue(document, fieldNameToLoad), testContext);
+
+        var matcher = getResultMatcher(settings, mapping, fieldNameToLoad);
+        runner.runTest(mapperService, document, expected, fieldNameToLoad, matcher);
     }
 
     @SuppressWarnings("unchecked")
@@ -200,12 +214,20 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var document = new DocumentGenerator(specification).generate(template, mapping);
 
         Object expected = expected(fieldMapping, getFieldValue(document, "parent"), new TestContext(false, true));
+        var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        var mapperService = createMapperService(settings.build(), mappingXContent);
 
-        runner.runTest(mapperService, document, expected, "parent.mf");
+        var matcher = getResultMatcher(settings, mapping, "parent.mf");
+        runner.runTest(mapperService, document, expected, "parent.mf", matcher);
+    }
+
+    protected Settings.Builder getSettingsForParams() {
+        var builder = Settings.builder();
+        if (params.syntheticSource) {
+            builder.put("index.mapping.source.mode", "synthetic");
+        }
+        return builder;
     }
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
@@ -266,8 +288,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     private void processLevel(Map<String, Object> level, String field, ArrayList<Object> values) {
         if (field.contains(".") == false) {
-            var value = level.get(field);
-            values.add(value);
+            if (level.containsKey(field)) {
+                var value = level.get(field);
+                values.add(value);
+            }
             return;
         }
 

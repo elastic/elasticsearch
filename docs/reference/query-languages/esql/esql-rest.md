@@ -229,6 +229,53 @@ Which returns:
 ```
 % TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
+### Setting the query timezone [esql-timezones]
+```{applies_to}
+stack: preview 9.4
+serverless: preview
+```
+
+To set the default timezone for the query, use the `time_zone` parameter in the request body. If not specified, the default timezone is UTC.
+
+This parameter accepts both an offset (e.g. `+01:00`) or a timezone ID (e.g. `Europe/Paris`).
+
+This will affect the following:
+
+- Functions working with dates, like `DATE_DIFF`, will use it if possible.
+  - If a function has a custom `time_zone` parameter, that parameter takes precedence
+- The API response format of the date values will be formatted according to the specified timezone. This is format-dependent.
+
+For example, this query:
+
+```console
+POST /_query
+{
+  "time_zone": "Europe/Paris",
+  "query": """
+    ROW date_string = "2023-01-15T00:00:00.000"
+    | EVAL date = date_parse(date_string)
+  """
+}
+```
+% TEST[setup:library]
+
+Will return:
+
+```console-result
+{
+  "took": 28,
+  "is_partial": false,
+  "columns": [
+    {"name": "date_string", "type": "keyword"},
+    {"name": "date", "type": "date"},
+  ],
+  "values": [
+    ["2023-01-15T00:00:00.000", "2023-01-15T00:00:00.000+01:00"]
+  ]
+}
+```
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
+
 ### Returning localized results [esql-locale-param]
 
 Use the `locale` parameter in the request body to return results (especially dates) formatted per the conventions of the locale. If `locale` is not specified, defaults to `en-US` (English). Refer to [JDK Supported Locales](https://www.oracle.com/java/technologies/javase/jdk17-suported-locales.html).
@@ -242,11 +289,11 @@ POST /_query
 {
   "locale": "fr-FR",
   "query": """
-          ROW birth_date_string = "2023-01-15T00:00:00.000Z"
-          | EVAL birth_date = date_parse(birth_date_string)
-          | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
-          | LIMIT 5
-   """
+    ROW birth_date_string = "2023-01-15T00:00:00.000Z"
+    | EVAL birth_date = date_parse(birth_date_string)
+    | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
+    | LIMIT 5
+  """
 }
 ```
 % TEST[setup:library]

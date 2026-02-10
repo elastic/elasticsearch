@@ -224,6 +224,40 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
+    public void testSourceDeletedShouldReturnNo() {
+        ClusterState clusterState = createInitialClusterState(randomBoolean());
+        final var metaBuilder = Metadata.builder(clusterState.metadata());
+        final String targetIndexName = "target";
+        final var deletedSourceIndexName = "deleted-source";
+        metaBuilder.getProject(projectId)
+            .put(
+                IndexMetadata.builder(targetIndexName)
+                    .settings(
+                        settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), deletedSourceIndexName)
+                            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE)
+                    )
+                    .numberOfShards(4)
+                    .numberOfReplicas(0)
+            );
+        includeAdditionalProjects(randomIntBetween(1, 3), metaBuilder);
+        final var metadata = metaBuilder.build();
+        final var routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew);
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadata).build();
+
+        final Index idx = clusterState.metadata().getProject(projectId).index(targetIndexName).getIndex();
+
+        final var resizeAllocationDecider = new ResizeAllocationDecider();
+        final var routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+        final int shardId = randomIntBetween(0, 3);
+        final var shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
+        final Decision actual = resizeAllocationDecider.canAllocate(shardRouting, routingAllocation);
+        assertThat(actual.type(), equalTo(Decision.Type.NO));
+        assertThat(actual.getExplanation(), equalTo("resize source index [[" + deletedSourceIndexName + "]] doesn't exists"));
+    }
+
     public void testSourcePrimaryActive() {
         ClusterState clusterState = createInitialClusterState(true);
         Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());

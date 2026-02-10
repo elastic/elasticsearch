@@ -1,6 +1,0 @@
-pr: 139989
-summary: Reject updating low-priority model deployments to more than 1 allocation
-area: Machine Learning
-type: bug
-issues:
- - 111227

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -74,12 +75,23 @@ public abstract class ScrollableHitSource {
         doStart(createRetryListener(this::doStart));
     }
 
-    private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
+    /**
+     * Resumes the scrollable hit source from previously saved state.
+     * @param resumeInfo resume information
+     */
+    public void resume(WorkerResumeInfo resumeInfo) {
+        restoreState(resumeInfo);
+        startNextScroll(TimeValue.ZERO);
+    }
+
+    protected abstract void restoreState(WorkerResumeInfo resumeInfo);
+
+    private RetryListener<Response> createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
         Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {
             countSearchRetry.run();
             retryHandler.accept(listener);
         };
-        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler, ActionListener.wrap(this::onResponse, fail));
+        return new RetryListener<>(logger, threadPool, backoffPolicy, countingRetryHandler, ActionListener.wrap(this::onResponse, fail));
     }
 
     // package private for tests.

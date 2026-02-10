@@ -33,17 +33,7 @@ The `TS` source command enables time series semantics and adds support for
 [`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-avg_over_time),
 or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-rate).
 These functions are implicitly evaluated per time series, then aggregated by group using a secondary aggregation
-function. For example:
-
-```esql
-TS metrics
-  | WHERE @timestamp >= now() - 1 hour
-  | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
-```
-
-This query calculates the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()`
-function is applied per time series in hourly buckets. These rates are summed for each
-host and hourly bucket (since each host can map to multiple time series).
+function. See the Examples section for a query that calculates the total rate of search requests per host and hour.
 
 This paradigm—a pair of aggregation functions—is standard for time series
 querying. For supported inner (time series) functions per
@@ -54,43 +44,15 @@ apply to downsampled data, with the same semantics as for raw data.
 ::::{note}
 If a query is missing an inner (time series) aggregation function,
 [`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-last_over_time)
-is assumed and used implicitly. For instance, the following two queries are
-equivalent, returning the average of the last memory usage values per time series:
-
-```esql
-TS metrics | STATS AVG(memory_usage)
-
-TS metrics | STATS AVG(LAST_OVER_TIME(memory_usage))
-```
-
-To calculate the average memory usage across per-time-series averages, use
-the following query:
-
-```esql
-TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
-```
+is assumed and used implicitly. For instance, two equivalent queries are shown in the Examples section that return the average of the last memory usage values per time series. To calculate the average memory usage across per-time-series averages, see the Examples section.
 ::::
 
-Use regular (non-time-series)
-[aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md),
-such as `SUM()`, as outer aggregation functions. Using a time series aggregation
-in combination with an inner function causes an error. For example, the
-following query is invalid:
+You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+directly in the `STATS` command ({applies_to}`stack: preview 9.3`). The output will contain one aggregate value per time series and time bucket (if specified). See the Examples section for examples.
 
-```esql
-TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
-```
+You can also combine time series aggregation functions with regular [aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md) such as `SUM()`, as outer aggregation functions. See the Examples section for examples.
 
-::::{note}
-A [time series](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-aggregation function must be wrapped inside a
-[regular](/reference/query-languages/esql/functions-operators/aggregation-functions.md)
-aggregation function. For instance, the following query is invalid:
-
-```esql
-TS metrics | STATS RATE(search_requests)
-```
-::::
+However, using a time series aggregation function in combination with an inner time series function causes an error. See the Examples section for an invalid query example.
 
 **Best practices**
 
@@ -109,9 +71,54 @@ TS metrics | STATS RATE(search_requests)
 
 **Examples**
 
+Calculate the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()`
+function is applied per time series in hourly buckets. These rates are summed for each
+host and hourly bucket (since each host can map to multiple time series):
+
+```esql
+TS metrics
+  | WHERE @timestamp >= now() - 1 hour
+  | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
+```
+
+The following two queries are equivalent, returning the average of the last memory usage values per time series. If a query is missing an inner (time series) aggregation function, `LAST_OVER_TIME()` is assumed and used implicitly:
+
+```esql
+TS metrics | STATS AVG(memory_usage)
+
+TS metrics | STATS AVG(LAST_OVER_TIME(memory_usage))
+```
+
+Calculate the average memory usage across per-time-series averages:
+
+```esql
+TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
+```
+
+Using a time series aggregation function directly ({applies_to}`stack: preview 9.3`):
+
+```esql
+TS metrics
+| WHERE TRANGE(1 day)
+| STATS RATE(search_requests) BY TBUCKET(1 hour)
+```
+
+Combining a time series aggregation function with a regular aggregation function:
+
+```esql
+TS metrics | STATS SUM(RATE(search_requests)) BY host
+```
+
+Combining a time series aggregation function with a regular aggregation function:
+
 ```esql
 TS metrics
 | WHERE @timestamp >= now() - 1 day
 | STATS SUM(AVG_OVER_TIME(memory_usage)) BY host, TBUCKET(1 hour)
 ```
 
+The following query is invalid because using a time series aggregation function in combination with an inner time series function causes an error:
+
+```esql
+TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
+```

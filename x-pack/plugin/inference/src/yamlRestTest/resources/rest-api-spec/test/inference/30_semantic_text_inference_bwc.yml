@@ -816,3 +816,26 @@ setup:
               field: "inference_field"
 
   - match: { hits.total.value: 1 }
+
+---
+"Skip fetching _inference_fields with _source_includes":
+  - requires:
+      cluster_features: semantic_text.skip_inference_fields
+      reason: Skip _inference_fields when get _source_includes is performed on legacy semantic_text format.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "test value"
+        refresh: true
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+        _source_includes: _inference_fields
+
+  - match: { _id: doc_1 }
+  - not_exists: _source._inference_fields

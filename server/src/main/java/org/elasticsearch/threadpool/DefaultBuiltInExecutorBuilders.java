@@ -20,6 +20,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING;
+import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING;
+import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
@@ -32,6 +35,9 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         final int halfProcMaxAt10 = ThreadPool.halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = ThreadPool.boundedBy(4 * allocatedProcessors, 128, 512);
         final double indexAutoscalingEWMA = WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.get(settings);
+        final int hotThreadsOnLargeQueueSizeThreshold = HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING.get(settings);
+        final TimeValue hotThreadsOnLargeQueueDurationThreshold = HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING.get(settings);
+        final TimeValue hotThreadsOnLargeQueueInterval = HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING.get(settings);
 
         Map<String, ExecutorBuilder> result = new HashMap<>();
         result.put(
@@ -115,7 +121,12 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 1,
                 ThreadPool.boundedBy(allocatedProcessors, 1, 5),
                 TimeValue.timeValueMinutes(5),
-                false
+                false,
+                new EsExecutors.HotThreadsOnLargeQueueConfig(
+                    hotThreadsOnLargeQueueSizeThreshold,
+                    hotThreadsOnLargeQueueDurationThreshold.millis(),
+                    hotThreadsOnLargeQueueInterval.millis()
+                )
             )
         );
         result.put(

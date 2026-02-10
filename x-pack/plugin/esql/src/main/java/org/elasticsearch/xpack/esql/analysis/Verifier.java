@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
@@ -91,6 +93,8 @@ public class Verifier {
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures);
 
+        ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
+
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
@@ -111,6 +115,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
         });
@@ -149,14 +154,10 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
-                    if (p instanceof Project || p instanceof Insist) {
-                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
-                            failures.add(fail(ae, ua.unresolvedMessage()));
-                        }
-                        if (ae instanceof UnsupportedAttribute) {
-                            return;
-                        }
+                    // UnsupportedAttribute can pass through Project/Insist unchanged.
+                    // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
+                    if ((p instanceof Project || p instanceof Insist) && ae instanceof UnsupportedAttribute) {
+                        return;
                     }
 
                     // Do not fail multiple times in case the children are already unresolved.
@@ -205,6 +206,11 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
+            }
+            // The expressions of the PromqlCommand itself are not relevant here.
+            // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
+            else if (p instanceof PromqlCommand promql) {
+                promql.promqlPlan().forEachExpressionDown(Expression.class, unresolvedExpressions);
             }
 
             else {
@@ -269,6 +275,22 @@ public class Verifier {
             if ((child instanceof EsRelation || child instanceof Insist) == false) {
                 failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
             }
+        }
+    }
+
+    /**
+     * Check that UnsupportedAttribute is not renamed via Alias in Project or Insist.
+     * UnsupportedAttribute can pass through these plans unchanged, but renaming is not allowed.
+     * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
+     * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
+     */
+    private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
+        if (p instanceof Project || p instanceof Insist) {
+            p.forEachExpression(Alias.class, alias -> {
+                if (alias.child() instanceof UnsupportedAttribute ua) {
+                    failures.add(fail(alias, ua.unresolvedMessage()));
+                }
+            });
         }
     }
 

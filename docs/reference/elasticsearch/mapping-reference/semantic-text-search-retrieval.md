@@ -62,7 +62,7 @@ By default, embeddings generated for `semantic_text` fields are stored internall
 
 The method for retrieving embeddings depends on your {{es}} version:
 
-- If you use {{es}} 9.2 and later, or {{serverless-short}}, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`. 
+- If you use {{es}} 9.2 and later, or {{serverless-short}}, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`.
 - If you use {{es}} versions earlier than 9.2, use the [`fields` parameter](#returning-semantic-field-embeddings-using-fields) with `_inference_fields` to retrieve embeddings.
 
 ### Include embeddings in `_source` [returning-semantic-field-embeddings-in-_source]
@@ -101,7 +101,7 @@ stack: ga 9.2
 serverless: ga
 ```
 
-When reindexing documents with `semantic_text` fields, you can preserve existing embeddings by including them in the source documents. This allows documents to be re-indexed without triggering {{infer}} again. 
+When reindexing documents with `semantic_text` fields, you can preserve existing embeddings by including them in the source documents. This allows documents to be re-indexed without triggering {{infer}} again.
 
 ::::{warning}
 The target index's `semantic_text` field must use the same `inference_id` as the source index to reuse existing embeddings. If the `inference_id` values do not match, the documents will fail the reindex task.
@@ -220,7 +220,7 @@ This method for returning semantic field embeddings is recommended only for {{es
 For version 9.2 and later, use the [`exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter instead.
 :::
 
-To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response. 
+To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
 
 ```console
 POST my-index/_search
@@ -340,12 +340,19 @@ stack: ga 9.2
 serverless: unavailable
 ```
 
-`semantic_text` supports [{{ccs}} (CCS)](docs-content://explore-analyze/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is set to `true`. This is the default value, so most CCS queries work automatically.
+::::{applies-switch}
 
-Query `semantic_text` fields across clusters using the standard search endpoint with cluster notation:
+:::{applies-item} stack: ga 9.3+
+`semantic_text` supports [{{ccs}} (CCS)](docs-content://explore-analyze/cross-cluster-search.md) through:
+
+- The [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is `true` or `false`.
+- [Retrievers](/reference/elasticsearch/rest-apis/retrievers.md)
+- [ES|QL](/reference/query-languages/esql.md)
+
+Query `semantic_text` fields across clusters using the standard `_search` endpoint with cluster notation:
 
 ```console
-POST local-index,remote-cluster:remote-index/_search
+POST local-index,remote-cluster:remote-index/_search <1>
 {
   "query": {
     "match": {
@@ -354,3 +361,42 @@ POST local-index,remote-cluster:remote-index/_search
   }
 }
 ```
+1. `remote-cluster:remote-index` refers to an index on the remote cluster with alias `remote-cluster`.
+
+The same notation can be used to query `semantic_text` fields across clusters with ES|QL:
+
+```console
+POST _query
+{
+    "query": """FROM local-index,remote-cluster:remote-index METADATA _score | <1>
+     WHERE MATCH(my_semantic_field, "Which country is Paris in?") |
+     SORT _score DESC |
+     KEEP my_semantic_field | LIMIT 10
+    """
+}
+```
+1. `remote-cluster:remote-index` refers to an index on the remote cluster with alias `remote-cluster`.
+:::
+
+:::{applies-item} stack: ga =9.2
+`semantic_text` supports [{{ccs}} (CCS)](docs-content://explore-analyze/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is set to `true`.
+This is the default value, so most CCS queries work automatically.
+
+CCS is **not** supported in [retrievers](/reference/elasticsearch/rest-apis/retrievers.md) or [ES|QL](/reference/query-languages/esql.md).
+
+Query `semantic_text` fields across clusters using the standard `_search` endpoint with cluster notation:
+
+```console
+POST local-index,remote-cluster:remote-index/_search <1>
+{
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  }
+}
+```
+1. `remote-cluster:remote-index` refers to an index on the remote cluster with alias `remote-cluster`.
+:::
+
+::::

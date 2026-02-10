@@ -33,12 +33,10 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,7 +53,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -110,6 +107,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -475,6 +473,12 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return actionGet;
     }
 
+    protected final BroadcastResponse flush(Client client, String... indices) {
+        BroadcastResponse actionGet = client.admin().indices().prepareFlush(indices).get();
+        assertNoFailures(actionGet);
+        return actionGet;
+    }
+
     protected void ensureEmptyWriteBuffers() throws Exception {
         assertBusy(() -> {
             FollowStatsAction.StatsResponses statsResponses = leaderClient().execute(
@@ -487,6 +491,21 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 assertThat(status.writeBufferSizeInBytes(), equalTo(0L));
             }
         });
+    }
+
+    protected void putAutoFollowPatterns(String name, String[] patterns, List<String> exclusionPatterns, String followIndexNamePattern) {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        request.setName(name);
+        request.setRemoteCluster("leader_cluster");
+        request.setLeaderIndexPatterns(Arrays.asList(patterns));
+        request.setLeaderIndexExclusionPatterns(exclusionPatterns);
+        // Need to set this, because following an index in the same cluster
+        request.setFollowIndexNamePattern(followIndexNamePattern);
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
+
+        assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
     protected void pauseFollow(String... indices) throws Exception {
@@ -667,39 +686,29 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }, 120, TimeUnit.SECONDS);
     }
 
+    /**
+     * Returns a list of all live documents from all shards in the {@link InternalTestCluster} belonging to the given index name.
+     *
+     * @param cluster the {@link InternalTestCluster}
+     * @param index the name of the index
+     * @return a list of all live documents as {@link DocIdSeqNoAndSource}.
+     * @throws IOException if something goes wrong when listing documents
+     */
     private Map<Integer, List<DocIdSeqNoAndSource>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
-        final ClusterState state = cluster.client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        List<ShardRouting> shardRoutings = state.routingTable().allShards(index);
-        Randomness.shuffle(shardRoutings);
-        final Map<Integer, List<DocIdSeqNoAndSource>> docs = new HashMap<>();
-        for (ShardRouting shardRouting : shardRoutings) {
-            if (shardRouting == null || shardRouting.assignedToNode() == false) {
-                continue;
-            }
-            final var indexService = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
-                .indexService(shardRouting.index());
-            if (indexService == null) {
-                continue;
-            }
-            final var indexShard = indexService.getShardOrNull(shardRouting.id());
-            if (indexShard == null || indexShard.routingEntry().started() == false) {
-                continue;
-            }
-            try {
-                final List<DocIdSeqNoAndSource> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
-                logger.info("--> shard {} docs {} seq_no_stats {}", shardRouting, docsOnShard, indexShard.seqNoStats());
-                docs.put(
-                    shardRouting.shardId().id(),
-                    docsOnShard.stream()
-                        // normalize primary term as the follower use its own term
-                        .map(d -> new DocIdSeqNoAndSource(d.id(), d.source(), d.seqNo(), 1L, d.version()))
-                        .collect(Collectors.toList())
-                );
-            } catch (AlreadyClosedException e) {
-                // Ignore this exception and try getting List<DocIdSeqNoAndSource> from other IndexShard instance.
-            }
+        var docsOnShards = ESIntegTestCase.getAllDocIdSeqNoAndSource(cluster, index);
+        final var finalDocsOnShards = new HashMap<Integer, List<DocIdSeqNoAndSource>>();
+        for (var docsOnShard : docsOnShards.entrySet()) {
+            finalDocsOnShards.put(
+                docsOnShard.getKey().shardId().id(),
+                docsOnShard.getValue()
+                    .stream()
+                    // normalize primary term as the follower use its own term
+                    .map(d -> new DocIdSeqNoAndSource(d.id(), d.source(), d.seqNo(), 1L, d.version()))
+                    .sorted(Comparator.comparingLong(DocIdSeqNoAndSource::seqNo).thenComparing((DocIdSeqNoAndSource::id)))
+                    .collect(Collectors.toList())
+            );
         }
-        return docs;
+        return finalDocsOnShards;
     }
 
     protected void atLeastDocsIndexed(Client client, String index, long numDocsReplicated) throws Exception {

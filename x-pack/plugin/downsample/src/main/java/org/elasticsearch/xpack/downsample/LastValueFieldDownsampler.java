@@ -17,6 +17,9 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHel
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
+import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,9 +42,11 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     static LastValueFieldDownsampler create(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "field type cannot be aggregate metric double: " + fieldType.typeName() + " for field " + name;
-        assert ExponentialHistogramFieldDownsampler.TYPE.equals(fieldType.typeName()) == false
+        assert ExponentialHistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "field type cannot be exponential histogram: " + fieldType.typeName() + " for field " + name;
-        assert TDigestHistogramFieldDownsampler.TYPE.equals(fieldType.typeName()) == false
+        assert HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
+            : "field type cannot be histogram: " + fieldType.typeName() + " for field " + name;
+        assert TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "field type cannot be histogram: " + fieldType.typeName() + " for field " + name;
         if ("flattened".equals(fieldType.typeName())) {
             return new LastValueFieldDownsampler.FlattenedFieldProducer(name, fieldType, fieldData);

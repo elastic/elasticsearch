@@ -24,6 +24,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -69,6 +70,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -565,5 +567,12 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             rerankingInferenceService.rerankerWindowSize("any model"),
             is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
         );
+    }
+
+    public void testBuildModelFromConfigAndSecrets() {
+        var modelConfigurations = mock(ModelConfigurations.class);
+        var modelSecrets = mock(ModelSecrets.class);
+        sageMakerService.buildModelFromConfigAndSecrets(modelConfigurations, modelSecrets);
+        verify(modelBuilder, only()).fromStorage(same(modelConfigurations), same(modelSecrets));
     }
 }

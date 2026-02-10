@@ -133,7 +133,10 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=213112b}";
+        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=%size%}".replace(
+            "%size%",
+            byteRefBlockHashSize()
+        );
         return equalTo(
             "TimeSeriesAggregationOperator["
                 + hash

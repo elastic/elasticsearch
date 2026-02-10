@@ -12,6 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
@@ -85,7 +86,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             @Override
             public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
                 BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
-                return binaryDocValues == null ? new ConstantNullsReader() : new BoundsReader(binaryDocValues);
+                return binaryDocValues == null ? ConstantNull.READER : new BoundsReader(binaryDocValues);
             }
 
             @Override

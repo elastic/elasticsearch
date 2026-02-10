@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -72,6 +73,7 @@ public class PlanExecutor {
         TransportVersion localClusterMinimumVersion,
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
+        ViewResolver viewResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -85,12 +87,14 @@ public class PlanExecutor {
             analyzerSettings,
             indexResolver,
             enrichPolicyResolver,
+            viewResolver,
             preAnalyzer,
             functionRegistry,
             mapper,
             verifier,
             planTelemetry,
             indicesExpressionGrouper,
+            services.projectResolver().getProjectMetadata(services.clusterService().state()),
             services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");

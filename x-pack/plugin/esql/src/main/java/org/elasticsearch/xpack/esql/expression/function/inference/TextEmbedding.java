@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -44,8 +43,9 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
             + "Use this function to generate query vectors for KNN searches against your vectorized data "
             + "or others dense vector based operations.",
-        appliesTo = { @FunctionAppliesTo(version = "9.3", lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(version = "9.4.0", lifeCycle = FunctionAppliesToLifecycle.GA),
+            @FunctionAppliesTo(version = "9.3.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(
                 description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
@@ -153,18 +153,5 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     @Override
     public String toString() {
         return "TEXT_EMBEDDING(" + inputText + ", " + inferenceId + ")";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        TextEmbedding textEmbedding = (TextEmbedding) o;
-        return Objects.equals(inferenceId, textEmbedding.inferenceId) && Objects.equals(inputText, textEmbedding.inputText);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId, inputText);
     }
 }

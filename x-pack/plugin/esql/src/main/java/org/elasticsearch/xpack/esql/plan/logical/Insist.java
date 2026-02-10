@@ -46,7 +46,7 @@ public class Insist extends UnaryPlan implements SurrogateLogicalPlan, Streaming
 
     @Override
     public boolean expressionsResolved() {
-        // Like EsqlProject, we allow unsupported attributes to flow through the engine.
+        // Like Project, we allow unsupported attributes to flow through the engine.
         return insistedAttributes().stream().allMatch(a -> a.resolved() || a instanceof UnsupportedAttribute);
     }
 

@@ -163,7 +163,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 }
             }
             try (Block outOfOrder = scoreBuilder.build()) {
-                return outOfOrder.filter(docs.shardSegmentDocMapBackwards());
+                return outOfOrder.filter(false, docs.shardSegmentDocMapBackwards());
             }
         }
     }

@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.EmbeddingAction.Request.parseRequest;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -39,7 +41,10 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
                         "content": {"type": "image", "format": "base64", "value": "some image input" }
                     }
                 ],
-                "input_type": "search"
+                "input_type": "search",
+                "task_settings": {
+                  "field": "value"
+                }
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
@@ -53,7 +58,8 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
                 taskType,
                 new EmbeddingRequest(
                     List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "some image input"))),
-                    InputType.SEARCH
+                    InputType.SEARCH,
+                    Map.of("field", "value")
                 ),
                 context,
                 timeout
@@ -73,7 +79,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
         var request = new EmbeddingAction.Request(
             randomAlphanumericOfLength(8),
             TaskType.EMBEDDING,
-            new EmbeddingRequest(null, randomFrom(InputType.values())),
+            new EmbeddingRequest(null, randomFrom(InputType.values()), Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -87,7 +93,7 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
         var request = new EmbeddingAction.Request(
             randomAlphanumericOfLength(8),
             TaskType.EMBEDDING,
-            new EmbeddingRequest(List.of(), randomFrom(InputType.values())),
+            new EmbeddingRequest(List.of(), randomFrom(InputType.values()), Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -112,10 +118,11 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
     }
 
     public void testValidate_withMultipleValidationErrors_returnsAll() {
+        // Create a request with an invalid task type and null inputs
         var request = new EmbeddingAction.Request(
             randomAlphanumericOfLength(8),
             randomValueOtherThanMany(TaskType.EMBEDDING::isAnyOrSame, () -> randomFrom(TaskType.values())),
-            new EmbeddingRequest(null, randomFrom(InputType.values())),
+            new EmbeddingRequest(null, randomFrom(InputType.values()), Map.of()),
             new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
@@ -128,16 +135,25 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected EmbeddingAction.Request mutateInstanceForVersion(EmbeddingAction.Request instance, TransportVersion version) {
-        if (version.supports(INFERENCE_CONTEXT) == false) {
-            return new EmbeddingAction.Request(
-                instance.getInferenceEntityId(),
-                instance.getTaskType(),
-                instance.getEmbeddingRequest(),
-                InferenceContext.EMPTY_INSTANCE,
-                instance.getTimeout()
-            );
+        // Use empty task settings if node is on a version before Jina AI embedding task support was added, since embedding request task
+        // settings were added with that change
+        var embeddingRequest = instance.getEmbeddingRequest();
+        if (version.supports(JINA_AI_EMBEDDING_TASK_ADDED) == false) {
+            embeddingRequest = new EmbeddingRequest(embeddingRequest.inputs(), embeddingRequest.inputType(), Map.of());
         }
-        return instance;
+
+        var context = instance.getContext();
+        if (version.supports(INFERENCE_CONTEXT) == false) {
+            context = InferenceContext.EMPTY_INSTANCE;
+        }
+
+        return new EmbeddingAction.Request(
+            instance.getInferenceEntityId(),
+            instance.getTaskType(),
+            embeddingRequest,
+            context,
+            instance.getTimeout()
+        );
     }
 
     @Override
@@ -160,7 +176,11 @@ public class EmbeddingActionRequestTests extends AbstractBWCWireSerializationTes
     }
 
     private static EmbeddingRequest randomEmbeddingRequest() {
-        return new EmbeddingRequest(List.of(new InferenceStringGroup(randomAlphanumericOfLength(8))), randomFrom(InputType.values()));
+        return new EmbeddingRequest(
+            List.of(new InferenceStringGroup(randomAlphanumericOfLength(8))),
+            randomFrom(InputType.values()),
+            Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8))
+        );
     }
 
     @Override

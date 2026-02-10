@@ -2466,7 +2466,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     ) {
         Settings.Builder indexSettings;
         if (enableSoftDeletes == false) {
-            indexSettings = settings(IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0)).put(
+            indexSettings = settings(IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0)).put(
                 IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
                 false
             );

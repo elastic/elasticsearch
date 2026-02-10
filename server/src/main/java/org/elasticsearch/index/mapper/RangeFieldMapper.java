@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -365,7 +366,7 @@ public class RangeFieldMapper extends FieldMapper {
             public AllReader reader(LeafReaderContext context) throws IOException {
                 var docValues = context.reader().getBinaryDocValues(fieldName);
                 if (docValues == null) {
-                    return new ConstantNullsReader();
+                    return ConstantNull.READER;
                 }
                 return new DateRangeDocValuesReader(docValues);
             }

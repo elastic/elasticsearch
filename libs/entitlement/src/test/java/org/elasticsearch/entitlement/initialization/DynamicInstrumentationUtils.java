@@ -33,7 +33,6 @@ public class DynamicInstrumentationUtils {
         LogConfigurator.configureESLogging();
 
         var path = requireNonNull(args.length > 0 ? args[0] : System.getProperty("es.entitlements.dump"), "destination for dump required");
-        // TODO - Update this to use EntitlementRegistry
         var descriptors = loadInstrumentedMethodDescriptors();
         Files.write(Path.of(path), () -> descriptors.stream().map(Descriptor::toLine).iterator(), StandardCharsets.UTF_8);
     }

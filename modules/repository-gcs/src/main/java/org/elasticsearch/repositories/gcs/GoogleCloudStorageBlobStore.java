@@ -116,7 +116,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final int bufferSize;
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
-    private boolean closed = false;
+    private volatile boolean closed = false;
 
     GoogleCloudStorageBlobStore(
         ProjectId projectId,
@@ -143,7 +143,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     /**
      * @throws org.apache.lucene.store.AlreadyClosedException if the blob store is closed
      */
-    synchronized MeteredStorage client() throws IOException {
+    MeteredStorage client() throws IOException {
         if (closed) {
             throw new AlreadyClosedException("blob store for repository " + repositoryName + "is closed");
         }
@@ -160,7 +160,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public synchronized void close() {
+    public void close() {
         closed = true;
         storageService.closeRepositoryClients(projectId, repositoryName);
     }

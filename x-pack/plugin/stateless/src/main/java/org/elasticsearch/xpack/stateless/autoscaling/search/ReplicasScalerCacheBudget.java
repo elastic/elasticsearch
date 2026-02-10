@@ -142,6 +142,16 @@ public class ReplicasScalerCacheBudget {
         long cacheBudgetForLoadBalancingScaleUps = cacheBudget + cacheFreedByScaleDowns - cacheNeededByCurrentReplicas
             - cacheNeededForInstantFailoverScaleUps;
 
+        LOGGER.debug(
+            "Cache budget for replicas scaling calculation: cacheBudget={}, cacheNeededByCurrentReplicas={}, cacheFreedByScaleDowns={}, "
+                + "cacheNeededForInstantFailoverScaleUps={}, cacheBudgetForLoadBalancingScaleUps={}",
+            cacheBudget,
+            cacheNeededByCurrentReplicas,
+            cacheFreedByScaleDowns,
+            cacheNeededForInstantFailoverScaleUps,
+            cacheBudgetForLoadBalancingScaleUps
+        );
+
         return budgetLoadBalancingScaleUps(
             rankingContext,
             instantFailoverReplicaChanges,

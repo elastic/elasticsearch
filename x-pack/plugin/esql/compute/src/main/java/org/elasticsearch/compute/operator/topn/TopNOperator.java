@@ -452,13 +452,16 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    private static InKey channelInKey(List<SortOrder> sortOrders, int channel) {
+    /**
+     * Is this channel in a key?
+     */
+    private static boolean channelInKey(List<SortOrder> sortOrders, int channel) {
         for (SortOrder so : sortOrders) {
             if (so.channel == channel) {
-                return so.asc ? InKey.InKeyAscending : InKey.InKeyDescending;
+                return true;
             }
         }
-        return InKey.NotInKey;
+        return false;
     }
 
     @Override
@@ -728,7 +731,7 @@ public class TopNOperator implements Operator, Accountable {
                 keys.offset++;
                 keys.length--;
                 // Read the key. This will modify offset and length for the next iteration.
-                builders[so.channel].decodeKey(keys);
+                builders[so.channel].decodeKey(keys, so.asc);
             }
             if (keys.length != 0) {
                 throw new IllegalArgumentException("didn't read all keys");

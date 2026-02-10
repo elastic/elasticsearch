@@ -34,9 +34,9 @@ class ResultBuilderForFloat implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = encoder.decodeFloat(keys);
+        key = encoder.toSortable(asc).decodeFloat(keys);
     }
 
     @Override

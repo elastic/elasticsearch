@@ -38,12 +38,12 @@ $endif$
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
 $if(BytesRef)$
-        key = encoder.decodeBytesRef(keys, scratch);
+        key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
 $else$
-        key = encoder.decode$Type$(keys);
+        key = encoder.toSortable(asc).decode$Type$(keys);
 $endif$
     }
 

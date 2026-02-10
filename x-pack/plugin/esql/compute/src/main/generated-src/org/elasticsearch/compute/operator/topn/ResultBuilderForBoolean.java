@@ -34,9 +34,9 @@ class ResultBuilderForBoolean implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = encoder.decodeBoolean(keys);
+        key = encoder.toSortable(asc).decodeBoolean(keys);
     }
 
     @Override

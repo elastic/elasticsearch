@@ -249,14 +249,14 @@ public class ExtractorTests extends ESTestCase {
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
-        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), InKey.NotInKey, value).writeValue(valuesBuilder, 0);
+        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
             testCase.type,
             testCase.encoder.toUnsortable(),
-            InKey.NotInKey,
+            false,
             1
         );
         BytesRef values = valuesBuilder.bytesRefView();
@@ -283,7 +283,7 @@ public class ExtractorTests extends ESTestCase {
         ValueExtractor.extractorFor(
             testCase.type,
             testCase.encoder.toUnsortable(),
-            asc ? InKey.InKeyAscending : InKey.InKeyDescending,
+            true,
             value
         ).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
@@ -292,7 +292,7 @@ public class ExtractorTests extends ESTestCase {
             TestBlockFactory.getNonBreakingInstance(),
             testCase.type,
             testCase.encoder,
-            asc ? InKey.InKeyAscending : InKey.InKeyDescending,
+            true,
             1
         );
         BytesRef keys = keysBuilder.bytesRefView();
@@ -302,7 +302,7 @@ public class ExtractorTests extends ESTestCase {
             // Skip the non-null byte
             keys.offset++;
             keys.length--;
-            result.decodeKey(keys);
+            result.decodeKey(keys, asc);
             assertThat(keys.length, equalTo(0));
         }
         BytesRef values = valuesBuilder.bytesRefView();

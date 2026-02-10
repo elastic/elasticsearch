@@ -34,9 +34,9 @@ class ResultBuilderForDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = encoder.decodeDouble(keys);
+        key = encoder.toSortable(asc).decodeDouble(keys);
     }
 
     @Override

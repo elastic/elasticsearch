@@ -39,21 +39,20 @@ interface ValueExtractor {
         return null;
     }
 
-    static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, InKey inKey, Block block) {
+    static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
             // While this maybe should be an IllegalArgumentException, it's important to throw an exception that causes a 500 response.
             // If we reach here, that's a bug. Arguably, the operators are in an illegal state because the layout doesn't match the
             // actual pages.
             throw new IllegalStateException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
-        encoder = inKey.mapEncoder(encoder);
         return switch (block.elementType()) {
-            case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey.inKey(), (BooleanBlock) block);
-            case BYTES_REF -> ValueExtractorForBytesRef.extractorFor(encoder, inKey.inKey(), (BytesRefBlock) block);
-            case INT -> ValueExtractorForInt.extractorFor(encoder, inKey.inKey(), (IntBlock) block);
-            case LONG -> ValueExtractorForLong.extractorFor(encoder, inKey.inKey(), (LongBlock) block);
-            case FLOAT -> ValueExtractorForFloat.extractorFor(encoder, inKey.inKey(), (FloatBlock) block);
-            case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey.inKey(), (DoubleBlock) block);
+            case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);
+            case BYTES_REF -> ValueExtractorForBytesRef.extractorFor(encoder, inKey, (BytesRefBlock) block);
+            case INT -> ValueExtractorForInt.extractorFor(encoder, inKey, (IntBlock) block);
+            case LONG -> ValueExtractorForLong.extractorFor(encoder, inKey, (LongBlock) block);
+            case FLOAT -> ValueExtractorForFloat.extractorFor(encoder, inKey, (FloatBlock) block);
+            case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
             case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);

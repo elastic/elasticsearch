@@ -22,7 +22,7 @@ interface ResultBuilder extends Releasable {
      * store the value of the key for {@link #decodeValue} can use it to reconstruct
      * the value. This will only be called if the value is part of the key.
      */
-    void decodeKey(BytesRef keys);
+    void decodeKey(BytesRef keys, boolean asc);
 
     /**
      * Called once per row to decode the value and write to the internal {@link Block.Builder}.
@@ -42,17 +42,16 @@ interface ResultBuilder extends Releasable {
         BlockFactory blockFactory,
         ElementType elementType,
         TopNEncoder encoder,
-        InKey inKey,
+        boolean inKey,
         int positions
     ) {
-        encoder = inKey.mapEncoder(encoder);
         return switch (elementType) {
-            case BOOLEAN -> new ResultBuilderForBoolean(blockFactory, encoder, inKey.inKey(), positions);
-            case BYTES_REF -> new ResultBuilderForBytesRef(blockFactory, encoder, inKey.inKey(), positions);
-            case INT -> new ResultBuilderForInt(blockFactory, encoder, inKey.inKey(), positions);
-            case LONG -> new ResultBuilderForLong(blockFactory, encoder, inKey.inKey(), positions);
-            case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey.inKey(), positions);
-            case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey.inKey(), positions);
+            case BOOLEAN -> new ResultBuilderForBoolean(blockFactory, encoder, inKey, positions);
+            case BYTES_REF -> new ResultBuilderForBytesRef(blockFactory, encoder, inKey, positions);
+            case INT -> new ResultBuilderForInt(blockFactory, encoder, inKey, positions);
+            case LONG -> new ResultBuilderForLong(blockFactory, encoder, inKey, positions);
+            case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
+            case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
             case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);

@@ -34,9 +34,9 @@ class ResultBuilderForLong implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = encoder.decodeLong(keys);
+        key = encoder.toSortable(asc).decodeLong(keys);
     }
 
     @Override

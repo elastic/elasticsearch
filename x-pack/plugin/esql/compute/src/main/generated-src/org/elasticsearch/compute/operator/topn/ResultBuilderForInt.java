@@ -34,9 +34,9 @@ class ResultBuilderForInt implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = encoder.decodeInt(keys);
+        key = encoder.toSortable(asc).decodeInt(keys);
     }
 
     @Override

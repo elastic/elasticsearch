@@ -89,9 +89,8 @@ public class CloneStep implements DlmStep {
         String cloneIndexName = getCloneIndexName(indexName);
         if (projectMetadata.indices().containsKey(cloneIndexName)) {
             // Clone index exists but step not completed - check if it's been stuck for too long and clean up if so
-            if (maybeCleanUpStuckCloneTask(stepContext) == false) {
-                return;
-            }
+            maybeCleanUpStuckCloneTask(stepContext);
+            return;
         }
 
         cloneIndex(indexName, cloneIndexName, ActionListener.noop(), stepContext);
@@ -104,10 +103,8 @@ public class CloneStep implements DlmStep {
 
     /*
      * Checks if the clone index has been stuck for too long and if so, deletes it to allow a new clone attempt.
-     * @return true if the clone index was stuck and a cleanup was initiated,
-     * false if the clone index is still fresh and waiting for completion.
      */
-    private static boolean maybeCleanUpStuckCloneTask(DlmStepContext stepContext) {
+    private static void maybeCleanUpStuckCloneTask(DlmStepContext stepContext) {
         String indexName = stepContext.indexName();
         String cloneIndexName = getCloneIndexName(indexName);
         IndexMetadata cloneIndexMetadata = stepContext.projectState().metadata().index(cloneIndexName);
@@ -133,7 +130,6 @@ public class CloneStep implements DlmStep {
                     )
                 )
             );
-            return true;
         } else {
             // Clone is still fresh, wait for it to complete
             logger.debug(
@@ -144,8 +140,6 @@ public class CloneStep implements DlmStep {
                 timeSinceCreation,
                 CLONE_TIMEOUT.millis()
             );
-            // Wait for next DLM run to check again
-            return false;
         }
     }
 
@@ -246,7 +240,7 @@ public class CloneStep implements DlmStep {
             indexToBeForceMerged
         );
         stepContext.executeDeduplicatedRequest(
-            MarkIndexForDLMForceMergeAction.INSTANCE.name(),
+            MarkIndexForDLMForceMergeAction.TYPE.name(),
             markIndexForForceMergeRequest,
             Strings.format(
                 "DLM service encountered an error when trying to mark index [%s] to be force merged for source index [%s]",
@@ -269,7 +263,7 @@ public class CloneStep implements DlmStep {
         );
         stepContext.client()
             .projectClient(stepContext.projectId())
-            .execute(MarkIndexForDLMForceMergeAction.INSTANCE, request, ActionListener.wrap(resp -> {
+            .execute(MarkIndexForDLMForceMergeAction.TYPE, request, ActionListener.wrap(resp -> {
                 if (resp.isAcknowledged()) {
                     listener.onResponse(null);
                 } else {

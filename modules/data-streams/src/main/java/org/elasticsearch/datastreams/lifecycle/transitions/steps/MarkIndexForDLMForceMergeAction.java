@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 
@@ -38,7 +39,7 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
  */
 public class MarkIndexForDLMForceMergeAction {
 
-    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/dlm/mark_index_for_force_merge");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/dlm/mark_index_for_force_merge");
     public static final String DLM_INDEX_FOR_FORCE_MERGE_KEY = "dlm_index_for_force_merge";
 
     /**
@@ -85,7 +86,24 @@ public class MarkIndexForDLMForceMergeAction {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (projectId == null) {
+                validationException = new ActionRequestValidationException();
+                validationException.addValidationError("project id must not be null");
+            }
+            if (Strings.isNullOrEmpty(sourceIndex)) {
+                if (validationException == null) {
+                    validationException = new ActionRequestValidationException();
+                }
+                validationException.addValidationError("source index must not be null or empty");
+            }
+            if (Strings.isNullOrEmpty(indexToBeForceMerged)) {
+                if (validationException == null) {
+                    validationException = new ActionRequestValidationException();
+                }
+                validationException.addValidationError("index to be force merged must not be null or empty");
+            }
+            return validationException;
         }
     }
 
@@ -106,13 +124,11 @@ public class MarkIndexForDLMForceMergeAction {
         }
 
         ClusterState execute(ClusterState currentState) {
-            final ProjectMetadata currentProject = currentState.metadata().getProject(projectId);
-            if (currentProject == null) {
-                return currentState;
-            }
-
-            IndexMetadata sourceIndexMetadata = currentProject.index(sourceIndex);
+            IndexMetadata sourceIndexMetadata = Optional.ofNullable(currentState.metadata().getProject(projectId))
+                .map(projectMetadata -> projectMetadata.index(sourceIndex))
+                .orElse(null);
             if (sourceIndexMetadata == null) {
+                // If the source index doesn't exist, we can't mark it for force merge. Return the unchanged cluster state.
                 return currentState;
             }
 
@@ -132,7 +148,8 @@ public class MarkIndexForDLMForceMergeAction {
                 customMetadata
             ).build();
 
-            final ProjectMetadata.Builder updatedProject = ProjectMetadata.builder(currentProject).put(updatedSourceIndexMetadata, true);
+            final ProjectMetadata.Builder updatedProject
+                = ProjectMetadata.builder(currentState.metadata().getProject(projectId)).put(updatedSourceIndexMetadata, true);
             return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
         }
 

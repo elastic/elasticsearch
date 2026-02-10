@@ -39,7 +39,7 @@ public class TransportMarkIndexForDLMForceMergeAction extends TransportMasterNod
         ActionFilters actionFilters
     ) {
         super(
-            MarkIndexForDLMForceMergeAction.INSTANCE.name(),
+            MarkIndexForDLMForceMergeAction.TYPE.name(),
             transportService,
             clusterService,
             threadPool,

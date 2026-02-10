@@ -74,17 +74,21 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
                         String methodWithoutParams = index >= 0 ? method.substring(0, index) : method;
                         String paramString = index >= 0 ? method.substring(index) : null;
 
-                        excludes.add(mutedTest.getClassName() + "." + method);
-
                         if (paramString != null) {
-                            // Because of randomized runner quirks, we need skip the test method by itself whenever we want to skip a test
-                            // that has parameters
-                            // This is because the runner has *two* separate checks that can cause the test to end up getting executed, so
-                            // we need filters that cover both checks
+                            // Some parameterized tests end up with display names like:
+                            //   test {yaml=...}
+                            //
+                            // Gradle 9.4+ treats patterns that include the parameter payload (e.g. "{yaml=...}") as path-based patterns
+                            // and fails the build if only class-based tests are selected. To keep mutes working across all execution modes,
+                            // we avoid adding the full display-name pattern and instead add:
+                            // - a method-only pattern, and
+                            // - a method + " *" pattern to cover parameterized display names.
                             excludes.add(mutedTest.getClassName() + "." + methodWithoutParams);
+                            excludes.add(mutedTest.getClassName() + "." + methodWithoutParams + " *");
                         } else {
                             // We need to add the following, in case we're skipping an entire class of parameterized tests
                             excludes.add(mutedTest.getClassName() + "." + method + " *");
+                            excludes.add(mutedTest.getClassName() + "." + method);
                         }
                     }
                 } else if (mutedTest.getClassName() != null) {

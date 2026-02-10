@@ -24,12 +24,10 @@ abstract class ValueExtractorForLong implements ValueExtractor {
         return new ValueExtractorForLong.ForBlock(encoder, inKey, block);
     }
 
-    private final TopNEncoder encoder;
-
     protected final boolean inKey;
 
     ValueExtractorForLong(TopNEncoder encoder, boolean inKey) {
-        this.encoder = encoder.toUnsortable();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
     }
 
@@ -38,7 +36,7 @@ abstract class ValueExtractorForLong implements ValueExtractor {
     }
 
     protected final void actualWriteValue(BreakingBytesRefBuilder values, long value) {
-        encoder.encodeLong(value, values);
+        TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(value, values);
     }
 
     static class ForVector extends ValueExtractorForLong {

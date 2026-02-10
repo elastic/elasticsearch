@@ -24,12 +24,10 @@ abstract class ValueExtractorForBoolean implements ValueExtractor {
         return new ValueExtractorForBoolean.ForBlock(encoder, inKey, block);
     }
 
-    private final TopNEncoder encoder;
-
     protected final boolean inKey;
 
     ValueExtractorForBoolean(TopNEncoder encoder, boolean inKey) {
-        this.encoder = encoder.toUnsortable();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
     }
 
@@ -38,7 +36,7 @@ abstract class ValueExtractorForBoolean implements ValueExtractor {
     }
 
     protected final void actualWriteValue(BreakingBytesRefBuilder values, boolean value) {
-        encoder.encodeBoolean(value, values);
+        TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(value, values);
     }
 
     static class ForVector extends ValueExtractorForBoolean {

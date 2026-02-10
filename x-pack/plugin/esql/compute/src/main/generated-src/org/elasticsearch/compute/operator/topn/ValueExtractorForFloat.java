@@ -24,12 +24,10 @@ abstract class ValueExtractorForFloat implements ValueExtractor {
         return new ValueExtractorForFloat.ForBlock(encoder, inKey, block);
     }
 
-    private final TopNEncoder encoder;
-
     protected final boolean inKey;
 
     ValueExtractorForFloat(TopNEncoder encoder, boolean inKey) {
-        this.encoder = encoder.toUnsortable();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
     }
 
@@ -38,7 +36,7 @@ abstract class ValueExtractorForFloat implements ValueExtractor {
     }
 
     protected final void actualWriteValue(BreakingBytesRefBuilder values, float value) {
-        encoder.encodeFloat(value, values);
+        TopNEncoder.DEFAULT_UNSORTABLE.encodeFloat(value, values);
     }
 
     static class ForVector extends ValueExtractorForFloat {

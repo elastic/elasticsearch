@@ -27,16 +27,20 @@ abstract class ValueExtractorFor$Type$ implements ValueExtractor {
         return new ValueExtractorFor$Type$.ForBlock(encoder, inKey, block);
     }
 
+$if(BytesRef)$
     private final TopNEncoder encoder;
 
-$if(BytesRef)$
     protected final BytesRef scratch = new BytesRef();
 $endif$
 
     protected final boolean inKey;
 
     ValueExtractorFor$Type$(TopNEncoder encoder, boolean inKey) {
+$if(BytesRef)$
         this.encoder = encoder.toUnsortable();
+$else$
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+$endif$
         this.inKey = inKey;
     }
 
@@ -48,7 +52,7 @@ $endif$
 $if(BytesRef)$
         encoder.encodeBytesRef(value, values);
 $else$
-        encoder.encode$Type$(value, values);
+        TopNEncoder.DEFAULT_UNSORTABLE.encode$Type$(value, values);
 $endif$
     }
 

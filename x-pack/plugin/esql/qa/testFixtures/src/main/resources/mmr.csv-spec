@@ -95,9 +95,9 @@ FROM mmr_text_vector_keyword
 ;
 
 keyword_field:keyword | text_body:text     
-test4                 | fourth text
+test5                 | fifth text
+test6                 | sixth text
 test7                 | seventh text
-test8                 | eighth text
 ;
 
 
@@ -112,9 +112,9 @@ FROM mmr_text_vector_keyword
 ;
 
 keyword_field:keyword | text_body:text     
-test4                 | fourth text
+test5                 | fifth text
+test6                 | sixth text
 test7                 | seventh text
-test8                 | eighth text
 ;
 
 

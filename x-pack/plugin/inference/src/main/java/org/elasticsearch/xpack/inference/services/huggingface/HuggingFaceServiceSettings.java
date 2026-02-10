@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
@@ -43,18 +45,18 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var uri = extractUri(map, URL, validationException);
 
-        SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -62,10 +64,8 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-        return new HuggingFaceServiceSettings(uri, similarityMeasure, dims, maxInputTokens, rateLimitSettings);
+        validationException.throwIfValidationErrorsExist();
+        return new HuggingFaceServiceSettings(uri, similarity, dimensions, maxInputTokens, rateLimitSettings);
     }
 
     private final URI uri;
@@ -79,7 +79,7 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
         this.similarity = null;
         this.dimensions = null;
         this.maxInputTokens = null;
-        rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
     }
 
     public HuggingFaceServiceSettings(
@@ -102,10 +102,47 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
 
     public HuggingFaceServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
-        similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        dimensions = in.readOptionalVInt();
-        maxInputTokens = in.readOptionalVInt();
-        rateLimitSettings = new RateLimitSettings(in);
+        this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        this.dimensions = in.readOptionalVInt();
+        this.maxInputTokens = in.readOptionalVInt();
+        this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var extractedUri = extractOptionalUri(serviceSettings, URL, validationException);
+        var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            serviceSettings,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            HuggingFaceService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new HuggingFaceServiceSettings(
+            extractedUri != null ? extractedUri : this.uri,
+            extractedSimilarity != null ? extractedSimilarity : this.similarity,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

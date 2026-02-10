@@ -476,7 +476,9 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es94.ES94ScalarQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with
@@ -511,6 +513,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es93 to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors.es94 to org.elasticsearch.test.knn;
     exports org.elasticsearch.search.crossproject;
     exports org.elasticsearch.index.mapper.blockloader;
     exports org.elasticsearch.index.mapper.blockloader.docvalues;

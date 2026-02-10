@@ -23,11 +23,11 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
-    static Optional<VectorScorerFactory> factory;
+    static Optional<org.elasticsearch.simdvec.VectorScorerFactory> factory;
 
     @BeforeClass
     public static void getVectorScorerFactory() {
-        factory = VectorScorerFactory.instance();
+        factory = org.elasticsearch.simdvec.VectorScorerFactory.instance();
     }
 
     protected AbstractVectorTestCase() {

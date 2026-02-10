@@ -25,10 +25,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialCentroidCartesianPointSourceValuesAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialCentroidPointSourceValuesAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction implements AggregatorFunction {
+public final class SpatialCentroidPointSourceValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("xVal", ElementType.DOUBLE),
       new IntermediateStateDesc("xDel", ElementType.DOUBLE),
@@ -42,16 +42,16 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
 
   private final List<Integer> channels;
 
-  public SpatialCentroidCartesianPointSourceValuesAggregatorFunction(DriverContext driverContext,
+  public SpatialCentroidPointSourceValuesAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, CentroidPointAggregator.CentroidState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialCentroidCartesianPointSourceValuesAggregatorFunction create(
+  public static SpatialCentroidPointSourceValuesAggregatorFunction create(
       DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidCartesianPointSourceValuesAggregatorFunction(driverContext, channels, SpatialCentroidCartesianPointSourceValuesAggregator.initSingle());
+    return new SpatialCentroidPointSourceValuesAggregatorFunction(driverContext, channels, SpatialCentroidPointSourceValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -98,7 +98,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
     BytesRef wkbScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
       BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
-      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
     }
   }
 
@@ -109,7 +109,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
         continue;
       }
       BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
-      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
     }
   }
 
@@ -124,7 +124,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
       int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
-        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
+        SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
       }
     }
   }
@@ -143,7 +143,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
       int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
-        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, wkbValue);
+        SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
       }
     }
   }
@@ -182,7 +182,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), count.getLong(0));
+    SpatialCentroidPointSourceValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -192,7 +192,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialCentroidCartesianPointSourceValuesAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialCentroidPointSourceValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

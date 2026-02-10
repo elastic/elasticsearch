@@ -324,19 +324,20 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
-    public DocVector filter(int... positions) {
+    public DocVector filter(boolean mayContainDuplicates, int... positions) {
+        mayContainDuplicates |= this.mayContainDuplicates;
         IntVector filteredShards = null;
         IntVector filteredSegments = null;
         IntVector filteredDocs = null;
         DocVector result = null;
         try {
-            filteredShards = shards.filter(positions);
-            filteredSegments = segments.filter(positions);
-            filteredDocs = docs.filter(positions);
+            filteredShards = shards.filter(mayContainDuplicates, positions);
+            filteredSegments = segments.filter(mayContainDuplicates, positions);
+            filteredDocs = docs.filter(mayContainDuplicates, positions);
             Config config = config();
-            // TODO accept another parameter to say "I might be passed duplicate positions"
-            // Without that parameter we *always* may contain duplicates
-            config.mayContainDuplicates();
+            if (mayContainDuplicates) {
+                config.mayContainDuplicates();
+            }
             result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, config);
             return result;
         } finally {
@@ -400,7 +401,10 @@ public final class DocVector extends AbstractVector implements Vector {
             return false;
         }
         DocVector other = (DocVector) obj;
-        return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
+        return shards.equals(other.shards)
+            && segments.equals(other.segments)
+            && docs.equals(other.docs)
+            && mayContainDuplicates == other.mayContainDuplicates;
     }
 
     @Override
@@ -409,6 +413,7 @@ public final class DocVector extends AbstractVector implements Vector {
         sb.append("shards=").append(shards);
         sb.append(", segments=").append(segments);
         sb.append(", docs=").append(docs);
+        sb.append(", mayContainDuplicates=").append(mayContainDuplicates);
         sb.append(']');
         return sb.toString();
     }

@@ -1213,7 +1213,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @Repeat(iterations = 100)
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters(); // randomIntBetween(20, 120), randomIntBetween(20, 120));
         String localIndex = (String) testClusterInfo.get("local.index");

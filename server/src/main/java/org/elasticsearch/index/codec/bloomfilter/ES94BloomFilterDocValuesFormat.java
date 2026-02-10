@@ -761,6 +761,11 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         @Override
+        public long sizeInBytes() {
+            return getBloomFilterBitSetSizeInBytes();
+        }
+
+        @Override
         public int docID() {
             return -1;
         }
@@ -846,7 +851,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
      * @return bloom filter size in bytes, as a power of two
      */
     // Visible for testing
-    int bloomFilterSizeInBytesForNewSegment(int numDocs) {
+    public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
         assert numDocs > 0 : "Unexpected number of docs " + numDocs;
         assert MAX_BLOOM_FILTER_SIZE.getBytes() <= Integer.MAX_VALUE : MAX_BLOOM_FILTER_SIZE;
 

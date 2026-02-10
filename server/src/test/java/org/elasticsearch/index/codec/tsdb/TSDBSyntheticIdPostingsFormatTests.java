@@ -194,7 +194,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
-                assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(numDocs));
+                assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(finalDocs.values().stream().mapToInt(Doc::version).sum()));
                 assertThat(reader.getIndexCommit().getSegmentCount(), equalTo(1));
                 assertThat(reader.leaves().size(), equalTo(1));
                 final var leafReader = reader.leaves().getFirst().reader();

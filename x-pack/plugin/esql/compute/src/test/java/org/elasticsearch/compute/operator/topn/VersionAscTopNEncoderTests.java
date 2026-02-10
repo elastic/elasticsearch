@@ -11,14 +11,14 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import static org.hamcrest.Matchers.lessThan;
 
-public class Utf8AscTopNEncoderTests extends AbstractUtf8TopNEncoderTests {
-    public Utf8AscTopNEncoderTests(TestCase<?> testCase) {
+public class VersionAscTopNEncoderTests extends AbstractVersionTopNEncoderTests {
+    public VersionAscTopNEncoderTests(TestCase<?> testCase) {
         super(testCase);
     }
 
     @Override
     protected TopNEncoder encoder() {
-        return TopNEncoder.UTF8;
+        return TopNEncoder.VERSION;
     }
 
     @Override

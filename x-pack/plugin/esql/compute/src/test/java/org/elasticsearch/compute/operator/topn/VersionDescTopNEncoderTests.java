@@ -9,20 +9,20 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.greaterThan;
 
-public class Utf8AscTopNEncoderTests extends AbstractUtf8TopNEncoderTests {
-    public Utf8AscTopNEncoderTests(TestCase<?> testCase) {
+public class VersionDescTopNEncoderTests extends AbstractVersionTopNEncoderTests {
+    public VersionDescTopNEncoderTests(TestCase<?> testCase) {
         super(testCase);
     }
 
     @Override
     protected TopNEncoder encoder() {
-        return TopNEncoder.UTF8;
+        return TopNEncoder.VERSION_DESC;
     }
 
     @Override
     protected void assertMinMax(BreakingBytesRefBuilder min, BreakingBytesRefBuilder max) {
-        assertThat(min.bytesRefView(), lessThan(max.bytesRefView()));
+        assertThat(min.bytesRefView(), greaterThan(max.bytesRefView()));
     }
 }

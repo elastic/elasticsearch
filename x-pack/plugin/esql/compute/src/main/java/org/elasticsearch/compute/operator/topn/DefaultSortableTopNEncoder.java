@@ -23,7 +23,7 @@ class DefaultSortableTopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "DefaultSortable";
+        return "DefaultAsc";
     }
 
     @Override

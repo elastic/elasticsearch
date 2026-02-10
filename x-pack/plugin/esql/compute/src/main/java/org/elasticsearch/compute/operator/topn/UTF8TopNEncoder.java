@@ -91,7 +91,7 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "Utf8";
+        return "Utf8Asc";
     }
 
     // This section very inspired by Lucene's UnicodeUtil

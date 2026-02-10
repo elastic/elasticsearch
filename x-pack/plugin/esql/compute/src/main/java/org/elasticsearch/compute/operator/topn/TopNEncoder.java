@@ -61,6 +61,12 @@ public interface TopNEncoder {
      * An encoder for semver versions.
      */
     VersionTopNEncoder VERSION = new VersionTopNEncoder();
+    // NOCOMMIT rename to VERSION_ASC
+
+    /**
+     * An encoder for semver versions.
+     */
+    VersionDescTopNEncoder VERSION_DESC = new VersionDescTopNEncoder();
 
     /**
      * Placeholder encoder for unsupported data types.

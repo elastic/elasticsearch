@@ -18,7 +18,7 @@ public class DefaultSortableAscTopNEncoderTests extends AbstractDefaultSortableT
 
     @Override
     protected TopNEncoder encoder() {
-        return SortableTopNEncoder.DEFAULT_SORTABLE;
+        return TopNEncoder.DEFAULT_SORTABLE;
     }
 
     @Override

@@ -41,7 +41,7 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "FixedLength[" + length + "]";
+        return "FixedLengthAsc[" + length + "]";
     }
 
     @Override

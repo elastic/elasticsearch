@@ -74,6 +74,7 @@ import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.encodeLongitude;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private final List<IndexPage> indexPages;
@@ -585,6 +586,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return blockFactory.newLongBlockBuilder(estimatedSize);
         } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatial(dataType)) {
             return blockFactory.newIntBlockBuilder(estimatedSize);
+        } else if (extractPreference == EXTRACT_SPATIAL_CENTROID && isShapeType(dataType)) {
+            return blockFactory.newDoubleBlockBuilder(estimatedSize);
         } else {
             return elementType.newBlockBuilder(estimatedSize, blockFactory);
         }
@@ -595,8 +598,15 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return TestSpatialPointStatsBlockCopier.create(docIndices, dataType);
         } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatial(dataType)) {
             return TestSpatialShapeExtentBlockCopier.create(docIndices, dataType);
+        } else if (extractPreference == EXTRACT_SPATIAL_CENTROID && isShapeType(dataType)) {
+            // For centroid extraction, we use the default copier since test data would need special handling
+            return new TestBlockCopier(docIndices);
         } else {
             return new TestBlockCopier(docIndices);
         }
+    }
+
+    private static boolean isShapeType(DataType dataType) {
+        return dataType == DataType.GEO_SHAPE || dataType == DataType.CARTESIAN_SHAPE;
     }
 }

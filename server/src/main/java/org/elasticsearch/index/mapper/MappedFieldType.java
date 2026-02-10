@@ -657,6 +657,10 @@ public abstract class MappedFieldType {
          */
         EXTRACT_SPATIAL_BOUNDS,
         /**
+         * Loads the field by extracting the centroid (location and weight) from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_CENTROID,
+        /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
         NONE,

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundT
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeCentroidExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -100,7 +101,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
-            new SpatialShapeBoundsExtraction()
+            new SpatialShapeBoundsExtraction(),
+            new SpatialShapeCentroidExtraction()
         );
         return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }

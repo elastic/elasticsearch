@@ -14,6 +14,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
@@ -143,6 +144,82 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 builder.appendInt(extent.negRight);
                 builder.appendInt(extent.posLeft);
                 builder.appendInt(extent.posRight);
+                builder.endPositionEntry();
+            }
+        }
+
+        /**
+         * Block loader for extracting centroid data from shape doc values.
+         * Outputs 4 doubles per document: [decoded X, decoded Y, weight, shapeTypeOrdinal]
+         */
+        protected static class CentroidBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            private final String fieldName;
+            private final CoordinateEncoder encoder;
+
+            protected CentroidBlockLoader(String fieldName, CoordinateEncoder encoder) {
+                this.fieldName = fieldName;
+                this.encoder = encoder;
+            }
+
+            @Override
+            public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
+                BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
+                return binaryDocValues == null ? ConstantNull.READER : new CentroidReader(binaryDocValues, encoder);
+            }
+
+            @Override
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+                return factory.doubles(expectedCount);
+            }
+        }
+
+        private static class CentroidReader implements BlockLoader.AllReader {
+            private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final BinaryDocValues binaryDocValues;
+            private final CoordinateEncoder encoder;
+
+            private CentroidReader(BinaryDocValues binaryDocValues, CoordinateEncoder encoder) {
+                this.binaryDocValues = binaryDocValues;
+                this.encoder = encoder;
+            }
+
+            @Override
+            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+                throws IOException {
+                try (var builder = factory.doubles(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        read(docs.get(i), builder);
+                    }
+                    return builder.build();
+                }
+            }
+
+            @Override
+            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+                read(docId, (BlockLoader.DoubleBuilder) builder);
+            }
+
+            private void read(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
+                if (binaryDocValues.advanceExact(doc) == false) {
+                    builder.appendNull();
+                    return;
+                }
+                reader.reset(binaryDocValues.binaryValue());
+                writeCentroid(builder);
+            }
+
+            @Override
+            public boolean canReuse(int startingDocID) {
+                return true;
+            }
+
+            private void writeCentroid(BlockLoader.DoubleBuilder builder) throws IOException {
+                // We store 4 values as a single multi-valued field: [x, y, weight, shapeTypeOrdinal]
+                builder.beginPositionEntry();
+                builder.appendDouble(encoder.decodeX(reader.getCentroidX()));
+                builder.appendDouble(encoder.decodeY(reader.getCentroidY()));
+                builder.appendDouble(reader.getSumCentroidWeight());
+                builder.appendDouble(reader.getDimensionalShapeType().ordinal());
                 builder.endPositionEntry();
             }
         }

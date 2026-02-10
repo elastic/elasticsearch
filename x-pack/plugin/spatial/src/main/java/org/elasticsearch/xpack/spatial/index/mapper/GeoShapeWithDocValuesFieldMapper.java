@@ -314,6 +314,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new GeoBoundsBlockLoader(name());
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_CENTROID) {
+                return new GeoCentroidBlockLoader(name());
+            }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
@@ -326,6 +329,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
             GeoBoundsBlockLoader(String fieldName) {
                 super(fieldName);
+            }
+        }
+
+        static class GeoCentroidBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.CentroidBlockLoader {
+
+            GeoCentroidBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.GEO);
             }
         }
     }

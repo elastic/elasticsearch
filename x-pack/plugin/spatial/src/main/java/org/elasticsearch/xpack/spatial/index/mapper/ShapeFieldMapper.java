@@ -201,6 +201,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new CartesianBoundsBlockLoader(name());
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_CENTROID) {
+                return new CartesianCentroidBlockLoader(name());
+            }
 
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
@@ -223,6 +226,12 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 builder.appendInt(extent.top);
                 builder.appendInt(extent.bottom);
                 builder.endPositionEntry();
+            }
+        }
+
+        static class CartesianCentroidBlockLoader extends CentroidBlockLoader {
+            protected CartesianCentroidBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.CARTESIAN);
             }
         }
     }

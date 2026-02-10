@@ -78,12 +78,6 @@ The repository is organized into several key directories:
 - Default header (outside `x-pack`): Elastic License 2.0, SSPL v1, or AGPL v3—they are already codified at the top of Java files; copy from existing sources.
 - Files under `x-pack` require the Elastic License 2.0-only header; IDEs configured per CONTRIBUTING.md can insert correct text automatically.
 
-## Runtime & Cluster Debugging
-- Start Elasticsearch via `./gradlew run --debug-jvm` and attach IntelliJ's "Debug Elasticsearch" configuration (auto-generated per CONTRIBUTING.md).
-- To customize the dev cluster without touching tracked files, supply an init script (`./gradlew run -I ~/custom.gradle ...`) that registers extra test-cluster config (e.g., custom certs, node roles, additional nodes).
-- Multi-node debug mode: each node consumes incremental debug ports (5007, 5008, ...); configure IDE listeners with auto-restart.
-- Cross-cluster search manual testing: `./gradlew run-ccs` brings up querying and fulfilling clusters; send requests like `my_remote_cluster:*/_search`.
-
 ## Testing Parameters Reference
 - Persistent data directories: add `--data-dir=/tmp/foo --preserve-data` to `run` if you need state between restarts.
 - Heap overrides: `-Dtests.heap.size=512m` for tests; `-Dtests.heap.size=4G` for runtime nodes when reproducing memory issues.

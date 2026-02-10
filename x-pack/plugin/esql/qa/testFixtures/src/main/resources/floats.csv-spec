@@ -335,7 +335,7 @@ ROW a=1.8
 
 // tag::asinh-result[]
 a:double | asinh:double
-     1.8 | 1.3504407402749723
+     1.8 | 1.3504407402749725
 // end::asinh-result[]
 ;
 

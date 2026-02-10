@@ -756,7 +756,6 @@ public class PromqlFunctionRegistry {
         "sort_desc",
 
         // Trigonometric functions
-        "asinh",
         "atanh",
 
         // Time functions

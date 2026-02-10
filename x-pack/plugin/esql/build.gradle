@@ -46,6 +46,7 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
+  api project(':libs:web-utils')
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
 

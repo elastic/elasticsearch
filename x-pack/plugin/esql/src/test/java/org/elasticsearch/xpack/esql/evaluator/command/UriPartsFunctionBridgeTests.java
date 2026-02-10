@@ -15,16 +15,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.DOMAIN;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.EXTENSION;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.FRAGMENT;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.PASSWORD;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.PATH;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.PORT;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.QUERY;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.SCHEME;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.USERNAME;
-import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.USER_INFO;
+import static org.elasticsearch.web.UriParts.DOMAIN;
+import static org.elasticsearch.web.UriParts.EXTENSION;
+import static org.elasticsearch.web.UriParts.FRAGMENT;
+import static org.elasticsearch.web.UriParts.PASSWORD;
+import static org.elasticsearch.web.UriParts.PATH;
+import static org.elasticsearch.web.UriParts.PORT;
+import static org.elasticsearch.web.UriParts.QUERY;
+import static org.elasticsearch.web.UriParts.SCHEME;
+import static org.elasticsearch.web.UriParts.USERNAME;
+import static org.elasticsearch.web.UriParts.USER_INFO;
 
 public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
 

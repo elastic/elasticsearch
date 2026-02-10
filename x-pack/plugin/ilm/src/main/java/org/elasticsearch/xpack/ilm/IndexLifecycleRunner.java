@@ -179,7 +179,7 @@ class IndexLifecycleRunner {
     void runPeriodicStep(ProjectState state, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+            logger.debug("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();

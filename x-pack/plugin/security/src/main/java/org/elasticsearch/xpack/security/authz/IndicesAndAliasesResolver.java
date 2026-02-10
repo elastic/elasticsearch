@@ -373,6 +373,9 @@ class IndicesAndAliasesResolver {
                     String originalIndexExpression = indicesRequest.indices()[0];
                     throw new UnsupportedSelectorException(originalIndexExpression);
                 }
+                final String[] requestedIndices = indicesRequest.indices();
+                assert requestedIndices == null || requestedIndices.length <= 1 : "all-indices expression must be a single entry";
+                final var indexExpression = requestedIndices != null && requestedIndices.length > 0 ? requestedIndices[0] : Metadata.ALL;
                 if (indicesOptions.expandWildcardExpressions()) {
                     var localExpressions = new HashSet<String>();
 
@@ -395,10 +398,6 @@ class IndicesAndAliasesResolver {
                     }
 
                     var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
-                    final var indexExpression = indicesRequest.indices() != null && indicesRequest.indices().length > 0
-                        ? indicesRequest.indices()[0]
-                        : Metadata.ALL;
-
                     boolean shouldExcludeLocalResolution = false;
                     Set<String> remoteIndices = Collections.emptySet();
                     if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
@@ -436,8 +435,23 @@ class IndicesAndAliasesResolver {
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
-                } else if (crossProjectModeDecider.crossProjectEnabled()) {
-                    setResolvedIndexExpressionsIfUnset(replaceable, ResolvedIndexExpressions.builder().build());
+                } else {
+                    if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
+                        final var resolvedProjects = crossProjectRoutingResolver.resolve(
+                            replaceable.getProjectRouting(),
+                            projectMetadata,
+                            authorizedProjects
+                        );
+                        CrossProjectIndexExpressionsRewriter.validateIndexExpressionWithoutRewrite(
+                            indexExpression,
+                            resolvedProjects.originProjectAlias(),
+                            resolvedProjects.allProjectAliases(),
+                            replaceable.getProjectRouting()
+                        );
+                    }
+                    if (crossProjectModeDecider.crossProjectEnabled()) {
+                        setResolvedIndexExpressionsIfUnset(replaceable, ResolvedIndexExpressions.builder().build());
+                    }
                 }
 
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.

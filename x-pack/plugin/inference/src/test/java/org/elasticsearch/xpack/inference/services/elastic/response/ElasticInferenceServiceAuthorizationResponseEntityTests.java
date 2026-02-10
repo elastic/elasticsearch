@@ -66,6 +66,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
     public static final String EIS_TEXT_EMBED_PATH = "embed/text/dense";
 
     // multimodal embedding
+    public static final String JINA_CLIP_V2_ENDPOINT_ID = ".jina-clip-v2";
+    public static final String JINA_CLIP_V2_MODEL_NAME = "jina-clip-v2";
     public static final String EIS_MULTIMODAL_EMBED_PATH = "embed/dense";
 
     // rerank-v1
@@ -253,6 +255,31 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
               }
             },
             {
+              "id": ".jina-clip-v2",
+              "model_name": "jina-clip-v2",
+              "task_types": {
+                "eis": "embed/dense",
+                "elasticsearch": "embedding"
+              },
+              "status": "beta",
+              "properties": [
+                "multilingual",
+                "multimodal",
+                "open-weights"
+              ],
+              "release_date": "2026-02-01",
+              "configuration": {
+                "similarity": "cosine",
+                "dimensions": 1024,
+                "element_type": "float",
+                "chunking_settings": {
+                  "strategy": "word",
+                  "max_chunk_size": 500,
+                  "overlap": 2
+                }
+              }
+            },
+            {
               "id": ".jina-reranker-v2",
               "model_name": "jina-reranker-v2",
               "task_types": {
@@ -327,6 +354,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createGpLlmV2CompletionAuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
             createJinaTextEmbedAuthorizedEndpoint(),
+            createJinaMultimodalEmbedAuthorizedEndpoint(),
             createRerankV1AuthorizedEndpoint()
         );
 
@@ -343,6 +371,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 createGpLlmV2CompletionExpectedEndpoint(url),
                 createElserExpectedEndpoint(url),
                 createJinaExpectedTextEmbeddingEndpoint(url),
+                createJinaExpectedMultimodalEmbeddingEndpoint(url),
                 createRerankV1ExpectedEndpoint(url)
             ),
             inferenceIds
@@ -478,6 +507,37 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new WordBoundaryChunkingSettings(500, 2)
+        );
+    }
+
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createJinaMultimodalEmbedAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+            JINA_CLIP_V2_ENDPOINT_ID,
+            JINA_CLIP_V2_MODEL_NAME,
+            createTaskTypeObject(EIS_MULTIMODAL_EMBED_PATH, "embedding"),
+            "beta",
+            List.of("multilingual", "multimodal", "open-weights"),
+            "2026-02-01",
+            null,
+            new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                "cosine",
+                1024,
+                "float",
+                Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
+            )
+        );
+    }
+
+    private static ElasticInferenceServiceModel createJinaExpectedMultimodalEmbeddingEndpoint(String url) {
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
+            JINA_CLIP_V2_ENDPOINT_ID,
+            TaskType.EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_CLIP_V2_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
@@ -632,6 +692,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                         TaskType.CHAT_COMPLETION,
                         TaskType.SPARSE_EMBEDDING,
                         TaskType.TEXT_EMBEDDING,
+                        TaskType.EMBEDDING,
                         TaskType.RERANK,
                         TaskType.COMPLETION
                     )

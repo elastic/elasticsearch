@@ -35,23 +35,15 @@ public interface VectorSimilarityFunctions {
         /**
          * Unsigned int7. Single vector score returns results as an int.
          */
-        INT7(Byte.BYTES),
+        INT7U(Byte.BYTES),
+        /**
+         * 1-byte int. Single vector score returns results as an int.
+         */
+        INT8(Byte.BYTES),
         /**
          * 4-byte float. Single vector score returns results as a float.
          */
-        FLOAT32(Float.BYTES),
-        /**
-         * 1-bit data, 4-bit queries. Single vector score returns results as a long.
-         * <p>
-         * Checks are special-cased, so {@link #bytes()} is not called
-         */
-        I1I4(Byte.BYTES),
-        /**
-         * 2-bit data, 4-bit queries. Single vector score returns results as a long.
-         * <p>
-         * Checks are special-cased, so {@link #bytes()} is not called
-         */
-        I2I4(Byte.BYTES);
+        FLOAT32(Float.BYTES);
 
         private final int bytes;
 
@@ -61,6 +53,38 @@ public interface VectorSimilarityFunctions {
 
         public int bytes() {
             return bytes;
+        }
+    }
+
+    /**
+     * The various flavors of BBQ indices. Single vector score returns results as a long.
+     */
+    enum BBQType {
+        /**
+         * 1-bit data, 4-bit queries
+         */
+        D1Q4((byte) 1),
+        /**
+         * 2-bit data, 4-bit queries
+         */
+        D2Q4((byte) 2),
+        /**
+         * 4-bit data, 4-bit queries
+         */
+        D4Q4((byte) 4);
+
+        private final byte dataBits;
+
+        BBQType(byte dataBits) {
+            this.dataBits = dataBits;
+        }
+
+        public byte dataBits() {
+            return dataBits;
+        }
+
+        public byte queryBits() {
+            return 4;
         }
     }
 
@@ -108,4 +132,12 @@ public interface VectorSimilarityFunctions {
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);
+
+    MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
+
+    MethodHandle applyCorrectionsEuclideanBulk();
+
+    MethodHandle applyCorrectionsMaxInnerProductBulk();
+
+    MethodHandle applyCorrectionsDotProductBulk();
 }

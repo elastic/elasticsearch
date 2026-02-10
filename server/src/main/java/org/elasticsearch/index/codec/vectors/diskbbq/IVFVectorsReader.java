@@ -474,4 +474,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
     }
+
+    public int getNumCentroids(FieldInfo fieldInfo) throws IOException {
+        return fields.get(fieldInfo.number).numCentroids;
+    }
+
+    public float[] getGlobalCentroid(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).globalCentroid;
+    }
 }

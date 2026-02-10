@@ -11,11 +11,14 @@ package org.elasticsearch.search.vectors;
 
 import com.carrotsearch.hppc.IntHashSet;
 
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
@@ -35,7 +38,9 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -45,6 +50,7 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
 
+import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
@@ -204,18 +210,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             visitRatio = providedVisitRatio;
         }
 
-        // Collect segment metadata for multi-criteria allocation
+        // collect segment metadata
         float[] queryVector = getQuery();
         List<SegmentMetadata> segmentMetadata = collectSegmentMetadata(leafReaderContexts, field);
 
-        // Calculate segment-specific visit ratios based on multi-criteria scoring
-        float[] segmentVisitRatios = calculateMultiCriteriaVisitRatios(
-            queryVector,
-            segmentMetadata,
-            visitRatio,
-            totalVectors,
-            enableProximityBasedAllocation
-        );
+        // assign segment-specific visit ratios based on segment metadata/statistics
+        float[] segmentVisitRatios = allocateVisitedRatio(segmentMetadata, visitRatio, totalVectors, enableProximityBasedAllocation);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < leafReaderContexts.size(); i++) {
@@ -307,7 +307,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      */
     record SegmentMetadata(
         LeafReaderContext context,
-        float[] globalCentroid,
+        float globalCentroidScore,
         VectorSimilarityFunction similarityFunction,
         int vectorCount,
         int numCentroids,
@@ -318,21 +318,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     ) {}
 
     /**
-     * Calculate multi-criteria segment relevance score using configurable weights
+     * Calculate segment affinity using configurable weights
      */
     private static float calculateSegmentAffinity(
-        float[] queryVector,
         SegmentMetadata metadata,
         float proximityWeight,
         float densityWeight,
-        float qualityWeight
+        float qualityWeight,
+        float maxGlobalCentroidScore
     ) {
-        if (metadata.isValid() == false || metadata.globalCentroid() == null || metadata.similarityFunction() == null) {
+        if (metadata.isValid() == false || Float.isNaN(metadata.globalCentroidScore) || metadata.similarityFunction() == null) {
             return 0f;
         }
 
         // distance to global centroid
-        float proximityScore = calculateSegmentProximity(queryVector, metadata.globalCentroid(), metadata.similarityFunction());
+        float proximityScore = (metadata.globalCentroidScore / maxGlobalCentroidScore) * 1.1f;
         proximityScore = Math.max(0f, proximityScore);
 
         // density score (average cluster size - logarithmic to prefer moderate density)
@@ -363,86 +363,81 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return (proximityWeight * proximityScore + densityWeight * densityScore + qualityWeight * qualityScore) / totalWeight;
     }
 
-    /**
-     * calculate proximity score between query vector and segment global centroid
-     */
-    private static float calculateSegmentProximity(
-        float[] queryVector,
-        float[] segmentGlobalCentroid,
-        VectorSimilarityFunction similarityFunction
-    ) {
-        if (queryVector == null || segmentGlobalCentroid == null || queryVector.length != segmentGlobalCentroid.length) {
-            return 0f;
-        }
-
-        try {
-            // handle zero vectors in placeholder centroids (all zeros)
-            if (isZeroVector(segmentGlobalCentroid)) {
-                return 0f; // zero centroids provide no meaningful proximity signal ?
-            }
-            return similarityFunction.compare(queryVector, segmentGlobalCentroid);
-        } catch (Exception e) {
-            // TODO : better exception handling
-            return 0f;
-        }
-    }
-
-    private static boolean isZeroVector(float[] vector) {
-        for (float v : vector) {
-            if (v != 0f) return false;
-        }
-        return true;
-    }
-
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new IVFCollectorManager(k, searcher);
     }
 
+    private IVFVectorsReader unwrapReader(KnnVectorsReader knnVectorsReader) {
+        IVFVectorsReader result = null;
+        if (knnVectorsReader instanceof IVFVectorsReader ivfVectorsReader) {
+            result = ivfVectorsReader;
+        } else if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader r) {
+            KnnVectorsReader fieldReader = r.getFieldReader(field);
+            if (fieldReader != null) {
+                result = unwrapReader(fieldReader);
+            }
+        }
+        return result;
+    }
+
     /**
-     * collect metadata for all segments to enable multi-criteria budget allocation
+     * collect metadata for all segments to enable budget allocation
      */
     private List<SegmentMetadata> collectSegmentMetadata(List<LeafReaderContext> leafReaderContexts, String field) throws IOException {
         List<SegmentMetadata> segmentMetadata = new ArrayList<>(leafReaderContexts.size());
-
+        float[] queryVector = getQuery();
         for (LeafReaderContext context : leafReaderContexts) {
             LeafReader leafReader = context.reader();
             FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
 
             if (floatVectorValues == null || floatVectorValues.size() == 0) {
-                segmentMetadata.add(new SegmentMetadata(context, null, null, 0, 0, 0f, 0f, 0f, false));
+                segmentMetadata.add(new SegmentMetadata(context, Float.NaN, null, 0, 0, 0f, 0f, 0f, false));
                 continue;
             }
 
-            try {
-                FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
-                if (fieldInfo != null && fieldInfo.getVectorDimension() > 0) {
-                    VectorSimilarityFunction similarity = fieldInfo.getVectorSimilarityFunction();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            if (fieldInfo != null && fieldInfo.getVectorDimension() > 0) {
+                VectorSimilarityFunction similarityFunction = fieldInfo.getVectorSimilarityFunction();
 
-                    // TODO : for now we create placeholder cluster statistics
-                    // TODO : this would need to access actual cluster statistics from the IVF reader (need to change writer too)
-                    float[] placeholderCentroid = new float[fieldInfo.getVectorDimension()];
-                    int vectorCount = floatVectorValues.size();
-                    int numCentroids = Math.max(1, vectorCount / 100); // Estimate: assume ~100 vectors per centroid
+                if (leafReader instanceof SegmentReader segmentReader) {
+                    KnnVectorsReader vectorReader = segmentReader.getVectorReader();
+                    IVFVectorsReader reader = unwrapReader(vectorReader);
+                    if (reader != null) {
+                        float[] globalCentroid = reader.getGlobalCentroid(fieldInfo);
 
-                    segmentMetadata.add(
-                        new SegmentMetadata(
-                            context,
-                            placeholderCentroid,
-                            similarity,
-                            vectorCount,
-                            numCentroids,
-                            1.0f,                       // placeholder cluster variance
-                            (float) vectorCount / numCentroids,  // average cluster size
-                            (float) vectorCount / 5,           // placeholder max cluster size
-                            true
-                        )
-                    );
-                } else {
-                    segmentMetadata.add(new SegmentMetadata(context, null, null, floatVectorValues.size(), 0, 0f, 0f, 0f, false));
+                        if (similarityFunction == COSINE) {
+                            VectorUtil.l2normalize(queryVector);
+                        }
+
+                        if (queryVector.length != fieldInfo.getVectorDimension()) {
+                            throw new IllegalArgumentException(
+                                "vector query dimension: "
+                                    + queryVector.length
+                                    + " differs from field dimension: "
+                                    + fieldInfo.getVectorDimension()
+                            );
+                        }
+
+                        float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);
+                        int numCentroids = reader.getNumCentroids(fieldInfo);
+                        int vectorCount = floatVectorValues.size();
+                        segmentMetadata.add(
+                            new SegmentMetadata(
+                                context,
+                                centroidsScore,
+                                similarityFunction,
+                                vectorCount,
+                                numCentroids,
+                                0f,
+                                (float) vectorCount / numCentroids,
+                                0f,
+                                true
+                            )
+                        );
+                    }
                 }
-            } catch (Exception e) {
-                // TODO : this is unexpected, throw ?
-                segmentMetadata.add(new SegmentMetadata(context, null, null, floatVectorValues.size(), 0, 0f, 0f, 0f, false));
+            } else {
+                segmentMetadata.add(new SegmentMetadata(context, Float.NaN, null, floatVectorValues.size(), 0, 0f, 0f, 0f, false));
             }
         }
 
@@ -452,8 +447,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     /**
      * Calculate multi-criteria segment relevance scores using configurable weights
      */
-    private float[] calculateMultiCriteriaVisitRatios(
-        float[] queryVector,
+    private float[] allocateVisitedRatio(
         List<SegmentMetadata> segmentMetadata,
         float baseVisitRatio,
         int totalVectors,
@@ -463,7 +457,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return new float[segmentMetadata.size()];
         }
 
-        // calculate relevance scores for all valid segments
+        float maxGlobalCentroidScore = segmentMetadata.stream()
+            .max((a, b) -> Float.compare(a.globalCentroidScore, b.globalCentroidScore))
+            .map(SegmentMetadata::globalCentroidScore)
+            .get();
+
+        // calculate affinity scores for all valid segments
         float[] affinityScores = new float[segmentMetadata.size()];
         float totAffinity = 0f;
         int validSegments = 0;
@@ -471,7 +470,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         for (int i = 0; i < segmentMetadata.size(); i++) {
             SegmentMetadata metadata = segmentMetadata.get(i);
             if (metadata.isValid()) {
-                float affinity = calculateSegmentAffinity(queryVector, metadata, proximityWeight, densityWeight, qualityWeight);
+                float affinity = calculateSegmentAffinity(metadata, proximityWeight, densityWeight, qualityWeight, maxGlobalCentroidScore);
                 affinityScores[i] = Math.max(0f, affinity);
                 totAffinity += affinityScores[i];
                 validSegments++;

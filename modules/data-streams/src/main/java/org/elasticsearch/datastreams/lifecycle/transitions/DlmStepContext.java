@@ -35,6 +35,23 @@ public record DlmStepContext(
 ) {
 
     /**
+     * Creates a step context from a {@link DlmActionContext} and an index.
+     *
+     * @param index The index this step context is for.
+     * @param actionContext The action context to derive common resources from.
+     */
+    public DlmStepContext(Index index, DlmActionContext actionContext) {
+        this(
+            index,
+            actionContext.projectState(),
+            actionContext.transportActionsDeduplicator(),
+            actionContext.errorStore(),
+            actionContext.signallingErrorRetryThreshold(),
+            actionContext.client()
+        );
+    }
+
+    /**
      * @return The name of the index associated with this context.
      */
     public String indexName() {
@@ -66,5 +83,14 @@ public record DlmStepContext(
             ),
             callback
         );
+    }
+
+    /*
+     * @return true if the request is in-progress (deduplicator is currently
+     * tracking the provided projectId, request tuple),
+     * false otherwise.
+     */
+    public boolean isRequestInProgress(TransportRequest request) {
+        return transportActionsDeduplicator.hasRequest(Tuple.tuple(projectId(), request));
     }
 }

@@ -156,7 +156,7 @@ public class MvExpandOperator implements Operator {
             }
             nextItemOnExpanded += expandedMask.length;
             for (int b = 0; b < result.length; b++) {
-                result[b] = b == channel ? expandedBlock.filter(expandedMask) : prev.getBlock(b).filter(duplicateFilter);
+                result[b] = b == channel ? expandedBlock.filter(true, expandedMask) : prev.getBlock(b).filter(true, duplicateFilter);
             }
             success = true;
         } finally {

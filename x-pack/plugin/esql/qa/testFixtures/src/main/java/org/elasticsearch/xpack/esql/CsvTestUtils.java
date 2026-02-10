@@ -518,6 +518,7 @@ public final class CsvTestUtils {
             Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
             return DateUtils.toLong(parsed);
         }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
+
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
@@ -528,6 +529,7 @@ public final class CsvTestUtils {
         GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
         AGGREGATE_METRIC_DOUBLE(
             x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
+            CsvTestUtils::compareAggregateMetricDouble,
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
@@ -866,5 +868,15 @@ public final class CsvTestUtils {
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    static int compareAggregateMetricDouble(Object lhs, Object rhs) {
+        return toAggregateMetricDouble(lhs).compareTo(toAggregateMetricDouble(rhs));
+    }
+
+    static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral toAggregateMetricDouble(Object v) {
+        return v instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral amd
+            ? amd
+            : stringToAggregateMetricDoubleLiteral(v.toString());
     }
 }

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.parser;
 
-import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.inference.StatusHeuristic;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.LocalDate;

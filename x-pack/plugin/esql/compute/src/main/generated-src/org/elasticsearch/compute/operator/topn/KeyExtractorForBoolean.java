@@ -43,15 +43,13 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, boolean value) {
+    protected final void nonNul(BreakingBytesRefBuilder key, boolean value) {
         key.append(nonNul);
         encoder.encodeBoolean(value, key);
-        return Byte.BYTES + 1;
     }
 
-    protected final int nul(BreakingBytesRefBuilder key) {
+    protected final void nul(BreakingBytesRefBuilder key) {
         key.append(nul);
-        return 1;
     }
 
     @Override
@@ -68,8 +66,8 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
-            return nonNul(key, vector.getBoolean(position));
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
+            nonNul(key, vector.getBoolean(position));
         }
     }
 
@@ -82,11 +80,12 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getBoolean(block.getFirstValueIndex(position)));
+            nonNul(key, block.getBoolean(block.getFirstValueIndex(position)));
         }
     }
 
@@ -99,11 +98,12 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getBoolean(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+            nonNul(key, block.getBoolean(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
         }
     }
 
@@ -116,19 +116,21 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
             for (int i = start; i < end; i++) {
                 if (block.getBoolean(i) == false) {
-                    return nonNul(key, false);
+                    nonNul(key, false);
+                    return;
                 }
             }
-            return nonNul(key, true);
+            nonNul(key, true);
         }
     }
 
@@ -141,19 +143,21 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
             for (int i = start; i < end; i++) {
                 if (block.getBoolean(i)) {
-                    return nonNul(key, true);
+                    nonNul(key, true);
+                    return;
                 }
             }
-            return nonNul(key, false);
+            nonNul(key, false);
         }
     }
 }

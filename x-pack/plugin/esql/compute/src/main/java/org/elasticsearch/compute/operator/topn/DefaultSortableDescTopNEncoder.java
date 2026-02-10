@@ -18,7 +18,7 @@ class DefaultSortableDescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         throw new IllegalStateException("Cannot find encoder for BytesRef value");
     }
 

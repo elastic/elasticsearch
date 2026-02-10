@@ -40,7 +40,8 @@ public class TopNRowTests extends ESTestCase {
     public void testFromHeapDump1() {
         TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(5), 56, 24);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
-        assertThat(row.ramBytesUsed(), equalTo(304L)); // 304 is measured debugging a heap dump
+        // 304 was measured debugging a heap dump and we've since shrunk
+        assertThat(row.ramBytesUsed(), equalTo(240L));
     }
 
     /**
@@ -51,7 +52,8 @@ public class TopNRowTests extends ESTestCase {
     public void testFromHeapDump2() {
         TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(1), 1160, 1_153_096);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
-        assertThat(row.ramBytesUsed(), equalTo(1_154_464L)); // 1,154,464 is measured debugging a heap dump
+        // 1,154,464 is measured debugging a heap dump and we've since shrunk
+        assertThat(row.ramBytesUsed(), equalTo(1_154_416L));
     }
 
     public void testRamBytesUsedBig() {
@@ -83,8 +85,6 @@ public class TopNRowTests extends ESTestCase {
         // The breaker is shared infrastructure so we don't count it but RamUsageTester does
         expected -= RamUsageTester.ramUsed(breaker);
         expected -= RamUsageTester.ramUsed("topn");
-        // the sort orders are shared
-        expected -= RamUsageTester.ramUsed(row.bytesOrder.sortOrders);
         return expected;
     }
 }

@@ -26,7 +26,7 @@ final class UTF8DescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         /*
          * add one bit to every non-continuation byte so that there are no "0" bytes
          * in the encoded copy. The only "0" bytes are separators.
@@ -40,7 +40,6 @@ final class UTF8DescTopNEncoder extends SortableDescTopNEncoder {
             bytesRefBuilder.append((byte) ~b);
         }
         bytesRefBuilder.append((byte) ~TERMINATOR);
-        return value.length + 1;
     }
 
     @Override

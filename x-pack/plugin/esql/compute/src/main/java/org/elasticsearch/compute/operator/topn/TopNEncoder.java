@@ -70,7 +70,7 @@ public interface TopNEncoder {
 
     boolean decodeBoolean(BytesRef bytes);
 
-    int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
 
     BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
 

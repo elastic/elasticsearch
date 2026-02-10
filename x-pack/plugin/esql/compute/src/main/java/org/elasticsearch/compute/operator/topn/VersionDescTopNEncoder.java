@@ -18,7 +18,7 @@ class VersionDescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         for (int i = value.offset; i < value.length; i++) {
             if (value.bytes[i] == UTF8TopNEncoder.TERMINATOR) {
@@ -29,7 +29,6 @@ class VersionDescTopNEncoder extends SortableDescTopNEncoder {
         bytesRefBuilder.append(value);
         bitwiseNot(bytesRefBuilder.bytes(), length, bytesRefBuilder.length());
         bytesRefBuilder.append((byte) ~UTF8TopNEncoder.TERMINATOR);
-        return value.length + 1;
     }
 
     @Override

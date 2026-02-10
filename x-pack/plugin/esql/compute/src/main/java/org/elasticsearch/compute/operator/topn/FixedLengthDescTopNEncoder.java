@@ -20,14 +20,13 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }
-        int length = bytesRefBuilder.length();
+        int startOffset = bytesRefBuilder.length();
         bytesRefBuilder.append(value);
-        bitwiseNot(bytesRefBuilder.bytes(), length, bytesRefBuilder.length());
-        return length;
+        bitwiseNot(bytesRefBuilder.bytes(), startOffset, bytesRefBuilder.length());
     }
 
     @Override

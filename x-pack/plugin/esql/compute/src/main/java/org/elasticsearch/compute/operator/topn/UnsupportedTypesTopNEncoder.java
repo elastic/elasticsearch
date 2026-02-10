@@ -19,7 +19,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
  */
 class UnsupportedTypesTopNEncoder extends SortableTopNEncoder {
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         throw new UnsupportedOperationException("Encountered a bug; trying to encode an unsupported data type value for TopN");
     }
 

@@ -33,7 +33,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
  * </p>
  */
 interface KeyExtractor {
-    int writeKey(BreakingBytesRefBuilder key, int position);
+    void writeKey(BreakingBytesRefBuilder key, int position);
 
     static KeyExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, Block block) {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {

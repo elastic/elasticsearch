@@ -20,12 +20,11 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }
         bytesRefBuilder.append(value);
-        return length;
     }
 
     @Override

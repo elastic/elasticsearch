@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -38,7 +39,10 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +56,11 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
     private final ObjectStoreService objectStoreService;
     private final ConcurrentLinkedQueue<StaleCompoundCommit> pendingCommitsToDelete = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<StaleCompoundCommit> pendingCommitsOfRelocatingPrimariesToDelete = new ConcurrentLinkedQueue<>();
+    // Auxiliary sets storing commits pending deletion. We use it to pass info about all the existing blobs to the target node during
+    // relocation. It might potentially include commits that had been passed to the object store service for deletion already and thus were
+    // potentially already deleted. On the other hand, it might not include all pending deletions after shard is unregistered even if it's
+    // later re-registered again.
+    private final Map<ShardId, Set<StaleCompoundCommit>> commitsBeingProcessed = ConcurrentCollections.newConcurrentMap();
     private final Semaphore consistencyCheckPermit = new Semaphore(1);
     private final Semaphore relocatingPrimariesCheckPermit = new Semaphore(1);
 
@@ -66,6 +75,8 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
     }
 
     void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+        commitsBeingProcessed.computeIfAbsent(staleCompoundCommit.shardId(), k -> ConcurrentCollections.newConcurrentSet())
+            .add(staleCompoundCommit);
         pendingCommitsToDelete.add(staleCompoundCommit);
         maybeTriggerConsistencyCheck();
     }
@@ -192,6 +203,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
                 case INDEX_DELETED:
                     logger.debug("Delete shard file {}, reason {}", staleCompoundCommit, shardDeletionState);
                     objectStoreService.asyncDeleteShardFile(staleCompoundCommit);
+                    removeFromCommitsBeingProcessed(staleCompoundCommit);
                     break;
                 case LOCAL_NODE_IS_RELOCATING_TARGET_PRIMARY:
                     logger.debug("Reinserting commit {} for pending deletion", staleCompoundCommit);
@@ -200,6 +212,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
                     break;
                 case LOCAL_NODE_IS_NOT_PRIMARY:
                     logger.debug("Unable to delete commit {} since the primary shard was re-assigned", staleCompoundCommit);
+                    removeFromCommitsBeingProcessed(staleCompoundCommit);
                     break;
                 default:
                     logger.warn("Unable to delete commit {} due to unrecognized shard state {}", staleCompoundCommit, shardDeletionState);
@@ -209,6 +222,13 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
         }
         if (addedPendingCommitsOfRelocatingPrimariesToDelete) {
             handlePendingCommitsOfRelocatingPrimariesToDelete();
+        }
+    }
+
+    private void removeFromCommitsBeingProcessed(StaleCompoundCommit staleCompoundCommit) {
+        var shardCommits = commitsBeingProcessed.get(staleCompoundCommit.shardId());
+        if (shardCommits != null) {
+            shardCommits.remove(staleCompoundCommit);
         }
     }
 
@@ -273,5 +293,22 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
     public boolean hasPendingDeletes() {
         // order is semi-important, if we reversed it, we could falsely miss a pending delete
         return pendingCommitsToDelete.isEmpty() == false || consistencyCheckPermit.availablePermits() == 0;
+    }
+
+    /**
+     * @param shardId the shardId to get pending deletions for
+     * @return the set of commits for the passed shardId that are pending deletion. This might include commits that were already deleted.
+     */
+    public Set<StaleCompoundCommit> getPendingDeletes(ShardId shardId) {
+        Set<StaleCompoundCommit> pendingDeletes = new HashSet<>();
+        pendingDeletes.addAll(commitsBeingProcessed.getOrDefault(shardId, Collections.emptySet()));
+        pendingDeletes.addAll(objectStoreService.getCommitBlobsDeletionsInProgress(shardId));
+        return pendingDeletes;
+    }
+
+    // Clean up the data structures tracking pending deletions for the passed shardId.
+    public void clearPendingDeletesTracker(ShardId shardId) {
+        commitsBeingProcessed.remove(shardId);
+        // In ObjectStoreService tracking of in-progress deletions is cleared automatically when deletions for the shardId complete.
     }
 }

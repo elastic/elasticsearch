@@ -958,6 +958,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         assert removed != null : shardId + " not registered";
         assert removed.isClosed();
         removed.unregistered();
+        // We don't need to track pending deletes after this as we expect any relocation to be completed before unregistering.
+        // We also don't expect any more calls to commitCleaner.deleteCommit() for this shardId past this unless it's re-registered.
+        commitCleaner.clearPendingDeletesTracker(shardId);
     }
 
     /**
@@ -1030,6 +1033,52 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return commitAndBlobLocation.blobLocation;
         }
         return null;
+    }
+
+    public Set<BlobFile> getTrackedBlobFiles(ShardId shardId) {
+        Set<BlobFile> blobFiles = new HashSet<>();
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.
+        for (var primaryTermAndGeneration : commitState.primaryTermAndGenToBlobReference.keySet()) {
+            blobFiles.add(
+                new BlobFile(
+                    StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
+                    primaryTermAndGeneration
+                )
+            );
+        }
+        // We also need to include all blobs pending deletion as they are deleted asynchronously.
+        for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
+            blobFiles.add(
+                new BlobFile(
+                    StatelessCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
+                    staleCompoundCommit.primaryTermAndGeneration()
+                )
+            );
+        }
+        return blobFiles;
+    }
+
+    // Package private for testing only
+    StatelessCommitCleaner getCommitCleaner() {
+        return commitCleaner;
+    }
+
+    public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
+
+    public @Nullable SourceBlobsInfo getSourceBlobsEntry(ShardId shardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.blobsReceivedFromSource;
+    }
+
+    public void clearSourceBlobsEntry(ShardId shardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.blobsReceivedFromSource = null;
+    }
+
+    public void putSourceBlobsEntry(ShardId shardId, BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.blobsReceivedFromSource = new SourceBlobsInfo(latestBlobFile, latestBlobFileLength, otherBlobs);
     }
 
     @Nullable
@@ -1133,6 +1182,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // on the target node
         @Nullable
         private Map<PrimaryTermAndGeneration, Set<String>> trackedSearchNodesPerCommitOnRelocationTarget = null;
+
+        // This field is used to pass the blobs received from the source during peer recovery from TransportStatelessPrimaryRelocationAction
+        // to ObjectStoreService#readIndexingShardState. It is a workaround to avoid modifying the IndexShard#preRecovery code.
+        @Nullable
+        private volatile SourceBlobsInfo blobsReceivedFromSource = null;
 
         private final Set<ShardId> copyTargets = ConcurrentHashMap.newKeySet();
 

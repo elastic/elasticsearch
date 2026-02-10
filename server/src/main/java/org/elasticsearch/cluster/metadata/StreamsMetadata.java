@@ -120,8 +120,10 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(logsEnabled);
-        out.writeBoolean(logsECSEnabled);
-        out.writeBoolean(logsOTelEnabled);
+        if (out.getTransportVersion().supports(STREAM_SPLIT_VERSION)) {
+            out.writeBoolean(logsECSEnabled);
+            out.writeBoolean(logsOTelEnabled);
+        }
     }
 
     @Override

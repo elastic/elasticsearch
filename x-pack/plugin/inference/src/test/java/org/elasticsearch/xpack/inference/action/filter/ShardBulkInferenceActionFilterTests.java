@@ -13,12 +13,12 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -38,9 +38,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -1574,15 +1574,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
 
         // Single document with both fields
-        BulkItemRequest[] items = {
-            new BulkItemRequest(0, randomDocWriteRequest(Map.of("fast_field", fastText, "slow_field", slowText))) };
+        BulkItemRequest[] items = { new BulkItemRequest(0, randomDocWriteRequest(Map.of("fast_field", fastText, "slow_field", slowText))) };
 
-        runTimeoutFilterAndVerify(
-            filter,
-            fieldMap,
-            items,
-            results -> { assertTimeoutResponse(results[0].getPrimaryResponse(), "Document with partial timeout"); }
-        );
+        runTimeoutFilterAndVerify(filter, fieldMap, items, results -> {
+            assertTimeoutResponse(results[0].getPrimaryResponse(), "Document with partial timeout");
+        });
     }
 
     /**

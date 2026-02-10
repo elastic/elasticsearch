@@ -258,7 +258,7 @@ public class SearchContextIdTests extends ESTestCase {
 
         byte[] validBytes = BytesReference.toBytes(validId);
         // truncate bytes at random position, so due to randomization we will fail at every position over time
-        int truncateAt = randomIntBetween(1, validBytes.length-1);
+        int truncateAt = randomIntBetween(1, validBytes.length - 1);
         BytesReference truncatedId = new BytesArray(Arrays.copyOf(validBytes, truncateAt));
         expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, truncatedId));
     }

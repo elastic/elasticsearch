@@ -26,7 +26,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,8 +38,8 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
  */
 public class MarkIndexForDLMForceMergeAction {
 
-    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/dlm/mark_to_force_merge");
-    private static final String DLM_INDEX_TO_BE_MERGED_KEY = "dlm_index_to_be_force_merged";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/dlm/mark_index_for_force_merge");
+    public static final String DLM_INDEX_FOR_FORCE_MERGE_KEY = "dlm_index_for_force_merged";
 
     /**
      * Request to mark an index to be force merged.
@@ -50,8 +49,8 @@ public class MarkIndexForDLMForceMergeAction {
         private final String sourceIndex;
         private final String indexToBeForceMerged;
 
-        public Request(ProjectId projectId, String sourceIndex, String indexToBeForceMerged, TimeValue masterNodeTimeout) {
-            super(masterNodeTimeout);
+        public Request(ProjectId projectId, String sourceIndex, String indexToBeForceMerged) {
+            super(INFINITE_MASTER_NODE_TIMEOUT);
             this.projectId = projectId;
             this.sourceIndex = sourceIndex;
             this.indexToBeForceMerged = indexToBeForceMerged;
@@ -120,13 +119,13 @@ public class MarkIndexForDLMForceMergeAction {
             Map<String, String> existingCustomMetadata = sourceIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             Map<String, String> customMetadata = new HashMap<>();
             if (existingCustomMetadata != null) {
-                if (indexToBeForceMerged.equals(existingCustomMetadata.get(DLM_INDEX_TO_BE_MERGED_KEY))) {
+                if (indexToBeForceMerged.equals(existingCustomMetadata.get(DLM_INDEX_FOR_FORCE_MERGE_KEY))) {
                     // Index is already marked for force merge, no update needed
                     return currentState;
                 }
                 customMetadata.putAll(existingCustomMetadata);
             }
-            customMetadata.put(DLM_INDEX_TO_BE_MERGED_KEY, indexToBeForceMerged);
+            customMetadata.put(DLM_INDEX_FOR_FORCE_MERGE_KEY, indexToBeForceMerged);
 
             IndexMetadata updatedSourceIndexMetadata = new IndexMetadata.Builder(sourceIndexMetadata).putCustom(
                 LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,

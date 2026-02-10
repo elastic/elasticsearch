@@ -18,7 +18,10 @@ import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
@@ -252,6 +256,122 @@ public class CloneStepTests extends ESTestCase {
         capturedDeleteListener.get().onFailure(exception);
     }
 
+    public void testExecuteWaitsWhenCloneIsInProgressAndNotTimedOut() {
+        // Create a clone index that was created less than 12 hours ago
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(6).millis(); // 6 hours ago
+
+        String cloneIndexName = generateExpectedCloneName(indexName);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        // Pre-populate the deduplicator to simulate an in-progress request
+        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        deduplicator.executeOnce(
+            Tuple.tuple(projectId, cloneRequest),
+            ActionListener.noop(),
+            (req, listener) -> {} // Don't actually execute, just track
+        );
+
+        DlmStepContext stepContext = createStepContext(projectState);
+        cloneStep.execute(stepContext);
+
+        // Should NOT issue a delete request since it's still fresh
+        assertThat("Should not delete clone that is still within timeout", capturedDeleteRequest.get(), is(nullValue()));
+        // Should NOT issue a new clone request
+        assertThat("Should not create new clone request while one is in progress", capturedResizeRequest.get(), is(nullValue()));
+    }
+
+    public void testExecuteDeletesCloneWhenStuckForOver12Hours() {
+        // Create a clone index that was created more than 12 hours ago
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
+
+        String cloneIndexName = generateExpectedCloneName(indexName);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        // Pre-populate the deduplicator to simulate a stuck in-progress request
+        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        deduplicator.executeOnce(
+            Tuple.tuple(projectId, cloneRequest),
+            ActionListener.noop(),
+            (req, listener) -> {} // Don't actually execute, just track
+        );
+
+        DlmStepContext stepContext = createStepContext(projectState);
+        cloneStep.execute(stepContext);
+
+        // Should issue delete request for stuck clone
+        assertThat("Should delete clone that exceeded timeout", capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
+    }
+
+    public void testExecuteWaitsWhenCloneExistsButNotInDeduplicatorAndNotTimedOut() {
+        // Create a clone index that exists but is not in the deduplicator (completed but step not finished)
+        // and was created less than 12 hours ago
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(2).millis(); // 2 hours ago
+
+        String cloneIndexName = generateExpectedCloneName(indexName);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        DlmStepContext stepContext = createStepContext(projectState);
+        cloneStep.execute(stepContext);
+
+        // Should NOT issue a delete since it's fresh and might be completing
+        assertThat("Should not delete recent clone not in deduplicator", capturedDeleteRequest.get(), is(nullValue()));
+        // Should NOT issue a new clone request
+        assertThat("Should not create new clone while recent one exists", capturedResizeRequest.get(), is(nullValue()));
+    }
+
+    public void testExecuteDeletesCloneWhenExistsOver12HoursEvenIfNotInDeduplicator() {
+        // Create a clone index that exists, is not in the deduplicator, and was created > 12 hours ago
+        // This indicates a stuck/failed clone that never completed
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(15).millis(); // 15 hours ago
+
+        String cloneIndexName = generateExpectedCloneName(indexName);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        DlmStepContext stepContext = createStepContext(projectState);
+        cloneStep.execute(stepContext);
+
+        // Should issue delete request for old stuck clone even if not in deduplicator
+        assertThat("Should delete old clone even if not in deduplicator", capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
+    }
+
+    public void testExecuteCreatesNewCloneAfterTimeoutAndCleanup() {
+        // Test the full cycle: stuck clone gets deleted, then a new one is created on next run
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(14).millis(); // 14 hours ago
+
+        String cloneIndexName = generateExpectedCloneName(indexName);
+        ProjectState projectStateWithOldClone = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        DlmStepContext stepContext = createStepContext(projectStateWithOldClone);
+        cloneStep.execute(stepContext);
+
+        // First run: should delete the old clone
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
+
+        // Simulate successful delete
+        capturedDeleteListener.get().onResponse(AcknowledgedResponse.of(true));
+
+        // Reset captures
+        capturedDeleteRequest.set(null);
+        capturedResizeRequest.set(null);
+
+        // Second run: now without the clone index
+        ProjectState projectStateWithoutClone = createProjectState(indexName, 1, null);
+        DlmStepContext stepContext2 = createStepContext(projectStateWithoutClone);
+        cloneStep.execute(stepContext2);
+
+        // Should now create a new clone
+        assertThat("Should create new clone after old one was deleted", capturedResizeRequest.get(), is(notNullValue()));
+        assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
+    }
+
     private ProjectState createProjectState(String indexName, int numberOfReplicas, Map<String, String> customMetadata) {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(
@@ -410,5 +530,51 @@ public class CloneStepTests extends ESTestCase {
         String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
             .substring(0, 8);
         return "dlm-force-merge-clone-" + originalName + "-" + hash;
+    }
+
+    private ProjectState createProjectStateWithCloneAndCreationTime(
+        String sourceIndexName,
+        String cloneIndexName,
+        Map<String, String> customMetadata,
+        long creationTimeMillis
+    ) {
+        IndexMetadata.Builder sourceIndexBuilder = IndexMetadata.builder(sourceIndexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+
+        if (customMetadata != null) {
+            sourceIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
+        }
+
+        IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .creationDate(creationTimeMillis)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
+            .put(sourceIndexBuilder.build(), false)
+            .put(cloneIndexMetadata, false);
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
+
+        return clusterState.projectState(projectId);
+    }
+
+    private ResizeRequest createCloneRequest(String sourceIndex, String targetIndex) {
+        return new ResizeRequest(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            ResizeType.CLONE,
+            sourceIndex,
+            targetIndex
+        );
     }
 }

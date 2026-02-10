@@ -172,24 +172,25 @@ public class TestClustersPlugin implements Plugin<Project> {
         Provider<JavaLauncher> fallbackJdk17Launcher
     ) {
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = project.getObjects().domainObjectContainer(
-            ElasticsearchCluster.class,
-            name -> new ElasticsearchCluster(
-                project.getPath(),
-                name,
-                project,
-                reaper,
-                testClustersRegistryProvider,
-                getFileSystemOperations(),
-                getArchiveOperations(),
-                getExecOperations(),
-                getFileOperations(),
-                new File(project.getBuildDir(), "testclusters"),
-                runtimeJavaProvider,
-                isReleasedVersion,
-                fallbackJdk17Launcher
-            )
-        );
+        NamedDomainObjectContainer<ElasticsearchCluster> container = project.getObjects()
+            .domainObjectContainer(
+                ElasticsearchCluster.class,
+                name -> new ElasticsearchCluster(
+                    project.getPath(),
+                    name,
+                    project,
+                    reaper,
+                    testClustersRegistryProvider,
+                    getFileSystemOperations(),
+                    getArchiveOperations(),
+                    getExecOperations(),
+                    getFileOperations(),
+                    new File(project.getBuildDir(), "testclusters"),
+                    runtimeJavaProvider,
+                    isReleasedVersion,
+                    fallbackJdk17Launcher
+                )
+            );
         project.getExtensions().add(EXTENSION_NAME, container);
         container.configureEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         return container;

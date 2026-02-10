@@ -45,6 +45,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     private static final Map<OperationSignature<?>, MethodHandle> HANDLES;
 
+    static final MethodHandle applyCorrectionsEuclideanBulk$mh;
+    static final MethodHandle applyCorrectionsMaxInnerProductBulk$mh;
+    static final MethodHandle applyCorrectionsDotProductBulk$mh;
+
     private static final JdkVectorSimilarityFunctions INSTANCE;
 
     /**
@@ -141,6 +145,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             String typeName = switch (type) {
                                 case D1Q4 -> "d1q4";
                                 case D2Q4 -> "d2q4";
+                                case D4Q4 -> "d4q4";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
@@ -156,6 +161,26 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 }
 
                 HANDLES = Collections.unmodifiableMap(handles);
+
+                FunctionDescriptor score = FunctionDescriptor.of(
+                    JAVA_FLOAT,
+                    ADDRESS, // corrections
+                    JAVA_INT, // bulkSize,
+                    JAVA_INT, // dimensions,
+                    JAVA_FLOAT, // queryLowerInterval,
+                    JAVA_FLOAT, // queryUpperInterval,
+                    JAVA_INT, // queryComponentSum,
+                    JAVA_FLOAT, // queryAdditionalCorrection,
+                    JAVA_FLOAT, // queryBitScale,
+                    JAVA_FLOAT, // indexBitScale,
+                    JAVA_FLOAT, // centroidDp,
+                    ADDRESS // scores
+                );
+
+                applyCorrectionsEuclideanBulk$mh = bindFunction("diskbbq_apply_corrections_euclidean_bulk", caps, score);
+                applyCorrectionsMaxInnerProductBulk$mh = bindFunction("diskbbq_apply_corrections_maximum_inner_product_bulk", caps, score);
+                applyCorrectionsDotProductBulk$mh = bindFunction("diskbbq_apply_corrections_dot_product_bulk", caps, score);
+
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -164,6 +189,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         enable them in your OS/Hypervisor/VM/container""");
                 }
                 HANDLES = null;
+                applyCorrectionsEuclideanBulk$mh = null;
+                applyCorrectionsMaxInnerProductBulk$mh = null;
+                applyCorrectionsDotProductBulk$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -343,13 +371,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
 
-        /**
-         * Computes the dot product of a given int4 vector with a give bit vector (1 bit per element).
-         *
-         * @param a      address of the bit vector
-         * @param query  address of the int4 vector
-         * @param length the vector dimensions
-         */
         static long dotProductD1Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
@@ -360,17 +381,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE)
         );
 
-        /**
-         * Computes the dot product of a given int4 vector with a give int2 vector (2 bits per element).
-         *
-         * @param a      address of the int2 vector
-         * @param query  address of the int4 vector
-         * @param length the vector dimensions
-         */
         static long dotProductD2Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 2, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return callSingleDistanceLong(dotD2Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD4Q4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.SINGLE)
+        );
+
+        static long dotProductD4Q4(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0, length, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceLong(dotD4Q4Handle, a, query, length);
         }
 
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
@@ -379,7 +403,107 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static float applyCorrectionsEuclideanBulk(
+            MemorySegment corrections,
+            int bulkSize,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment scores
+        ) {
+            try {
+                return (float) applyCorrectionsEuclideanBulk$mh.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float applyCorrectionsMaxInnerProductBulk(
+            MemorySegment corrections,
+            int bulkSize,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment scores
+        ) {
+            try {
+                return (float) applyCorrectionsMaxInnerProductBulk$mh.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float applyCorrectionsDotProductBulk(
+            MemorySegment corrections,
+            int bulkSize,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment scores
+        ) {
+            try {
+                return (float) applyCorrectionsDotProductBulk$mh.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         private static final Map<OperationSignature<?>, MethodHandle> HANDLES_WITH_CHECKS;
+
+        static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
+        static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
+        static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
 
         static {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
@@ -417,7 +541,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             checkMethod += "F32";
                                             break;
                                     }
-
                                     yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod, type);
                                 }
                                 case BBQType bbq -> {
@@ -535,6 +658,37 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 }
 
                 HANDLES_WITH_CHECKS = Collections.unmodifiableMap(handlesWithChecks);
+
+                MethodType scoringFunction = MethodType.methodType(
+                    float.class,
+                    MemorySegment.class,
+                    int.class,
+                    int.class,
+                    float.class,
+                    float.class,
+                    int.class,
+                    float.class,
+                    float.class,
+                    float.class,
+                    float.class,
+                    MemorySegment.class
+                );
+
+                APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "applyCorrectionsEuclideanBulk",
+                    scoringFunction
+                );
+                APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "applyCorrectionsMaxInnerProductBulk",
+                    scoringFunction
+                );
+                APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "applyCorrectionsDotProductBulk",
+                    scoringFunction
+                );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -554,6 +708,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MethodHandle mh = HANDLES_WITH_CHECKS.get(key);
             if (mh == null) throw new IllegalArgumentException("Signature not implemented: " + key);
             return mh;
+        }
+
+        @Override
+        public MethodHandle applyCorrectionsEuclideanBulk() {
+            return APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
+        }
+
+        @Override
+        public MethodHandle applyCorrectionsMaxInnerProductBulk() {
+            return APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
+        }
+
+        @Override
+        public MethodHandle applyCorrectionsDotProductBulk() {
+            return APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
         }
     }
 }

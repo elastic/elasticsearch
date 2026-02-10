@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
@@ -28,9 +29,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
@@ -45,16 +48,15 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     public static IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = extractUri(map, URL, validationException);
+        var apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -62,9 +64,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
     }
@@ -100,6 +100,45 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         this.projectId = in.readString();
         this.rateLimitSettings = new RateLimitSettings(in);
 
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var extractedUri = extractOptionalUri(serviceSettings, URL, validationException);
+        var extractedApiVersion = extractOptionalString(
+            serviceSettings,
+            API_VERSION,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var extractedModelId = extractOptionalString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedProjectId = extractOptionalString(
+            serviceSettings,
+            PROJECT_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            IbmWatsonxService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new IbmWatsonxRerankServiceSettings(
+            extractedUri != null ? extractedUri : this.uri,
+            extractedApiVersion != null ? extractedApiVersion : this.apiVersion,
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedProjectId != null ? extractedProjectId : this.projectId,
+            extractedRateLimitSettings
+        );
     }
 
     public URI uri() {

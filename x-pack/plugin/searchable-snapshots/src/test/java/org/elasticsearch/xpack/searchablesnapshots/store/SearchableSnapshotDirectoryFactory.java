@@ -103,12 +103,13 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Factory for creating a drop-in {@link Directory} backed by searchable snapshot infrastructure.
- * <p>
- * Usage:
+ *
+ * <p> Usage:
  * <pre>{@code
  * Directory dir = SearchableSnapshotDirectoryFactory.newDirectory(path);
  * try (IndexOutput out = dir.createOutput("vectors", IOContext.DEFAULT)) {
  *     // write data ...
+ *     CodecUtil.writeFooter(out); // a valid footer is required
  * }
  * // after the IndexOutput is closed, the snapshot is materialized and ready for reads
  * try (IndexInput in = dir.openInput("vectors", IOContext.DEFAULT)) {
@@ -123,7 +124,7 @@ public class SearchableSnapshotDirectoryFactory {
      * Returns a {@link Directory} that buffers {@link IndexOutput} writes, then materializes a
      * {@link SearchableSnapshotDirectory} when the output is closed.
      */
-    public static Directory newDirectory(Path path) throws IOException {
+    public static Directory newDirectory(Path path) {
         return new WriteOnceSnapshotDirectory(path);
     }
 
@@ -313,7 +314,7 @@ public class SearchableSnapshotDirectoryFactory {
             }
 
             // Footers can be handled specially - cached, so ensure that the footer
-            // is present and and valid.
+            // is present and valid.
             static void checkFooter(byte[] data) throws IOException {
                 try (var in = new BufferedChecksumIndexInput(new ByteArrayIndexInput("verify footer", data))) {
                     in.seek(in.length() - CodecUtil.footerLength());

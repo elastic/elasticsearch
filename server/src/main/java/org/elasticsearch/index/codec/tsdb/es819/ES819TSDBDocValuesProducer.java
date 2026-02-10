@@ -681,7 +681,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return new DocIdSetIterator() {
 
                 int currentDocId = -1;
-                long currentBlockId = -1;
                 int currentDocIdRunEnd = -1;
 
                 @Override
@@ -714,6 +713,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
                 }
 
+                long currentBlockId = -1;
+                int blockStartDocId;
+                int blockEndDocId;
+
                 int scanToTargetDocId(int target) throws IOException {
                     // If target falls within the current known run of consecutive matches, return it directly
                     if (target < currentDocIdRunEnd) {
@@ -721,10 +724,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     for (long blockId = currentBlockId == -1 ? firstBlockId : currentBlockId; blockId <= endBlockId; blockId++) {
-                        int blockStartDocId = (int) docOffsets.get(blockId);
-                        int blockEndDocId = (int) docOffsets.get(blockId + 1);
+                        if (blockId != currentBlockId) {
+                            blockStartDocId = (int) docOffsets.get(blockId);
+                            blockEndDocId = (int) docOffsets.get(blockId + 1);
+                        }
 
-                        if (blockEndDocId < target) {
+                        if (blockEndDocId <= target) {
                             continue;
                         }
 

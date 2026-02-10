@@ -87,12 +87,12 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
             store,
             false,
             asyncTaskClass,
-            (task, listener, timeout, returnPartialResults) -> AsyncTaskManagementService.addCompletionListener(
+            (task, listener, timeout, returnIntermediateResults) -> AsyncTaskManagementService.addCompletionListener(
                 threadPool,
                 task,
                 listener,
                 timeout,
-                returnPartialResults
+                returnIntermediateResults
             ),
             transportService.getTaskManager(),
             clusterService

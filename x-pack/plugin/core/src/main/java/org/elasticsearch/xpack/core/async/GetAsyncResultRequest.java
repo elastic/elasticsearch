@@ -20,10 +20,10 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
     private final String id;
     private TimeValue waitForCompletionTimeout = TimeValue.MINUS_ONE;
     private TimeValue keepAlive = TimeValue.MINUS_ONE;
-    private boolean returnPartialResults = true;
+    private boolean returnIntermediateResults = true;
 
-    private static final TransportVersion RETURN_PARTIAL_RESULTS_VERSION = TransportVersion.fromName(
-        "return_async_partial_results_query_param"
+    private static final TransportVersion RETURN_ASYNC_INTERMEDIATE_RESULTS_QUERY_PARAM = TransportVersion.fromName(
+        "return_async_intermediate_results_query_param"
     );
 
     /**
@@ -40,8 +40,8 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         this.id = in.readString();
         this.waitForCompletionTimeout = TimeValue.timeValueMillis(in.readLong());
         this.keepAlive = in.readTimeValue();
-        if (in.getTransportVersion().supports(RETURN_PARTIAL_RESULTS_VERSION)) {
-            this.returnPartialResults = in.readBoolean();
+        if (in.getTransportVersion().supports(RETURN_ASYNC_INTERMEDIATE_RESULTS_QUERY_PARAM)) {
+            this.returnIntermediateResults = in.readBoolean();
         }
     }
 
@@ -51,8 +51,8 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         out.writeString(id);
         out.writeLong(waitForCompletionTimeout.millis());
         out.writeTimeValue(keepAlive);
-        if (out.getTransportVersion().supports(RETURN_PARTIAL_RESULTS_VERSION)) {
-            out.writeBoolean(returnPartialResults);
+        if (out.getTransportVersion().supports(RETURN_ASYNC_INTERMEDIATE_RESULTS_QUERY_PARAM)) {
+            out.writeBoolean(returnIntermediateResults);
         }
     }
 
@@ -93,15 +93,15 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
     }
 
     /**
-     * Sets whether partial results should be returned if the search is not yet complete.
+     * Sets whether intermediate results should be returned if the search is not yet complete.
      */
-    public GetAsyncResultRequest setReturnPartialResults(boolean returnPartialResults) {
-        this.returnPartialResults = returnPartialResults;
+    public GetAsyncResultRequest setReturnIntermediateResults(boolean returnIntermediateResults) {
+        this.returnIntermediateResults = returnIntermediateResults;
         return this;
     }
 
-    public boolean getReturnPartialResults() {
-        return returnPartialResults;
+    public boolean getReturnIntermediateResults() {
+        return returnIntermediateResults;
     }
 
     @Override
@@ -112,11 +112,11 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         return Objects.equals(id, request.id)
             && waitForCompletionTimeout.equals(request.waitForCompletionTimeout)
             && keepAlive.equals(request.keepAlive)
-            && returnPartialResults == request.returnPartialResults;
+            && returnIntermediateResults == request.returnIntermediateResults;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, waitForCompletionTimeout, keepAlive, returnPartialResults);
+        return Objects.hash(id, waitForCompletionTimeout, keepAlive, returnIntermediateResults);
     }
 }

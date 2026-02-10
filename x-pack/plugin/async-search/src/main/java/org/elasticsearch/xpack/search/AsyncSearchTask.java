@@ -189,12 +189,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     /**
      * Creates a listener that listens for an {@link AsyncSearchResponse} and notifies the
      * listener when the task is finished or when the provided <code>waitForCompletion</code>
-     * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
+     * timeout occurs.
+     * In the case of a timeout and a still running query, the results are considered intermediate results and the consumed
+     * {@link AsyncSearchResponse} will contain partial results (hits and aggs) if <code>returnIntermediateResultsInResponse</code> is set
+     * to true, otherwise the partial results are  not included.
      */
     public boolean addCompletionListener(
         ActionListener<AsyncSearchResponse> listener,
         TimeValue waitForCompletion,
-        boolean returnPartialResultsInResponse
+        boolean returnIntermediateResultsInResponse
     ) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
@@ -211,12 +214,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                     } else {
                         remainingWaitForCompletion = TimeValue.ZERO;
                     }
-                    internalAddCompletionListener(listener, remainingWaitForCompletion, returnPartialResultsInResponse);
+                    internalAddCompletionListener(listener, remainingWaitForCompletion, returnIntermediateResultsInResponse);
                 });
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener, returnPartialResultsInResponse);
+            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
         }
         return true; // unused
     }
@@ -273,7 +276,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     private void internalAddCompletionListener(
         ActionListener<AsyncSearchResponse> listener,
         TimeValue waitForCompletion,
-        boolean returnPartialResultsInResponse
+        boolean returnIntermediateResultsInResponse
     ) {
         boolean executeImmediately = false;
         synchronized (this) {
@@ -289,7 +292,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            getResponseWithHeaders(listener, returnPartialResultsInResponse);
+                            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -306,7 +309,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener, returnPartialResultsInResponse);
+            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
         }
     }
 
@@ -417,7 +420,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     private void getResponse(
         boolean restoreResponseHeaders,
-        boolean returnPartialResultsInResponse,
+        boolean returnIntermediateResultsInResponse,
         ActionListener<AsyncSearchResponse> listener
     ) {
         final MutableSearchResponse mutableSearchResponse = searchResponse;
@@ -451,7 +454,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                     this,
                     expirationTimeMillis,
                     restoreResponseHeaders,
-                    returnPartialResultsInResponse
+                    returnIntermediateResultsInResponse
                 );
             } catch (Exception e) {
                 final ElasticsearchException ex = new ElasticsearchStatusException(

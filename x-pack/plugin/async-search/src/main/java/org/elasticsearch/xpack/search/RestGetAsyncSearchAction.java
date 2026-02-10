@@ -45,7 +45,7 @@ public class RestGetAsyncSearchAction extends BaseRestHandler {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
         }
         if (request.hasParam("partial_results")) {
-            get.setReturnPartialResults(request.paramAsBoolean("partial_results", get.getReturnPartialResults()));
+            get.setReturnIntermediateResults(request.paramAsBoolean("partial_results", get.getReturnIntermediateResults()));
         }
         return channel -> client.execute(GetAsyncSearchAction.INSTANCE, get, new RestRefCountedChunkedToXContentListener<>(channel) {
             @Override

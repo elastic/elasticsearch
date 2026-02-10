@@ -1482,11 +1482,11 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     /**
-     * Tests the partial results scenario used by MutableSearchResponse when
-     * doing cross-cluster search with minimize_roundtrips=true but we don't want the partial results,
+     * Tests the intermediate results scenario used by MutableSearchResponse when
+     * doing cross-cluster search with minimize_roundtrips=true but we don't want the intermediate results,
      * only progress
      */
-    public void testPartialResultsNotReturnedWhenGetSearchProgressResult() {
+    public void testIntermediateResultsNotReturnedWhenGetSearchProgressResult() {
         String maxAggName = "max123";
         String rangeAggName = "range123";
 

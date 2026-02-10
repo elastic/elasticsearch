@@ -81,6 +81,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -1056,7 +1057,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testGetResultPartialResultsFalseOnRunningSearchDoesNotIncludePartialResults() throws Exception {
+    public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResults() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
@@ -1094,13 +1095,14 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             response.decRef();
         }
 
-        final AsyncSearchResponse runningResponse = getAsyncSearch(responseId, false);
+        final AsyncSearchResponse runningResponse = getAsyncSearch(responseId, true);
         try {
-            // Test that a response object with no partial results will not be fleshed out with hits and aggs
+            // Test that a response object with no intermediate results will not be fleshed out with hits and aggs
             assertTrue(runningResponse.isRunning());
             assertTrue(runningResponse.isPartial());
             assertThat(runningResponse.getSearchResponse().getHits().getHits().length, equalTo(0));
-            assertThat(runningResponse.getSearchResponse().getAggregations(), nullValue());
+            assertThat(runningResponse.getSearchResponse().getAggregations(), notNullValue());
+            assertThat(runningResponse.getSearchResponse().getAggregations().asList(), hasSize(0));
         } finally {
             runningResponse.decRef();
         }
@@ -1108,18 +1110,19 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.allowLocalQueryPhase();
         final AsyncSearchResponse localQueryDoneWithIntermediateResponse = getAsyncSearch(responseId, true);
         try {
-            // Test that a response object for a partial response will be fleshed out with the partial response if requested
+            // Test that a response object for an intermediate response will be fleshed out with the intermediate response if requested
             assertTrue(localQueryDoneWithIntermediateResponse.isRunning());
             assertTrue(localQueryDoneWithIntermediateResponse.isPartial());
             assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getHits().getHits().length, equalTo(10));
             assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations(), notNullValue());
+            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
         } finally {
             localQueryDoneWithIntermediateResponse.decRef();
         }
 
         final AsyncSearchResponse localQueryDoneWithNoIntermediateResponse = getAsyncSearch(responseId, false);
         try {
-            // Test that a response object is not fleshed out with hits and aggs when partial results are disabled
+            // Test that a response object is not fleshed out with hits and aggs when intermediate results are disabled
             assertTrue(localQueryDoneWithNoIntermediateResponse.isRunning());
             assertTrue(localQueryDoneWithNoIntermediateResponse.isPartial());
             assertThat(localQueryDoneWithNoIntermediateResponse.getSearchResponse().getHits().getHits().length, equalTo(0));
@@ -1136,6 +1139,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertFalse(finishedResponse.isRunning());
             assertThat(finishedResponse.getSearchResponse().getHits().getHits().length, equalTo(10));
             assertThat(finishedResponse.getSearchResponse().getAggregations(), notNullValue());
+            assertThat(finishedResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
@@ -1205,7 +1209,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testGetResultPartialResultsFalseOnRunningSearchDoesNotIncludePartialResultsCcsMrtFalse() throws Exception {
+    public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
@@ -1245,9 +1249,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             response.decRef();
         }
 
-        final AsyncSearchResponse runningResponse = getAsyncSearch(responseId, false);
+        final AsyncSearchResponse runningResponse = getAsyncSearch(responseId, true);
         try {
-            // Test that a response object with no partial results will not be fleshed out with aggs
+            // Test that a response object with no intermediate results will not be fleshed out with aggs
             assertTrue(runningResponse.isRunning());
             assertTrue(runningResponse.isPartial());
             assertThat(runningResponse.getSearchResponse().getAggregations(), nullValue());
@@ -1259,7 +1263,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.waitForQueryPhaseCompletion();
         final AsyncSearchResponse localQueryDoneNoPartialResponse = getAsyncSearch(responseId, false);
         try {
-            // Test that a response object is not fleshed out with aggs when partial results are disabled
+            // Test that a response object is not fleshed out with aggs when intermediate results are disabled
             assertTrue(localQueryDoneNoPartialResponse.isRunning());
             assertTrue(localQueryDoneNoPartialResponse.isPartial());
             assertThat(localQueryDoneNoPartialResponse.getSearchResponse().getAggregations(), nullValue());
@@ -1267,14 +1271,15 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             localQueryDoneNoPartialResponse.decRef();
         }
 
-        final AsyncSearchResponse localQueryDoneWithPartialResponse = getAsyncSearch(responseId, true);
+        final AsyncSearchResponse localQueryDoneWithIntermediateResponse = getAsyncSearch(responseId, true);
         try {
-            // Test that a response object for a partial response will be fleshed out with the partial response if requested
-            assertTrue(localQueryDoneWithPartialResponse.isRunning());
-            assertTrue(localQueryDoneWithPartialResponse.isPartial());
-            assertThat(localQueryDoneWithPartialResponse.getSearchResponse().getAggregations(), notNullValue());
+            // Test that a response object for a partial response will be fleshed out with the intermediate response if requested
+            assertTrue(localQueryDoneWithIntermediateResponse.isRunning());
+            assertTrue(localQueryDoneWithIntermediateResponse.isPartial());
+            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations(), notNullValue());
+            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
         } finally {
-            localQueryDoneWithPartialResponse.decRef();
+            localQueryDoneWithIntermediateResponse.decRef();
         }
 
         SearchListenerPlugin.allowRemoteQueryPhase();
@@ -1284,6 +1289,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertFalse(finishedResponse.isPartial());
             assertFalse(finishedResponse.isRunning());
             assertThat(finishedResponse.getSearchResponse().getAggregations(), notNullValue());
+            assertThat(finishedResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
@@ -2209,7 +2215,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     protected AsyncSearchResponse getAsyncSearch(String id, boolean returnPartialResponse) {
         return client(LOCAL_CLUSTER).execute(
             GetAsyncSearchAction.INSTANCE,
-            new GetAsyncResultRequest(id).setReturnPartialResults(returnPartialResponse)
+            new GetAsyncResultRequest(id).setReturnIntermediateResults(returnPartialResponse)
                 .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(1))
         ).actionGet();
     }

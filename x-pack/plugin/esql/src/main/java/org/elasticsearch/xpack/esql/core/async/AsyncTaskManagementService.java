@@ -323,7 +323,7 @@ public class AsyncTaskManagementService<
         Task task,
         ActionListener<StoredAsyncResponse<Response>> listener,
         TimeValue timeout,
-        boolean returnPartialResults
+        boolean returnIntermediateResultsInResponse
     ) {
         if (timeout.getMillis() <= 0) {
             getCurrentResult(task, listener);

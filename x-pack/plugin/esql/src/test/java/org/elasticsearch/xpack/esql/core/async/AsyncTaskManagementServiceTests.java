@@ -178,12 +178,12 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             store,
             false,
             TestTask.class,
-            (task, listener, timeout, returnPartialResults) -> addCompletionListener(
+            (task, listener, timeout, returnIntermediateResults) -> addCompletionListener(
                 transportService.getThreadPool(),
                 task,
                 listener,
                 timeout,
-                returnPartialResults
+                returnIntermediateResults
             ),
             transportService.getTaskManager(),
             clusterService

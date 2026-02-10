@@ -121,7 +121,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                 task,
                 listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)),
                 request.getWaitForCompletionTimeout(),
-                request.getReturnPartialResults()
+                request.getReturnIntermediateResults()
             );
             if (added == false) {
                 // the task must have completed, since we cannot add a completion listener

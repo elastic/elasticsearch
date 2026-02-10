@@ -43,21 +43,17 @@ class DatasetUtilsImpl implements DatasetUtils {
 
     @Override
     public CuVSMatrix fromInput(MemorySegment input, int numVectors, int dims, CuVSMatrix.DataType dataType) {
+        if (input == null) {
+            throw new IllegalArgumentException("input cannot be null");
+        }
         if (numVectors < 0 || dims < 0) {
             throwIllegalArgumentException(numVectors, dims);
         }
-        return createCuVSMatrix(input, numVectors, dims, dataType);
-    }
-
-    private static CuVSMatrix createCuVSMatrix(MemorySegment ms, int numVectors, int dims, CuVSMatrix.DataType dataType) {
-        if (ms == null) {
-            throw new IllegalArgumentException("ms cannot be null");
-        }
         final int byteSize = dataType == CuVSMatrix.DataType.FLOAT ? Float.BYTES : Byte.BYTES;
-        if (((long) numVectors * dims * byteSize) > ms.byteSize()) {
-            throwIllegalArgumentException(ms, numVectors, dims);
+        if (((long) numVectors * dims * byteSize) > input.byteSize()) {
+            throwIllegalArgumentException(input, numVectors, dims);
         }
-        return fromMemorySegment(ms, numVectors, dims, dataType);
+        return fromMemorySegment(input, numVectors, dims, dataType);
     }
 
     static void throwIllegalArgumentException(MemorySegment ms, int numVectors, int dims) {

@@ -13,7 +13,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
 import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
-import org.elasticsearch.xpack.esql.connector.SourceDescriptor;
+import org.elasticsearch.xpack.esql.connector.ConnectorSourceDescriptor;
 import org.elasticsearch.xpack.esql.connector.base.SqlConnector;
 import org.elasticsearch.xpack.esql.connector.base.SqlPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -71,7 +71,7 @@ public class JdbcConnector extends SqlConnector {
      * reads the result schema, and returns a {@link JdbcPlan}.
      */
     @Override
-    public ConnectorPlan resolve(SourceDescriptor source, ResolutionContext context) {
+    public ConnectorPlan resolve(ConnectorSourceDescriptor source, ResolutionContext context) {
         String url = source.requireConfig("url");
         String username = source.requireConfig("username");
         String password = source.requireConfig("password");

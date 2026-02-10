@@ -208,7 +208,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
             boolean wasAdded = false;
             try {
                 for (int b = 0; b < outputBlocks.length; b++) {
-                    outputBlocks[b] = inputPage.getBlock(b).filter(pageFilter);
+                    outputBlocks[b] = inputPage.getBlock(b).filter(false, pageFilter);
                 }
                 outputPages.addLast(new Page(outputBlocks));
                 wasAdded = true;

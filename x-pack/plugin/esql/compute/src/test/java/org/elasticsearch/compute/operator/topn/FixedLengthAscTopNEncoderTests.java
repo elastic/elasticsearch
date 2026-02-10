@@ -7,15 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.test.ESTestCase;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.Matchers.lessThan;
 
@@ -26,7 +18,7 @@ public class FixedLengthAscTopNEncoderTests extends AbstractFixedTopNEncoderTest
 
     @Override
     protected TopNEncoder encoder() {
-        return SortableTopNEncoder.IP;
+        return SortableAscTopNEncoder.IP;
     }
 
     @Override

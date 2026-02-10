@@ -1163,7 +1163,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
             10,
             List.of(BYTES_REF, BYTES_REF),
-            List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
+            List.of(UTF8, new FixedLengthAscTopNEncoder(fixedLength)),
             List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
             randomPageSize(),
             InputOrdering.NOT_SORTED
@@ -1919,10 +1919,10 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            // 105 are from the objects
+            // 94 are from the objects
             // 1 is for the min-heap itself
             // -1 IF we're sorting ascending. We encode one less value.
-            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 105L : 106L));
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 94L : 95L));
         }
     }
 

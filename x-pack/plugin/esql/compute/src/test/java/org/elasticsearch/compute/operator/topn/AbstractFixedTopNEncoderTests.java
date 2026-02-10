@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
@@ -17,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-@Repeat(iterations = 1000)
 public abstract class AbstractFixedTopNEncoderTests extends AbstractSortableTopNEncoderTests {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {

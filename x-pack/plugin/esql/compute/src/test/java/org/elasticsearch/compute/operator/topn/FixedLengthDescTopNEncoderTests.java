@@ -7,13 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
 public class FixedLengthDescTopNEncoderTests extends AbstractFixedTopNEncoderTests {
     public FixedLengthDescTopNEncoderTests(TestCase<?> testCase) {
@@ -22,7 +18,7 @@ public class FixedLengthDescTopNEncoderTests extends AbstractFixedTopNEncoderTes
 
     @Override
     protected TopNEncoder encoder() {
-        return SortableTopNEncoder.IP.toSortable(false);
+        return SortableAscTopNEncoder.IP.toSortable(false);
     }
 
     @Override

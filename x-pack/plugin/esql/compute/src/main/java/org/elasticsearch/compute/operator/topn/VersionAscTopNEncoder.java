@@ -10,40 +10,38 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
-class FixedLengthTopNEncoder extends SortableTopNEncoder {
-    private final int length;
-    private final FixedLengthDescTopNEncoder descEncoder;
-
-    FixedLengthTopNEncoder(int length) {
-        this.length = length;
-        this.descEncoder = new FixedLengthDescTopNEncoder(length, this);
-    }
+class VersionAscTopNEncoder extends SortableAscTopNEncoder {
+    private final VersionDescTopNEncoder descEncoder = new VersionDescTopNEncoder(this);
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        if (value.length != length) {
-            throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+        // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
+        for (int i = value.offset; i < value.length; i++) {
+            if (value.bytes[i] == Utf8AscTopNEncoder.TERMINATOR) {
+                throw new IllegalArgumentException("Can't sort versions containing nul");
+            }
         }
         bytesRefBuilder.append(value);
-        return length;
+        bytesRefBuilder.append(Utf8AscTopNEncoder.TERMINATOR);
     }
 
     @Override
     public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        if (bytes.length < length) {
-            throw new IllegalArgumentException("expected [" + length + "] bytes but only [" + bytes.length + "] remain");
+        int i = bytes.offset;
+        while (bytes.bytes[i] != Utf8AscTopNEncoder.TERMINATOR) {
+            i++;
         }
         scratch.bytes = bytes.bytes;
         scratch.offset = bytes.offset;
-        scratch.length = length;
-        bytes.offset += length;
-        bytes.length -= length;
+        scratch.length = i - bytes.offset;
+        bytes.offset += scratch.length + 1;
+        bytes.length -= scratch.length + 1;
         return scratch;
     }
 
     @Override
     public String toString() {
-        return "FixedLengthAsc[" + length + "]";
+        return "VersionAsc";
     }
 
     @Override

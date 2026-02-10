@@ -11,14 +11,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class DefaultSortableDescTopNEncoder extends SortableDescTopNEncoder {
-    private final DefaultSortableTopNEncoder ascEncoder;
+    private final DefaultSortableAscTopNEncoder ascEncoder;
 
-    DefaultSortableDescTopNEncoder(DefaultSortableTopNEncoder ascEncoder) {
+    DefaultSortableDescTopNEncoder(DefaultSortableAscTopNEncoder ascEncoder) {
         this.ascEncoder = ascEncoder;
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         throw new IllegalStateException("Cannot find encoder for BytesRef value");
     }
 

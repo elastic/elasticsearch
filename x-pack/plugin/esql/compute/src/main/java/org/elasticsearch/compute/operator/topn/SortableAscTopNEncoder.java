@@ -14,8 +14,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
  */
-public abstract class SortableTopNEncoder implements TopNEncoder {
-    // NOCOMMIT rename to SortableAscTopNEncoder
+public abstract class SortableAscTopNEncoder implements TopNEncoder {
     @Override
     public final void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);

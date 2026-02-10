@@ -22,7 +22,7 @@ public interface TopNEncoder {
     /**
      * An encoder that encodes values such that sorting the bytes sorts the values.
      */
-    DefaultSortableTopNEncoder DEFAULT_SORTABLE = new DefaultSortableTopNEncoder();
+    DefaultSortableAscTopNEncoder DEFAULT_SORTABLE = new DefaultSortableAscTopNEncoder();
 
     /**
      * An encoder that encodes values as compactly as possible without making the
@@ -33,17 +33,17 @@ public interface TopNEncoder {
     /**
      * An encoder for IP addresses.
      */
-    FixedLengthTopNEncoder IP = new FixedLengthTopNEncoder(InetAddressPoint.BYTES);
+    FixedLengthAscTopNEncoder IP = new FixedLengthAscTopNEncoder(InetAddressPoint.BYTES);
 
     /**
      * An encoder for UTF-8 text.
      */
-    UTF8TopNEncoder UTF8 = new UTF8TopNEncoder();
+    Utf8AscTopNEncoder UTF8 = new Utf8AscTopNEncoder();
 
     /**
      * An encoder for semver versions.
      */
-    VersionTopNEncoder VERSION = new VersionTopNEncoder();
+    VersionAscTopNEncoder VERSION = new VersionAscTopNEncoder();
 
     /**
      * Placeholder encoder for unsupported data types.
@@ -70,7 +70,7 @@ public interface TopNEncoder {
 
     boolean decodeBoolean(BytesRef bytes);
 
-    int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
 
     BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
 

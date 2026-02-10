@@ -11,31 +11,30 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class VersionDescTopNEncoder extends SortableDescTopNEncoder {
-    private final VersionTopNEncoder ascEncoder;
+    private final VersionAscTopNEncoder ascEncoder;
 
-    VersionDescTopNEncoder(VersionTopNEncoder ascEncoder) {
+    VersionDescTopNEncoder(VersionAscTopNEncoder ascEncoder) {
         this.ascEncoder = ascEncoder;
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         for (int i = value.offset; i < value.length; i++) {
-            if (value.bytes[i] == UTF8TopNEncoder.TERMINATOR) {
+            if (value.bytes[i] == Utf8AscTopNEncoder.TERMINATOR) {
                 throw new IllegalArgumentException("Can't sort versions containing nul");
             }
         }
         int length = bytesRefBuilder.length();
         bytesRefBuilder.append(value);
         bitwiseNot(bytesRefBuilder.bytes(), length, bytesRefBuilder.length());
-        bytesRefBuilder.append((byte) ~UTF8TopNEncoder.TERMINATOR);
-        return value.length + 1;
+        bytesRefBuilder.append((byte) ~Utf8AscTopNEncoder.TERMINATOR);
     }
 
     @Override
     public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
         int i = bytes.offset;
-        while (bytes.bytes[i] != (byte) ~UTF8TopNEncoder.TERMINATOR) {
+        while (bytes.bytes[i] != (byte) ~Utf8AscTopNEncoder.TERMINATOR) {
             i++;
         }
         scratch.bytes = bytes.bytes;

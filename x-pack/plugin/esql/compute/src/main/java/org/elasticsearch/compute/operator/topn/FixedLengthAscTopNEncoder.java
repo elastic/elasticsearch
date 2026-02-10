@@ -10,13 +10,13 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
-class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
+class FixedLengthAscTopNEncoder extends SortableAscTopNEncoder {
     private final int length;
-    private final FixedLengthAscTopNEncoder ascEncoder;
+    private final FixedLengthDescTopNEncoder descEncoder;
 
-    FixedLengthDescTopNEncoder(int length, FixedLengthAscTopNEncoder ascEncoder) {
+    FixedLengthAscTopNEncoder(int length) {
         this.length = length;
-        this.ascEncoder = ascEncoder;
+        this.descEncoder = new FixedLengthDescTopNEncoder(length, this);
     }
 
     @Override
@@ -24,9 +24,7 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }
-        int startOffset = bytesRefBuilder.length();
         bytesRefBuilder.append(value);
-        bitwiseNot(bytesRefBuilder.bytes(), startOffset, bytesRefBuilder.length());
     }
 
     @Override
@@ -39,18 +37,17 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
         scratch.length = length;
         bytes.offset += length;
         bytes.length -= length;
-        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + length);
         return scratch;
     }
 
     @Override
     public String toString() {
-        return "FixedLengthDesc[" + length + "]";
+        return "FixedLengthAsc[" + length + "]";
     }
 
     @Override
     public TopNEncoder toSortable(boolean asc) {
-        return asc ? ascEncoder : this;
+        return asc ? this : descEncoder;
     }
 
     @Override

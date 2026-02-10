@@ -27,7 +27,6 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -67,13 +66,6 @@ public class TopNOperator implements Operator, Accountable {
         final BreakingBytesRefBuilder keys;
 
         /**
-         * A true/false value (bit set/unset) for each byte in the BytesRef above corresponding to an asc/desc ordering.
-         * For ex, if a Long is represented as 8 bytes, each of these bytes will have the same value (set/unset) if the respective Long
-         * value is used for sorting ascending/descending.
-         */
-        final BytesOrder bytesOrder; // NOCOMMIT remove it entirely
-
-        /**
          * Values to reconstruct the row. Sort of. When we reconstruct the row we read
          * from both the {@link #keys} and the {@link #values}. So this only contains
          * what is required to reconstruct the row that isn't already stored in {@link #values}.
@@ -94,7 +86,6 @@ public class TopNOperator implements Operator, Accountable {
             try {
                 keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
                 values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
-                bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
                 success = true;
             } finally {
                 if (success == false) {
@@ -105,13 +96,13 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE + keys.ramBytesUsed() + bytesOrder.ramBytesUsed() + values.ramBytesUsed();
+            return SHALLOW_SIZE + keys.ramBytesUsed() + values.ramBytesUsed();
         }
 
         @Override
         public void close() {
             clearRefCounters();
-            Releasables.closeExpectNoException(() -> breaker.addWithoutBreaking(-SHALLOW_SIZE), keys, values, bytesOrder);
+            Releasables.closeExpectNoException(() -> breaker.addWithoutBreaking(-SHALLOW_SIZE), keys, values);
         }
 
         public void clearRefCounters() {
@@ -148,54 +139,9 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    static final class BytesOrder implements Releasable, Accountable {
-        private static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOfInstance(BytesOrder.class);
-        private final CircuitBreaker breaker;
-        final List<SortOrder> sortOrders;
-        final int[] endOffsets;
-
-        BytesOrder(List<SortOrder> sortOrders, CircuitBreaker breaker, String label) {
-            this.breaker = breaker;
-            this.sortOrders = sortOrders;
-            breaker.addEstimateBytesAndMaybeBreak(memoryUsed(sortOrders.size()), label);
-            this.endOffsets = new int[sortOrders.size()];
-        }
-
-        /**
-         * Returns true if the byte at the given position is ordered ascending; otherwise, return false
-         */
-        boolean isByteOrderAscending(int bytePosition) {
-            int index = Arrays.binarySearch(endOffsets, bytePosition);
-            if (index < 0) {
-                index = -1 - index;
-            }
-            return sortOrders.get(index).asc();
-        }
-
-        private long memoryUsed(int numKeys) {
-            // sortOrders is global and its memory is accounted at the top level TopNOperator
-            return BASE_RAM_USAGE + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * numKeys
-            );
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return memoryUsed(sortOrders.size());
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-ramBytesUsed());
-        }
-    }
-
-    // NOCOMMIT remove KeyFactory entirely - use KeyExtractor
-    record KeyFactory(KeyExtractor extractor, boolean ascending) {}
-
     static final class RowFiller {
         private final ValueExtractor[] valueExtractors;
-        private final KeyFactory[] keyFactories;
+        private final KeyExtractor[] keyExtractors;
 
         RowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<SortOrder> sortOrders, Page page) {
             valueExtractors = new ValueExtractor[page.getBlockCount()];
@@ -207,10 +153,10 @@ public class TopNOperator implements Operator, Accountable {
                     page.getBlock(b)
                 );
             }
-            keyFactories = new KeyFactory[sortOrders.size()];
-            for (int k = 0; k < keyFactories.length; k++) {
+            keyExtractors = new KeyExtractor[sortOrders.size()];
+            for (int k = 0; k < keyExtractors.length; k++) {
                 SortOrder so = sortOrders.get(k);
-                KeyExtractor extractor = KeyExtractor.extractorFor(
+                keyExtractors[k] = KeyExtractor.extractorFor(
                     elementTypes.get(so.channel),
                     encoders.get(so.channel).toSortable(so.asc),
                     so.asc,
@@ -218,19 +164,12 @@ public class TopNOperator implements Operator, Accountable {
                     so.nonNul(),
                     page.getBlock(so.channel)
                 );
-                keyFactories[k] = new KeyFactory(extractor, so.asc);
             }
         }
 
         void writeKey(int position, Row row) {
-            int orderByCompositeKeyCurrentPosition = 0;
-            for (int i = 0; i < keyFactories.length; i++) {
-                int valueAsBytesSize = keyFactories[i].extractor.writeKey(row.keys, position);
-                if (valueAsBytesSize < 0) {
-                    throw new IllegalStateException("empty keys to allowed. " + valueAsBytesSize + " must be > 0");
-                }
-                orderByCompositeKeyCurrentPosition += valueAsBytesSize;
-                row.bytesOrder.endOffsets[i] = orderByCompositeKeyCurrentPosition - 1;
+            for (KeyExtractor keyExtractor : keyExtractors) {
+                keyExtractor.writeKey(row.keys, position);
             }
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator.topn;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
 public class Utf8DescTopNEncoderTests extends AbstractUtf8TopNEncoderTests {
     public Utf8DescTopNEncoderTests(TestCase<?> testCase) {

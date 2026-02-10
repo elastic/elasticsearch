@@ -8,25 +8,12 @@
 package org.elasticsearch.compute.operator.topn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-@Repeat(iterations = 1000)
 public abstract class AbstractDefaultSortableTopNEncoderTests extends AbstractSortableTopNEncoderTests {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {

@@ -43,15 +43,13 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, long value) {
+    protected final void nonNul(BreakingBytesRefBuilder key, long value) {
         key.append(nonNul);
         encoder.encodeLong(value, key);
-        return Long.BYTES + 1;
     }
 
-    protected final int nul(BreakingBytesRefBuilder key) {
+    protected final void nul(BreakingBytesRefBuilder key) {
         key.append(nul);
-        return 1;
     }
 
     @Override
@@ -68,8 +66,8 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
-            return nonNul(key, vector.getLong(position));
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
+            nonNul(key, vector.getLong(position));
         }
     }
 
@@ -82,11 +80,12 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getLong(block.getFirstValueIndex(position)));
+            nonNul(key, block.getLong(block.getFirstValueIndex(position)));
         }
     }
 
@@ -99,11 +98,12 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getLong(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+            nonNul(key, block.getLong(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
         }
     }
 
@@ -116,10 +116,11 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -127,7 +128,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 min = Math.min(min, block.getLong(i));
             }
-            return nonNul(key, min);
+            nonNul(key, min);
         }
     }
 
@@ -140,10 +141,11 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -151,8 +153,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 max = Math.max(max, block.getLong(i));
             }
-            System.err.println("NOCOMMIT " + max);
-            return nonNul(key, max);
+            nonNul(key, max);
         }
     }
 }

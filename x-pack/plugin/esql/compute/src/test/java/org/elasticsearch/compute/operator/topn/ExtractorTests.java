@@ -280,12 +280,7 @@ public class ExtractorTests extends ESTestCase {
         assertThat(keysBuilder.length(), greaterThan(0));
 
         BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
-        ValueExtractor.extractorFor(
-            testCase.type,
-            testCase.encoder.toUnsortable(),
-            true,
-            value
-        ).writeValue(valuesBuilder, 0);
+        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(

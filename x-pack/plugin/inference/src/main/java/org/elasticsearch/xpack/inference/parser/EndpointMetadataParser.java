@@ -42,7 +42,10 @@ public final class EndpointMetadataParser {
 
     /**
      * Parse {@link EndpointMetadata} from a map with the same structure as the JSON produced by
-     * {@link EndpointMetadata#toXContent}. Returns {@link EndpointMetadata#EMPTY_INSTANCE} if the map is null or empty.
+     * {@link EndpointMetadata#toXContent}.
+     *
+     * @param map The map to parse from
+     * @return the {@link EndpointMetadata}. {@link EndpointMetadata#EMPTY_INSTANCE} is returned if the map is null or empty
      */
     public static EndpointMetadata fromMap(@Nullable Map<String, Object> map, String root) {
         if (isMapNullOrEmpty(map)) {

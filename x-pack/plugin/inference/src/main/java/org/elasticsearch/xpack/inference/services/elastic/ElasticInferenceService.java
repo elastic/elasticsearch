@@ -113,12 +113,12 @@ public class ElasticInferenceService extends SenderService {
         TEXT_EMBEDDING
     );
 
-    private final Map<TaskType, ElasticInferenceServiceModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
     /**
      * The task types that support chunking settings
      */
     private static final EnumSet<TaskType> CHUNKING_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING);
 
+    private final Map<TaskType, ElasticInferenceServiceModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
 

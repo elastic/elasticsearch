@@ -25,14 +25,16 @@ public class DateParserTests extends ESTestCase {
     private static final String KEY = "key";
     private static final String NOT_A_DATE = "not-a-date";
     private static final String INVALID_DATE_FORMAT = "01/01/2025";
+    private static final String VALID_DATE = "2025-01-01";
+    private static final LocalDate EXPECTED_DATE = LocalDate.of(2025, 1, 1);
 
     public void testParseLocalDate_FromMap_ValidDate() {
         var map = new HashMap<String, Object>();
-        map.put(RELEASE_DATE_KEY, "2024-06-15");
+        map.put(RELEASE_DATE_KEY, VALID_DATE);
 
         var result = DateParser.parseLocalDate(map, RELEASE_DATE_KEY, ROOT);
 
-        assertThat(result, equalTo(LocalDate.of(2024, 6, 15)));
+        assertThat(result, equalTo(EXPECTED_DATE));
     }
 
     public void testParseLocalDate_FromMap_ReturnsNull_WhenKeyMissing() {
@@ -62,7 +64,7 @@ public class DateParserTests extends ESTestCase {
     }
 
     public void testParseLocalDate_FromString_ValidDate() {
-        assertThat(DateParser.parseLocalDate("2025-01-01", KEY, ROOT), equalTo(LocalDate.of(2025, 1, 1)));
+        assertThat(DateParser.parseLocalDate(VALID_DATE, KEY, ROOT), equalTo(EXPECTED_DATE));
     }
 
     public void testParseLocalDate_FromString_ReturnsNull_WhenNull() {

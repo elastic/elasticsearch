@@ -153,7 +153,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t doti8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > DOTI8_STRIDE_BYTES_LEN) {
@@ -166,9 +166,12 @@ EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) 
     return res;
 }
 
+EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return doti8_common(a, b, dims);
+}
+
 EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
-#pragma inline
-    return (f32_t)vec_doti7u(a, b, dims);
+    return (f32_t)doti8_common(a, b, dims);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
@@ -320,7 +323,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t sqri8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > SQRI8_STRIDE_BYTES_LEN) {
@@ -334,9 +337,12 @@ EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) 
     return res;
 }
 
+EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return sqri8_common(a, b, dims);
+}
+
 EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
-#pragma inline
-    return (f32_t)vec_sqri7u(a, b, dims);
+    return (f32_t)sqri8_common(a, b, dims);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>

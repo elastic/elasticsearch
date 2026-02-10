@@ -155,10 +155,10 @@ public abstract class DataLakeConnector implements Connector {
             FilterTranslation result = translateFilter(filter.condition());
 
             if (result.isFullyTranslated()) {
-                return (LogicalPlan) applyFilter(lakePlan, result.translated());
+                return applyFilter(lakePlan, result.translated());
             } else if (result.isPartiallyTranslated()) {
                 DataLakePlan updated = applyFilter(lakePlan, result.translated());
-                return new Filter(filter.source(), (LogicalPlan) updated, result.remainder());
+                return new Filter(filter.source(), updated, result.remainder());
             }
             // Not translatable — leave unchanged, ES|QL will evaluate
             return filter;
@@ -181,7 +181,7 @@ public abstract class DataLakeConnector implements Connector {
             }
             int limitValue = ((Number) limit.limit().fold(org.elasticsearch.xpack.esql.core.expression.FoldContext.small())).intValue();
             DataLakePlan updated = applyLimit(lakePlan, limitValue);
-            return (LogicalPlan) updated;
+            return updated;
         }
     }
 

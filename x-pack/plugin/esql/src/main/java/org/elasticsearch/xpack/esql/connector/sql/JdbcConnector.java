@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.connector.example.jdbc;
+package org.elasticsearch.xpack.esql.connector.sql;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,8 +16,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
 import org.elasticsearch.xpack.esql.connector.ConnectorSourceDescriptor;
-import org.elasticsearch.xpack.esql.connector.base.SqlConnector;
-import org.elasticsearch.xpack.esql.connector.base.SqlPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;

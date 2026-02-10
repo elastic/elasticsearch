@@ -34,15 +34,15 @@ import java.util.List;
  * <pre>
  * LeafPlan
  *   └── ConnectorPlan                    (this class)
- *         ├── DataLakePlan               (adds filter, limit)
+ *         ├── LakehousePlan              (adds filter, limit)
  *         │     └── IcebergPlan, etc.
  *         └── SqlPlan                    (adds filter, limit, orderBy, aggregation)
  *               └── JdbcPlan, etc.
  * </pre>
  *
  * @see Connector
- * @see org.elasticsearch.xpack.esql.connector.base.DataLakePlan
- * @see org.elasticsearch.xpack.esql.connector.base.SqlPlan
+ * @see org.elasticsearch.xpack.esql.connector.lakehouse.LakehousePlan
+ * @see org.elasticsearch.xpack.esql.connector.sql.SqlPlan
  */
 public abstract class ConnectorPlan extends LeafPlan {
 

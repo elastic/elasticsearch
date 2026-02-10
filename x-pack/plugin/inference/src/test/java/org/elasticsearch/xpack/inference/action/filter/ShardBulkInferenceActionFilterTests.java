@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.action.filter;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -35,6 +37,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -78,7 +82,9 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+
 import java.util.HashMap;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +92,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -1109,40 +1116,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         MockLicenseState licenseState,
         InferenceStats inferenceStats
     ) {
-        ModelRegistry modelRegistry = mock(ModelRegistry.class);
-        Answer<?> unparsedModelAnswer = invocationOnMock -> {
-            String id = (String) invocationOnMock.getArguments()[0];
-            ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocationOnMock.getArguments()[1];
-            var model = modelMap.get(id);
-            if (model != null) {
-                listener.onResponse(
-                    new UnparsedModel(
-                        model.getInferenceEntityId(),
-                        model.getTaskType(),
-                        model.getServiceSettings().model(),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
-                    )
-                );
-            } else {
-                listener.onFailure(new ResourceNotFoundException("model id [{}] not found", id));
-            }
-            return null;
-        };
-        doAnswer(unparsedModelAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
-
-        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocationOnMock -> {
-            String inferenceId = (String) invocationOnMock.getArguments()[0];
-            var model = modelMap.get(inferenceId);
-            if (model == null) {
-                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
-            }
-
-            return new MinimalServiceSettings(model);
-        };
-        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
-
-        InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
             List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocationOnMock.getArguments()[2];
@@ -1165,6 +1138,41 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return null;
         };
+
+        return buildFilter(
+            modelMap,
+            createClusterService(useLegacyFormat),
+            licenseState,
+            indexingPressure,
+            inferenceStats,
+            createFilter_getModelWithSecretsAnswer(modelMap),
+            chunkedInferAnswer
+        );
+    }
+
+    private static ShardBulkInferenceActionFilter buildFilter(
+        Map<String, StaticModel> modelMap,
+        ClusterService clusterService,
+        MockLicenseState licenseState,
+        IndexingPressure indexingPressure,
+        InferenceStats inferenceStats,
+        Answer<?> getModelWithSecretsAnswer,
+        Answer<?> chunkedInferAnswer
+    ) {
+        ModelRegistry modelRegistry = mock(ModelRegistry.class);
+        doAnswer(getModelWithSecretsAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocationOnMock -> {
+            String inferenceId = (String) invocationOnMock.getArguments()[0];
+            var model = modelMap.get(inferenceId);
+            if (model == null) {
+                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
+            }
+            return new MinimalServiceSettings(model);
+        };
+        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
+
+        InferenceService inferenceService = mock(InferenceService.class);
         doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
         Answer<Model> modelAnswer = invocationOnMock -> {
@@ -1177,7 +1185,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
 
         return new ShardBulkInferenceActionFilter(
-            createClusterService(useLegacyFormat),
+            clusterService,
             inferenceServiceRegistry,
             modelRegistry,
             licenseState,
@@ -1186,7 +1194,36 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    private static Answer<?> createFilter_getModelWithSecretsAnswer(Map<String, StaticModel> modelMap) {
+        return invocation -> {
+            String id = (String) invocation.getArguments()[0];
+            ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocation.getArguments()[1];
+            var model = modelMap.get(id);
+            if (model != null) {
+                listener.onResponse(
+                    new UnparsedModel(
+                        model.getInferenceEntityId(),
+                        model.getTaskType(),
+                        model.getServiceSettings().model(),
+                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
+                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
+                    )
+                );
+            } else {
+                listener.onFailure(new ResourceNotFoundException("model id [{}] not found", id));
+            }
+            return null;
+        };
+    }
+
     private static ClusterService createClusterService(boolean useLegacyFormat) {
+        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
+        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();
+        return createClusterService(useLegacyFormat, settings);
+    }
+
+    private static ClusterService createClusterService(boolean useLegacyFormat, Settings settings) {
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         var indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
@@ -1203,8 +1240,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
-        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes)).build();
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(INDICES_INFERENCE_BATCH_SIZE)));
         return clusterService;
@@ -1401,6 +1436,283 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
             @Override
             public void increment(int operations, long bytes) {}
+        }
+    }
+
+    // ========== Timeout Tests ==========
+
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMillis(50);
+    private static final long SLOW_DELAY_MS = 100;  // Must exceed DEFAULT_TIMEOUT
+
+    /**
+     * Tests three properties of inference timeout handling:
+     * <ol>
+     *   <li><b>Batch poisoning</b> — one bad input in a batch fails ALL docs in that batch,
+     *       including docs with good input that happen to share the same chunkedInfer call</li>
+     *   <li><b>Batch isolation</b> — subsequent batches with only good inputs succeed</li>
+     *   <li><b>Blank passthrough</b> — docs with empty/null/whitespace skip inference and always pass,
+     *       even if they fall in a poisoned batch</li>
+     * </ol>
+     *
+     * Uses a single model and controlled batch size (15 bytes). Batch 1 contains a shuffled mix
+     * of a good doc ("good_1", 6 bytes), a bad doc ("timeout_1", 9 bytes), and blank/null docs
+     * (0 bytes each). The 15-byte total for the two real texts exactly meets the batch limit,
+     * so good_2 and good_3 always spill into batch 2. Blank docs may land in either batch
+     * depending on shuffle order but always pass regardless.
+     */
+    public void testInferenceServiceTimeout() throws Exception {
+        StaticModel model = StaticModel.createRandomInstance();
+
+        String good1 = "good_1";      // 6 bytes — batch 1
+        String bad1 = "timeout_1";    // 9 bytes — batch 1 (cumulative: 15 = batch limit)
+        String good2 = "good_2";      // 6 bytes — batch 2
+        String good3 = "good_3";      // 6 bytes — batch 2
+
+        for (String text : new String[] { good1, bad1, good2, good3 }) {
+            model.putResult(text, randomChunkedInferenceEmbedding(model, List.of(text)));
+        }
+
+        ShardBulkInferenceActionFilter filter = createTimeoutFilter(
+            model,
+            (inputs, listener) -> inputs.stream().anyMatch(i -> i.inputText().startsWith("timeout_"))
+                ? DelayResult.timeout()
+                : DelayResult.immediate()
+        );
+
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of(
+            "field",
+            new InferenceFieldMetadata("field", model.getInferenceEntityId(), new String[] { "field" }, null)
+        );
+
+        // Shuffle batch 1 items. Blank docs contribute 0 bytes so batch boundaries depend
+        // only on good_1 (6) + bad1 (9) = 15, which exactly meets the 15-byte limit.
+        // good_1 and bad1 always end up in the same batch regardless of shuffle order.
+        List<BulkItemRequest> batch1 = shuffledList(
+            new BulkItemRequest(0, randomDocWriteRequest("field", good1)),
+            new BulkItemRequest(1, randomDocWriteRequest("field", bad1)),
+            new BulkItemRequest(2, randomDocWriteRequest("field", "")),
+            new BulkItemRequest(3, randomDocWriteRequest("field", "   ")),
+            new BulkItemRequest(4, randomDocWriteRequest("field", null))
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[batch1.size() + 2];
+        for (int i = 0; i < batch1.size(); i++) {
+            items[i] = batch1.get(i);
+        }
+        // Batch 2: only good docs — proves batch isolation
+        items[5] = new BulkItemRequest(5, randomDocWriteRequest("field", good2));
+        items[6] = new BulkItemRequest(6, randomDocWriteRequest("field", good3));
+
+        runTimeoutFilterAndVerify(filter, fieldMap, items, DEFAULT_TIMEOUT, results -> {
+            for (int i = 0; i < batch1.size(); i++) {
+                int originalId = items[i].id();
+                BulkItemResponse response = results[i].getPrimaryResponse();
+                if (originalId <= 1) {
+                    // good_1 and timeout_1: both fail because batch 1 is poisoned
+                    assertTimeoutResponse(response, "Batch 1 item " + originalId + " (poisoned batch)");
+                } else {
+                    // blank/null/whitespace: skip inference, always pass
+                    assertNull("Item " + originalId + " (blank) should pass through", response);
+                }
+            }
+            // Batch 2: both good docs succeed — batch isolation
+            assertNull("Item 5 (good_2, batch 2) should succeed", results[5].getPrimaryResponse());
+            assertNull("Item 6 (good_3, batch 2) should succeed", results[6].getPrimaryResponse());
+        });
+    }
+
+    /**
+     * Tests that slow model loading does NOT cause a timeout. The timeout is only enforced
+     * by the inference service during chunkedInfer, not during model loading.
+     */
+    public void testSlowModelLoadingDoesNotTimeout() throws Exception {
+        StaticModel model = StaticModel.createRandomInstance();
+        String text = "some_text";
+        model.putResult(text, randomChunkedInferenceEmbedding(model, List.of(text)));
+
+        AtomicBoolean chunkedInferCalled = new AtomicBoolean(false);
+
+        // Use a short timeout (1ms) but with model loading delay (100ms) that exceeds it.
+        // With the new behavior, model loading time does not count against the timeout,
+        // so inference should still succeed.
+        ShardBulkInferenceActionFilter filter = createTimeoutFilter(Map.of(model.getInferenceEntityId(), model), (inputs, listener) -> {
+            chunkedInferCalled.set(true);
+            return DelayResult.immediate();
+        }, TimeValue.timeValueMillis(1), () -> SLOW_DELAY_MS);
+
+        Map<String, InferenceFieldMetadata> fieldMap = Map.of(
+            "semantic_field",
+            new InferenceFieldMetadata("semantic_field", model.getInferenceEntityId(), new String[] { "semantic_field" }, null)
+        );
+
+        BulkItemRequest[] items = {
+            new BulkItemRequest(0, randomDocWriteRequest("semantic_field", text)),
+            new BulkItemRequest(1, randomDocWriteRequest("other_field", "no inference needed")),
+            new BulkItemRequest(2, randomDocWriteRequest("semantic_field", "")),
+            new BulkItemRequest(3, randomDocWriteRequest("semantic_field", "   ")),
+            new BulkItemRequest(4, randomDocWriteRequest("semantic_field", null)) };
+
+        runTimeoutFilterAndVerify(filter, fieldMap, items, TimeValue.timeValueMillis(1), results -> {
+            assertNull("Item 0 (inference field) should succeed despite slow model load", results[0].getPrimaryResponse());
+            assertNull("Item 1 (no inference field) should pass through", results[1].getPrimaryResponse());
+            assertNull("Item 2 (empty string) should pass through", results[2].getPrimaryResponse());
+            assertNull("Item 3 (whitespace) should pass through", results[3].getPrimaryResponse());
+            assertNull("Item 4 (null value) should pass through", results[4].getPrimaryResponse());
+        });
+
+        assertTrue("chunkedInfer should have been called", chunkedInferCalled.get());
+    }
+
+    // ========== Timeout Test Helpers ==========
+
+    private static DocWriteRequest<?> randomDocWriteRequest(String field, String value) {
+        if (randomBoolean()) {
+            return new IndexRequest("index").source(field, value);
+        }
+        return new UpdateRequest().doc(new IndexRequest("index").source(field, value));
+    }
+
+    private static void assertTimeoutResponse(BulkItemResponse response, String itemDescription) {
+        assertNotNull(itemDescription + " should have a response", response);
+        assertTrue(itemDescription + " should be failed", response.isFailed());
+        assertThat(itemDescription + " should have timeout status", response.getFailure().getStatus(), equalTo(RestStatus.REQUEST_TIMEOUT));
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private void runTimeoutFilterAndVerify(
+        ShardBulkInferenceActionFilter filter,
+        Map<String, InferenceFieldMetadata> fieldMap,
+        BulkItemRequest[] items,
+        @Nullable TimeValue inferenceTimeout,
+        Consumer<BulkItemRequest[]> verifier
+    ) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionFilterChain chain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkRequest = (BulkShardRequest) request;
+                verifier.accept(bulkRequest.items());
+            } finally {
+                latch.countDown();
+            }
+        };
+
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(fieldMap);
+        if (inferenceTimeout != null) {
+            request.setInferenceTimeout(inferenceTimeout);
+        }
+
+        filter.apply(mock(Task.class), TransportShardBulkAction.ACTION_NAME, request, mock(ActionListener.class), chain);
+        awaitLatch(latch, 30, TimeUnit.SECONDS);
+    }
+
+    private ShardBulkInferenceActionFilter createTimeoutFilter(StaticModel model, InferenceDelayController delayController) {
+        return createTimeoutFilter(Map.of(model.getInferenceEntityId(), model), delayController);
+    }
+
+    private ShardBulkInferenceActionFilter createTimeoutFilter(
+        Map<String, StaticModel> modelMap,
+        InferenceDelayController delayController
+    ) {
+        return createTimeoutFilter(modelMap, delayController, DEFAULT_TIMEOUT, () -> 0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ShardBulkInferenceActionFilter createTimeoutFilter(
+        Map<String, StaticModel> modelMap,
+        InferenceDelayController delayController,
+        TimeValue timeout,
+        ModelLoadingDelayController modelLoadingDelayController
+    ) {
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
+
+        // Wrap the standard model-loading answer with an optional delay
+        Answer<?> immediateModelAnswer = createFilter_getModelWithSecretsAnswer(modelMap);
+        Answer<?> modelLoadingAnswer = invocation -> {
+            long delay = modelLoadingDelayController.getModelLoadingDelayMs();
+            if (delay > 0) {
+                ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocation.getArguments()[1];
+                threadPool.schedule(() -> {
+                    try {
+                        immediateModelAnswer.answer(invocation);
+                    } catch (Throwable e) {
+                        listener.onFailure(e instanceof Exception ? (Exception) e : new RuntimeException(e));
+                    }
+                }, TimeValue.timeValueMillis(delay), threadPool.generic());
+                return null;
+            }
+            return immediateModelAnswer.answer(invocation);
+        };
+
+        Answer<?> chunkedInferAnswer = invocation -> {
+            StaticModel model = (StaticModel) invocation.getArguments()[0];
+            List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocation.getArguments()[2];
+            TimeValue inferenceTimeout = (TimeValue) invocation.getArguments()[5];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocation.getArguments()[6];
+
+            DelayResult delayResult = delayController.getDelay(inputs, listener);
+
+            if (delayResult.shouldTimeout()) {
+                threadPool.schedule(
+                    () -> listener.onFailure(new ElasticsearchStatusException("Request timed out", RestStatus.REQUEST_TIMEOUT)),
+                    inferenceTimeout,
+                    threadPool.generic()
+                );
+            } else if (delayResult.delayBeforeCompletionMs() > 0) {
+                threadPool.schedule(() -> {
+                    List<ChunkedInference> results = new ArrayList<>();
+                    for (ChunkInferenceInput input : inputs) {
+                        results.add(model.getResults(input.inputText()));
+                    }
+                    listener.onResponse(results);
+                }, TimeValue.timeValueMillis(delayResult.delayBeforeCompletionMs()), threadPool.generic());
+            } else {
+                List<ChunkedInference> results = new ArrayList<>();
+                for (ChunkInferenceInput input : inputs) {
+                    results.add(model.getResults(input.inputText()));
+                }
+                listener.onResponse(results);
+            }
+            return null;
+        };
+
+        // Batch size of 15 bytes: good_1 (6) + timeout_1 (9) = 15 exactly meets the limit,
+        // ensuring good_2/good_3 spill into a separate batch.
+        Settings settings = Settings.builder().put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(15)).build();
+
+        return buildFilter(
+            modelMap,
+            createClusterService(useLegacyFormat, settings),
+            licenseState,
+            NOOP_INDEXING_PRESSURE,
+            InferenceStatsTests.mockInferenceStats(),
+            modelLoadingAnswer,
+            chunkedInferAnswer
+        );
+    }
+
+    @FunctionalInterface
+    private interface InferenceDelayController {
+        DelayResult getDelay(List<ChunkInferenceInput> inputs, ActionListener<List<ChunkedInference>> listener);
+    }
+
+    @FunctionalInterface
+    private interface ModelLoadingDelayController {
+        long getModelLoadingDelayMs();
+    }
+
+    private record DelayResult(boolean shouldTimeout, long delayBeforeCompletionMs) {
+        static DelayResult immediate() {
+            return new DelayResult(false, 0);
+        }
+
+        static DelayResult timeout() {
+            return new DelayResult(true, 0);
+        }
+
+        static DelayResult delayThenComplete(long delayMs) {
+            return new DelayResult(false, delayMs);
         }
     }
 }

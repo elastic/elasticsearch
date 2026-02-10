@@ -400,6 +400,8 @@ public class BulkRequest extends LegacyActionRequest
 
     /**
      * Sets the timeout for inference operations during bulk indexing.
+     * If an inference request times out, only the documents involved in that request will fail.
+     * Valid range is 1ms to 24h. Defaults to 8h if not specified.
      */
     public BulkRequest inferenceTimeout(@Nullable TimeValue inferenceTimeout) {
         this.inferenceTimeout = inferenceTimeout;
@@ -407,7 +409,7 @@ public class BulkRequest extends LegacyActionRequest
     }
 
     /**
-     * Returns the timeout for inference operations, or {@code null} if not set.
+     * Returns the inference timeout, or {@code null} if not set (defaults to 8h at the filter level).
      */
     @Nullable
     public TimeValue inferenceTimeout() {

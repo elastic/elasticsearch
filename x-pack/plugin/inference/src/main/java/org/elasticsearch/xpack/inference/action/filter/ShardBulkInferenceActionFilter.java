@@ -117,7 +117,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
     /**
-     * The default timeout for bulk inference operations when not specified on the API call.
+     * The default inference timeout used when the {@code inference_timeout} API parameter is not specified.
+     * If an inference request times out, only the documents involved in that inference request will fail;
+     * other documents in the bulk request are not affected.
      */
     static final TimeValue DEFAULT_BULK_INFERENCE_TIMEOUT = TimeValue.timeValueHours(8);
 

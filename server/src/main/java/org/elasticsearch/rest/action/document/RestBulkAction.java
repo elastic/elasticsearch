@@ -63,6 +63,9 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
+
+    static final TimeValue MIN_INFERENCE_TIMEOUT = TimeValue.timeValueMillis(1);
+    static final TimeValue MAX_INFERENCE_TIMEOUT = TimeValue.timeValueHours(24);
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
     private final IncrementalBulkService.Enabled incrementalEnabled;
@@ -113,7 +116,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             String inferenceTimeoutParam = request.param("inference_timeout");
             if (inferenceTimeoutParam != null) {
-                bulkRequest.inferenceTimeout(TimeValue.parseTimeValue(inferenceTimeoutParam, "inference_timeout"));
+                bulkRequest.inferenceTimeout(parseAndValidateInferenceTimeout(inferenceTimeoutParam));
             }
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
@@ -146,9 +149,7 @@ public class RestBulkAction extends BaseRestHandler {
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
             String inferenceTimeoutParam = request.param("inference_timeout");
-            TimeValue inferenceTimeout = inferenceTimeoutParam != null
-                ? TimeValue.parseTimeValue(inferenceTimeoutParam, "inference_timeout")
-                : null;
+            TimeValue inferenceTimeout = inferenceTimeoutParam != null ? parseAndValidateInferenceTimeout(inferenceTimeoutParam) : null;
             String refresh = request.param("refresh");
             return new ChunkHandler(
                 allowExplicitIndex,
@@ -156,6 +157,21 @@ public class RestBulkAction extends BaseRestHandler {
                 () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, inferenceTimeout, refresh, request.params().keySet())
             );
         }
+    }
+
+    static TimeValue parseAndValidateInferenceTimeout(String inferenceTimeoutParam) {
+        TimeValue inferenceTimeout = TimeValue.parseTimeValue(inferenceTimeoutParam, "inference_timeout");
+        if (inferenceTimeout.compareTo(MIN_INFERENCE_TIMEOUT) < 0) {
+            throw new IllegalArgumentException(
+                "[inference_timeout] must be at least [" + MIN_INFERENCE_TIMEOUT + "] but was [" + inferenceTimeout + "]"
+            );
+        }
+        if (inferenceTimeout.compareTo(MAX_INFERENCE_TIMEOUT) > 0) {
+            throw new IllegalArgumentException(
+                "[inference_timeout] must be at most [" + MAX_INFERENCE_TIMEOUT + "] but was [" + inferenceTimeout + "]"
+            );
+        }
+        return inferenceTimeout;
     }
 
     private static Exception parseFailureException(Exception e) {

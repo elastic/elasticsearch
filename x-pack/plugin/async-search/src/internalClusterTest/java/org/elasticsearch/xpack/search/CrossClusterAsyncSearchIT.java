@@ -1210,7 +1210,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
-        Map<String, Object> testClusterInfo = setupTwoClusters();
+        // increase the shard count versus other tests to give more opportunity for partial results
+        Map<String, Object> testClusterInfo = setupTwoClusters(randomIntBetween(20, 120), randomIntBetween(20, 120));
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -2229,8 +2230,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     private Map<String, Object> setupTwoClusters() {
+        return setupTwoClusters(randomIntBetween(2, 12), randomIntBetween(2, 12));
+    }
+
+    private Map<String, Object> setupTwoClusters(int numShardsLocal, int numShardsRemote) {
         String localIndex = "local";
-        int numShardsLocal = randomIntBetween(2, 12);
         Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
         assertAcked(
             client(LOCAL_CLUSTER).admin()
@@ -2242,7 +2246,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         indexDocs(client(LOCAL_CLUSTER), localIndex);
 
         String remoteIndex = "remote";
-        int numShardsRemote = randomIntBetween(2, 12);
         final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
         remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
         final Settings.Builder remoteSettings = Settings.builder();
@@ -2412,7 +2415,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
                 @Override
                 public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-                    if (queryPhaseCompleteLatch.get() != null) {
+                    if (queryPhaseCompleteLatch.get() != null && searchContext.indexShard().shardId().getIndexName().equals("local")) {
                         queryPhaseCompleteLatch.get().countDown();
                     }
                 }

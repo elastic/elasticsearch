@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -296,7 +297,10 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             loadFields,
             Source.EMPTY,
             rightPlanWithOptionalPreJoinFilter,
-            joinOnExpression
+            joinOnExpression,
+            false,  // useStreamingOperator - testing non-streaming operator
+            QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY),
+            false // profile
         );
     }
 
@@ -410,7 +414,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            TestProjectResolvers.singleProject(projectId)
+            TestProjectResolvers.singleProject(projectId),
+            null // ExchangeService only needed for streaming
         );
     }
 

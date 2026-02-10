@@ -19,16 +19,15 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
-import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.OutputOperator.CollectedPagesProvider;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
-import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -167,9 +166,11 @@ public class LookupExecutionPlanner {
     public PhysicalOperation buildOperatorFactories(
         AbstractLookupService.TransportRequest request,
         PhysicalPlan physicalPlan,
-        BlockOptimization blockOptimization
+        BlockOptimization blockOptimization,
+        Function<DriverContext, LookupFromIndexService> lookupServiceFactory,
+        SourceOperatorFactory sourceFactory
     ) throws IOException {
-        return planLookupNode(physicalPlan, request, blockOptimization);
+        return planLookupNode(physicalPlan, blockOptimization, sourceFactory);
     }
 
     /**
@@ -208,41 +209,29 @@ public class LookupExecutionPlanner {
             localBreakerSettings
         );
 
-        // Create operators from factories
-        SourceOperator sourceOperator = physicalOperation.source(driverContext);
-        releasables.add(sourceOperator);
-
+        // In streaming mode, BidirectionalBatchExchangeServer provides:
+        // - ExchangeSourceOperator (source) - receives pages from client
+        // - ExchangeSinkOperator (sink) - sends results back to client
+        // So we only need to create the intermediate operators that process the pages
+        // The operator chain on server is: LookupQueryOperator -> ValuesSourceReaderOperator -> ProjectOperator
         List<Operator> intermediateOperators = new ArrayList<>();
+
         physicalOperation.operators(intermediateOperators, driverContext);
         for (Operator op : intermediateOperators) {
             releasables.add(op);
         }
 
-        SinkOperator sinkOperator = physicalOperation.sink(driverContext);
-        releasables.add(sinkOperator);
-
-        return new LookupFromIndexService.LookupQueryPlan(
-            shardContext,
-            localBreaker,
-            driverContext,
-            sourceOperator,
-            intermediateOperators,
-            collectedPages,
-            (OutputOperator) sinkOperator
-        );
+        return new LookupFromIndexService.LookupQueryPlan(shardContext, localBreaker, driverContext, intermediateOperators, collectedPages);
     }
 
     /**
      * Recursively plans a PhysicalPlan node into a PhysicalOperation, processing children first.
      */
-    private PhysicalOperation planLookupNode(
-        PhysicalPlan node,
-        AbstractLookupService.TransportRequest request,
-        BlockOptimization optimizationState
-    ) throws IOException {
+    private PhysicalOperation planLookupNode(PhysicalPlan node, BlockOptimization optimizationState, SourceOperatorFactory sourceFactory)
+        throws IOException {
         PhysicalOperation source;
         if (node instanceof UnaryExec unaryExec) {
-            source = planLookupNode(unaryExec.child(), request, optimizationState);
+            source = planLookupNode(unaryExec.child(), optimizationState, sourceFactory);
         } else {
             // there could be a leaf node such as ParameterizedQueryExec
             source = null;
@@ -250,7 +239,7 @@ public class LookupExecutionPlanner {
 
         // Plan this node based on its type
         if (node instanceof ParameterizedQueryExec parameterizedQueryExec) {
-            return planParameterizedQueryExec(parameterizedQueryExec, optimizationState);
+            return planParameterizedQueryExec(parameterizedQueryExec, optimizationState, sourceFactory);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(fieldExtractExec, source);
         } else if (node instanceof ProjectExec projectExec) {
@@ -264,7 +253,8 @@ public class LookupExecutionPlanner {
 
     private PhysicalOperation planParameterizedQueryExec(
         ParameterizedQueryExec parameterizedQueryExec,
-        BlockOptimization optimizationState
+        BlockOptimization optimizationState,
+        SourceOperatorFactory sourceFactory
     ) {
         Layout.Builder layoutBuilder = new Layout.Builder();
         List<Attribute> output = parameterizedQueryExec.output();
@@ -273,10 +263,16 @@ public class LookupExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        return PhysicalOperation.fromSource(
-            new EnrichQuerySourceOperatorFactory(EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE, optimizationState, 0),
-            layout
+        // Create intermediate operator factory for LookupQueryOperator
+        // This operator receives pages from ExchangeSourceOperator and generates queries
+        OperatorFactory enrichQueryFactory = new LookupQueryOperatorFactory(
+            LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE,
+            optimizationState,
+            0
         );
+
+        // Use the actual source factory from BidirectionalBatchExchangeServer
+        return PhysicalOperation.fromSource(sourceFactory, layout).with(enrichQueryFactory, layout);
     }
 
     private PhysicalOperation planFieldExtractExec(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
@@ -406,6 +402,47 @@ public class LookupExecutionPlanner {
         @Override
         public String describe() {
             return "EnrichQuerySourceOperator[maxPageSize=" + maxPageSize + "]";
+        }
+    }
+
+    /**
+     * Factory for LookupQueryOperator.
+     * Creates an intermediate operator that processes match field pages from ExchangeSourceOperator
+     * and generates queries to lookup document IDs.
+     */
+    private record LookupQueryOperatorFactory(int maxPageSize, BlockOptimization blockOptimization, int shardId)
+        implements
+            OperatorFactory {
+        @Override
+        public Operator get(DriverContext driverContext) {
+            // In lookup execution path, driverContext is always LookupDriverContext
+            LookupDriverContext lookupDriverContext = (LookupDriverContext) driverContext;
+            ShardContext shardContext = lookupDriverContext.shardContext();
+            SearchExecutionContext searchExecutionContext = lookupDriverContext.searchExecutionContext();
+            IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
+
+            // Create warnings here when creating the operator from the factory
+            Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, lookupDriverContext.request().source);
+
+            // Create queryList when creating the operator from the factory
+            LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()
+                .create(lookupDriverContext.request(), searchExecutionContext, lookupDriverContext.aliasFilter(), warnings);
+
+            return new LookupQueryOperator(
+                driverContext.blockFactory(),
+                maxPageSize,
+                queryList,
+                blockOptimization,
+                shardContexts,
+                shardId,
+                searchExecutionContext,
+                warnings
+            );
+        }
+
+        @Override
+        public String describe() {
+            return "LookupQueryOperator[maxPageSize=" + maxPageSize + "]";
         }
     }
 

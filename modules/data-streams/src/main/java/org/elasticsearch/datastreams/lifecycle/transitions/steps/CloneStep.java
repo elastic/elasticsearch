@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
@@ -276,7 +277,21 @@ public class CloneStep implements DlmStep {
         logger.debug("Attempting to delete index [{}]", cloneIndex);
 
         DeleteIndexRequest deleteIndexRequest = formDeleteRequest(cloneIndex);
-        String errorMessage = String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", cloneIndex);
+        stepContext.executeDeduplicatedRequest(
+            TransportDeleteIndexAction.TYPE.name(),
+            deleteIndexRequest,
+            Strings.format("DLM service encountered an error trying to delete clone index [%s]", cloneIndex),
+            (req, unused) -> deleteCloneIndexCallback(deleteIndexRequest, stepContext, listener)
+        );
+    }
+
+    private static void deleteCloneIndexCallback(
+        DeleteIndexRequest deleteIndexRequest,
+        DlmStepContext stepContext,
+        ActionListener<Void> listener
+    ) {
+        String cloneIndex = deleteIndexRequest.indices()[0];
+        logger.debug("DLM issuing request to delete index [{}]", cloneIndex);
         stepContext.client()
             .projectClient(stepContext.projectId())
             .admin()
@@ -286,7 +301,9 @@ public class CloneStep implements DlmStep {
                     logger.debug("DLM successfully deleted clone index [{}]", cloneIndex);
                     listener.onResponse(null);
                 } else {
-                    listener.onFailure(new ElasticsearchException(errorMessage));
+                    listener.onFailure(
+                        new ElasticsearchException(String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", cloneIndex))
+                    );
                 }
             }, err -> logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", cloneIndex), err)));
     }

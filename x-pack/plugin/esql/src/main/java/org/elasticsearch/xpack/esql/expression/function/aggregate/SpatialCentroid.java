@@ -10,9 +10,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,10 +33,10 @@ import java.util.List;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
 /**
- * Calculate spatial centroid of all geo_point or cartesian point values of a field in matching documents.
+ * Calculate spatial centroid of all geo_point, cartesian_point, geo_shape, or cartesian_shape values of a field in matching documents.
  */
 public class SpatialCentroid extends SpatialAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -49,11 +49,16 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         returnType = { "geo_point", "cartesian_point" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Calculate the spatial centroid over a field with spatial point geometry type.",
+        description = """
+            Calculate the spatial centroid over a field with spatial geometry type.
+            Supports `geo_point` and `cartesian_point`, as well as `geo_shape` and `cartesian_shape` {applies_to}`stack: preview 9.4`.""",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
     )
-    public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
+    public SpatialCentroid(
+        Source source,
+        @Param(name = "field", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }) Expression field
+    ) {
         this(source, field, Literal.TRUE, NO_WINDOW, NONE);
     }
 
@@ -82,14 +87,14 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     @Override
     protected Expression.TypeResolution resolveType() {
-        // TODO: Support geo_shape and cartesian_shape
-        return isSpatialPoint(field(), sourceText(), DEFAULT);
+        return isSpatial(field(), sourceText(), DEFAULT);
     }
 
     @Override
     public DataType dataType() {
-        // We aggregate incoming GEO_POINTs into a single GEO_POINT, or incoming CARTESIAN_POINTs into a single CARTESIAN_POINT.
-        return field().dataType();
+        // We aggregate incoming spatial types into a single point of the corresponding type
+        // (geo types return geo_point, cartesian types return cartesian_point)
+        return DataType.isSpatialGeo(field().dataType()) ? DataType.GEO_POINT : DataType.CARTESIAN_POINT;
     }
 
     @Override
@@ -108,11 +113,17 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         return switch (type) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier();
-                case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier();
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
-                case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier();
+            };
+            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
+                case NONE, STORED -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier();
+                case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> throw new EsqlIllegalArgumentException(
+                    "Unsupported field extraction preference [" + fieldExtractPreference + "] for shape type [" + type + "]"
+                );
             };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };

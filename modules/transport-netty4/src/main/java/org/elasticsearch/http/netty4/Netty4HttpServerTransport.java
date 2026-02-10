@@ -24,8 +24,9 @@ import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -61,6 +62,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.rest.ChunkedZipResponse;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
@@ -76,6 +78,7 @@ import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 
@@ -420,18 +423,26 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }
 
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor() {
+                private RestRequest.Method requestMethod;
+                private String rawPath;
+
+                @Override
+                protected void decode(ChannelHandlerContext ctx, HttpObject msg, List<Object> out) throws Exception {
+                    if (msg instanceof HttpRequest httpRequest) {
+                        requestMethod = RestRequest.Method.valueOf(httpRequest.method().name());
+                        String uri = httpRequest.uri();
+                        int queryIndex = uri.indexOf('?');
+                        rawPath = queryIndex >= 0 ? uri.substring(0, queryIndex) : uri;
+                    }
+                    super.decode(ctx, msg, out);
+                }
+
                 @Override
                 protected EmbeddedChannel newContentDecoder(String contentEncoding) throws Exception {
-                    // Netty's built-in snappy support only handles the framed format, but some
-                    // protocols (e.g. Prometheus remote write) use the block format. Replace with
-                    // an auto-detecting decoder that handles both formats transparently.
-                    if (HttpHeaderValues.SNAPPY.contentEqualsIgnoreCase(contentEncoding)) {
-                        return new EmbeddedChannel(
-                            ctx.channel().id(),
-                            ctx.channel().metadata().hasDisconnect(),
-                            ctx.channel().config(),
-                            new Netty4SnappyDecoder()
-                        );
+                    if (rawPath != null
+                        && requestMethod != null
+                        && transport.dispatcher.requestHandlesContentDecoding(requestMethod, rawPath)) {
+                        return null; // handler will do its own decompression
                     }
                     return super.newContentDecoder(contentEncoding);
                 }

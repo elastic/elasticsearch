@@ -389,6 +389,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return Collections.unmodifiableSortedMap(allStats);
     }
 
+    @Override
+    public boolean requestHandlesContentDecoding(RestRequest.Method method, String rawPath) {
+        MethodHandlers mh = handlers.retrieve(rawPath);
+        if (mh == null) {
+            return false;
+        }
+        RestHandler handler = mh.getHandler(method, RestApiVersion.current());
+        if (handler == null) {
+            return false;
+        }
+        return handler.getConcreteRestHandler().handlesContentDecoding();
+    }
+
     private void maybeAggregateAndDispatchRequest(
         RestRequest restRequest,
         RestChannel restChannel,

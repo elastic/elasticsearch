@@ -1313,6 +1313,29 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
+    public void testRequestHandlesContentDecoding() {
+        RestHandler decodingHandler = new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {}
+
+            @Override
+            public boolean handlesContentDecoding() {
+                return true;
+            }
+
+            @Override
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.POST, "/custom_decoding"));
+            }
+        };
+        restController.registerHandler(decodingHandler);
+
+        assertTrue(restController.requestHandlesContentDecoding(RestRequest.Method.POST, "/custom_decoding"));
+        assertFalse(restController.requestHandlesContentDecoding(RestRequest.Method.GET, "/custom_decoding"));
+        assertFalse(restController.requestHandlesContentDecoding(RestRequest.Method.POST, "/nonexistent"));
+        assertFalse(restController.requestHandlesContentDecoding(RestRequest.Method.GET, "/"));
+    }
+
     private static RestRequest testRestRequest(String path, String content, XContentType xContentType) {
         FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
         builder.withPath(path);

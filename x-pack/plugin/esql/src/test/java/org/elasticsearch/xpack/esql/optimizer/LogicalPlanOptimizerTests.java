@@ -6100,6 +6100,65 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var source = as(eval.child(), EsRelation.class);
     }
 
+    /**
+     * Verifies that PruneColumns does not prune the InlineJoin's right-side join key when ReplaceStatsFilteredOrNullAggWithEval
+     * inserts a Project on the right side (by replacing some but not all aggregates with evals).
+     * The join key (emp_no{r}) must remain in the right child's output, even when it's not referenced after the INLINE STATS.
+     * <p>
+     *   Before the {@link EsqlCapabilities.Cap#FIX_INLINE_STATS_INCORRECTLY_PRUNED_COLUMNS} fix:
+     * </p>
+     * <pre>{@code
+     * Project[[x{r}#5, c{r}#7]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[emp_no{f}#11],[emp_no{r}#11]]
+     *     |_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Project[[x{r}#5, c{r}#7]]
+     *       \_Eval[[null[INTEGER] AS x#5]]
+     *         \_Aggregate[[emp_no{f}#11],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#7, emp_no{f}#11]]
+     *           \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
+     * anguages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     * }</pre>
+     *
+     * <p>
+     *     After the fix:
+     * </p>
+     * <pre>{@code
+     * Project[[x{r}#5, c{r}#7]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[emp_no{f}#11],[emp_no{r}#11]]
+     *     |_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Project[[x{r}#5, c{r}#7, emp_no{f}#11]]
+     *       \_Eval[[null[INTEGER] AS x#5]]
+     *         \_Aggregate[[emp_no{f}#11],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#7, emp_no{f}#11]]
+     *           \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
+     *             languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     * }</pre>
+     */
+    public void testInlineStatsRightJoinKeyPreservedInPlanStructure() {
+        var query = """
+            FROM employees
+            | INLINE STATS x = MAX(salary) WHERE false, c = COUNT(*) BY emp_no
+            | KEEP x, c
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        // Top-level Project keeps only c
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("x", "c")));
+        var limit = asLimit(project.child(), 1000, false);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // The join key must be emp_no
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
+
+        // The right side must include emp_no in its output (this is the core of the bug fix)
+        assertThat(Expressions.names(inlineJoin.right().output()), hasItem("emp_no"));
+    }
+
     /*
      * Project[[avg{r}#1053, decades{r}#1049, avgavg{r}#1063]]
      * \_Limit[1000[INTEGER],true]

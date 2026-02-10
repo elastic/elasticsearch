@@ -5313,3 +5313,19 @@ c:long	| n:null	| emp_no:integer
 1     	| null  	| 10002         
 1     	| null  	| 10003          
 ;
+
+inlineStatsPruneColumnsRightSideFix
+required_capability: fix_inline_stats_incorrectly_pruned_columns
+
+FROM employees
+| INLINE STATS x = MAX(salary) WHERE false, c = COUNT(*) BY emp_no
+| KEEP x, c
+| SORT x, c
+| LIMIT 3
+;
+
+x:integer | c:long
+null      | 1
+null      | 1
+null      | 1
+;

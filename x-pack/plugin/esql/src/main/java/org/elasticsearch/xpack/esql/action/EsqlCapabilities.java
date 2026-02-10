@@ -2017,6 +2017,11 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
 
         /**
+         * INLINE STATS fix where columnes were being incorrectly pruned by PruneColumns.
+         */
+        FIX_INLINE_STATS_INCORRECTLY_PRUNED_COLUMNS(INLINE_STATS.enabled),
+
+        /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,

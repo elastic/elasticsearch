@@ -142,6 +142,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
 
+        // Ensure the right-side join keys are never pruned from the right child's output.
+        // ReplaceStatsFilteredOrNullAggWithEval may insert a Project on the right side that PruneColumns would otherwise trim,
+        // removing the join key even though InlineJoin still needs it.
+        used.addAll(ij.config().rightFields());
+
         var right = pruneColumns(ij.right(), used, true);
         if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
             p = pruneRightSideAndProject(ij);

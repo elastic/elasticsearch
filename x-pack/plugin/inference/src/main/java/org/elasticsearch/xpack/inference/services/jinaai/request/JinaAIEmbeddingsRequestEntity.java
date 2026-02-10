@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,7 +24,7 @@ import static org.elasticsearch.inference.InputType.INTERNAL_SEARCH;
 import static org.elasticsearch.inference.InputType.SEARCH;
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
-public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, InputType inputType, JinaAIEmbeddingsModel model)
+public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @Nullable InputType inputType, JinaAIEmbeddingsModel model)
     implements
         ToXContentObject {
 
@@ -59,15 +59,20 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
         builder.field(EMBEDDING_TYPE_FIELD, model.getServiceSettings().getEmbeddingType().toRequestString());
 
         // Prefer the root level inputType over task settings input type.
-        // Do not specify the "task" field if the provided input type is not supported by the model
-        JinaAIEmbeddingsTaskSettings taskSettings = model.getTaskSettings();
-        if (InputType.isSpecified(inputType) && modelSupportsInputType(model, inputType)) {
-            builder.field(TASK_TYPE_FIELD, convertInputType(inputType));
+        var taskSettings = model.getTaskSettings();
+        InputType inputTypeToUse = null;
+        if (InputType.isSpecified(inputType)) {
+            inputTypeToUse = inputType;
         } else {
             var taskSettingsInputType = taskSettings.getInputType();
-            if (InputType.isSpecified(taskSettingsInputType) && modelSupportsInputType(model, taskSettingsInputType)) {
-                builder.field(TASK_TYPE_FIELD, convertInputType(taskSettingsInputType));
+            if (InputType.isSpecified(taskSettingsInputType)) {
+                inputTypeToUse = taskSettingsInputType;
             }
+        }
+
+        // Do not specify the "task" field if the provided input type is null or not supported by the model
+        if (shouldWriteInputType(model, inputTypeToUse)) {
+            builder.field(TASK_TYPE_FIELD, convertInputType(inputTypeToUse));
         }
 
         if (taskSettings.getLateChunking() != null) {
@@ -130,7 +135,10 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
         return wordCount;
     }
 
-    private static boolean modelSupportsInputType(JinaAIEmbeddingsModel model, InputType inputType) {
+    private static boolean shouldWriteInputType(JinaAIEmbeddingsModel model, @Nullable InputType inputType) {
+        if (inputType == null) {
+            return false;
+        }
         if (JINA_CLIP_V_2_MODEL_NAME.equalsIgnoreCase(model.getServiceSettings().modelId())) {
             // jina-clip-v2 only accepts "retrieval.query" for the "task" field
             return SEARCH.equals(inputType) || INTERNAL_SEARCH.equals(inputType);

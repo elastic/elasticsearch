@@ -5,16 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.connector.base;
+package org.elasticsearch.xpack.esql.connector.lakehouse;
 
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * Base class for data lake connector plan nodes.
+ * Base class for lakehouse connector plan nodes.
  *
- * <p>Data lake connectors typically support:
+ * <p>Lakehouse connectors typically support:
  * <ul>
  *   <li>Filter pushdown (partition pruning, predicate pushdown to format)</li>
  *   <li>Limit pushdown</li>
@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  *
  * <p>All methods that modify state return new instances (immutable pattern).
  *
- * @see DataLakeConnector
+ * @see LakehouseConnector
  */
-public abstract class DataLakePlan extends ConnectorPlan {
+public abstract class LakehousePlan extends ConnectorPlan {
 
-    protected DataLakePlan(Source source) {
+    protected LakehousePlan(Source source) {
         super(source);
     }
 
@@ -61,10 +61,10 @@ public abstract class DataLakePlan extends ConnectorPlan {
     /**
      * Create a copy with the given filter.
      */
-    public abstract DataLakePlan withFilter(Expression filter);
+    public abstract LakehousePlan withFilter(Expression filter);
 
     /**
      * Create a copy with the given limit.
      */
-    public abstract DataLakePlan withLimit(Integer limit);
+    public abstract LakehousePlan withLimit(Integer limit);
 }

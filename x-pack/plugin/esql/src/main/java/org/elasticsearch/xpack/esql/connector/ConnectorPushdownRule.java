@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  *   <li>Delegate to {@link #pushDown} for the connector-specific logic</li>
  * </ol>
  *
- * <p>Both {@link org.elasticsearch.xpack.esql.connector.base.SqlConnector} and
- * {@link org.elasticsearch.xpack.esql.connector.base.DataLakeConnector} use this class for their
+ * <p>Both {@link org.elasticsearch.xpack.esql.connector.sql.SqlConnector} and
+ * {@link org.elasticsearch.xpack.esql.connector.lakehouse.LakehouseConnector} use this class for their
  * built-in pushdown rules.
  *
  * <p>Usage example:
@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  * }</pre>
  *
  * @param <T> The ES|QL plan node type to match (e.g., Filter, Limit, OrderBy)
- * @param <P> The connector plan type to expect as the child (e.g., SqlPlan, DataLakePlan)
+ * @param <P> The connector plan type to expect as the child (e.g., SqlPlan, LakehousePlan)
  */
 public abstract class ConnectorPushdownRule<T extends UnaryPlan, P extends ConnectorPlan> extends OptimizerRules.OptimizerRule<T> {
 

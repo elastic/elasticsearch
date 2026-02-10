@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.connector.base;
+package org.elasticsearch.xpack.esql.connector.lakehouse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,11 +24,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 
 /**
- * Base class for data lake connectors that read from file-based storage.
+ * Base class for lakehouse connectors that read from file-based storage.
  *
  * <h2>Architecture: Storage + Format Separation</h2>
  *
@@ -37,6 +40,9 @@ import java.util.OptionalLong;
  *   <li>{@link StorageProvider} — accesses files in a storage system (S3, GCS, HDFS, local)</li>
  *   <li>{@link FormatReader} — reads a file format (Parquet, ORC, CSV, Avro)</li>
  * </ul>
+ *
+ * <p>Optionally, a {@link TableCatalog} can be provided for table-based sources
+ * (Iceberg, Delta Lake, Hudi) that manage table structure, partitioning, and snapshots.
  *
  * <p>This separation allows any storage to be combined with any format:
  * <ul>
@@ -48,15 +54,15 @@ import java.util.OptionalLong;
  *
  * <h2>What This Base Class Provides</h2>
  *
- * <p><b>{@link #resolve} implementation:</b> Lists files via {@link StorageProvider#listObjects},
- * infers schema from the first file via {@link FormatReader#inferSchema}, and calls
- * {@link #createPlan} to build the connector-specific plan node. Subclasses with table
- * catalogs (Iceberg, Delta Lake) should override this method.
+ * <p><b>{@link #resolve} implementation:</b> If a {@link TableCatalog} is provided and can handle
+ * the expression, resolves schema from catalog metadata. Otherwise, opens a file via
+ * {@link StorageProvider} and reads metadata via {@link FormatReader#metadata}, then calls
+ * {@link #createPlan} to build the connector-specific plan node.
  *
  * <p><b>Optimization rules:</b> Provides reusable rule classes ({@link #pushFilterRule()},
  * {@link #pushLimitRule()}) that subclasses can include in their
  * {@link #optimizationRules()} override. The base class returns no rules by default
- * since not all data lake formats support filter or limit pushdown.
+ * since not all formats support filter or limit pushdown.
  *
  * <p><b>{@link #planPartitions} implementation:</b> Lists files via {@link StorageProvider#listObjects},
  * wraps them as {@link FileTask}s, groups them based on {@link DistributionHints#targetPartitions()},
@@ -64,7 +70,7 @@ import java.util.OptionalLong;
  *
  * <h2>Subclass Responsibilities</h2>
  * <ul>
- *   <li>Define a connector-specific {@link DataLakePlan} implementation</li>
+ *   <li>Define a connector-specific {@link LakehousePlan} implementation</li>
  *   <li>{@link #getStorageProvider} — return the storage provider for this connector</li>
  *   <li>{@link #getFormatReader} — return the format reader for this connector</li>
  *   <li>{@link #createPlan} — create the connector-specific plan node</li>
@@ -72,11 +78,19 @@ import java.util.OptionalLong;
  *   <li>{@link #createSourceOperator} — create the actual file reader operator</li>
  * </ul>
  *
- * @see DataLakePlan
+ * <h2>Optional Overrides</h2>
+ * <ul>
+ *   <li>{@link #getTableCatalog()} — provide a table catalog for catalog-managed sources</li>
+ *   <li>{@link #getFilterPushdownSupport()} — provide filter pushdown capability</li>
+ * </ul>
+ *
+ * @see LakehousePlan
  * @see StorageProvider
  * @see FormatReader
+ * @see TableCatalog
+ * @see FilterPushdownSupport
  */
-public abstract class DataLakeConnector implements Connector {
+public abstract class LakehouseConnector implements Connector {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -90,27 +104,48 @@ public abstract class DataLakeConnector implements Connector {
     // =========================================================================
 
     /**
-     * Default resolution: list files via storage, infer schema from first file via format reader.
+     * Default resolution: uses table catalog if available, otherwise infers schema from files.
      *
-     * <p>Subclasses with table catalogs (Iceberg, Delta Lake) should override this method
-     * to resolve schema from catalog metadata instead.
+     * <p>If a {@link TableCatalog} is provided (via {@link #getTableCatalog()}) and can handle
+     * the expression, resolves schema from catalog metadata. Otherwise, opens a single file
+     * via {@link StorageProvider} and reads metadata (including schema) via {@link FormatReader#metadata}.
      */
     @Override
     public ConnectorPlan resolve(ConnectorSourceDescriptor source, ResolutionContext context) {
         String expression = source.expression();
+
+        // Try table catalog first (Iceberg, Delta Lake, Hudi)
+        TableCatalog catalog = getTableCatalog();
+        if (catalog != null && catalog.canHandle(expression)) {
+            logger.debug("Resolving [{}] via [{}] table catalog", expression, catalog.catalogType());
+            try {
+                SourceMetadata metadata = catalog.metadata(expression, Map.of());
+                logger.debug(
+                    "Resolved schema with [{}] columns from [{}] catalog for [{}]",
+                    metadata.schema().size(),
+                    catalog.catalogType(),
+                    expression
+                );
+                return createPlan(source.describe(), metadata.schema(), expression, null, null);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to resolve table metadata for: " + expression, e);
+            }
+        }
+
+        // Raw file fallback: open file, read metadata
         StorageProvider storage = getStorageProvider();
         FormatReader format = getFormatReader();
+        logger.debug("Resolving [{}] via [{}] format reader", expression, format.formatName());
 
-        logger.debug("Resolving [{}] via [{}] storage + [{}] format", expression, storage.type(), format.format());
-        List<StorageObject> objects = storage.listObjects(expression);
-        if (objects.isEmpty()) {
-            throw new IllegalArgumentException("No files found matching: " + expression);
+        try {
+            StoragePath path = StoragePath.of(expression);
+            StorageObject object = storage.newObject(path);
+            SourceMetadata metadata = format.metadata(object);
+            logger.debug("Inferred schema with [{}] columns from [{}]", metadata.schema().size(), path);
+            return createPlan(source.describe(), metadata.schema(), expression, null, null);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to read metadata for: " + expression, e);
         }
-        logger.debug("Found [{}] files matching [{}]", objects.size(), expression);
-
-        List<Attribute> schema = format.inferSchema(storage, objects.get(0));
-        logger.debug("Inferred schema with [{}] columns from [{}]", schema.size(), objects.get(0).path());
-        return createPlan(source.describe(), schema, expression, null, null);
     }
 
     // =========================================================================
@@ -118,25 +153,27 @@ public abstract class DataLakeConnector implements Connector {
     // =========================================================================
 
     /**
-     * Create a rule that pushes Filter into a DataLakePlan leaf.
+     * Create a rule that pushes Filter into a LakehousePlan leaf.
      *
      * <p>Subclasses that support filter pushdown should include this in their
-     * {@link #optimizationRules()} override and also implement {@link #translateFilter}
-     * and {@link #applyFilter}.
+     * {@link #optimizationRules()} override. The rule uses {@link FilterPushdownSupport}
+     * from {@link #getFilterPushdownSupport()} to determine what can be pushed.
      *
-     * <p>The rule delegates to {@link #translateFilter} and handles three outcomes:
+     * <p>If no {@link FilterPushdownSupport} is provided, the rule leaves the plan unchanged.
+     *
+     * <p>The rule handles three outcomes:
      * <ul>
-     *   <li>Fully translatable: removes Filter node, applies native filter to plan</li>
-     *   <li>Partially translatable: keeps Filter with remainder, applies translatable part</li>
-     *   <li>Not translatable: leaves plan unchanged (ES|QL evaluates the filter)</li>
+     *   <li>Fully pushable: removes Filter node, applies native filter to plan</li>
+     *   <li>Partially pushable: keeps Filter with remainder, applies pushable part</li>
+     *   <li>Not pushable: leaves plan unchanged (ES|QL evaluates the filter)</li>
      * </ul>
      */
     protected Rule<?, LogicalPlan> pushFilterRule() {
-        return new PushFilterToDataLake();
+        return new PushFilterToLakehouse();
     }
 
     /**
-     * Create a rule that pushes Limit into a DataLakePlan leaf.
+     * Create a rule that pushes Limit into a LakehousePlan leaf.
      *
      * <p>Subclasses that support limit pushdown should include this in their
      * {@link #optimizationRules()} override and also implement {@link #applyLimit}.
@@ -144,36 +181,44 @@ public abstract class DataLakeConnector implements Connector {
      * <p>The rule absorbs the limit into the connector plan and removes the Limit node.
      */
     protected Rule<?, LogicalPlan> pushLimitRule() {
-        return new PushLimitToDataLake();
+        return new PushLimitToLakehouse();
     }
 
-    private class PushFilterToDataLake extends ConnectorPushdownRule<Filter, DataLakePlan> {
-        PushFilterToDataLake() {
-            super(DataLakeConnector.this, DataLakePlan.class);
+    private class PushFilterToLakehouse extends ConnectorPushdownRule<Filter, LakehousePlan> {
+        PushFilterToLakehouse() {
+            super(LakehouseConnector.this, LakehousePlan.class);
         }
 
         @Override
-        protected LogicalPlan pushDown(Filter filter, DataLakePlan lakePlan) {
-            FilterTranslation result = translateFilter(filter.condition());
-
-            if (result.isFullyTranslated()) {
-                return applyFilter(lakePlan, result.translated());
-            } else if (result.isPartiallyTranslated()) {
-                DataLakePlan updated = applyFilter(lakePlan, result.translated());
-                return new Filter(filter.source(), updated, result.remainder());
+        protected LogicalPlan pushDown(Filter filter, LakehousePlan lakePlan) {
+            FilterPushdownSupport fps = getFilterPushdownSupport();
+            if (fps == null) {
+                return filter;
             }
-            // Not translatable — leave unchanged, ES|QL will evaluate
+
+            FilterPushdownSupport.PushdownResult result = fps.pushFilters(List.of(filter.condition()));
+
+            if (result.hasPushedFilter() && result.hasRemainder() == false) {
+                // Fully pushed — remove Filter node
+                return applyFilter(lakePlan, result.pushedFilter());
+            } else if (result.hasPushedFilter()) {
+                // Partially pushed — keep Filter with remainder
+                LakehousePlan updated = applyFilter(lakePlan, result.pushedFilter());
+                Expression remainder = result.remainder().size() == 1 ? result.remainder().get(0) : combineWithAnd(result.remainder());
+                return new Filter(filter.source(), updated, remainder);
+            }
+            // Not pushable — leave unchanged, ES|QL will evaluate
             return filter;
         }
     }
 
-    private class PushLimitToDataLake extends ConnectorPushdownRule<Limit, DataLakePlan> {
-        PushLimitToDataLake() {
-            super(DataLakeConnector.this, DataLakePlan.class);
+    private class PushLimitToLakehouse extends ConnectorPushdownRule<Limit, LakehousePlan> {
+        PushLimitToLakehouse() {
+            super(LakehouseConnector.this, LakehousePlan.class);
         }
 
         @Override
-        protected LogicalPlan pushDown(Limit limit, DataLakePlan lakePlan) {
+        protected LogicalPlan pushDown(Limit limit, LakehousePlan lakePlan) {
             if (limit.limit().foldable() == false) {
                 return limit;
             }
@@ -187,7 +232,7 @@ public abstract class DataLakeConnector implements Connector {
     // =========================================================================
 
     // createPhysicalPlan() is inherited from Connector — creates a ConnectorExec
-    // wrapping the DataLakePlan with all pushed-down operations (filters, limits).
+    // wrapping the LakehousePlan with all pushed-down operations (filters, limits).
 
     // =========================================================================
     // PHASE 3.5: EXECUTION
@@ -199,8 +244,8 @@ public abstract class DataLakeConnector implements Connector {
      * <p>Default implementation uses the composable storage/format architecture:
      * <ol>
      *   <li>Gets the file list from the partition</li>
-     *   <li>For each file, opens it via {@link StorageProvider#open}</li>
-     *   <li>Reads data via {@link FormatReader} (which handles format-specific reading)</li>
+     *   <li>For each file, opens it via {@link StorageProvider#newObject}</li>
+     *   <li>Reads data via {@link FormatReader#read} (which handles format-specific reading)</li>
      *   <li>Produces Pages of columnar data</li>
      * </ol>
      *
@@ -210,37 +255,19 @@ public abstract class DataLakeConnector implements Connector {
      * <p>Subclasses must override {@link #createSourceOperator} or provide
      * a concrete {@link SourceOperator} implementation that reads from the
      * storage/format components.
-     *
-     * <p>A typical implementation would:
-     * <ol>
-     *   <li>Get the file list from the partition</li>
-     *   <li>Open each file via {@code storage.open(storageObject)}</li>
-     *   <li>Create a {@link FormatReader.BatchReader} for the file</li>
-     *   <li>Read batches from the format reader</li>
-     *   <li>Convert format-native data to ES|QL Blocks</li>
-     *   <li>Assemble Blocks into Pages</li>
-     *   <li>Move to next file when current is exhausted</li>
-     * </ol>
      */
     @Override
     public SourceOperator.SourceOperatorFactory createSourceOperator(ConnectorPartition partition, ExecutionContext context) {
         // Subclasses provide their own SourceOperator that reads from storage + format.
         // The operator extends SourceOperator directly — no intermediate abstraction needed.
         //
-        // Example:
-        // DataLakePlan plan = (DataLakePlan) partition.plan();
+        // Example using lakehouse types:
+        // LakehousePlan plan = (LakehousePlan) partition.plan();
         // StorageProvider storage = getStorageProvider();
         // FormatReader format = getFormatReader();
-        // String description = "DataLakeSourceOperator[" + type() + ":" + plan.location() + "]";
-        //
-        // return new SourceOperator.SourceOperatorFactory() {
-        // @Override
-        // public SourceOperator get(DriverContext driverContext) {
-        // return new FileSourceOperator(plan, storage, format, driverContext.blockFactory());
-        // }
-        // @Override
-        // public String describe() { return description; }
-        // };
+        // StoragePath path = StoragePath.of(filePath);
+        // StorageObject object = storage.newObject(path);
+        // CloseableIterator<Page> pages = format.read(object, plan.output(), 1000);
 
         throw new UnsupportedOperationException("Subclass must override createSourceOperator");
     }
@@ -261,15 +288,15 @@ public abstract class DataLakeConnector implements Connector {
      */
     @Override
     public List<ConnectorPartition> planPartitions(ConnectorPlan plan, DistributionHints hints) {
-        if (plan instanceof DataLakePlan == false) {
+        if (plan instanceof LakehousePlan == false) {
             return List.of();
         }
 
-        DataLakePlan dataLakePlan = (DataLakePlan) plan;
-        List<FileTask> tasks = getFileTasks(dataLakePlan);
+        LakehousePlan lakehousePlan = (LakehousePlan) plan;
+        List<FileTask> tasks = getFileTasks(lakehousePlan);
 
         if (tasks.isEmpty()) {
-            logger.debug("No file tasks for [{}], returning empty partitions", dataLakePlan.location());
+            logger.debug("No file tasks for [{}], returning empty partitions", lakehousePlan.location());
             return List.of();
         }
 
@@ -280,10 +307,10 @@ public abstract class DataLakeConnector implements Connector {
             tasks.size(),
             groups.size(),
             hints.targetPartitions(),
-            dataLakePlan.location()
+            lakehousePlan.location()
         );
 
-        return groups.stream().map(taskGroup -> createPartition(dataLakePlan, taskGroup)).toList();
+        return groups.stream().map(taskGroup -> createPartition(lakehousePlan, taskGroup)).toList();
     }
 
     // =========================================================================
@@ -302,9 +329,35 @@ public abstract class DataLakeConnector implements Connector {
      * Return the format reader for reading files.
      *
      * <p>Subclasses create this in their constructor. The format determines
-     * schema inference and filter pushdown capabilities.
+     * schema inference and data reading capabilities.
      */
     protected abstract FormatReader getFormatReader();
+
+    // =========================================================================
+    // OPTIONAL METHODS - Components
+    // =========================================================================
+
+    /**
+     * Return a table catalog for catalog-managed sources (Iceberg, Delta Lake, Hudi).
+     *
+     * <p>Default returns null (raw file mode). Override to provide catalog integration.
+     * When a catalog is provided, {@link #resolve} will use it for schema resolution
+     * if it can handle the expression.
+     */
+    protected TableCatalog getTableCatalog() {
+        return null;
+    }
+
+    /**
+     * Return filter pushdown support for this connector.
+     *
+     * <p>Default returns null (no filter pushdown). Override to enable filter pushdown.
+     * When provided, the {@link #pushFilterRule()} will use it to determine which
+     * filter expressions can be pushed to the data source.
+     */
+    protected FilterPushdownSupport getFilterPushdownSupport() {
+        return null;
+    }
 
     // =========================================================================
     // ABSTRACT METHODS - Plan
@@ -314,7 +367,7 @@ public abstract class DataLakeConnector implements Connector {
      * Create the connector-specific plan node.
      *
      * <p>Called by {@link #resolve} after schema inference. Subclasses return
-     * their specific {@link DataLakePlan} implementation.
+     * their specific {@link LakehousePlan} implementation.
      *
      * @param location Source location for error messages
      * @param schema Inferred schema as ES|QL attributes
@@ -323,7 +376,7 @@ public abstract class DataLakeConnector implements Connector {
      * @param limit Initial limit, or null
      * @return Connector-specific plan node
      */
-    protected abstract DataLakePlan createPlan(
+    protected abstract LakehousePlan createPlan(
         String location,
         List<Attribute> schema,
         String expression,
@@ -342,10 +395,10 @@ public abstract class DataLakeConnector implements Connector {
      * {@link #optimizationRules()}.
      *
      * @param plan Current plan
-     * @param translatedFilter The format-native filter (from {@link #translateFilter})
+     * @param pushedFilter The source-native filter object (opaque, from {@link FilterPushdownSupport})
      * @return Updated plan with filter applied
      */
-    protected DataLakePlan applyFilter(DataLakePlan plan, Object translatedFilter) {
+    protected LakehousePlan applyFilter(LakehousePlan plan, Object pushedFilter) {
         throw new UnsupportedOperationException("Override applyFilter when using pushFilterRule()");
     }
 
@@ -359,7 +412,7 @@ public abstract class DataLakeConnector implements Connector {
      * @param limit The limit value
      * @return Updated plan with limit applied
      */
-    protected DataLakePlan applyLimit(DataLakePlan plan, int limit) {
+    protected LakehousePlan applyLimit(LakehousePlan plan, int limit) {
         throw new UnsupportedOperationException("Override applyLimit when using pushLimitRule()");
     }
 
@@ -367,8 +420,8 @@ public abstract class DataLakeConnector implements Connector {
      * Get the list of file tasks to read for this plan.
      *
      * <p>Default implementation calls {@link StorageProvider#listObjects} with the
-     * plan's {@link DataLakePlan#location() location} and wraps each
-     * {@link StorageObject} as a {@link FileTask}.
+     * plan's {@link LakehousePlan#location() location} parsed as a {@link StoragePath},
+     * and wraps each {@link StorageEntry} as a {@link FileTask}.
      *
      * <p>Subclasses can override for custom file discovery (e.g., using an Iceberg
      * catalog to get data files with partition pruning).
@@ -376,9 +429,17 @@ public abstract class DataLakeConnector implements Connector {
      * @param plan The plan (with any filters applied)
      * @return List of file tasks
      */
-    protected List<FileTask> getFileTasks(DataLakePlan plan) {
-        List<StorageObject> objects = getStorageProvider().listObjects(plan.location());
-        return objects.stream().<FileTask>map(StorageFileTask::new).toList();
+    protected List<FileTask> getFileTasks(LakehousePlan plan) {
+        StoragePath path = StoragePath.of(plan.location());
+        List<FileTask> tasks = new ArrayList<>();
+        try (StorageIterator iterator = getStorageProvider().listObjects(path)) {
+            while (iterator.hasNext()) {
+                tasks.add(new StorageFileTask(iterator.next()));
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to list files for: " + plan.location(), e);
+        }
+        return tasks;
     }
 
     /**
@@ -391,33 +452,7 @@ public abstract class DataLakeConnector implements Connector {
      * @param tasks The file tasks for this partition
      * @return A ConnectorPartition ready for execution
      */
-    protected abstract ConnectorPartition createPartition(DataLakePlan plan, List<FileTask> tasks);
-
-    // =========================================================================
-    // FILTER TRANSLATION
-    // =========================================================================
-
-    /**
-     * Translate an ES|QL filter expression to the source-native filter format.
-     *
-     * <p>Default implementation delegates to {@link FormatReader#translateFilter}.
-     * Subclasses can override for additional logic (e.g., Iceberg partition pruning
-     * on top of Parquet row-group filtering).
-     *
-     * @param filter The ES|QL filter expression
-     * @return Translation result indicating success/partial/failure
-     */
-    protected FilterTranslation translateFilter(Expression filter) {
-        FilterTranslation result = getFormatReader().translateFilter(filter);
-        if (result.isFullyTranslated()) {
-            logger.trace("Filter fully translated for [{}] format", getFormatReader().format());
-        } else if (result.isPartiallyTranslated()) {
-            logger.trace("Filter partially translated for [{}] format, remainder: [{}]", getFormatReader().format(), result.remainder());
-        } else {
-            logger.trace("Filter not translatable for [{}] format", getFormatReader().format());
-        }
-        return result;
-    }
+    protected abstract ConnectorPartition createPartition(LakehousePlan plan, List<FileTask> tasks);
 
     // =========================================================================
     // HELPER METHODS
@@ -443,73 +478,37 @@ public abstract class DataLakeConnector implements Connector {
         }).filter(list -> list.isEmpty() == false).toList();
     }
 
+    /**
+     * Combine multiple filter expressions with AND.
+     */
+    private static Expression combineWithAnd(List<Expression> expressions) {
+        if (expressions.isEmpty()) {
+            return null;
+        }
+        Expression result = expressions.get(0);
+        for (int i = 1; i < expressions.size(); i++) {
+            result = new org.elasticsearch.xpack.esql.expression.predicate.logical.And(result.source(), result, expressions.get(i));
+        }
+        return result;
+    }
+
     // =========================================================================
     // HELPER TYPES
     // =========================================================================
 
     /**
-     * Result of translating an ES|QL filter to source-native format.
-     *
-     * @param translated The source-native filter (null if nothing could be translated)
-     * @param remainder ES|QL expressions that couldn't be translated (null if all translated)
-     */
-    public record FilterTranslation(Object translated, Expression remainder) {
-        /**
-         * All filter conditions were successfully translated.
-         */
-        public boolean isFullyTranslated() {
-            return translated != null && remainder == null;
-        }
-
-        /**
-         * Some filter conditions were translated, but some remain.
-         */
-        public boolean isPartiallyTranslated() {
-            return translated != null && remainder != null;
-        }
-
-        /**
-         * No filter conditions could be translated.
-         */
-        public boolean isNotTranslated() {
-            return translated == null;
-        }
-
-        /**
-         * Create a result for fully translated filter.
-         */
-        public static FilterTranslation full(Object translated) {
-            return new FilterTranslation(translated, null);
-        }
-
-        /**
-         * Create a result for partially translated filter.
-         */
-        public static FilterTranslation partial(Object translated, Expression remainder) {
-            return new FilterTranslation(translated, remainder);
-        }
-
-        /**
-         * Create a result for untranslatable filter.
-         */
-        public static FilterTranslation none() {
-            return new FilterTranslation(null, null);
-        }
-    }
-
-    /**
-     * Adapts a {@link StorageObject} to the {@link FileTask} interface.
+     * Adapts a {@link StorageEntry} to the {@link FileTask} interface.
      * Used by the default {@link #getFileTasks} implementation.
      */
-    private record StorageFileTask(StorageObject object) implements FileTask {
+    private record StorageFileTask(StorageEntry entry) implements FileTask {
         @Override
         public String path() {
-            return object.path();
+            return entry.path().toString();
         }
 
         @Override
         public OptionalLong estimatedBytes() {
-            return object.size();
+            return OptionalLong.of(entry.length());
         }
 
         @Override

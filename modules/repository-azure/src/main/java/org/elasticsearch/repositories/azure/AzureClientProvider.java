@@ -173,7 +173,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         OperationPurpose purpose
     ) {
         if (closed) {
-            throw new IllegalStateException("AzureClientProvider is already closed");
+            throw new ClientProviderClosedException("AzureClientProvider is already closed");
         }
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
@@ -416,5 +416,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     interface RequestMetricsHandler {
 
         void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics metrics);
+    }
+
+    public static class ClientProviderClosedException extends IllegalStateException {
+        ClientProviderClosedException(String message) {
+            super(message);
+        }
     }
 }

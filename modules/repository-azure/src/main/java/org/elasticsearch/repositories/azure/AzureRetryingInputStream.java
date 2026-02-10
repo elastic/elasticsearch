@@ -92,7 +92,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
          */
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
-            return true;
+            return e instanceof AzureClientProvider.ClientProviderClosedException;
         }
     }
 }

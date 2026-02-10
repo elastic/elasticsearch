@@ -71,6 +71,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -93,6 +97,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomR
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -611,6 +616,52 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             // It does round robin, first tries on the primary, then on the secondary
             assertThat(failedHeadCalls.get(), equalTo(1));
             assertThat(failedGetCalls.get(), equalTo(1));
+        }
+    }
+
+    public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
+        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(1000, 2000));
+        final byte[] blobContents = randomByteArrayOfLength(1024);
+        final int incompleteLength = 10;
+        final CountDownLatch haveSentSomeContents = new CountDownLatch(1);
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_while_store_closes"), exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    handleHeadRequest(exchange, blobContents);
+                    throw new AssertionError("Should not HEAD blob for ranged reads");
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    final int rangeStart = getRangeStart(exchange);
+                    assertThat(rangeStart, lessThan(blobContents.length));
+                    final OptionalInt rangeEnd = getRangeEnd(exchange);
+                    assertTrue(rangeEnd.isPresent());
+                    assertThat(rangeEnd.getAsInt(), greaterThanOrEqualTo(rangeStart));
+                    final int requestedLength = (rangeEnd.getAsInt() - rangeStart) + 1;
+                    assertThat(requestedLength, lessThanOrEqualTo(blobContents.length - rangeStart));
+                    assertThat(requestedLength, greaterThan(incompleteLength));
+                    addSuccessfulDownloadHeaders(exchange, blobContents, requestedLength);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
+                    exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
+                    haveSentSomeContents.countDown();
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        try (ExecutorService executorService = Executors.newSingleThreadExecutor()) {
+            final var downloadFuture = executorService.submit(() -> {
+                try (
+                    InputStream readBlobWhileStoreCloses = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes")
+                ) {
+                    Streams.consumeFully(readBlobWhileStoreCloses);
+                } catch (IOException e) {
+                    fail(e);
+                }
+            });
+            safeAwait(haveSentSomeContents);
+            clientProvider.close();
+            assertThrows(ExecutionException.class, downloadFuture::get);
         }
     }
 

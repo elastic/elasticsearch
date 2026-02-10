@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,6 +26,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Sets the data stream lifecycle that was provided in the request to the requested data streams.
@@ -65,6 +68,20 @@ public class PutDataStreamLifecycleAction {
             this.names = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             lifecycle = new DataStreamLifecycle(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = null;
+            try {
+                if (lifecycle.downsamplingRounds() != null && lifecycle.downsamplingRounds().isEmpty() == false) {
+                    // We're on the REST layer, so we can use validateRounds instead of validateRoundsIncorrectly
+                    DataStreamLifecycle.DownsamplingRound.validateRounds(lifecycle.downsamplingRounds());
+                }
+            } catch (Exception e) {
+                validationException = addValidationError("downsampling rounds are not valid: " + e.getMessage(), validationException);
+            }
+            return validationException;
         }
 
         @Override

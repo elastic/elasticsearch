@@ -509,12 +509,21 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 continue;
             }
 
-            List<Index> indicesEligibleForAction = dataStream.getIndicesPastRetention(
-                indexName -> projectState.metadata().index(indexName),
-                nowSupplier,
-                actionSchedule,
-                false
-            );
+            List<Index> indicesEligibleForAction;
+            if (action.appliesToFailureStore()) {
+                indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                    indexName -> projectState.metadata().index(indexName),
+                    nowSupplier,
+                    actionSchedule
+                );
+            } else {
+                indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                    indexName -> projectState.metadata().index(indexName),
+                    nowSupplier,
+                    actionSchedule,
+                    false
+                );
+            }
 
             indicesEligibleForAction.removeAll(indicesToExclude);
             indicesEligibleForAction.removeAll(indicesProcessed);

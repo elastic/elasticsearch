@@ -48,7 +48,7 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
 
     def "setup is valid"() {
         when:
-        def result = runGenerateAndValidateTask("--release-version", "9.0.0").build()
+        def result = runGenerateAndValidateTask("--release-version", "9.0.0", "--next-version", "9.1.0").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -62,20 +62,18 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
         versionPropertiesFile.text = versionPropertiesFile.text.replace("9.2.0", "9.3.0")
 
         when:
-        System.out.println("Running generation initial task")
-        def result = runGenerateAndValidateTask("--release-version", "9.2.0").build()
-        System.out.println("Done running generation task")
+        def result = runGenerateAndValidateTask("--release-version", "9.2.0", "--next-version", "9.3.0").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertUnreferableDefinition("initial_9.2.0", "8124000")
-        assertUpperBound("9.2", "initial_9.2.0,8124000")
-        assertUpperBound("9.3", "initial_9.2.0,8124000")
+        assertUnreferableDefinition("initial_9.3.0", "8124000")
+        assertUpperBound("9.2", "existing_92,8123000")
+        assertUpperBound("9.3", "initial_9.3.0,8124000")
     }
 
     def "patch updates existing upper bound"() {
         when:
-        def result = runGenerateAndValidateTask("--release-version", "9.1.2").build()
+        def result = runGenerateAndValidateTask("--release-version", "9.1.1", "--next-version", "9.1.2").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
@@ -85,7 +83,7 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
 
     def "cannot create upper bound file for patch"() {
         when:
-        def result = runGenerateTask("--release-version", "9.3.7").buildAndFail()
+        def result = runGenerateTask("--release-version", "9.3.7", "--next-version", "9.3.7").buildAndFail()
 
         then:
         assertGenerateFailure(result, "Missing upper bound 9.3 for release version 9.3.7")

@@ -56,6 +56,11 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
     }
 
     @Override
+    protected String collectorSimpleName() {
+        return UriPartsFunctionBridge.UriPartsCollectorImpl.class.getSimpleName();
+    }
+
+    @Override
     protected Map<String, Class<?>> getSupportedOutputFieldMappings() {
         return UriPartsFunctionBridge.getAllOutputFields();
     }

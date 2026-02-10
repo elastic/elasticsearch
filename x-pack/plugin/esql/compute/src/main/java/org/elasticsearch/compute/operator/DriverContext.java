@@ -80,7 +80,7 @@ public class DriverContext {
         this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
     }
 
-    public DriverContext(
+    private DriverContext(
         BigArrays bigArrays,
         BlockFactory blockFactory,
         @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,

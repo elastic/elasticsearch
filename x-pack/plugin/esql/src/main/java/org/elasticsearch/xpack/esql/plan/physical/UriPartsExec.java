@@ -65,6 +65,11 @@ public class UriPartsExec extends CompoundOutputEvalExec {
     }
 
     @Override
+    public String collectorSimpleName() {
+        return UriPartsFunctionBridge.UriPartsCollectorImpl.class.getSimpleName();
+    }
+
+    @Override
     protected boolean innerEquals(CompoundOutputEvalExec other) {
         return other instanceof UriPartsExec;
     }

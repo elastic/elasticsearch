@@ -239,3 +239,18 @@ ROW uri = "https://www.example.com:8080/path1"
 VALUES(parts.port):integer | parts.domain:keyword
 8080                       | www.example.com
 ;
+
+
+multiValueTest
+required_capability: uri_parts_command
+
+ROW uri = ["https://www.example.com:8080/path1", "http://www.example.com:80/path2"]
+| URI_PARTS parts = uri
+| KEEP parts.domain, parts.port, parts.scheme
+;
+warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
+warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+null                 | null               | null
+;

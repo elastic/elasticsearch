@@ -51,6 +51,11 @@ public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEval
     }
 
     @Override
+    protected String collectorSimpleName() {
+        return TestFieldsCollector.class.getSimpleName();
+    }
+
+    @Override
     protected Map<String, Class<?>> getSupportedOutputFieldMappings() {
         Map<String, Class<?>> mappings = new HashMap<>();
         mappings.put("field_a", String.class);

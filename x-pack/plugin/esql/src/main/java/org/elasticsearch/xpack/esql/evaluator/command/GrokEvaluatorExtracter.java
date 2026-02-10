@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.grok.FloatConsumer;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokCaptureConfig;
@@ -32,6 +33,7 @@ import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, GrokCaptureExtracter {
 
@@ -45,7 +47,7 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
     private final ElementType[] positionToType;
     private Block.Builder[] blocks;
 
-    public GrokEvaluatorExtracter(
+    private GrokEvaluatorExtracter(
         final Grok parser,
         final String pattern,
         final Map<String, Integer> keyToBlock,
@@ -169,6 +171,35 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
             }));
         }
 
+    }
+
+    public static class Factory implements ColumnExtractOperator.Evaluator.Factory {
+        private final Grok parser;
+        private final String pattern;
+        private final Supplier<Map<String, Integer>> keyToBlockSupplier;
+        private final Supplier<Map<String, ElementType>> typesSupplier;
+
+        public Factory(
+            Grok parser,
+            String pattern,
+            Supplier<Map<String, Integer>> keyToBlockSupplier,
+            Supplier<Map<String, ElementType>> typesSupplier
+        ) {
+            this.parser = parser;
+            this.pattern = pattern;
+            this.keyToBlockSupplier = keyToBlockSupplier;
+            this.typesSupplier = typesSupplier;
+        }
+
+        @Override
+        public GrokEvaluatorExtracter create(DriverContext driverContext) {
+            return new GrokEvaluatorExtracter(parser, pattern, keyToBlockSupplier.get(), typesSupplier.get());
+        }
+
+        @Override
+        public String describe() {
+            return "GrokEvaluatorExtracter[pattern=" + pattern + "]";
+        }
     }
 
     private static void append(Object value, Block.Builder block, ElementType type) {

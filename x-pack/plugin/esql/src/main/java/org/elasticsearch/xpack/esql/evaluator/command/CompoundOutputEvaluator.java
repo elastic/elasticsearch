@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -32,10 +34,41 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
     private final DataType inputType;
     private final Warnings warnings;
 
-    public CompoundOutputEvaluator(DataType inputType, Warnings warnings, OutputFieldsCollector outputFieldsCollector) {
+    CompoundOutputEvaluator(DataType inputType, Warnings warnings, OutputFieldsCollector outputFieldsCollector) {
         this.inputType = inputType;
         this.warnings = warnings;
         this.outputFieldsCollector = outputFieldsCollector;
+    }
+
+    public interface OutputFieldsCollectorProvider {
+        OutputFieldsCollector createOutputFieldsCollector();
+
+        String collectorSimpleName();
+    }
+
+    public static class Factory implements ColumnExtractOperator.Evaluator.Factory {
+        private final Source source;
+        private final DataType inputType;
+        private final OutputFieldsCollectorProvider outputFieldsCollectorProvider;
+
+        public Factory(DataType inputType, Source source, OutputFieldsCollectorProvider outputFieldsCollectorProvider) {
+            this.source = source;
+            this.inputType = inputType;
+            this.outputFieldsCollectorProvider = outputFieldsCollectorProvider;
+        }
+
+        public CompoundOutputEvaluator create(DriverContext driverContext) {
+            Warnings warnings = (driverContext == null || source == null)
+                ? Warnings.NOOP_WARNINGS
+                : Warnings.createWarnings(driverContext.warningsMode(), source);
+            OutputFieldsCollector outputFieldsCollector = outputFieldsCollectorProvider.createOutputFieldsCollector();
+            return new CompoundOutputEvaluator(inputType, warnings, outputFieldsCollector);
+        }
+
+        @Override
+        public String describe() {
+            return "CompoundOutputEvaluator[collector=" + outputFieldsCollectorProvider.collectorSimpleName() + "]";
+        }
     }
 
     /**

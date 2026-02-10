@@ -47,7 +47,6 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -225,8 +224,7 @@ public class LocalExecutionPlanner {
             foldCtx,
             plannerSettings,
             timeSeries,
-            shardContexts,
-            DriverContext.WarningsMode.COLLECT
+            shardContexts
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -248,8 +246,7 @@ public class LocalExecutionPlanner {
                     context.shardContexts,
                     physicalOperation,
                     statusInterval,
-                    settings,
-                    context.warningsMode
+                    settings
                 ),
                 context.driverParallelism().get()
             )
@@ -341,11 +338,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
-                () -> new CompoundOutputEvaluator(
-                    coe.input().dataType(),
-                    Warnings.createWarnings(context.warningsMode, coe.source()),
-                    coe.createOutputFieldsCollector()
-                )
+                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), coe)
             ),
             layout
         );
@@ -605,8 +598,8 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         List<Attribute> extractedFields = grok.extractedFields();
         layoutBuilder.append(extractedFields);
-        Map<String, Integer> fieldToPos = Maps.newHashMapWithExpectedSize(extractedFields.size());
-        Map<String, ElementType> fieldToType = Maps.newHashMapWithExpectedSize(extractedFields.size());
+        final Map<String, Integer> fieldToPos = Maps.newHashMapWithExpectedSize(extractedFields.size());
+        final Map<String, ElementType> fieldToType = Maps.newHashMapWithExpectedSize(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
         List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
@@ -625,7 +618,12 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
-                () -> new GrokEvaluatorExtracter(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
+                new GrokEvaluatorExtracter.Factory(
+                    grok.pattern().grok(),
+                    grok.pattern().pattern(),
+                    () -> fieldToPos,
+                    () -> fieldToType
+                )
             ),
             layout
         );
@@ -1091,8 +1089,7 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         boolean timeSeries,
-        IndexedByShardId<? extends ShardContext> shardContexts,
-        DriverContext.WarningsMode warningsMode
+        IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -1133,8 +1130,7 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
-        Settings settings,
-        DriverContext.WarningsMode warningsMode
+        Settings settings
     ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
@@ -1148,13 +1144,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(
-                bigArrays,
-                blockFactory.newChildFactory(localBreaker),
-                localBreakerSettings,
-                description,
-                warningsMode
-            );
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

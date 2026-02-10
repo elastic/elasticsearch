@@ -76,7 +76,7 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        List<String> requestedFields = getRequestedFieldsForSimple();
+        final List<String> requestedFields = getRequestedFieldsForSimple();
         Map<String, Class<?>> supportedFields = getSupportedOutputFieldMappings();
 
         ElementType[] outputTypes = new ElementType[requestedFields.size()];
@@ -94,15 +94,25 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
                 return input;
             }
 
-            @Override
-            public long baseRamBytesUsed() {
-                return 0;
-            }
+                @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
 
-            @Override
-            public void close() {}
-        },
-            () -> new CompoundOutputEvaluator(getInputTypeForSimple(), Warnings.NOOP_WARNINGS, createOutputFieldsCollector(requestedFields))
+                @Override
+                public void close() {}
+            },
+            new CompoundOutputEvaluator.Factory(getInputTypeForSimple(), null, new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
+                @Override
+                public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
+                    return AbstractCompoundOutputEvaluatorTests.this.createOutputFieldsCollector(requestedFields);
+                }
+
+                @Override
+                public String collectorSimpleName() {
+                    return AbstractCompoundOutputEvaluatorTests.this.collectorSimpleName();
+                }
+            })
         );
     }
 
@@ -169,6 +179,8 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
     }
 
     protected abstract CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector(List<String> requestedFields);
+
+    protected abstract String collectorSimpleName();
 
     protected abstract Map<String, Class<?>> getSupportedOutputFieldMappings();
 

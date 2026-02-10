@@ -26,7 +26,10 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 /**
  * Abstract base class for physical plans that produce compound outputs from a single input.
  */
-public abstract class CompoundOutputEvalExec extends UnaryExec implements EstimatesRowSize {
+public abstract class CompoundOutputEvalExec extends UnaryExec
+    implements
+        EstimatesRowSize,
+        CompoundOutputEvaluator.OutputFieldsCollectorProvider {
 
     /**
      * The input by which the evaluation is performed.
@@ -114,8 +117,6 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
     public List<Attribute> outputFieldAttributes() {
         return outputFieldAttributes;
     }
-
-    public abstract CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector();
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {

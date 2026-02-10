@@ -11,7 +11,9 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -25,6 +27,9 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +38,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SearchContextIdTests extends ESTestCase {
 
@@ -154,5 +160,132 @@ public class SearchContextIdTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, id));
         assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
+    }
+
+    public void testNotAllBytesRead() throws IOException {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            BytesReference id = SearchContextId.encode(
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                TransportVersion.current(),
+                ShardSearchFailure.EMPTY_ARRAY
+            );
+            id.writeTo(output);
+            output.writeBoolean(true);
+
+            BytesReference data = output.bytes();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, data));
+            assertThat(e.getMessage(), equalTo("Not all bytes were read"));
+        }
+    }
+
+    public void testDecodeIndicesWithUnknownTransportVersionThrows() {
+        TransportVersion unknownTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
+        BytesReference id = SearchContextId.encode(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            unknownTransportVersion,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(id));
+        assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
+    }
+
+    public void testDecodeArbitraryBytesThrowsIllegalArgument() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+        // correct start, including transport version, but then invalid
+        BytesReference garbageId = new BytesArray(Base64.getUrlDecoder().decode("sKS2BP____8P"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, garbageId));
+        assertThat(e.getMessage(), equalTo("invalid search context id"));
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(garbageId));
+        assertThat(e2.getMessage(), equalTo("invalid search context id"));
+    }
+
+    public void testDecodeLegacyPitIdThrowsIllegalArgument() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+        // a older PIT ID, that cannot be read anymore
+        String legacyPitBase64 =
+            "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIA"
+                + "AAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==";
+        BytesReference legacyId = new BytesArray(Base64.getUrlDecoder().decode(legacyPitBase64));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, legacyId));
+        assertThat(e.getMessage(), startsWith("unknown transport version"));
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(legacyId));
+        assertThat(e2.getMessage(), startsWith("unknown transport version"));
+    }
+
+    public void testDecodeEmptyBytesThrowsIllegalArgument() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+        BytesReference emptyId = new BytesArray(new byte[0]);
+
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, emptyId));
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(emptyId));
+    }
+
+    public void testDecodeSingleByteThrowsIllegalArgument() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+        BytesReference singleByte = new BytesArray(new byte[] { randomByte() });
+
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, singleByte));
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(singleByte));
+    }
+
+    public void testDecodeRandomBytesThrowsIllegalArgument() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+        byte[] randomBytes = randomByteArrayOfLength(between(1, 1024));
+        BytesReference randomId = new BytesArray(randomBytes);
+
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, randomId));
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(randomId));
+    }
+
+    public void testDecodeTruncatedValidDataThrowsIllegalArgument() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+
+        final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
+        final BytesReference validId = SearchContextId.encode(
+            queryResults.asList(),
+            Collections.emptyMap(),
+            TransportVersion.current(),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        byte[] validBytes = BytesReference.toBytes(validId);
+        // truncate bytes at random position, so due to randomization we will fail at every position over time
+        int truncateAt = randomIntBetween(1, validBytes.length-1);
+        BytesReference truncatedId = new BytesArray(Arrays.copyOf(validBytes, truncateAt));
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, truncatedId));
+    }
+
+    public void testDecodeValidTransportVersionWithCorruptedPayloadThrowsIllegalArgument() {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+
+        BytesReference validId = SearchContextId.encode(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            TransportVersion.current(),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+        byte[] validBytes = BytesReference.toBytes(validId);
+
+        // keep version header/first 4 bytes, replace the rest with random data
+        byte[] corrupted = new byte[validBytes.length];
+        System.arraycopy(validBytes, 0, corrupted, 0, 4);
+        BytesReference corruptedId = null;
+        do {
+            byte[] garbage = randomByteArrayOfLength(corrupted.length - 4);
+            System.arraycopy(garbage, 0, corrupted, 4, garbage.length);
+            corruptedId = new BytesArray(corrupted);
+            // due to randomization we might end up with the same random than the original, guard against this
+        } while (validId.equals(corruptedId));
+
+        final BytesReference data = corruptedId;
+        expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, data));
     }
 }

@@ -51,8 +51,11 @@ public final class ClusterStateHealth implements Writeable {
      * @param indexCountLevel a categorized level indicating the number of customer indices and its potential impact on cluster stability
      */
     public ClusterStateHealth(
-        final ClusterState clusterState, final String[] concreteAllIndices,
-        final ProjectId projectId, final IndexCountLevel indexCountLevel) {
+        final ClusterState clusterState,
+        final String[] concreteAllIndices,
+        final ProjectId projectId,
+        final IndexCountLevel indexCountLevel
+    ) {
         this(
             clusterState.metadata().getProject(projectId),
             clusterState.routingTable(projectId),

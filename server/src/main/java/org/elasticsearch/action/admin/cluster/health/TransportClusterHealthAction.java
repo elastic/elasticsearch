@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.IndexCountLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -48,15 +50,45 @@ import org.elasticsearch.transport.TransportService;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING;
+
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     public static final String NAME = "cluster:monitor/health";
     public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
+    public static final Setting<Integer> SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.indices_per_project_nudge",
+        11250,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SETTING_CLUSTER_WARN_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.indices_per_project_warn",
+        13500,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.indices_per_project_critical",
+        14700,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AllocationService allocationService;
     private final ProjectResolver projectResolver;
+    private volatile int nudgeThreshold;
+    private volatile int warnThreshold;
+    private volatile int criticalThreshold;
+    private volatile int blockThreshold;
 
     @Inject
     public TransportClusterHealthAction(
@@ -83,6 +115,31 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.allocationService = allocationService;
         this.projectResolver = projectResolver;
+
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT, v -> nudgeThreshold = v);
+        } else {
+            nudgeThreshold = SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_WARN_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_WARN_INDICES_PER_PROJECT, v -> warnThreshold = v);
+        } else {
+            warnThreshold = SETTING_CLUSTER_WARN_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings()
+                .initializeAndWatch(SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT, v -> criticalThreshold = v);
+        } else {
+            criticalThreshold = SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING, v -> blockThreshold = v);
+        } else {
+            blockThreshold = CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.get(clusterService.getSettings());
+        }
     }
 
     @Override
@@ -492,6 +549,14 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
         String[] concreteIndices;
         ProjectMetadata projectMetadata = clusterState.getMetadata().getProject(projectId);
+
+        var totalUserIndices = clusterService.state()
+            .projectState(projectResolver.getProjectId())
+            .metadata()
+            .stream()
+            .filter(indexMetadata -> indexMetadata.isSystem() == false)
+            .count();
+
         try {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectMetadata, request);
         } catch (IndexNotFoundException e) {
@@ -504,7 +569,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 numberOfPendingTasks,
                 numberOfInFlightFetch,
                 UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                pendingTaskTimeInQueue
+                pendingTaskTimeInQueue,
+                IndexCountLevel.parse((int) totalUserIndices, nudgeThreshold, warnThreshold, criticalThreshold, blockThreshold)
             );
             response.setStatus(ClusterHealthStatus.RED);
             return response;
@@ -518,7 +584,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             numberOfPendingTasks,
             numberOfInFlightFetch,
             UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-            pendingTaskTimeInQueue
+            pendingTaskTimeInQueue,
+            IndexCountLevel.parse((int) totalUserIndices, nudgeThreshold, warnThreshold, criticalThreshold, blockThreshold)
         );
     }
 }

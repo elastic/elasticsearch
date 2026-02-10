@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.connector.base;
 
 import org.elasticsearch.xpack.esql.connector.Connector;
 import org.elasticsearch.xpack.esql.connector.ConnectorCapabilities;
+import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
 import org.elasticsearch.xpack.esql.connector.DistributionHints;
-import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;

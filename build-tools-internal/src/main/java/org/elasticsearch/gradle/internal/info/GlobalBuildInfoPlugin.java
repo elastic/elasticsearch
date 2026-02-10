@@ -118,7 +118,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Provider<GitInfo> gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
 
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
-        GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
+        GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion").trim());
         if (GradleVersion.current().compareTo(minimumGradleVersion) < 0) {
             throw new GradleException("Gradle " + minimumGradleVersion.getVersion() + "+ is required");
         }

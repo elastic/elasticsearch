@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import ch.obermuhlner.math.big.BigDecimalMath;
-
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -18,8 +16,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
-import java.math.BigDecimal;
-import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -29,12 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AcoshTests extends AbstractScalarFunctionTestCase {
 
-    // Canonical formula: https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Definitions_in_terms_of_logarithms
-    private static double canonicalAcosh(double x) {
-        BigDecimal bd = BigDecimal.valueOf(x);
-        BigDecimal arg = bd.add(bd.multiply(bd).subtract(BigDecimal.ONE).sqrt(MathContext.DECIMAL128));
-        return BigDecimalMath.log(arg, MathContext.DECIMAL128).doubleValue();
-    }
+    private static final double ACOSH_OF_2 = 1.3169578969248166;
+    private static final double ACOSH_OF_10 = 2.993222846126381;
 
     public AcoshTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -64,7 +56,7 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(2.0, DataType.DOUBLE, "arg")),
                     "AcoshEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    closeTo(canonicalAcosh(2.0), Math.ulp(canonicalAcosh(2.0)))
+                    closeTo(ACOSH_OF_2, Math.ulp(ACOSH_OF_2))
                 )
             )
         );
@@ -76,7 +68,7 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
                     "AcoshEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    closeTo(canonicalAcosh(10.0), Math.ulp(canonicalAcosh(10.0)))
+                    closeTo(ACOSH_OF_10, Math.ulp(ACOSH_OF_10))
                 )
             )
         );

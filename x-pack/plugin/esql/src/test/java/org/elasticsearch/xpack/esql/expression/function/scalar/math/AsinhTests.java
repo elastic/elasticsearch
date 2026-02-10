@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import ch.obermuhlner.math.big.BigDecimalMath;
-
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -19,8 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
-import java.math.BigDecimal;
-import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -30,12 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AsinhTests extends AbstractScalarFunctionTestCase {
 
-    // Canonical formula: https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Definitions_in_terms_of_logarithms
-    private static double canonicalAsinh(double x) {
-        BigDecimal bd = BigDecimal.valueOf(x).abs();
-        BigDecimal arg = bd.add(bd.multiply(bd).add(BigDecimal.ONE).sqrt(MathContext.DECIMAL128));
-        return Math.copySign(BigDecimalMath.log(arg, MathContext.DECIMAL128).doubleValue(), x);
-    }
+    private static final double ASINH_OF_1 = 0.881373587019543;
+    private static final double ASINH_OF_10 = 2.99822295029797;
 
     public AsinhTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -66,7 +58,7 @@ public class AsinhTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(1.0, DataType.DOUBLE, "arg")),
                     "AsinhEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    closeTo(canonicalAsinh(1.0), Math.ulp(canonicalAsinh(1.0)))
+                    closeTo(ASINH_OF_1, Math.ulp(ASINH_OF_1))
                 )
             )
         );
@@ -79,7 +71,7 @@ public class AsinhTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(-1.0, DataType.DOUBLE, "arg")),
                     "AsinhEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    closeTo(canonicalAsinh(-1.0), Math.ulp(canonicalAsinh(-1.0)))
+                    closeTo(-ASINH_OF_1, Math.ulp(ASINH_OF_1))
                 )
             )
         );
@@ -92,7 +84,7 @@ public class AsinhTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
                     "AsinhEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    closeTo(canonicalAsinh(10.0), Math.ulp(canonicalAsinh(10.0)))
+                    closeTo(ASINH_OF_10, Math.ulp(ASINH_OF_10))
                 )
             )
         );

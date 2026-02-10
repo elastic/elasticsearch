@@ -104,7 +104,7 @@ public abstract class SqlConnector implements Connector {
             if (where == null) {
                 return filter; // Cannot translate — ES|QL will evaluate
             }
-            return (LogicalPlan) sqlPlan.withFilter(filter.condition());
+            return sqlPlan.withFilter(filter.condition());
         }
     }
 
@@ -129,7 +129,7 @@ public abstract class SqlConnector implements Connector {
             if (translateLimit(limitValue) == false) {
                 return limit; // Cannot translate — ES|QL will evaluate
             }
-            return (LogicalPlan) sqlPlan.withLimit(limitValue);
+            return sqlPlan.withLimit(limitValue);
         }
     }
 
@@ -151,7 +151,7 @@ public abstract class SqlConnector implements Connector {
             if (orderBySql == null) {
                 return orderBy; // Cannot translate
             }
-            return (LogicalPlan) sqlPlan.withOrderBy(orderBy.order());
+            return sqlPlan.withOrderBy(orderBy.order());
         }
     }
 
@@ -174,7 +174,7 @@ public abstract class SqlConnector implements Connector {
                 return aggregate; // Cannot translate
             }
             SqlPlan.Aggregation agg = new SqlPlan.Aggregation(aggregate.groupings(), aggregate.aggregates());
-            return (LogicalPlan) sqlPlan.withAggregation(agg).withOutput(aggregate.output());
+            return sqlPlan.withAggregation(agg).withOutput(aggregate.output());
         }
     }
 
@@ -229,7 +229,7 @@ public abstract class SqlConnector implements Connector {
             }
             sql = sql.select(sqlPlan.output());
 
-            return (LogicalPlan) applyBuiltSql(sqlPlan, sql);
+            return applyBuiltSql(sqlPlan, sql);
         }
     }
 

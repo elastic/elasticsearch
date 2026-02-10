@@ -80,6 +80,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
+        "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.test;
+package org.elasticsearch.compute.test.operator.blocksource;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;

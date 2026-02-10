@@ -9,10 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
 import java.util.Set;
@@ -32,9 +29,9 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         final var indexName = randomIdentifier();
 
         final var createIndexFuture = prepareCreate(indexName).setSettings(indexSettings(1, 0)).execute();
-        final var clusterRerouteResponse = waitForIndexCreationThenReroute(indexName);
+        waitForIndexCreationThenReroute(indexName);
 
-        final var state = clusterRerouteResponse.getState();
+        final var state = clusterService().state();
         final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
 
         // No shards should be assigned (because we're waiting for the throttled nodes)
@@ -64,9 +61,9 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         final var indexName = randomIdentifier();
 
         final var createFuture = prepareCreate(indexName).setSettings(indexSettings(1, 0)).execute();
-        final var clusterRerouteResponse = waitForIndexCreationThenReroute(indexName);
+        waitForIndexCreationThenReroute(indexName);
 
-        final var state = clusterRerouteResponse.getState();
+        final var state = clusterService().state();
         final var index = state.routingTable(ProjectId.DEFAULT).index(indexName);
 
         // No shards should be assigned (because canAllocate is NO everywhere)
@@ -78,12 +75,15 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
      * We want to know that the index has been created and a balancing round has been run. This method
      * waits to see the index appear in the cluster state, then calls re-route. The reason we don't just call
      * re-route is that it runs at a higher priority than the index creation and can jump the queue.
+     * <p>
+     * This method will block until the result of the re-route is published. Note that we don't use the cluster
+     * state returned in the {@link org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse}
+     * because that cluster state will be one prior to the re-route when the {@link DesiredBalanceShardsAllocator}
+     * is in use.
      */
-    private ClusterRerouteResponse waitForIndexCreationThenReroute(String indexName) {
+    private void waitForIndexCreationThenReroute(String indexName) {
         awaitClusterState(clusterState -> clusterState.routingTable(ProjectId.DEFAULT).hasIndex(indexName));
-        return safeGet(
-            client().execute(TransportClusterRerouteAction.TYPE, new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
-        );
+        ClusterRerouteUtils.reroute(client());
     }
 
     private void createSingleShardAndAssertItIsAssignedToNodes(Set<String> expectedNodeNames) {

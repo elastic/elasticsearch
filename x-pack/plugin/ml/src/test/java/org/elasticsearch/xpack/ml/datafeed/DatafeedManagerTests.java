@@ -82,7 +82,7 @@ public class DatafeedManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDeleteDatafeed_RevokesApiKeyForCpsDatafeed() {
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        CpsCredentialManager cpsCredentialManager = mock(CpsCredentialManager.class);
+        UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
         Client client = mock(Client.class);
 
         DatafeedManager manager = new DatafeedManager(
@@ -91,7 +91,7 @@ public class DatafeedManagerTests extends ESTestCase {
             NamedXContentRegistry.EMPTY,
             Settings.EMPTY,
             client,
-            cpsCredentialManager
+            uiamCredentialManager
         );
 
         // Build a CPS datafeed with a cloudInternalApiKey
@@ -119,7 +119,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(true);
             return null;
-        }).when(cpsCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
 
         // Mock deleteDatafeedTimingStats and deleteDatafeedConfig (via the JobDataDeleter / client)
         // Since proceedWithDeletion creates a JobDataDeleter which requires client mocking,
@@ -137,7 +137,7 @@ public class DatafeedManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDeleteDatafeed_SkipsRevocationForNonCpsDatafeed() {
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        CpsCredentialManager cpsCredentialManager = mock(CpsCredentialManager.class);
+        UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
         Client client = mock(Client.class);
 
         DatafeedManager manager = new DatafeedManager(
@@ -146,7 +146,7 @@ public class DatafeedManagerTests extends ESTestCase {
             NamedXContentRegistry.EMPTY,
             Settings.EMPTY,
             client,
-            cpsCredentialManager
+            uiamCredentialManager
         );
 
         // Build a non-CPS datafeed (no cloudInternalApiKey)
@@ -167,13 +167,13 @@ public class DatafeedManagerTests extends ESTestCase {
         manager.deleteDatafeed(request, clusterState, ActionListener.wrap(r -> {}, e -> {}));
 
         // revokeApiKey should NOT be called for a non-CPS datafeed
-        verify(cpsCredentialManager, never()).revokeApiKey(any(), any(), any());
+        verify(uiamCredentialManager, never()).revokeApiKey(any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")
     public void testDeleteDatafeed_ProceedsWhenRevocationFails() {
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        CpsCredentialManager cpsCredentialManager = mock(CpsCredentialManager.class);
+        UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
         Client client = mock(Client.class);
 
         DatafeedManager manager = new DatafeedManager(
@@ -182,7 +182,7 @@ public class DatafeedManagerTests extends ESTestCase {
             NamedXContentRegistry.EMPTY,
             Settings.EMPTY,
             client,
-            cpsCredentialManager
+            uiamCredentialManager
         );
 
         // Build a CPS datafeed
@@ -206,7 +206,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onFailure(new RuntimeException("revoke failed"));
             return null;
-        }).when(cpsCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
 
         ClusterState clusterState = mockClusterStateWithNoTasks();
         DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request("test-datafeed");
@@ -244,7 +244,7 @@ public class DatafeedManagerTests extends ESTestCase {
             .build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        CpsCredentialManager cpsCredentialManager = mock(CpsCredentialManager.class);
+        UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -256,22 +256,22 @@ public class DatafeedManagerTests extends ESTestCase {
             NamedXContentRegistry.EMPTY,
             settings,
             client,
-            cpsCredentialManager
+            uiamCredentialManager
         );
 
         // CPS credential manager reports UIAM credential present
-        when(cpsCredentialManager.hasUiamCredential()).thenReturn(true);
+        when(uiamCredentialManager.hasUiamCredential()).thenReturn(true);
 
         String apiKeyId = "new-key-id";
         String encodedKey = Base64.getEncoder().encodeToString(("new-key-id:secret").getBytes(StandardCharsets.UTF_8));
 
         // Mock grantInternalApiKey to succeed
         doAnswer(invocation -> {
-            ActionListener<CpsCredentialManager.InternalApiKeyResult> listener = (ActionListener<CpsCredentialManager.InternalApiKeyResult>)
+            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<UiamCredentialManager.InternalApiKeyResult>)
                 invocation.getArguments()[1];
-            listener.onResponse(new CpsCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
+            listener.onResponse(new UiamCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
             return null;
-        }).when(cpsCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
 
         // Make the first downstream operation fail (findDatafeedIdsForJobIds → failure)
         doAnswer(invocation -> {
@@ -289,7 +289,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(true);
             return null;
-        }).when(cpsCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
 
         // Build request
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
@@ -320,7 +320,7 @@ public class DatafeedManagerTests extends ESTestCase {
             .build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        CpsCredentialManager cpsCredentialManager = mock(CpsCredentialManager.class);
+        UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -332,21 +332,21 @@ public class DatafeedManagerTests extends ESTestCase {
             NamedXContentRegistry.EMPTY,
             settings,
             client,
-            cpsCredentialManager
+            uiamCredentialManager
         );
 
-        when(cpsCredentialManager.hasUiamCredential()).thenReturn(true);
+        when(uiamCredentialManager.hasUiamCredential()).thenReturn(true);
 
         String apiKeyId = "update-key-id";
         String encodedKey = Base64.getEncoder().encodeToString(("update-key-id:secret").getBytes(StandardCharsets.UTF_8));
 
         // Mock grantInternalApiKey to succeed
         doAnswer(invocation -> {
-            ActionListener<CpsCredentialManager.InternalApiKeyResult> listener = (ActionListener<CpsCredentialManager.InternalApiKeyResult>)
+            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<UiamCredentialManager.InternalApiKeyResult>)
                 invocation.getArguments()[1];
-            listener.onResponse(new CpsCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
+            listener.onResponse(new UiamCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
             return null;
-        }).when(cpsCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
 
         // Mock updateDatefeedConfig to fail
         doAnswer(invocation -> {
@@ -364,7 +364,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(true);
             return null;
-        }).when(cpsCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
 
         // Build update request
         DatafeedUpdate.Builder updateBuilder = new DatafeedUpdate.Builder("test-datafeed");
@@ -397,7 +397,7 @@ public class DatafeedManagerTests extends ESTestCase {
             .build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        CpsCredentialManager cpsCredentialManager = mock(CpsCredentialManager.class);
+        UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
         JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -409,21 +409,21 @@ public class DatafeedManagerTests extends ESTestCase {
             NamedXContentRegistry.EMPTY,
             settings,
             client,
-            cpsCredentialManager
+            uiamCredentialManager
         );
 
-        when(cpsCredentialManager.hasUiamCredential()).thenReturn(true);
+        when(uiamCredentialManager.hasUiamCredential()).thenReturn(true);
 
         String apiKeyId = "patch-key-id";
         String encodedKey = Base64.getEncoder().encodeToString(("patch-key-id:secret").getBytes(StandardCharsets.UTF_8));
 
         // Mock grantInternalApiKey to succeed
         doAnswer(invocation -> {
-            ActionListener<CpsCredentialManager.InternalApiKeyResult> listener = (ActionListener<CpsCredentialManager.InternalApiKeyResult>)
+            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<UiamCredentialManager.InternalApiKeyResult>)
                 invocation.getArguments()[1];
-            listener.onResponse(new CpsCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
+            listener.onResponse(new UiamCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
             return null;
-        }).when(cpsCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
 
         // Mock updateDatefeedConfig to succeed (return a config without cloudInternalApiKey)
         DatafeedConfig.Builder configBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
@@ -451,7 +451,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(true);
             return null;
-        }).when(cpsCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
+        }).when(uiamCredentialManager).revokeApiKey(any(), eq("test-datafeed"), any());
 
         // Build update request
         DatafeedUpdate.Builder updateBuilder = new DatafeedUpdate.Builder("test-datafeed");

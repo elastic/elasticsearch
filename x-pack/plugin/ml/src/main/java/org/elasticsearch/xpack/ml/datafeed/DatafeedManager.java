@@ -89,7 +89,7 @@ public final class DatafeedManager {
     private final Client client;
     private final Settings settings;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final CpsCredentialManager cpsCredentialManager;
+    private final UiamCredentialManager uiamCredentialManager;
 
     public DatafeedManager(
         DatafeedConfigProvider datafeedConfigProvider,
@@ -97,7 +97,7 @@ public final class DatafeedManager {
         NamedXContentRegistry xContentRegistry,
         Settings settings,
         Client client,
-        CpsCredentialManager cpsCredentialManager
+        UiamCredentialManager uiamCredentialManager
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
@@ -105,7 +105,7 @@ public final class DatafeedManager {
         this.client = client;
         this.settings = settings;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
-        this.cpsCredentialManager = Objects.requireNonNull(cpsCredentialManager);
+        this.uiamCredentialManager = Objects.requireNonNull(uiamCredentialManager);
     }
 
     public void putDatafeed(
@@ -172,7 +172,7 @@ public final class DatafeedManager {
             });
         } else {
             // Check if this is a CPS datafeed even without security (e.g. for testing)
-            if (crossProjectModeDecider.crossProjectEnabled() && cpsCredentialManager.hasUiamCredential()) {
+            if (crossProjectModeDecider.crossProjectEnabled() && uiamCredentialManager.hasUiamCredential()) {
                 grantCpsKeyAndPutDatafeed(request, state, listener);
             } else {
                 putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
@@ -232,7 +232,7 @@ public final class DatafeedManager {
 
         Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
             final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-            final boolean hasUiamCredential = cpsCredentialManager.hasUiamCredential();
+            final boolean hasUiamCredential = uiamCredentialManager.hasUiamCredential();
 
             // Wrap the validator to check project_routing requires CPS environment.
             // This validation is applied to the updated config (after the update is applied to the existing config).
@@ -257,7 +257,7 @@ public final class DatafeedManager {
                 String datafeedId = request.getUpdate().getId();
 
                 // First, grant the internal API key using the current UIAM credential.
-                cpsCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
+                uiamCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
                     logger.info("[{}] Minted internal API key for CPS datafeed update (migration or re-key)", datafeedId);
 
                     // Use the CPS auth headers (from the internal API key) instead of the original request headers.
@@ -289,7 +289,7 @@ public final class DatafeedManager {
                                     if (oldEncodedKey != null) {
                                         String oldApiKeyId = extractApiKeyId(oldEncodedKey);
                                         if (oldApiKeyId != null) {
-                                            cpsCredentialManager.revokeApiKey(
+                                            uiamCredentialManager.revokeApiKey(
                                                 oldApiKeyId,
                                                 datafeedId,
                                                 ActionListener.wrap(
@@ -377,7 +377,7 @@ public final class DatafeedManager {
                     proceedWithDeletion.run();
                     return;
                 }
-                cpsCredentialManager.revokeApiKey(apiKeyId, datafeedId, ActionListener.wrap(revoked -> {
+                uiamCredentialManager.revokeApiKey(apiKeyId, datafeedId, ActionListener.wrap(revoked -> {
                     if (revoked) {
                         logger.info("[{}] Internal API key revoked prior to deletion", datafeedId);
                     }
@@ -426,7 +426,7 @@ public final class DatafeedManager {
     ) throws IOException {
         if (response.isCompleteMatch()) {
             // Check if this is a CPS datafeed that needs an internal API key
-            if (crossProjectModeDecider.crossProjectEnabled() && cpsCredentialManager.hasUiamCredential()) {
+            if (crossProjectModeDecider.crossProjectEnabled() && uiamCredentialManager.hasUiamCredential()) {
                 grantCpsKeyAndPutDatafeed(request, clusterState, listener);
             } else {
                 // Legacy path - no CPS or no UIAM credential
@@ -465,7 +465,7 @@ public final class DatafeedManager {
         String datafeedId = request.getDatafeed().getId();
         logger.info("[{}] CPS-enabled datafeed creation detected; minting internal API key", datafeedId);
 
-        cpsCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
+        uiamCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
             DatafeedConfig.Builder builder = new DatafeedConfig.Builder(request.getDatafeed());
             builder.setCloudInternalApiKey(result.encodedCredential());
             builder.setHeaders(result.authHeaders());
@@ -488,7 +488,7 @@ public final class DatafeedManager {
     private <T> ActionListener<T> revokeKeyOnFailure(String apiKeyId, String datafeedId, ActionListener<T> delegate) {
         return ActionListener.wrap(delegate::onResponse, e -> {
             logger.warn("[{}] Downstream operation failed after CPS key creation; revoking key (key_id={})", datafeedId, apiKeyId);
-            cpsCredentialManager.revokeApiKey(apiKeyId, datafeedId, ActionListener.wrap(revoked -> delegate.onFailure(e), revokeError -> {
+            uiamCredentialManager.revokeApiKey(apiKeyId, datafeedId, ActionListener.wrap(revoked -> delegate.onFailure(e), revokeError -> {
                 logger.warn(
                     "[{}] Additionally failed to revoke leaked CPS key (key_id={}): {}",
                     datafeedId,

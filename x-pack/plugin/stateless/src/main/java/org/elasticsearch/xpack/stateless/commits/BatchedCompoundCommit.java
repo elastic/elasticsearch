@@ -83,6 +83,19 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return compoundCommits.stream().flatMap(commit -> commit.internalFiles().stream()).collect(Collectors.toSet());
     }
 
+    public long calculateBccBlobLength() {
+        long blobLength = 0;
+        for (int i = 0; i < compoundCommits.size(); i++) {
+            var compoundCommit = compoundCommits.get(i);
+            if (i == compoundCommits.size() - 1) {
+                blobLength += compoundCommit.sizeInBytes();
+            } else {
+                blobLength += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
+            }
+        }
+        return blobLength;
+    }
+
     /**
      * Reads a maximum of {@code maxBlobLength} bytes of a {@link BatchedCompoundCommit} from the blob store. For that it materializes the
      * headers for all the {@link StatelessCompoundCommit} contained in the batched compound commit that are located before the maximum blob

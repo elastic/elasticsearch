@@ -17,17 +17,32 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+
+import java.io.IOException;
 
 /**
  * Represents a file (typically a {@link BatchedCompoundCommit}) stored in the blobstore.
  */
-public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) {
+public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Writeable {
 
     public BlobFile {
         assert (StatelessCompoundCommit.startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
             || termAndGeneration.generation() == StatelessCompoundCommit.parseGenerationFromBlobName(blobName)
             : "generation mismatch: " + termAndGeneration + " vs " + blobName;
+    }
+
+    public BlobFile(StreamInput in) throws IOException {
+        this(in.readString(), new PrimaryTermAndGeneration(in));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(blobName);
+        termAndGeneration.writeTo(out);
     }
 
     public long primaryTerm() {

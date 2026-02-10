@@ -105,6 +105,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             cluster.connection,
             childSessionId,
             queryPragmas.exchangeBufferSize(),
+            cluster.originalIndices.indices(),
+            cluster.originalIndices.indicesOptions(),
             esqlExecutor,
             listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
@@ -141,7 +143,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                    var remoteSink = exchangeService.newRemoteSink(
+                        groupTask,
+                        childSessionId,
+                        transportService,
+                        cluster.connection,
+                        cluster.originalIndices.indices(),
+                        cluster.originalIndices.indicesOptions()
+                    );
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,
@@ -221,6 +230,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     @Override
     public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
         ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
+        exchangeService.validateSinkIndices(request.sessionId(), request.indices());
         RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
         var plan = remoteClusterPlan.plan();
         if (plan instanceof ExchangeSinkExec == false) {

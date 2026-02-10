@@ -61,21 +61,17 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessTransportInterceptor.class);
 
-    private static final Map<String, String> RCS_INTERNAL_ACTIONS_REPLACEMENTS = Map.of(
-        "internal:admin/ccr/restore/session/put",
-        "indices:internal/admin/ccr/restore/session/put",
-        "internal:admin/ccr/restore/session/clear",
-        "indices:internal/admin/ccr/restore/session/clear",
-        "internal:admin/ccr/restore/file_chunk/get",
-        "indices:internal/admin/ccr/restore/file_chunk/get",
-        "internal:data/read/esql/open_exchange",
-        "cluster:internal:data/read/esql/open_exchange",
-        "internal:data/read/esql/exchange",
-        "cluster:internal:data/read/esql/exchange",
-        TaskCancellationService.BAN_PARENT_ACTION_NAME,
-        TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
-        TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
-        TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME
+    private static final Map<String, String> RCS_INTERNAL_ACTIONS_REPLACEMENTS = Map.ofEntries(
+        Map.entry("internal:admin/ccr/restore/session/put", "indices:internal/admin/ccr/restore/session/put"),
+        Map.entry("internal:admin/ccr/restore/session/clear", "indices:internal/admin/ccr/restore/session/clear"),
+        Map.entry("internal:admin/ccr/restore/file_chunk/get", "indices:internal/admin/ccr/restore/file_chunk/get"),
+        // Legacy ESQL exchange action remapping retained for BWC during rolling upgrades.
+        // Older nodes still send internal: exchange actions which need to be remapped to cluster:internal: for CCS.
+        // Remove once minimum version includes ESQL_EXCHANGE_INDICES_CONTEXT.
+        Map.entry("internal:data/read/esql/open_exchange", "cluster:internal:data/read/esql/open_exchange"),
+        Map.entry("internal:data/read/esql/exchange", "cluster:internal:data/read/esql/exchange"),
+        Map.entry(TaskCancellationService.BAN_PARENT_ACTION_NAME, TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME),
+        Map.entry(TaskCancellationService.CANCEL_CHILD_ACTION_NAME, TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME)
     );
 
     // Visible for testing

@@ -9,8 +9,10 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -69,6 +71,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -560,7 +563,14 @@ public class ExchangeServiceTests extends ESTestCase {
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(
-                exchange0.newRemoteSink(task, exchangeId, node0, connection),
+                exchange0.newRemoteSink(
+                    task,
+                    exchangeId,
+                    node0,
+                    connection,
+                    new String[] { "test-index" },
+                    IndicesOptions.STRICT_EXPAND_OPEN
+                ),
                 randomBoolean(),
                 () -> {},
                 randomIntBetween(1, 5),
@@ -631,7 +641,14 @@ public class ExchangeServiceTests extends ESTestCase {
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
             sourceHandler.addRemoteSink(
-                exchange0.newRemoteSink(task, exchangeId, node0, connection),
+                exchange0.newRemoteSink(
+                    task,
+                    exchangeId,
+                    node0,
+                    connection,
+                    new String[] { "test-index" },
+                    IndicesOptions.STRICT_EXPAND_OPEN
+                ),
                 true,
                 () -> {},
                 randomIntBetween(1, 5),
@@ -676,6 +693,129 @@ public class ExchangeServiceTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             // ensure no cyclic exception
             ElasticsearchException.writeException(err, output);
+        }
+    }
+
+    /**
+     * Verifies that the server-side exchange handler rejects an {@link ExchangeRequest}
+     * whose indices don't match the indices the exchange sink was opened for. This prevents
+     * an entity from fetching pages from an exchange sink belonging to a different user's query
+     * by guessing the session ID. For example, if a sink was opened for index "allowed-index",
+     * an exchange request carrying "unauthorized-index" will be rejected even if the session ID
+     * is correct.
+     */
+    public void testExchangeRequestWithMismatchedIndicesIsRejected() {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            String sessionId = "test-session";
+
+            // Step 1: Open exchange on node1 with indices ["allowed-index"]
+            PlainActionFuture<Void> openFuture = new PlainActionFuture<>();
+            ExchangeService.openExchange(
+                node0,
+                connection,
+                sessionId,
+                10,
+                new String[] { "allowed-index" },
+                IndicesOptions.STRICT_EXPAND_OPEN,
+                threadPool.executor(ESQL_TEST_EXECUTOR),
+                openFuture
+            );
+            openFuture.actionGet(10, TimeUnit.SECONDS);
+
+            // Step 2: Send exchange request from node0 with DIFFERENT indices ["unauthorized-index"]
+            // This simulates a request that passed security authorization for "unauthorized-index"
+            // but the exchange was opened for "allowed-index". The server-side check should reject it.
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            var sourceHandler = new ExchangeSourceHandler(10, threadPool.executor(ESQL_TEST_EXECUTOR));
+            PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
+            sourceHandler.addRemoteSink(
+                exchange0.newRemoteSink(
+                    task,
+                    sessionId,
+                    node0,
+                    connection,
+                    new String[] { "unauthorized-index" },
+                    IndicesOptions.STRICT_EXPAND_OPEN
+                ),
+                true,
+                () -> {},
+                1,
+                remoteSinkFuture
+            );
+
+            // The remote sink should fail because the indices don't match
+            Exception exception = expectThrows(Exception.class, () -> remoteSinkFuture.actionGet(10, TimeUnit.SECONDS));
+            Throwable cause = ExceptionsHelper.unwrap(exception, ResourceNotFoundException.class);
+            assertNotNull("Expected ResourceNotFoundException for mismatched indices", cause);
+            assertThat(cause.getMessage(), containsString("not found for indices"));
+            assertThat(cause.getMessage(), containsString(sessionId));
+        }
+    }
+
+    /**
+     * Verifies that {@link ExchangeService#validateSinkIndices} rejects a compute request
+     * whose indices don't match the indices the exchange sink was opened for. This is invoked
+     * by {@code ClusterComputeHandler.messageReceived()} to ensure that a compute request
+     * targeting index Y cannot link to an exchange sink that was opened for index X.
+     */
+    public void testValidateSinkIndicesRejectsMismatchedComputeRequest() {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+
+        try (exchange0; exchange1; node0; node1) {
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            String sessionId = "compute-session";
+
+            // Open exchange on node1 with indices ["index-a"]
+            PlainActionFuture<Void> openFuture = new PlainActionFuture<>();
+            ExchangeService.openExchange(
+                node0,
+                connection,
+                sessionId,
+                10,
+                new String[] { "index-a" },
+                IndicesOptions.STRICT_EXPAND_OPEN,
+                threadPool.executor(ESQL_TEST_EXECUTOR),
+                openFuture
+            );
+            openFuture.actionGet(10, TimeUnit.SECONDS);
+
+            // Simulate what ClusterComputeHandler.messageReceived() does:
+            // validate that the compute request's indices match the exchange sink's indices.
+            // With matching indices, validation should pass
+            exchange1.validateSinkIndices(sessionId, new String[] { "index-a" });
+
+            // With mismatched indices, validation should throw
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> exchange1.validateSinkIndices(sessionId, new String[] { "index-b" })
+            );
+            assertThat(e.getMessage(), containsString("not found for indices"));
+            assertThat(e.getMessage(), containsString(sessionId));
+
+            // With multiple indices where one doesn't match, validation should also throw
+            ResourceNotFoundException e2 = expectThrows(
+                ResourceNotFoundException.class,
+                () -> exchange1.validateSinkIndices(sessionId, new String[] { "index-a", "index-b" })
+            );
+            assertThat(e2.getMessage(), containsString("not found for indices"));
+
+            // Clean up the sink handler (must pass an exception to abort since nothing consumed from it)
+            exchange1.finishSinkHandler(sessionId, new Exception("test cleanup"));
         }
     }
 

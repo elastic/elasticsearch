@@ -491,7 +491,7 @@ $$$dense-vector-index-options$$$
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
 `precondition` {applies_to}`stack: ga 9.4`
-:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when the vector space has low variance. Defaults to `false`.
+:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`.
 
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.

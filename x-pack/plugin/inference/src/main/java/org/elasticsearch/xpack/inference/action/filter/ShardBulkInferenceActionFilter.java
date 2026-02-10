@@ -78,13 +78,11 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INDICES_INFERENCE_BULK_TIMEOUT;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
 
@@ -118,6 +116,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final Object EXPLICIT_NULL = new Object();
     private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
+    /**
+     * The default timeout for bulk inference operations when not specified on the API call.
+     */
+    static final TimeValue DEFAULT_BULK_INFERENCE_TIMEOUT = TimeValue.timeValueHours(8);
+
     private final ClusterService clusterService;
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
@@ -125,7 +128,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final IndexingPressure indexingPressure;
     private final InferenceStats inferenceStats;
     private volatile long batchSizeInBytes;
-    private volatile TimeValue bulkInferenceTimeout;
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
@@ -142,17 +144,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         this.indexingPressure = indexingPressure;
         this.inferenceStats = inferenceStats;
         this.batchSizeInBytes = INDICES_INFERENCE_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
-        this.bulkInferenceTimeout = INDICES_INFERENCE_BULK_TIMEOUT.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BATCH_SIZE, this::setBatchSize);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BULK_TIMEOUT, this::setBulkInferenceTimeout);
     }
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
         batchSizeInBytes = newBatchSize.getBytes();
-    }
-
-    private void setBulkInferenceTimeout(TimeValue newTimeout) {
-        bulkInferenceTimeout = newTimeout;
     }
 
     @Override
@@ -196,8 +192,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         final ProjectMetadata project = clusterService.state().getMetadata().getProject();
         var index = project.index(bulkShardRequest.index());
         boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
-        new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingIndexingPressure)
-            .run();
+        TimeValue inferenceTimeout = bulkShardRequest.getInferenceTimeout() != null
+            ? bulkShardRequest.getInferenceTimeout()
+            : DEFAULT_BULK_INFERENCE_TIMEOUT;
+        new AsyncBulkShardInferenceAction(
+            useLegacyFormat,
+            fieldInferenceMap,
+            bulkShardRequest,
+            inferenceTimeout,
+            onCompletion,
+            coordinatingIndexingPressure
+        ).run();
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
@@ -268,45 +273,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final boolean useLegacyFormat;
         private final Map<String, InferenceFieldMetadata> fieldInferenceMap;
         private final BulkShardRequest bulkShardRequest;
+        private final TimeValue inferenceTimeout;
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
-        private final long startTimeNanos;
-        private final TimeValue inferenceTimeout;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
+            TimeValue inferenceTimeout,
             Runnable onCompletion,
             IndexingPressure.Coordinating coordinatingIndexingPressure
         ) {
             this.useLegacyFormat = useLegacyFormat;
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
+            this.inferenceTimeout = inferenceTimeout;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
             this.onCompletion = onCompletion;
             this.coordinatingIndexingPressure = coordinatingIndexingPressure;
-            this.startTimeNanos = System.nanoTime();
-            this.inferenceTimeout = bulkInferenceTimeout;
-        }
-
-        /**
-         * Calculates the remaining time before the inference timeout expires.
-         *
-         * @return the remaining time, or {@link TimeValue#ZERO} if the timeout has already expired
-         */
-        private TimeValue getRemainingTimeout() {
-            long elapsedMillis = getElapsedTimeMillis();
-            long remainingMillis = inferenceTimeout.millis() - elapsedMillis;
-            return remainingMillis > 0 ? TimeValue.timeValueMillis(remainingMillis) : TimeValue.ZERO;
-        }
-
-        /**
-         * Returns the elapsed time in milliseconds since this bulk inference operation started.
-         */
-        private long getElapsedTimeMillis() {
-            return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos);
         }
 
         @Override
@@ -321,7 +307,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             var items = bulkShardRequest.items();
-            TimeValue remainingTimeout = getRemainingTimeout();
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new HashMap<>();
             long totalInputLength = 0;
             int itemIndex = itemOffset;
@@ -354,7 +339,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             try (var releaseOnFinish = new RefCountingRunnable(onInferenceCompletion)) {
                 for (var entry : fieldRequestsMap.entrySet()) {
-                    executeChunkedInferenceAsync(entry.getKey(), null, entry.getValue(), remainingTimeout, releaseOnFinish.acquire());
+                    executeChunkedInferenceAsync(entry.getKey(), null, entry.getValue(), releaseOnFinish.acquire());
                 }
             }
         }
@@ -363,7 +348,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final String inferenceId,
             @Nullable InferenceProvider inferenceProvider,
             final List<FieldInferenceRequest> requests,
-            final TimeValue timeout,
             final Releasable onFinish
         ) {
             if (inferenceProvider == null) {
@@ -380,7 +364,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     unparsedModel.secrets()
                                 )
                         );
-                        executeChunkedInferenceAsync(inferenceId, provider, requests, timeout, onFinish);
+                        executeChunkedInferenceAsync(inferenceId, provider, requests, onFinish);
                     } else {
                         try (onFinish) {
                             for (FieldInferenceRequest request : requests) {
@@ -510,24 +494,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             });
 
-            // Check timeout before making inference call.
-            // We could do it earlier, but this guarantees that the timeouts apply only
-            // to those fields that require inference.
-            TimeValue actualRemaining = getRemainingTimeout();
-            if (actualRemaining.equals(TimeValue.ZERO)) {
-                completionListener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Bulk inference timed out after ["
-                            + TimeValue.timeValueMillis(getElapsedTimeMillis())
-                            + "] (configured timeout for bulk request: ["
-                            + inferenceTimeout
-                            + "])",
-                        RestStatus.REQUEST_TIMEOUT
-                    )
-                );
-                return;
-            }
-
             inferenceProvider.service()
                 .chunkedInfer(
                     inferenceProvider.model(),
@@ -535,7 +501,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     inputs,
                     Map.of(),
                     InputType.INTERNAL_INGEST,
-                    actualRemaining,
+                    inferenceTimeout,
                     completionListener
                 );
 

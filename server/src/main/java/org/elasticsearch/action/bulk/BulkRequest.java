@@ -69,6 +69,8 @@ public class BulkRequest extends LegacyActionRequest
         "streams_endpoint_param_restrictions"
     );
 
+    private static final TransportVersion BULK_INFERENCE_TIMEOUT = TransportVersion.fromName("bulk_inference_timeout");
+
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
@@ -82,6 +84,7 @@ public class BulkRequest extends LegacyActionRequest
     private final Set<String> indices = new HashSet<>();
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
+    private @Nullable TimeValue inferenceTimeout;
     private IncrementalState incrementalState = IncrementalState.EMPTY;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
@@ -110,6 +113,9 @@ public class BulkRequest extends LegacyActionRequest
         includeSourceOnError = in.readBoolean();
         if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
+        }
+        if (in.getTransportVersion().supports(BULK_INFERENCE_TIMEOUT)) {
+            inferenceTimeout = in.readOptionalTimeValue();
         }
     }
 
@@ -392,6 +398,22 @@ public class BulkRequest extends LegacyActionRequest
         return timeout;
     }
 
+    /**
+     * Sets the timeout for inference operations during bulk indexing.
+     */
+    public BulkRequest inferenceTimeout(@Nullable TimeValue inferenceTimeout) {
+        this.inferenceTimeout = inferenceTimeout;
+        return this;
+    }
+
+    /**
+     * Returns the timeout for inference operations, or {@code null} if not set.
+     */
+    @Nullable
+    public TimeValue inferenceTimeout() {
+        return inferenceTimeout;
+    }
+
     public IncrementalState incrementalState() {
         return incrementalState;
     }
@@ -475,6 +497,9 @@ public class BulkRequest extends LegacyActionRequest
         out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             out.writeCollection(paramsUsed, StreamOutput::writeString);
+        }
+        if (out.getTransportVersion().supports(BULK_INFERENCE_TIMEOUT)) {
+            out.writeOptionalTimeValue(inferenceTimeout);
         }
     }
 
@@ -565,6 +590,7 @@ public class BulkRequest extends LegacyActionRequest
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
         bulkRequest.requestParamsUsed(requestParamsUsed());
+        bulkRequest.inferenceTimeout(inferenceTimeout());
         return bulkRequest;
     }
 }

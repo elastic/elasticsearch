@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +41,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     private final boolean isSimulated;
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
+    private transient @Nullable TimeValue inferenceTimeout = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -98,6 +101,21 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
      */
     public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
         return inferenceFieldMap;
+    }
+
+    /**
+     * Sets the transient inference timeout for this shard request.
+     */
+    public void setInferenceTimeout(@Nullable TimeValue inferenceTimeout) {
+        this.inferenceTimeout = inferenceTimeout;
+    }
+
+    /**
+     * Returns the inference timeout, or {@code null} if not set.
+     */
+    @Nullable
+    public TimeValue getInferenceTimeout() {
+        return inferenceTimeout;
     }
 
     public long totalSizeInBytes() {

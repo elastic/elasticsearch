@@ -64,17 +64,27 @@ public class IncrementalBulkService {
 
     public Handler newBulkRequest() {
         ensureEnabled();
-        return newBulkRequest(null, null, null, emptySet());
+        return newBulkRequest(null, null, null, null, emptySet());
     }
 
     public Handler newBulkRequest(
         @Nullable String waitForActiveShards,
         @Nullable TimeValue timeout,
+        @Nullable TimeValue inferenceTimeout,
         @Nullable String refresh,
         Set<String> paramsUsed
     ) {
         ensureEnabled();
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
+        return new Handler(
+            client,
+            indexingPressure,
+            waitForActiveShards,
+            timeout,
+            inferenceTimeout,
+            refresh,
+            chunkWaitTimeMillisHistogram,
+            paramsUsed
+        );
     }
 
     private void ensureEnabled() {
@@ -112,6 +122,7 @@ public class IncrementalBulkService {
         private final Client client;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
+        private final @Nullable TimeValue inferenceTimeout;
         private final Set<String> paramsUsed;
         private final String refresh;
 
@@ -132,6 +143,7 @@ public class IncrementalBulkService {
             IndexingPressure indexingPressure,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
+            @Nullable TimeValue inferenceTimeout,
             @Nullable String refresh,
             LongHistogram chunkWaitTimeMillisHistogram,
             Set<String> paramsUsed
@@ -139,6 +151,7 @@ public class IncrementalBulkService {
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
+            this.inferenceTimeout = inferenceTimeout;
             this.refresh = refresh;
             this.paramsUsed = paramsUsed;
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
@@ -316,6 +329,9 @@ public class IncrementalBulkService {
             }
             if (timeout != null) {
                 bulkRequest.timeout(timeout);
+            }
+            if (inferenceTimeout != null) {
+                bulkRequest.inferenceTimeout(inferenceTimeout);
             }
             if (refresh != null) {
                 bulkRequest.setRefreshPolicy(refresh);

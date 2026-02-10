@@ -51,7 +51,8 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ClusterService clusterService,
         NodeClient nodeClient,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProfilingIndexTemplateRegistry templateRegistry
     ) {
         super(
             GetStatusAction.NAME,
@@ -63,7 +64,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             GetStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.resolver = new StatusResolver(clusterService, nodeClient);
+        this.resolver = new StatusResolver(clusterService, nodeClient, templateRegistry);
     }
 
     @Override
@@ -137,15 +138,17 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
     private static class StatusResolver {
         private final ClusterService clusterService;
         private final NodeClient nodeClient;
+        private final ProfilingIndexTemplateRegistry templateRegistry;
 
-        private StatusResolver(ClusterService clusterService, NodeClient nodeClient) {
+        private StatusResolver(ClusterService clusterService, NodeClient nodeClient, ProfilingIndexTemplateRegistry templateRegistry) {
             this.clusterService = clusterService;
             this.nodeClient = nodeClient;
+            this.templateRegistry = templateRegistry;
         }
 
         private boolean isResourcesCreated(ClusterState state) {
             IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean templatesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
+            boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
             boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
             boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
             return templatesCreated && indicesCreated && dataStreamsCreated;

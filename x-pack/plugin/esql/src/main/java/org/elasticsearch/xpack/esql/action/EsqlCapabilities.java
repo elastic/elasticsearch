@@ -2089,6 +2089,11 @@ public class EsqlCapabilities {
         TS_COMMAND_GROUP_ON_ALIASES,
 
         /**
+         * Implicit SORT @timestamp DESC for TS queries without STATS or explicit SORT.
+         */
+        TS_IMPLICIT_TIMESTAMP_SORT,
+
+        /**
          * Supports the {@code URI_PARTS}) command.
          */
         URI_PARTS_COMMAND(Build.current().isSnapshot()),

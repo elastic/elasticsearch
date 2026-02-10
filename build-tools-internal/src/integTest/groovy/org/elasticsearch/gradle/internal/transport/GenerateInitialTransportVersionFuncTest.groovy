@@ -62,13 +62,13 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
         versionPropertiesFile.text = versionPropertiesFile.text.replace("9.2.0", "9.3.0")
 
         when:
-        def result = runGenerateAndValidateTask("--stack-version", "9.3.0").build()
+        def result = runGenerateAndValidateTask("--stack-version", "9.2.0").build()
 
         then:
         assertGenerateAndValidateSuccess(result)
-        assertUnreferableDefinition("initial_9.3.0", "8124000")
-        assertUpperBound("9.2", "existing_92,8123000")
-        assertUpperBound("9.3", "initial_9.3.0,8124000")
+        assertUnreferableDefinition("initial_9.2.0", "8124000")
+        assertUpperBound("9.2", "initial_9.2.0,8124000")
+        assertUpperBound("9.3", "initial_9.2.0,8124000")
     }
 
     def "patch updates existing upper bound"() {
@@ -86,6 +86,6 @@ class GenerateInitialTransportVersionFuncTest extends AbstractTransportVersionFu
         def result = runGenerateTask("--stack-version", "9.3.7").buildAndFail()
 
         then:
-        assertGenerateFailure(result, "Missing upper bound 9.3 for release version 9.3.6")
+        assertGenerateFailure(result, "Missing upper bound 9.3 for release version 9.3.7")
     }
 }

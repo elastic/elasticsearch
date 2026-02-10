@@ -35,9 +35,9 @@ public abstract class GenerateInitialTransportVersionTask extends DefaultTask {
     @TaskAction
     public void run() throws IOException {
         Version stackVersion = Version.fromString(getStackVersion().get());
-        String baseUpperBoundName = getUpperBoundName(stackVersion);
+        String upperBoundName = getUpperBoundName(stackVersion);
         TransportVersionResourcesService resources = getResourceService().get();
-        TransportVersionUpperBound baseUpperBound = resources.getUpperBoundFromGitBase(baseUpperBoundName);
+        TransportVersionUpperBound baseUpperBound = resources.getUpperBoundFromGitBase(upperBoundName);
         String initialDefinitionName = "initial_" + stackVersion;
         TransportVersionDefinition existingDefinition = resources.getUnreferableDefinitionFromGitBase(initialDefinitionName);
 
@@ -45,17 +45,14 @@ public abstract class GenerateInitialTransportVersionTask extends DefaultTask {
         // upper bound result because we always look at the base branch (ie upstream/main).
         if (existingDefinition == null) {
             if (baseUpperBound == null) {
-                throw new RuntimeException("Missing upper bound " + baseUpperBoundName + " for release version " + stackVersion);
+                throw new RuntimeException("Missing upper bound " + upperBoundName + " for release version " + stackVersion);
             }
-
-            int currentTransportVersionId = baseUpperBound.definitionId().complete();
 
             // minors increment by 1000 to create a unique base, patches increment by 1 as other patches do
             int increment = stackVersion.getRevision() == 0 ? 1000 : 1;
-            var id = TransportVersionId.fromInt(currentTransportVersionId + increment);
+            var id = TransportVersionId.fromInt(baseUpperBound.definitionId().complete() + increment);
             var definition = new TransportVersionDefinition(initialDefinitionName, List.of(id), false);
             resources.writeDefinition(definition);
-            String upperBoundName = getUpperBoundName(stackVersion);
             var newUpperBound = new TransportVersionUpperBound(upperBoundName, initialDefinitionName, id);
             resources.writeUpperBound(newUpperBound);
 

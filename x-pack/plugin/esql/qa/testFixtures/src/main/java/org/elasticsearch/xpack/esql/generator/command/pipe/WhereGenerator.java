@@ -23,11 +23,7 @@ public class WhereGenerator implements CommandGenerator {
     public static final String WHERE = "where";
     public static final CommandGenerator INSTANCE = new WhereGenerator();
 
-    public static String randomExpression(
-        final int nConditions,
-        List<Column> previousOutput,
-        List<CommandDescription> previousCommands
-    ) {
+    public static String randomExpression(final int nConditions, List<Column> previousOutput, List<CommandDescription> previousCommands) {
         // TODO more complex conditions
         var result = new StringBuilder();
 

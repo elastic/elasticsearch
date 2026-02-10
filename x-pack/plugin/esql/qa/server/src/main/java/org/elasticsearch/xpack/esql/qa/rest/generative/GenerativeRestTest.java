@@ -34,8 +34,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
-
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
@@ -43,6 +41,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_NAME;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
@@ -118,10 +117,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
         Pattern.DOTALL
     );
-    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(
-        ".*Unknown column \\[([^]]+)].*",
-        Pattern.DOTALL
-    );
+    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
     /**
      * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
      * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
@@ -271,8 +267,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return outputValidation;
                 }
             }
-            if (isUnmappedFieldError(outputValidation.errorMessage())
-                || isScalarTypeMismatchError(outputValidation.errorMessage())) {
+            if (isUnmappedFieldError(outputValidation.errorMessage()) || isScalarTypeMismatchError(outputValidation.errorMessage())) {
                 return outputValidation;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());

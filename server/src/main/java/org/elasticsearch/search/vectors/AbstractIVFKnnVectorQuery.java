@@ -176,11 +176,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             visitRatio = providedVisitRatio;
         }
 
-        // collect segment metadata
-        float[] queryVector = getQuery();
         List<SegmentMetadata> segmentMetadata = collectSegmentMetadata(leafReaderContexts, field);
 
-        // assign segment-specific visit ratios based on segment metadata/statistics
+        // allocate segment-specific visit ratios based on segment metadata/statistics
         float[] segmentVisitRatios = allocateVisitedRatio(segmentMetadata, visitRatio, totalVectors, enableProximityBasedAllocation);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -189,13 +187,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             if (doPrecondition) {
                 preconditionQuery(context);
             }
-            // Use segment-specific visit ratio, fall back to base ratio if disabled
             float segmentVisitRatio = enableProximityBasedAllocation && i < segmentVisitRatios.length ? segmentVisitRatios[i] : visitRatio;
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, segmentVisitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
-        // Merge sort the results
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
@@ -269,7 +265,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     abstract float[] getQuery();
 
     /**
-     * Metadata for a segment used in multi-criteria budget allocation
+     * metadata for a segment used for budget allocation
      */
     record SegmentMetadata(
         LeafReaderContext context,
@@ -277,9 +273,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         VectorSimilarityFunction similarityFunction,
         int vectorCount,
         int numCentroids,
-        float clusterVariance,           // Cluster balance - lower is better
-        float averageClusterSize,        // Density indicator - higher can be better
-        float maxClusterSize,           // Outlier detection - very large clusters may skew
+        float clusterVariance,           // cluster variance - lower is better
+        float averageClusterSize,        // density indicator - higher can be better
+        float maxClusterSize,           // outlier detection - abnormally large clusters may skew
         boolean isValid
     ) {}
 
@@ -294,7 +290,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return 0f;
         }
 
-        // distance to global centroid
+        // normalized global centroid score
         float proximityScore = (metadata.globalCentroidScore / maxGlobalCentroidScore);
         proximityScore = Math.max(0f, proximityScore);
 
@@ -305,22 +301,20 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             densityScore = (float) Math.log(metadata.averageClusterSize());
         }
 
-        // ratio of tot vectors in this segment
+        // ratio of tot field vectors in this segment
         float segmentWeight = (float) metadata.vectorCount / totalVectors;
 
         // quality score (cluster variance - inverse to prefer balanced clusters)
         float qualityScore = 0f;
         if (metadata.clusterVariance() >= 0) {
-            // Inverse of (1 + variance) to prefer lower variance
             qualityScore = 1.0f / (1.0f + metadata.clusterVariance());
         }
 
         // normalize scores (simple min-max normalization based on expected ranges)
-        //proximityScore = Math.min(1.0f, proximityScore); // Assume similarity scores are normalized
-        densityScore = Math.min(1.0f, densityScore / 10.0f); // Normalize log scores
+        densityScore = Math.min(1.0f, densityScore / 10.0f); // TODO : normalize density score
         qualityScore = Math.min(1.0f, qualityScore);
 
-        return proximityScore + (densityScore + qualityScore) * segmentWeight;
+        return (proximityScore + densityScore + qualityScore) * segmentWeight;
     }
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {

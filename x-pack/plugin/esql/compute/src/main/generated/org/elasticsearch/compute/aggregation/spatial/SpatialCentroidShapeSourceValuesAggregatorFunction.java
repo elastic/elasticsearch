@@ -19,39 +19,40 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialCentroidGeoPointSourceValuesAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialCentroidShapeSourceValuesAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction implements AggregatorFunction {
+public final class SpatialCentroidShapeSourceValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("xVal", ElementType.DOUBLE),
       new IntermediateStateDesc("xDel", ElementType.DOUBLE),
       new IntermediateStateDesc("yVal", ElementType.DOUBLE),
       new IntermediateStateDesc("yDel", ElementType.DOUBLE),
-      new IntermediateStateDesc("count", ElementType.LONG)  );
+      new IntermediateStateDesc("weight", ElementType.DOUBLE),
+      new IntermediateStateDesc("shapeType", ElementType.INT)  );
 
   private final DriverContext driverContext;
 
-  private final CentroidPointAggregator.CentroidState state;
+  private final CentroidShapeAggregator.ShapeCentroidState state;
 
   private final List<Integer> channels;
 
-  public SpatialCentroidGeoPointSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidPointAggregator.CentroidState state) {
+  public SpatialCentroidShapeSourceValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels, CentroidShapeAggregator.ShapeCentroidState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialCentroidGeoPointSourceValuesAggregatorFunction create(
+  public static SpatialCentroidShapeSourceValuesAggregatorFunction create(
       DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidGeoPointSourceValuesAggregatorFunction(driverContext, channels, SpatialCentroidGeoPointSourceValuesAggregator.initSingle());
+    return new SpatialCentroidShapeSourceValuesAggregatorFunction(driverContext, channels, SpatialCentroidShapeSourceValuesAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -98,7 +99,7 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
     BytesRef wkbScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
       BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
-      SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);
+      SpatialCentroidShapeSourceValuesAggregator.combine(state, wkbValue);
     }
   }
 
@@ -109,7 +110,7 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
         continue;
       }
       BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
-      SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);
+      SpatialCentroidShapeSourceValuesAggregator.combine(state, wkbValue);
     }
   }
 
@@ -124,7 +125,7 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
       int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
-        SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);
+        SpatialCentroidShapeSourceValuesAggregator.combine(state, wkbValue);
       }
     }
   }
@@ -143,7 +144,7 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
       int wkbEnd = wkbStart + wkbValueCount;
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
-        SpatialCentroidGeoPointSourceValuesAggregator.combine(state, wkbValue);
+        SpatialCentroidShapeSourceValuesAggregator.combine(state, wkbValue);
       }
     }
   }
@@ -176,13 +177,19 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
     }
     DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
     assert yDel.getPositionCount() == 1;
-    Block countUncast = page.getBlock(channels.get(4));
-    if (countUncast.areAllValuesNull()) {
+    Block weightUncast = page.getBlock(channels.get(4));
+    if (weightUncast.areAllValuesNull()) {
       return;
     }
-    LongVector count = ((LongBlock) countUncast).asVector();
-    assert count.getPositionCount() == 1;
-    SpatialCentroidGeoPointSourceValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), count.getLong(0));
+    DoubleVector weight = ((DoubleBlock) weightUncast).asVector();
+    assert weight.getPositionCount() == 1;
+    Block shapeTypeUncast = page.getBlock(channels.get(5));
+    if (shapeTypeUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector shapeType = ((IntBlock) shapeTypeUncast).asVector();
+    assert shapeType.getPositionCount() == 1;
+    SpatialCentroidShapeSourceValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), weight.getDouble(0), shapeType.getInt(0));
   }
 
   @Override
@@ -192,7 +199,7 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction impleme
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialCentroidGeoPointSourceValuesAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialCentroidShapeSourceValuesAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

@@ -404,7 +404,8 @@ module org.elasticsearch.server {
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
-            org.elasticsearch.xpack.diskbbq;
+            org.elasticsearch.xpack.diskbbq,
+            org.elasticsearch.xpack.stateless;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;

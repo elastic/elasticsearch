@@ -136,6 +136,8 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
         this.chunkingSettings = in.readOptionalNamedWriteable(ChunkingSettings.class);
 
+        // I'm leaving endpoint metadata as optional because in many cases it will be null. Defaulting it to the empty instance would
+        // also work here but that will cause the object to be serialized when we can get away with a null instead.
         if (in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
             this.endpointMetadata = in.readOptionalWriteable(EndpointMetadata::new);
         } else {
@@ -182,6 +184,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     }
 
     public EndpointMetadata getEndpointMetadata() {
+        // Outside of this class, we'll use the empty instance so callers can avoid the null check
         return Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY_INSTANCE);
     }
 

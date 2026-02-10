@@ -245,6 +245,7 @@ row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
 
 mvSliceEmp
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change, 0, 1)
@@ -308,6 +309,20 @@ warning:Line 2:13: java.lang.ArithmeticException: Acos input out of range
 
 a:double | acos:double
       12 | null
+;
+
+acosh
+required_capability: acosh_function
+// tag::acosh[]
+ROW a=1.8
+| EVAL acosh=ACOSH(a)
+// end::acosh[]
+;
+
+// tag::acosh-result[]
+a:double | acosh:double
+     1.8 | 1.1929107309930491
+// end::acosh-result[]
 ;
 
 sin

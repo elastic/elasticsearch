@@ -22,40 +22,40 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidCartesianPointSourceValuesAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidShapeSourceValuesAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("xVal", ElementType.DOUBLE),
       new IntermediateStateDesc("xDel", ElementType.DOUBLE),
       new IntermediateStateDesc("yVal", ElementType.DOUBLE),
       new IntermediateStateDesc("yDel", ElementType.DOUBLE),
-      new IntermediateStateDesc("count", ElementType.LONG)  );
+      new IntermediateStateDesc("weight", ElementType.DOUBLE),
+      new IntermediateStateDesc("shapeType", ElementType.INT)  );
 
-  private final CentroidPointAggregator.GroupingCentroidState state;
+  private final CentroidShapeAggregator.GroupingShapeCentroidState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction(List<Integer> channels,
-      CentroidPointAggregator.GroupingCentroidState state, DriverContext driverContext) {
+  public SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(List<Integer> channels,
+      CentroidShapeAggregator.GroupingShapeCentroidState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction create(
+  public static SpatialCentroidShapeSourceValuesGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction(channels, SpatialCentroidCartesianPointSourceValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(channels, SpatialCentroidShapeSourceValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -135,7 +135,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
         int wkbEnd = wkbStart + wkbBlock.getValueCount(valuesPosition);
         for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
           BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
-          SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, wkbValue);
+          SpatialCentroidShapeSourceValuesAggregator.combine(state, groupId, wkbValue);
         }
       }
     }
@@ -153,7 +153,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
-        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, wkbValue);
+        SpatialCentroidShapeSourceValuesAggregator.combine(state, groupId, wkbValue);
       }
     }
   }
@@ -182,12 +182,17 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       return;
     }
     DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
-    Block countUncast = page.getBlock(channels.get(4));
-    if (countUncast.areAllValuesNull()) {
+    Block weightUncast = page.getBlock(channels.get(4));
+    if (weightUncast.areAllValuesNull()) {
       return;
     }
-    LongVector count = ((LongBlock) countUncast).asVector();
-    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
+    DoubleVector weight = ((DoubleBlock) weightUncast).asVector();
+    Block shapeTypeUncast = page.getBlock(channels.get(5));
+    if (shapeTypeUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector shapeType = ((IntBlock) shapeTypeUncast).asVector();
+    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == weight.getPositionCount() && xVal.getPositionCount() == shapeType.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -197,7 +202,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), count.getLong(valuesPosition));
+        SpatialCentroidShapeSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), weight.getDouble(valuesPosition), shapeType.getInt(valuesPosition));
       }
     }
   }
@@ -220,7 +225,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
         int wkbEnd = wkbStart + wkbBlock.getValueCount(valuesPosition);
         for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
           BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
-          SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, wkbValue);
+          SpatialCentroidShapeSourceValuesAggregator.combine(state, groupId, wkbValue);
         }
       }
     }
@@ -238,7 +243,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
-        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, wkbValue);
+        SpatialCentroidShapeSourceValuesAggregator.combine(state, groupId, wkbValue);
       }
     }
   }
@@ -267,12 +272,17 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       return;
     }
     DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
-    Block countUncast = page.getBlock(channels.get(4));
-    if (countUncast.areAllValuesNull()) {
+    Block weightUncast = page.getBlock(channels.get(4));
+    if (weightUncast.areAllValuesNull()) {
       return;
     }
-    LongVector count = ((LongBlock) countUncast).asVector();
-    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
+    DoubleVector weight = ((DoubleBlock) weightUncast).asVector();
+    Block shapeTypeUncast = page.getBlock(channels.get(5));
+    if (shapeTypeUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector shapeType = ((IntBlock) shapeTypeUncast).asVector();
+    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == weight.getPositionCount() && xVal.getPositionCount() == shapeType.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -282,7 +292,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), count.getLong(valuesPosition));
+        SpatialCentroidShapeSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), weight.getDouble(valuesPosition), shapeType.getInt(valuesPosition));
       }
     }
   }
@@ -299,7 +309,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       int wkbEnd = wkbStart + wkbBlock.getValueCount(valuesPosition);
       for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
         BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
-        SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, wkbValue);
+        SpatialCentroidShapeSourceValuesAggregator.combine(state, groupId, wkbValue);
       }
     }
   }
@@ -310,7 +320,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
-      SpatialCentroidCartesianPointSourceValuesAggregator.combine(state, groupId, wkbValue);
+      SpatialCentroidShapeSourceValuesAggregator.combine(state, groupId, wkbValue);
     }
   }
 
@@ -338,16 +348,21 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       return;
     }
     DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
-    Block countUncast = page.getBlock(channels.get(4));
-    if (countUncast.areAllValuesNull()) {
+    Block weightUncast = page.getBlock(channels.get(4));
+    if (weightUncast.areAllValuesNull()) {
       return;
     }
-    LongVector count = ((LongBlock) countUncast).asVector();
-    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
+    DoubleVector weight = ((DoubleBlock) weightUncast).asVector();
+    Block shapeTypeUncast = page.getBlock(channels.get(5));
+    if (shapeTypeUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector shapeType = ((IntBlock) shapeTypeUncast).asVector();
+    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == weight.getPositionCount() && xVal.getPositionCount() == shapeType.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), count.getLong(valuesPosition));
+      SpatialCentroidShapeSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), weight.getDouble(valuesPosition), shapeType.getInt(valuesPosition));
     }
   }
 
@@ -370,7 +385,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SpatialCentroidCartesianPointSourceValuesAggregator.evaluateFinal(state, selected, ctx);
+    blocks[offset] = SpatialCentroidShapeSourceValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

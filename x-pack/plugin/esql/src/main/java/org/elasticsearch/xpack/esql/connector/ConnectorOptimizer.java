@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.connector;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
@@ -34,6 +36,8 @@ import java.util.Set;
  * @see Connector#optimizationRules()
  */
 final class ConnectorOptimizer extends RuleExecutor<LogicalPlan> {
+
+    private static final Logger logger = LogManager.getLogger(ConnectorOptimizer.class);
 
     private final List<Rule<?, LogicalPlan>> connectorRules;
 
@@ -64,8 +68,12 @@ final class ConnectorOptimizer extends RuleExecutor<LogicalPlan> {
         if (rules.isEmpty()) {
             return plan;
         }
+        logger.debug("Running [{}] connector optimization rules", rules.size());
+        logger.trace("Connector optimization input plan:\n{}", plan);
         ConnectorOptimizer optimizer = new ConnectorOptimizer(rules);
-        return optimizer.execute(plan);
+        LogicalPlan optimized = optimizer.execute(plan);
+        logger.trace("Connector optimization output plan:\n{}", optimized);
+        return optimized;
     }
 
     /**
@@ -79,7 +87,9 @@ final class ConnectorOptimizer extends RuleExecutor<LogicalPlan> {
             if (p instanceof ConnectorPlan cp) {
                 Connector connector = cp.connector();
                 if (seen.add(connector)) {
-                    rules.addAll(connector.optimizationRules());
+                    List<Rule<?, LogicalPlan>> connectorRules = connector.optimizationRules();
+                    logger.trace("Collected [{}] rules from connector [{}]", connectorRules.size(), connector.type());
+                    rules.addAll(connectorRules);
                 }
             }
         });

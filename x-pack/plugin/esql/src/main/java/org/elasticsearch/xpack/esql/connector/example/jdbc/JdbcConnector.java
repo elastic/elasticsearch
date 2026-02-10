@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.connector.example.jdbc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -54,6 +56,8 @@ import java.util.Locale;
  * </ul>
  */
 public class JdbcConnector extends SqlConnector {
+
+    private static final Logger logger = LogManager.getLogger(JdbcConnector.class);
 
     @Override
     public String type() {
@@ -104,6 +108,7 @@ public class JdbcConnector extends SqlConnector {
         // attrs.add(toAttribute(meta.getColumnName(i), meta.getColumnType(i)));
         // }
         List<Attribute> attrs = readTableSchema(url, username, password, tableName);
+        logger.debug("Resolved JDBC source [{}] with [{}] columns", tableName, attrs.size());
 
         return new JdbcPlan(source.source(), this, source.describe(), attrs, tableName, null, null, null, null, null);
     }
@@ -242,6 +247,7 @@ public class JdbcConnector extends SqlConnector {
         String sql = plan.builtSql() != null ? plan.builtSql() : "SELECT * FROM " + plan.tableName();
         List<Attribute> schema = plan.output();
         String description = "JdbcSourceOperator[" + plan.tableName() + "]";
+        logger.debug("Creating source operator for [{}], executing SQL: {}", plan.tableName(), sql);
 
         return new SourceOperator.SourceOperatorFactory() {
             @Override

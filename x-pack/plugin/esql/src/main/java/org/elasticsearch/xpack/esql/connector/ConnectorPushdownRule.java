@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.connector;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -46,6 +48,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  */
 public abstract class ConnectorPushdownRule<T extends UnaryPlan, P extends ConnectorPlan> extends OptimizerRules.OptimizerRule<T> {
 
+    private final Logger logger = LogManager.getLogger(getClass());
+
     private final Connector connector;
     private final Class<P> planType;
 
@@ -67,7 +71,17 @@ public abstract class ConnectorPushdownRule<T extends UnaryPlan, P extends Conne
         if (connectorPlan.connector() != connector) {
             return plan;
         }
-        return pushDown(plan, connectorPlan);
+        logger.trace(
+            "Pushing [{}] into [{}] for connector [{}]",
+            plan.getClass().getSimpleName(),
+            planType.getSimpleName(),
+            connector.type()
+        );
+        LogicalPlan result = pushDown(plan, connectorPlan);
+        if (result == plan) {
+            logger.trace("Pushdown skipped — operation not translatable");
+        }
+        return result;
     }
 
     /**

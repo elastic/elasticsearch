@@ -87,7 +87,11 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
+        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(
+            bigArrays,
+            IdFieldMapper.NAME,
+            () -> mapperService != null && mapperService.getIndexSettings().isBloomFilterDocValuesOptimizedMergeEnabled()
+        );
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {

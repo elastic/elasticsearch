@@ -739,6 +739,40 @@ public final class IndexSettings {
         }
     }, Property.IndexScope, Property.Final);
 
+    public static final Setting<Boolean> BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED = Setting.boolSetting(
+        "index.bloom_filter_doc_values.optimized_merge.enabled",
+        true,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean enabled) {}
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled == false) {
+                    var syntheticIdEnabled = (Boolean) settings.get(SYNTHETIC_ID);
+                    if (syntheticIdEnabled == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [true].",
+                                BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(),
+                                SYNTHETIC_ID.getKey()
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> list = List.of(SYNTHETIC_ID);
+                return list.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -1069,6 +1103,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
     private final boolean useEs812PostingsFormat;
+    private volatile boolean bloomFilterDocValuesOptimizedMergeEnabled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1289,6 +1324,7 @@ public final class IndexSettings {
         } else {
             useTimeSeriesSyntheticId = false;
         }
+        bloomFilterDocValuesOptimizedMergeEnabled = scopedSettings.get(BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1404,6 +1440,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED,
+            this::setBloomFilterDocValuesOptimizedMergeEnabled
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2042,6 +2082,17 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    /**
+     * @return Whether the bloom filter doc values optimized merge is enabled.
+     */
+    public boolean isBloomFilterDocValuesOptimizedMergeEnabled() {
+        return bloomFilterDocValuesOptimizedMergeEnabled;
+    }
+
+    private void setBloomFilterDocValuesOptimizedMergeEnabled(boolean enabled) {
+        this.bloomFilterDocValuesOptimizedMergeEnabled = enabled;
     }
 
     /**

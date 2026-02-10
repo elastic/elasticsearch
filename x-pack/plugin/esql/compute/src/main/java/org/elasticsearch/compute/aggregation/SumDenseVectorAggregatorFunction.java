@@ -33,13 +33,10 @@ public class SumDenseVectorAggregatorFunction implements AggregatorFunction {
 
     private final SumDenseVectorAggregatorState state;
     private final List<Integer> channels;
-    private final DriverContext driverContext;
-    private float[] buffer;
 
-    public SumDenseVectorAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+    public SumDenseVectorAggregatorFunction(List<Integer> channels) {
         this.state = new SumDenseVectorAggregatorState();
         this.channels = channels;
-        this.driverContext = driverContext;
     }
 
     @Override

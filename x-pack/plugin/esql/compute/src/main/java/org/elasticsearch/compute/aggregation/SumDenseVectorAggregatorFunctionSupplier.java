@@ -28,7 +28,7 @@ public class SumDenseVectorAggregatorFunctionSupplier implements AggregatorFunct
 
     @Override
     public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-        return new SumDenseVectorAggregatorFunction(channels, driverContext);
+        return new SumDenseVectorAggregatorFunction(channels);
     }
 
     @Override

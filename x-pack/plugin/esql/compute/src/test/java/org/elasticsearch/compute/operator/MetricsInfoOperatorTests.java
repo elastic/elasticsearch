@@ -87,12 +87,12 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("MetricsInfoOperator[metadataSourceChannel=0, indexChannel=1]");
+        return equalTo("MetricsInfoOperator[mode=INITIAL, metadataSourceChannel=0, indexChannel=1]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("MetricsInfoOperator[]");
+        return equalTo("MetricsInfoOperator[mode=INITIAL]");
     }
 
     @Override
@@ -603,13 +603,306 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testFactoryDescribe() {
         MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, 3, 7);
-        assertThat(factory.describe(), equalTo("MetricsInfoOperator[metadataSourceChannel=3, indexChannel=7]"));
+        assertThat(factory.describe(), equalTo("MetricsInfoOperator[mode=INITIAL, metadataSourceChannel=3, indexChannel=7]"));
     }
 
     public void testToString() {
         BlockFactory blockFactory = driverContext().blockFactory();
         try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, 0, 1)) {
-            assertThat(op.toString(), equalTo("MetricsInfoOperator[]"));
+            assertThat(op.toString(), equalTo("MetricsInfoOperator[mode=INITIAL]"));
+        }
+    }
+
+    // ---- FINAL mode tests ----
+
+    private static final int[] FINAL_CHANNELS = { 0, 1, 2, 3, 4, 5 };
+
+    public void testFinalModeIdenticalRowsFromTwoDataNodesAreMerged() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            // Two data nodes produced identical rows for cpu_usage on index-a
+            Page page1 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            Page page2 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+
+            op.addInput(page1);
+            op.addInput(page2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("index-a")));
+            assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("host")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testFinalModePartiallyOverlappingDataStreamsAreMerged() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            // Data node 1 saw index-a and index-b; data node 2 saw index-a and index-c
+            Page page1 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a", "index-b"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            Page page2 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a", "index-c"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+
+            op.addInput(page1);
+            op.addInput(page2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("index-a", "index-b", "index-c")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testFinalModeDifferentMetricNamesRemainSeparateRows() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            Page page1 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            Page page2 = buildFinalPage(
+                blockFactory,
+                "disk_io",
+                Set.of("index-a"),
+                Set.of("bytes"),
+                Set.of("counter"),
+                Set.of("long"),
+                Set.of("host")
+            );
+
+            op.addInput(page1);
+            op.addInput(page2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(2));
+            assertThat(collectColumnValues(output, 0), equalTo(Set.of("cpu_usage", "disk_io")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testFinalModeDifferentSignaturesProduceSeparateRows() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            // Same metric name but different field_type → different signatures → 2 rows
+            Page page1 = buildFinalPage(
+                blockFactory,
+                "cpu",
+                Set.of("index-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            Page page2 = buildFinalPage(
+                blockFactory,
+                "cpu",
+                Set.of("index-b"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("float"),
+                Set.of("host")
+            );
+
+            op.addInput(page1);
+            op.addInput(page2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testFinalModeEmptyInputProducesEmptyOutput() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(0));
+            assertThat(output.getBlockCount(), equalTo(MetricsInfoOperator.NUM_BLOCKS));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testFinalModeSingleDataNodeInputPassesThrough() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            Page page = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host", "region")
+            );
+
+            op.addInput(page);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("index-a")));
+            assertThat(collectMultiValues(output, 2, 0), equalTo(Set.of("percent")));
+            assertThat(collectMultiValues(output, 3, 0), equalTo(Set.of("gauge")));
+            assertThat(collectMultiValues(output, 4, 0), equalTo(Set.of("double")));
+            assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("host", "region")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    public void testFinalModeDimensionFieldsAreUnionedAcrossDataNodes() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            // Data node 1 saw dimension "host"; data node 2 saw dimension "region"
+            Page page1 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            Page page2 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("index-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("region")
+            );
+
+            op.addInput(page1);
+            op.addInput(page2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("host", "region")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * Build a single-row 6-column page for FINAL mode input, matching the MetricsInfo output schema.
+     */
+    private static Page buildFinalPage(
+        BlockFactory blockFactory,
+        String metricName,
+        Set<String> dataStreams,
+        Set<String> units,
+        Set<String> metricTypes,
+        Set<String> fieldTypes,
+        Set<String> dimensionFields
+    ) {
+        try (
+            BytesRefBlock.Builder nameB = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder dsB = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder unitB = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder mtB = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder ftB = blockFactory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder dfB = blockFactory.newBytesRefBlockBuilder(1)
+        ) {
+            nameB.appendBytesRef(new BytesRef(metricName));
+            appendSet(dsB, dataStreams);
+            appendSet(unitB, units);
+            appendSet(mtB, metricTypes);
+            appendSet(ftB, fieldTypes);
+            appendSet(dfB, dimensionFields);
+            return new Page(nameB.build(), dsB.build(), unitB.build(), mtB.build(), ftB.build(), dfB.build());
+        }
+    }
+
+    private static void appendSet(BytesRefBlock.Builder builder, Set<String> values) {
+        if (values == null || values.isEmpty()) {
+            builder.appendNull();
+        } else if (values.size() == 1) {
+            builder.appendBytesRef(new BytesRef(values.iterator().next()));
+        } else {
+            builder.beginPositionEntry();
+            for (String v : values) {
+                builder.appendBytesRef(new BytesRef(v));
+            }
+            builder.endPositionEntry();
         }
     }
 

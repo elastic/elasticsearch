@@ -26,25 +26,19 @@ import java.util.Set;
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
  * <p>
- * Expects deduplicated input (one row per {@code _tsid}) from upstream {@link DistinctByOperator},
- * with blocks for {@code _timeseries_metadata} and {@code _index}. Produces one row per distinct
- * metric signature, with metadata aggregated from all matching documents.
+ * Operates in two modes, mirroring the two-phase INITIAL/FINAL pattern used by aggregations:
+ * <ul>
+ *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects deduplicated input
+ *       (one row per {@code _tsid}) from an upstream {@link DistinctByOperator}, with blocks for
+ *       {@code _timeseries_metadata} and {@code _index}. Produces one row per distinct metric
+ *       signature within the local shards.</li>
+ *   <li><b>FINAL</b> (coordinator) – created via {@link FinalFactory}. Receives the 6-column
+ *       output pages produced by INITIAL instances on each data node and merges rows that share
+ *       the same {@link MetricSignature}, unioning multi-valued fields ({@code data_stream},
+ *       {@code dimension_fields}, etc.).</li>
+ * </ul>
  *
- * <h2>Processing</h2>
- * <ol>
- *   <li><b>During {@link #addInput(Page)}:</b> For each row, parses the {@code _timeseries_metadata}
- *       JSON and walks the metadata map. For each leaf key, {@link MetricFieldLookup} is used to
- *       determine if it is a metric field; if so, it is aggregated into an internal map keyed by
- *       {@code (metricName, dataStreamName)}, where {@code dataStreamName} is the index name from
- *       {@code _index}. Non-metric leaf keys are collected as dimension keys and associated with
- *       all metrics seen in that document.</li>
- *   <li><b>When building output:</b> In {@link #getOutput()}, {@link #createOutputPage()} runs once.
- *       It merges aggregated entries by {@link MetricSignature} (metric name plus units, field
- *       types, and metric types). Data streams that share the same signature are combined into one
- *       output row with multi-valued {@code data_stream} and a union of {@code dimension_fields}.</li>
- * </ol>
- *
- * <h2>Output columns</h2>
+ * <h2>Output columns (both modes)</h2>
  * <ul>
  *   <li>{@code metric_name} – keyword (single-valued)</li>
  *   <li>{@code data_stream} – keyword (multi-valued); indices/data streams that have this metric
@@ -120,8 +114,16 @@ public class MetricsInfoOperator implements Operator {
         MetricFieldInfo lookup(String indexName, String fieldName);
     }
 
+    /** Column indices in the 6-column output. Used by FINAL mode to read incoming pages. */
+    private static final int COL_METRIC_NAME = 0;
+    private static final int COL_DATA_STREAM = 1;
+    private static final int COL_UNIT = 2;
+    private static final int COL_METRIC_TYPE = 3;
+    private static final int COL_FIELD_TYPE = 4;
+    private static final int COL_DIMENSION_FIELDS = 5;
+
     /**
-     * Factory for creating {@link MetricsInfoOperator} instances.
+     * Factory for INITIAL mode (data nodes): extracts metric metadata from shards.
      *
      * @param fieldLookup          on-demand lookup for metric field metadata
      * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
@@ -135,33 +137,76 @@ public class MetricsInfoOperator implements Operator {
 
         @Override
         public String describe() {
-            return "MetricsInfoOperator[metadataSourceChannel=" + metadataSourceChannel + ", indexChannel=" + indexChannel + "]";
+            return "MetricsInfoOperator[mode=INITIAL, metadataSourceChannel="
+                + metadataSourceChannel
+                + ", indexChannel="
+                + indexChannel
+                + "]";
+        }
+    }
+
+    /**
+     * Factory for FINAL mode (coordinator): merges 6-column pages from multiple data nodes.
+     *
+     * @param channels the 6 input channel indices for
+     *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields]
+     */
+    public record FinalFactory(int[] channels) implements OperatorFactory {
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new MetricsInfoOperator(driverContext.blockFactory(), channels);
+        }
+
+        @Override
+        public String describe() {
+            return "MetricsInfoOperator[mode=FINAL]";
         }
     }
 
     private final Map<MetricInfoKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
+    /** Accumulates merged rows in FINAL mode. Null in INITIAL mode. */
+    private final Map<MetricSignature, MetricInfoRow> mergedRows;
 
     private final BlockFactory blockFactory;
+    /** INITIAL-mode fields (null in FINAL mode). */
     private final MetricFieldLookup fieldLookup;
     private final int metadataSourceChannel;
     private final int indexChannel;
+    /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
+    private final int[] finalChannels;
 
     private boolean finished = false;
     private boolean outputProduced = false;
 
     /**
-     * Creates a METRICS_INFO operator.
-     *
-     * @param blockFactory         factory for building output blocks
-     * @param fieldLookup          on-demand lookup for metric field metadata
-     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block (-1 if absent)
-     * @param indexChannel         channel index for {@code _index} block (-1 if absent)
+     * Creates an INITIAL-mode operator (data nodes).
      */
     public MetricsInfoOperator(BlockFactory blockFactory, MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) {
         this.blockFactory = blockFactory;
         this.fieldLookup = fieldLookup;
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
+        this.finalChannels = null;
+        this.mergedRows = null;
+    }
+
+    /**
+     * Creates a FINAL-mode operator (coordinator).
+     *
+     * @param channels the 6 input channel indices mapping to
+     *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields]
+     */
+    public MetricsInfoOperator(BlockFactory blockFactory, int[] channels) {
+        this.blockFactory = blockFactory;
+        this.fieldLookup = null;
+        this.metadataSourceChannel = -1;
+        this.indexChannel = -1;
+        this.finalChannels = channels;
+        this.mergedRows = new LinkedHashMap<>();
+    }
+
+    private boolean isFinalMode() {
+        return finalChannels != null;
     }
 
     @Override
@@ -171,6 +216,15 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        if (isFinalMode()) {
+            addInputFinal(page);
+        } else {
+            addInputInitial(page);
+        }
+    }
+
+    /** INITIAL mode: extract metric metadata from _timeseries_metadata and _index blocks. */
+    private void addInputInitial(Page page) {
         BytesRefBlock metadataSource = metadataSourceChannel >= 0 ? (BytesRefBlock) page.getBlock(metadataSourceChannel) : null;
         BytesRefBlock indexBlock = indexChannel >= 0 ? (BytesRefBlock) page.getBlock(indexChannel) : null;
 
@@ -194,6 +248,59 @@ public class MetricsInfoOperator implements Operator {
         }
 
         page.releaseBlocks();
+    }
+
+    /** FINAL mode: read the 6-column output from data nodes and merge by metric signature. */
+    private void addInputFinal(Page page) {
+        BytesRefBlock nameBlock = page.getBlock(finalChannels[COL_METRIC_NAME]);
+        BytesRefBlock dsBlock = page.getBlock(finalChannels[COL_DATA_STREAM]);
+        BytesRefBlock unitBlock = page.getBlock(finalChannels[COL_UNIT]);
+        BytesRefBlock mtBlock = page.getBlock(finalChannels[COL_METRIC_TYPE]);
+        BytesRefBlock ftBlock = page.getBlock(finalChannels[COL_FIELD_TYPE]);
+        BytesRefBlock dfBlock = page.getBlock(finalChannels[COL_DIMENSION_FIELDS]);
+
+        for (int pos = 0; pos < page.getPositionCount(); pos++) {
+            String metricName = readSingleValue(nameBlock, pos);
+            if (metricName == null) {
+                continue;
+            }
+
+            Set<String> units = readMultiValue(unitBlock, pos);
+            Set<String> fieldTypes = readMultiValue(ftBlock, pos);
+            Set<String> metricTypes = readMultiValue(mtBlock, pos);
+
+            MetricSignature sig = new MetricSignature(metricName, units, fieldTypes, metricTypes);
+            MetricInfoRow row = mergedRows.computeIfAbsent(
+                sig,
+                s -> new MetricInfoRow(s.metricName(), s.units(), s.fieldTypes(), s.metricTypes())
+            );
+
+            row.dataStreams.addAll(readMultiValue(dsBlock, pos));
+            row.dimensionFieldKeys.addAll(readMultiValue(dfBlock, pos));
+        }
+
+        page.releaseBlocks();
+    }
+
+    private static String readSingleValue(BytesRefBlock block, int position) {
+        if (block.isNull(position)) {
+            return null;
+        }
+        return block.getBytesRef(position, new BytesRef()).utf8ToString();
+    }
+
+    private static Set<String> readMultiValue(BytesRefBlock block, int position) {
+        Set<String> values = new HashSet<>();
+        if (block.isNull(position)) {
+            return values;
+        }
+        int start = block.getFirstValueIndex(position);
+        int count = block.getValueCount(position);
+        BytesRef scratch = new BytesRef();
+        for (int i = 0; i < count; i++) {
+            values.add(block.getBytesRef(start + i, scratch).utf8ToString());
+        }
+        return values;
     }
 
     @SuppressWarnings("unchecked")
@@ -267,11 +374,15 @@ public class MetricsInfoOperator implements Operator {
 
         outputProduced = true;
 
+        if (isFinalMode()) {
+            return mergedRows.isEmpty() ? createEmptyPage() : createOutputPageFromRows(new ArrayList<>(mergedRows.values()));
+        }
+
         if (metricsByKey.isEmpty()) {
             return createEmptyPage();
         }
 
-        return createOutputPage();
+        return createOutputPageFromRows(mergeRowsBySignature(metricsByKey));
     }
 
     private Page createEmptyPage() {
@@ -287,9 +398,7 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    private Page createOutputPage() {
-        // Step 2: Merge data streams with the same signature into one row
-        List<MetricInfoRow> rows = mergeRowsBySignature(metricsByKey);
+    private Page createOutputPageFromRows(List<MetricInfoRow> rows) {
         int rowCount = rows.size();
 
         Block[] blocks = new Block[NUM_BLOCKS];
@@ -361,6 +470,6 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public String toString() {
-        return "MetricsInfoOperator[]";
+        return "MetricsInfoOperator[mode=" + (isFinalMode() ? "FINAL" : "INITIAL") + "]";
     }
 }

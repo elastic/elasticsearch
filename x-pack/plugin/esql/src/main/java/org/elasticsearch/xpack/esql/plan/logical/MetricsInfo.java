@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * A {@code MetricsInfo} is a plan node that returns one row per metric with metadata.
  * It must be used before the first STATS command and works with TS source commands.
  */
-public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
+public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "MetricsInfo",

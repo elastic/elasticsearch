@@ -21,6 +21,16 @@ import java.util.Objects;
 
 /**
  * Physical plan node for METRICS_INFO command.
+ * <p>
+ * Operates in two modes, similar to {@link AggregateExec}:
+ * <ul>
+ *   <li>{@link Mode#INITIAL} — runs on data nodes. Extracts metric metadata from shards
+ *       ({@code _tsid}, {@code _timeseries_metadata}, mappings) and produces one row per
+ *       distinct metric signature within the local shards.</li>
+ *   <li>{@link Mode#FINAL} — runs on the coordinator. Receives per-data-node results via
+ *       the exchange and merges rows that share the same metric signature, unioning
+ *       multi-valued fields ({@code data_stream}, {@code dimension_fields}, etc.).</li>
+ * </ul>
  */
 public class MetricsInfoExec extends UnaryExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -29,18 +39,31 @@ public class MetricsInfoExec extends UnaryExec {
         MetricsInfoExec::new
     );
 
-    private final List<Attribute> outputAttrs;
+    /**
+     * Execution mode, mirroring the two-phase pattern used by aggregations.
+     */
+    public enum Mode {
+        /** Data-node phase: full shard extraction → per-node metric rows. */
+        INITIAL,
+        /** Coordinator phase: merge rows from all data nodes by metric signature. */
+        FINAL
+    }
 
-    public MetricsInfoExec(Source source, PhysicalPlan child, List<Attribute> output) {
+    private final List<Attribute> outputAttrs;
+    private final Mode mode;
+
+    public MetricsInfoExec(Source source, PhysicalPlan child, List<Attribute> output, Mode mode) {
         super(source, child);
         this.outputAttrs = output;
+        this.mode = mode;
     }
 
     private MetricsInfoExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readEnum(Mode.class)
         );
     }
 
@@ -49,6 +72,7 @@ public class MetricsInfoExec extends UnaryExec {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(outputAttrs);
+        out.writeEnum(mode);
     }
 
     @Override
@@ -56,14 +80,18 @@ public class MetricsInfoExec extends UnaryExec {
         return ENTRY.name;
     }
 
+    public Mode mode() {
+        return mode;
+    }
+
     @Override
     protected NodeInfo<MetricsInfoExec> info() {
-        return NodeInfo.create(this, MetricsInfoExec::new, child(), outputAttrs);
+        return NodeInfo.create(this, MetricsInfoExec::new, child(), outputAttrs, mode);
     }
 
     @Override
     public MetricsInfoExec replaceChild(PhysicalPlan newChild) {
-        return new MetricsInfoExec(source(), newChild, outputAttrs);
+        return new MetricsInfoExec(source(), newChild, outputAttrs, mode);
     }
 
     @Override
@@ -73,12 +101,19 @@ public class MetricsInfoExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
+        // In FINAL mode the merge operator reads all 6 columns from the child (exchange),
+        // so every output attribute is also a reference to the child's output.
+        // Without this, the optimizer prunes unused columns from the exchange and the
+        // merge operator fails with missing channels.
+        if (mode == Mode.FINAL) {
+            return AttributeSet.builder().addAll(outputAttrs).build();
+        }
         return AttributeSet.EMPTY;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), outputAttrs);
+        return Objects.hash(child(), outputAttrs, mode);
     }
 
     @Override
@@ -91,6 +126,6 @@ public class MetricsInfoExec extends UnaryExec {
         }
 
         MetricsInfoExec other = (MetricsInfoExec) obj;
-        return Objects.equals(child(), other.child()) && Objects.equals(outputAttrs, other.outputAttrs);
+        return mode == other.mode && Objects.equals(child(), other.child()) && Objects.equals(outputAttrs, other.outputAttrs);
     }
 }

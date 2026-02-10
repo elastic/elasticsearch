@@ -848,6 +848,10 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planMetricsInfo(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
+        if (metricsInfoExec.mode() == MetricsInfoExec.Mode.FINAL) {
+            return planMetricsInfoFinal(metricsInfoExec, context);
+        }
+        // INITIAL mode: extraction on data nodes.
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             metricsInfoExec.source(),
@@ -919,6 +923,25 @@ public class LocalExecutionPlanner {
             new MetricsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel),
             layoutBuilder.build()
         );
+    }
+
+    /**
+     * FINAL mode: runs on the coordinator. Reads the 6-column MetricsInfo output from the
+     * exchange (produced by data-node INITIAL phases) and merges rows by metric signature.
+     */
+    private PhysicalOperation planMetricsInfoFinal(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(metricsInfoExec.child(), context);
+
+        List<Attribute> outputAttrs = metricsInfoExec.output();
+        int[] channels = new int[outputAttrs.size()];
+        for (int i = 0; i < outputAttrs.size(); i++) {
+            channels[i] = source.layout.get(outputAttrs.get(i).id()).channel();
+        }
+
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        layoutBuilder.append(outputAttrs);
+
+        return source.with(new MetricsInfoOperator.FinalFactory(channels), layoutBuilder.build());
     }
 
     private static MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {

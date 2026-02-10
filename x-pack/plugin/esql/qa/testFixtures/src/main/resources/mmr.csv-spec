@@ -73,14 +73,14 @@ required_capability: mmr_v2
 FROM mmr_text_vector_keyword
 | SORT keyword_field
 | LIMIT 10
-| MMR [15, 25, 35] ON byte_vector LIMIT 3 WITH { "lambda": 0.9 }
+| MMR [15, 25, -35] ON byte_vector LIMIT 3 WITH { "lambda": 0.9 }
 | KEEP keyword_field, text_body
 ;
 
 keyword_field:keyword | text_body:text     
-test3                 | third text
+test5                 | fifth text
+test6                 | sixth text
 test7                 | seventh text
-test8                 | eighth text
 ;
 
 

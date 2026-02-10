@@ -318,6 +318,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.UiamCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -1068,12 +1069,14 @@ public class MachineLearning extends Plugin
             indexNameExpressionResolver,
             () -> NativeMemoryCalculator.getMaxModelMemoryLimit(clusterService)
         );
+        UiamCredentialManager uiamCredentialManager = new UiamCredentialManager(client, threadPool);
         DatafeedManager datafeedManager = new DatafeedManager(
             datafeedConfigProvider,
             jobConfigProvider,
             xContentRegistry,
             settings,
-            client
+            client,
+            uiamCredentialManager
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1393,7 +1396,6 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
-
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),

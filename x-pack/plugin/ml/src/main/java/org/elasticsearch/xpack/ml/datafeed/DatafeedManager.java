@@ -56,8 +56,11 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -86,13 +89,15 @@ public final class DatafeedManager {
     private final Client client;
     private final Settings settings;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final UiamCredentialManager uiamCredentialManager;
 
     public DatafeedManager(
         DatafeedConfigProvider datafeedConfigProvider,
         JobConfigProvider jobConfigProvider,
         NamedXContentRegistry xContentRegistry,
         Settings settings,
-        Client client
+        Client client,
+        UiamCredentialManager uiamCredentialManager
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
@@ -100,6 +105,7 @@ public final class DatafeedManager {
         this.client = client;
         this.settings = settings;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.uiamCredentialManager = Objects.requireNonNull(uiamCredentialManager);
     }
 
     public void putDatafeed(
@@ -165,7 +171,12 @@ public final class DatafeedManager {
                 }
             });
         } else {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            // Check if this is a CPS datafeed even without security (e.g. for testing)
+            if (crossProjectModeDecider.crossProjectEnabled() && uiamCredentialManager.hasUiamCredential()) {
+                grantCpsKeyAndPutDatafeed(request, state, listener);
+            } else {
+                putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
+            }
         }
     }
 
@@ -221,6 +232,7 @@ public final class DatafeedManager {
 
         Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
             final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+            final boolean hasUiamCredential = uiamCredentialManager.hasUiamCredential();
 
             // Wrap the validator to check project_routing requires CPS environment.
             // This validation is applied to the updated config (after the update is applied to the existing config).
@@ -239,13 +251,19 @@ public final class DatafeedManager {
                 jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
             };
 
-            datafeedConfigProvider.updateDatefeedConfig(
-                request.getUpdate().getId(),
-                request.getUpdate(),
-                headers,
-                wrappedValidator,
-                listener.delegateFailureAndWrap((l, updatedConfig) -> l.onResponse(new PutDatafeedAction.Response(updatedConfig)))
-            );
+            // CPS migration check: if the environment supports CPS and the request carries a UIAM credential,
+            // we may need to mint an internal API key for a legacy datafeed transitioning to CPS.
+            if (crossProjectModeDecider.crossProjectEnabled() && hasUiamCredential) {
+                applyCpsUpdateWithRekey(request, wrappedValidator, listener);
+            } else {
+                datafeedConfigProvider.updateDatefeedConfig(
+                    request.getUpdate().getId(),
+                    request.getUpdate(),
+                    headers,
+                    wrappedValidator,
+                    listener.delegateFailureAndWrap((l, updatedConfig) -> l.onResponse(new PutDatafeedAction.Response(updatedConfig)))
+                );
+            }
         });
 
         // Obviously if we're updating a datafeed it's impossible that the config index has no mappings at
@@ -261,6 +279,88 @@ public final class DatafeedManager {
         );
     }
 
+    /**
+     * Grants a new UIAM internal API key, applies the datafeed update with CPS headers,
+     * patches the stored credential, and best-effort revokes the old key if one existed (re-key case).
+     */
+    private void applyCpsUpdateWithRekey(
+        UpdateDatafeedAction.Request request,
+        BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        String datafeedId = request.getUpdate().getId();
+
+        // Grant the internal API key using the current UIAM credential.
+        uiamCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
+            logger.info("[{}] Minted internal API key for CPS datafeed update (migration or re-key)", datafeedId);
+
+            Map<String, String> cpsHeaders = result.authHeaders();
+
+            // Wrap listener to revoke the newly minted key if any downstream operation fails
+            ActionListener<PutDatafeedAction.Response> guardedListener = revokeKeyOnFailure(result.apiKeyId(), datafeedId, listener);
+
+            // Apply the standard update with CPS auth headers, then patch the credential
+            datafeedConfigProvider.updateDatefeedConfig(
+                datafeedId,
+                request.getUpdate(),
+                cpsHeaders,
+                wrappedValidator,
+                guardedListener.delegateFailureAndWrap(
+                    (l, updatedConfig) -> patchKeyAndRevokeOld(datafeedId, result, cpsHeaders, updatedConfig, l)
+                )
+            );
+        }, listener::onFailure));
+    }
+
+    /**
+     * Patches the newly minted internal API key credential into the datafeed config
+     * and best-effort revokes the previous key if one existed (re-key / migration case).
+     */
+    private void patchKeyAndRevokeOld(
+        String datafeedId,
+        UiamCredentialManager.InternalApiKeyResult newKey,
+        Map<String, String> cpsHeaders,
+        DatafeedConfig updatedConfig,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        String oldEncodedKey = updatedConfig.getCloudInternalApiKey();
+        datafeedConfigProvider.patchCloudInternalApiKey(
+            datafeedId,
+            newKey.encodedCredential(),
+            cpsHeaders,
+            listener.delegateFailureAndWrap((l, patchedConfig) -> {
+                if (oldEncodedKey != null) {
+                    bestEffortRevokeOldKey(datafeedId, oldEncodedKey, patchedConfig, l);
+                } else {
+                    l.onResponse(new PutDatafeedAction.Response(patchedConfig));
+                }
+            })
+        );
+    }
+
+    /**
+     * Best-effort revokes an old UIAM internal API key after a successful re-key.
+     * Revocation failure is logged but does not fail the update operation.
+     */
+    private void bestEffortRevokeOldKey(
+        String datafeedId,
+        String oldEncodedKey,
+        DatafeedConfig patchedConfig,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        String oldApiKeyId = extractApiKeyId(oldEncodedKey);
+        if (oldApiKeyId == null) {
+            listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
+            return;
+        }
+        uiamCredentialManager.revokeApiKey(oldApiKeyId, datafeedId, ActionListener.wrap(revoked -> {
+            listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
+        }, e -> {
+            logger.warn("[{}] Failed to revoke old internal API key during update, proceeding anyway", datafeedId, e);
+            listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
+        }));
+    }
+
     public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         if (getDatafeedTask(state, request.getDatafeedId()) != null) {
             listener.onFailure(
@@ -274,18 +374,62 @@ public final class DatafeedManager {
         String datafeedId = request.getDatafeedId();
 
         datafeedConfigProvider.getDatafeedConfig(datafeedId, null, listener.delegateFailureAndWrap((delegate, datafeedConfigBuilder) -> {
-            String jobId = datafeedConfigBuilder.build().getJobId();
-            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
-            jobDataDeleter.deleteDatafeedTimingStats(
-                delegate.delegateFailureAndWrap(
-                    (l, unused1) -> datafeedConfigProvider.deleteDatafeedConfig(
-                        datafeedId,
-                        l.delegateFailureAndWrap((ll, unused2) -> ll.onResponse(AcknowledgedResponse.TRUE))
+            DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+            String jobId = datafeedConfig.getJobId();
+
+            // Revoke internal API key if this is a CPS datafeed (best-effort, don't block deletion)
+            Runnable proceedWithDeletion = () -> {
+                JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                jobDataDeleter.deleteDatafeedTimingStats(
+                    delegate.delegateFailureAndWrap(
+                        (l, unused1) -> datafeedConfigProvider.deleteDatafeedConfig(
+                            datafeedId,
+                            l.delegateFailureAndWrap((ll, unused2) -> ll.onResponse(AcknowledgedResponse.TRUE))
+                        )
                     )
-                )
-            );
+                );
+            };
+
+            if (datafeedConfig.getCloudInternalApiKey() != null) {
+                // Extract the API key ID from the encoded credential (base64 of "id:key")
+                String apiKeyId = extractApiKeyId(datafeedConfig.getCloudInternalApiKey());
+                if (apiKeyId == null) {
+                    logger.warn("[{}] Could not extract API key ID from stored credential; skipping revocation", datafeedId);
+                    proceedWithDeletion.run();
+                    return;
+                }
+                uiamCredentialManager.revokeApiKey(apiKeyId, datafeedId, ActionListener.wrap(revoked -> {
+                    if (revoked) {
+                        logger.info("[{}] Internal API key revoked prior to deletion", datafeedId);
+                    }
+                    proceedWithDeletion.run();
+                }, e -> {
+                    // Log but don't fail - proceed with deletion
+                    logger.warn("[{}] Failed to revoke internal API key during deletion, proceeding anyway", datafeedId, e);
+                    proceedWithDeletion.run();
+                }));
+            } else {
+                proceedWithDeletion.run();
+            }
         }));
 
+    }
+
+    /**
+     * Extracts the API key ID from a Base64-encoded API key credential (format: base64("id:key")).
+     */
+    static String extractApiKeyId(String encodedCredential) {
+        try {
+            String decoded = new String(Base64.getDecoder().decode(encodedCredential), StandardCharsets.UTF_8);
+            int colonIndex = decoded.indexOf(':');
+            if (colonIndex > 0) {
+                return decoded.substring(0, colonIndex);
+            }
+            return null;
+        } catch (Exception e) {
+            logger.warn("Failed to extract API key ID from encoded credential", e);
+            return null;
+        }
     }
 
     private static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
@@ -302,7 +446,13 @@ public final class DatafeedManager {
         ActionListener<PutDatafeedAction.Response> listener
     ) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
+            // Check if this is a CPS datafeed that needs an internal API key
+            if (crossProjectModeDecider.crossProjectEnabled() && uiamCredentialManager.hasUiamCredential()) {
+                grantCpsKeyAndPutDatafeed(request, clusterState, listener);
+            } else {
+                // Legacy path - no CPS or no UIAM credential
+                putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
+            }
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
@@ -321,6 +471,53 @@ public final class DatafeedManager {
                 )
             );
         }
+    }
+
+    /**
+     * Grants a CPS internal API key for the datafeed, updates the request with the new key and auth headers,
+     * then delegates to {@link #putDatafeed}. Used by both the security and non-security creation paths.
+     * If any downstream operation fails after the key is created, the key is revoked to prevent leaks.
+     */
+    private void grantCpsKeyAndPutDatafeed(
+        PutDatafeedAction.Request request,
+        ClusterState clusterState,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        String datafeedId = request.getDatafeed().getId();
+        logger.info("[{}] CPS-enabled datafeed creation detected; minting internal API key", datafeedId);
+
+        uiamCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
+            DatafeedConfig.Builder builder = new DatafeedConfig.Builder(request.getDatafeed());
+            builder.setCloudInternalApiKey(result.encodedCredential());
+            builder.setHeaders(result.authHeaders());
+            PutDatafeedAction.Request updatedRequest = new PutDatafeedAction.Request(builder.build());
+            updatedRequest.masterNodeTimeout(request.masterNodeTimeout());
+            // Wrap listener to revoke the newly minted key if downstream operations (validation, persistence) fail
+            putDatafeed(updatedRequest, result.authHeaders(), clusterState, revokeKeyOnFailure(result.apiKeyId(), datafeedId, listener));
+        }, e -> {
+            logger.error("[{}] Failed to create internal API key for CPS datafeed", datafeedId, e);
+            listener.onFailure(e);
+        }));
+    }
+
+    /**
+     * Wraps a listener to best-effort revoke a newly minted CPS API key when downstream operations fail.
+     * This prevents key leaks when operations (validation, persistence, etc.) fail after key creation.
+     * The original failure is always propagated to the delegate listener regardless of revocation outcome.
+     */
+    private <T> ActionListener<T> revokeKeyOnFailure(String apiKeyId, String datafeedId, ActionListener<T> delegate) {
+        return ActionListener.wrap(delegate::onResponse, e -> {
+            logger.warn("[{}] Downstream operation failed after CPS key creation; revoking key (key_id={})", datafeedId, apiKeyId);
+            uiamCredentialManager.revokeApiKey(apiKeyId, datafeedId, ActionListener.wrap(revoked -> delegate.onFailure(e), revokeError -> {
+                logger.warn(
+                    "[{}] Additionally failed to revoke leaked CPS key (key_id={}): {}",
+                    datafeedId,
+                    apiKeyId,
+                    revokeError.getMessage()
+                );
+                delegate.onFailure(e);
+            }));
+        });
     }
 
     private void putDatafeed(

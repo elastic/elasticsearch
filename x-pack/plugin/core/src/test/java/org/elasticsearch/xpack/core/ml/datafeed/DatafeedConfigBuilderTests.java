@@ -116,6 +116,10 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         // with mismatched indicesOptions. project_routing is tested separately in dedicated tests.
 
         if (randomBoolean()) {
+            builder.setCloudInternalApiKey(randomAlphaOfLength(20));
+        }
+
+        if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
             settings.put("type", "keyword");
             settings.put("script", "");

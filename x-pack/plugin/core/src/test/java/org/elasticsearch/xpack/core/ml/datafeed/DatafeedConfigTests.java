@@ -958,7 +958,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 13)) {
+        switch (between(0, 14)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1064,6 +1064,13 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                     builder.setProjectRouting(null);
                 }
                 break;
+            case 14:
+                if (instance.getCloudInternalApiKey() == null) {
+                    builder.setCloudInternalApiKey(randomAlphaOfLength(20));
+                } else {
+                    builder.setCloudInternalApiKey(null);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
@@ -1072,10 +1079,14 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     @Override
     protected DatafeedConfig mutateInstanceForVersion(DatafeedConfig instance, TransportVersion version) {
-        if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
-            return instance;
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
+        if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) == false) {
+            builder.setProjectRouting(null);
         }
-        return new DatafeedConfig.Builder(instance).setProjectRouting(null).build();
+        if (version.supports(TransportVersion.fromName("datafeed_cloud_internal_api_key")) == false) {
+            builder.setCloudInternalApiKey(null);
+        }
+        return builder.build();
     }
 
     /**
@@ -1392,6 +1403,65 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 (org.elasticsearch.action.ActionRequestValidationException) null
             )
         );
+    }
+
+    public void testCloudInternalApiKeyPersistedForInternalStorage() throws IOException {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalApiKey("test-encoded-api-key");
+        DatafeedConfig config = builder.build();
+
+        assertThat(config.getCloudInternalApiKey(), equalTo("test-encoded-api-key"));
+
+        // Verify cloudInternalApiKey is written for internal storage
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
+        BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
+        XContentParser parser = parser(forClusterstateXContent);
+        DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getCloudInternalApiKey(), equalTo("test-encoded-api-key"));
+
+        // Verify cloudInternalApiKey is NOT written without FOR_INTERNAL_STORAGE
+        BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        parser = parser(nonClusterstateXContent);
+        parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getCloudInternalApiKey(), nullValue());
+    }
+
+    public void testCloudInternalApiKeyNullByDefault() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        DatafeedConfig config = builder.build();
+        assertThat(config.getCloudInternalApiKey(), nullValue());
+    }
+
+    public void testCloudInternalApiKeyCopyConstructor() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalApiKey("api-key-value");
+        DatafeedConfig original = builder.build();
+
+        DatafeedConfig copy = new DatafeedConfig.Builder(original).build();
+        assertThat(copy.getCloudInternalApiKey(), equalTo("api-key-value"));
+        assertEquals(original, copy);
+    }
+
+    public void testCloudInternalApiKeySerialization() throws IOException {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalApiKey("test-api-key-encoded");
+        DatafeedConfig config = builder.build();
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(TransportVersion.current());
+        config.writeTo(output);
+
+        StreamInput rawInput = output.bytes().streamInput();
+        rawInput.setTransportVersion(TransportVersion.current());
+        try (StreamInput input = new NamedWriteableAwareStreamInput(rawInput, getNamedWriteableRegistry())) {
+            DatafeedConfig deserialized = new DatafeedConfig(input);
+            assertThat(deserialized.getCloudInternalApiKey(), equalTo("test-api-key-encoded"));
+            assertEquals(config, deserialized);
+        }
     }
 
     private DatafeedConfig createDatafeedConfigFromString(String json) throws IOException {

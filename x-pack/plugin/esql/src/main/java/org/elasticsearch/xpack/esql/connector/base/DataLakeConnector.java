@@ -141,7 +141,9 @@ public abstract class DataLakeConnector implements Connector {
     }
 
     private class PushFilterToDataLake extends ConnectorPushdownRule<Filter, DataLakePlan> {
-        PushFilterToDataLake() { super(DataLakeConnector.this, DataLakePlan.class); }
+        PushFilterToDataLake() {
+            super(DataLakeConnector.this, DataLakePlan.class);
+        }
 
         @Override
         protected LogicalPlan pushDown(Filter filter, DataLakePlan lakePlan) {
@@ -159,7 +161,9 @@ public abstract class DataLakeConnector implements Connector {
     }
 
     private class PushLimitToDataLake extends ConnectorPushdownRule<Limit, DataLakePlan> {
-        PushLimitToDataLake() { super(DataLakeConnector.this, DataLakePlan.class); }
+        PushLimitToDataLake() {
+            super(DataLakeConnector.this, DataLakePlan.class);
+        }
 
         @Override
         protected LogicalPlan pushDown(Limit limit, DataLakePlan lakePlan) {

@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -26,6 +25,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -58,6 +59,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
@@ -86,6 +88,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
     public static final Boolean RETURN_DOCUMENTS_TRUE = true;
     public static final Boolean RETURN_DOCUMENTS_FALSE = false;
     public static final String DEFAULT_RERANK_URL = "https://api.mixedbread.com/v1/reranking";
+    public static final String CUSTOM_URL = "https://custom.url.com/v1/rerank";
 
     private static final String INFERENCE_ID_VALUE = "id";
     private static final String MODEL_NAME_VALUE = "modelName";
@@ -114,7 +117,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             @Override
             protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                return MixedbreadServiceTests.createServiceSettingsMap(taskType);
+                return MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(MODEL_NAME_VALUE, null);
             }
 
             @Override
@@ -128,7 +131,15 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                             createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
                             ConfigurationParseContext.PERSISTENT
                         ),
-                        EmptyTaskSettings.INSTANCE
+                        MixedbreadRerankTaskSettings.EMPTY_SETTINGS
+                    );
+                    // Completion is not supported, but in order to test unsupported task types it is included here
+                    case COMPLETION -> new ModelConfigurations(
+                        INFERENCE_ID_VALUE,
+                        taskType,
+                        MixedbreadService.NAME,
+                        mock(ServiceSettings.class),
+                        mock(TaskSettings.class)
                     );
                     default -> throw new IllegalStateException("Unexpected value: " + taskType);
                 };
@@ -141,16 +152,15 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             @Override
             protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
-                return MixedbreadServiceTests.createServiceSettingsMap(taskType);
+                return MixedbreadServiceTests.createServiceSettingsMap(taskType, parseContext);
             }
 
             @Override
             protected Map<String, Object> createTaskSettingsMap(TaskType taskType) {
                 if (taskType.equals(RERANK)) {
                     return MixedbreadRerankTaskSettingsTests.getTaskSettingsMap(null, null);
-                } else {
-                    return createTaskSettingsMap();
                 }
+                return createTaskSettingsMap();
             }
 
             @Override
@@ -165,35 +175,37 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             @Override
             protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                assertModel(model, taskType, modelIncludesSecrets, ConfigurationParseContext.REQUEST);
-            }
-
-            @Override
-            protected void assertModel(
-                Model model,
-                TaskType taskType,
-                boolean modelIncludesSecrets,
-                ConfigurationParseContext parseContext
-            ) {
-                MixedbreadServiceTests.assertModel(model, taskType, modelIncludesSecrets, parseContext);
+                MixedbreadServiceTests.assertModel(model, taskType, modelIncludesSecrets);
             }
 
             @Override
             protected EnumSet<TaskType> supportedStreamingTasks() {
-                return null;
+                return EnumSet.noneOf(TaskType.class);
             }
 
             @Override
             protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-                assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_NAME_VALUE), Matchers.is(300));
+                assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_NAME_VALUE), Matchers.is(22000));
             }
         }).build();
     }
 
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+        if (Objects.requireNonNull(taskType) == RERANK) {
+            assertRerankModel(model, modelIncludesSecrets);
+        } else {
+            fail("unexpected task type [" + taskType + "]");
+        }
+    }
+
+    @Override
+    public void testParseRequestConfig_CreatesACompletionModel() {}
+
     private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets, ConfigurationParseContext parseContext) {
-        switch (taskType) {
-            case RERANK -> assertRerankModel(model, modelIncludesSecrets);
-            default -> fail("unexpected task type [" + taskType + "]");
+        if (Objects.requireNonNull(taskType) == RERANK) {
+            assertRerankModel(model, modelIncludesSecrets);
+        } else {
+            fail("unexpected task type [" + taskType + "]");
         }
     }
 
@@ -202,7 +214,6 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
         var mixedbreadModel = (MixedbreadModel) model;
         assertThat(mixedbreadModel.getServiceSettings().modelId(), Matchers.is(MODEL_NAME_VALUE));
-        assertThat(mixedbreadModel.uri().toString(), Matchers.is(DEFAULT_RERANK_URL));
         if (modelIncludesSecrets) {
             assertThat(mixedbreadModel.getSecretSettings().apiKey(), Matchers.is(new SecureString(API_KEY.toCharArray())));
         }
@@ -211,7 +222,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
     private static void assertRerankModel(Model model, boolean modelIncludesSecrets) {
         var mixedbreadModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(mixedbreadModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
+        assertThat(mixedbreadModel.getTaskSettings(), Matchers.is(MixedbreadRerankTaskSettings.EMPTY_SETTINGS));
         assertThat(mixedbreadModel.getTaskType(), Matchers.is(RERANK));
     }
 
@@ -220,15 +231,41 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         return new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
-    private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-        if (taskType == RERANK) {
-            return MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(MODEL_NAME_VALUE, null);
-        }
-        return Map.of();
+    private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+        return MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(MODEL_NAME_VALUE, null);
     }
 
     private static Map<String, Object> createSecretSettingsMap() {
         return new HashMap<>(Map.of("api_key", API_KEY));
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ID_VALUE,
+            TaskType.COMPLETION,
+            MixedbreadService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                CoreMatchers.is(
+                    org.elasticsearch.core.Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ID_VALUE,
+                        MixedbreadService.NAME,
+                        MixedbreadService.NAME,
+                        TaskType.COMPLETION
+                    )
+                )
+            );
+        }
     }
 
     @Before

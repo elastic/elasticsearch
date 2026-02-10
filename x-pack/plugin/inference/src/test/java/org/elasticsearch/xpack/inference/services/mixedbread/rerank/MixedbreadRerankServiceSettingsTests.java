@@ -34,7 +34,7 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractWireSerializin
     }
 
     public static MixedbreadRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
-        return new MixedbreadRerankServiceSettings(randomAlphaOfLengthOrNull(10), rateLimitSettings);
+        return new MixedbreadRerankServiceSettings(randomAlphaOfLength(10), rateLimitSettings);
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -82,11 +82,10 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractWireSerializin
         var modelId = instance.modelId();
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(1)) {
-            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(10));
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-
         return new MixedbreadRerankServiceSettings(modelId, rateLimitSettings);
     }
 

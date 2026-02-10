@@ -76,7 +76,7 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
 
                         if (paramString != null) {
                             // Some parameterized tests end up with display names like:
-                            //   test {yaml=...}
+                            // test {yaml=...}
                             //
                             // Gradle 9.4+ treats patterns that include the parameter payload (e.g. "{yaml=...}") as path-based patterns
                             // and fails the build if only class-based tests are selected. To keep mutes working across all execution modes,

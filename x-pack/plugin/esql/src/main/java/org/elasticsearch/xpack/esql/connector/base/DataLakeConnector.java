@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.connector.ConnectorCapabilities;
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
 import org.elasticsearch.xpack.esql.connector.DistributionHints;
 import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
-import org.elasticsearch.xpack.esql.connector.SourceDescriptor;
+import org.elasticsearch.xpack.esql.connector.ConnectorSourceDescriptor;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -92,7 +92,7 @@ public abstract class DataLakeConnector implements Connector {
      * to resolve schema from catalog metadata instead.
      */
     @Override
-    public ConnectorPlan resolve(SourceDescriptor source, ResolutionContext context) {
+    public ConnectorPlan resolve(ConnectorSourceDescriptor source, ResolutionContext context) {
         String expression = source.expression();
         StorageProvider storage = getStorageProvider();
         FormatReader format = getFormatReader();

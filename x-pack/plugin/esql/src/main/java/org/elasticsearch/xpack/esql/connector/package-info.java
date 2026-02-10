@@ -94,7 +94,7 @@
  *
  *     // Override resolve() to use Iceberg catalog metadata
  *     @Override
- *     public ConnectorPlan resolve(SourceDescriptor source, ResolutionContext context) {
+ *     public ConnectorPlan resolve(ConnectorSourceDescriptor source, ResolutionContext context) {
  *         // Use Iceberg catalog to get schema instead of inferring from files
  *     }
  * }

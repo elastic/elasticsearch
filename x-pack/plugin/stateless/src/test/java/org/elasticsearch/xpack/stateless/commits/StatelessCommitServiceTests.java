@@ -723,7 +723,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -808,7 +808,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void testOldCommitsAreRetainedIfSearchNodesUseThem() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -888,7 +888,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testOldCommitsAreRetainedIfIndexShardUseThem() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -964,7 +964,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1088,7 +1088,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var deletedCommitsLatch = new CountDownLatch(2);
 
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1171,7 +1171,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void testCommitsAreReleasedImmediatelyAfterDeletionWhenThereAreZeroReplicas() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1252,7 +1252,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1394,7 +1394,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void testUnreferencedCommitsAreReleasedAfterRecovery() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1518,7 +1518,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
         AtomicBoolean activateSearchNode = new AtomicBoolean();
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1637,7 +1637,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -1741,7 +1741,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
-        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 logger.info("deleting vbcc {}", staleCompoundCommit);
@@ -2022,7 +2022,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 ObjectStoreService objectStoreService
             ) {
-                return new StatelessCommitCleaner(null, null, null) {
+                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
                     @Override
                     void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                         deletedBCCs.add(staleCompoundCommit);
@@ -2295,7 +2295,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 ObjectStoreService objectStoreService
             ) {
-                return new StatelessCommitCleaner(null, null, null) {
+                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
                     @Override
                     void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                         deletedBCCs.add(staleCompoundCommit);
@@ -2390,7 +2390,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 ThreadPool threadPool,
                 ObjectStoreService objectStoreService
             ) {
-                return new StatelessCommitCleaner(null, null, null) {
+                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
                     @Override
                     void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                         deletedCommits.add(staleCompoundCommit);
@@ -2459,7 +2459,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     this::getShardRoutingTable,
                     clusterService.threadPool(),
                     client,
-                    new StatelessCommitCleaner(null, null, null),
+                    new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)),
                     sharedCacheService,
                     warmingService,
                     telemetryProvider
@@ -2980,6 +2980,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             randomBoolean(),
             node.threadPool.generic(),
             true,
+            null,
             future
         );
         return safeGet(future);

@@ -47,6 +47,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -278,6 +280,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
     private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<StaleCompoundCommit> commitBlobsToDelete = new ConcurrentLinkedQueue<>();
+    private final Map<ShardId, Set<StaleCompoundCommit>> commitBlobsDeletionsInProgress = ConcurrentCollections.newConcurrentMap();
     private final Semaphore translogDeleteSchedulePermit = new Semaphore(1);
     private final Semaphore shardFileDeleteSchedulePermit = new Semaphore(1);
     private final Semaphore permits;
@@ -553,6 +556,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         return new RepositoryMetadata(StatelessPlugin.NAME, type.toString(), getRepositorySettings(type, settings));
     }
 
+    public Set<StaleCompoundCommit> getCommitBlobsDeletionsInProgress(ShardId shardId) {
+        return Collections.unmodifiableSet(commitBlobsDeletionsInProgress.getOrDefault(shardId, Collections.emptySet()));
+    }
+
+    private void addToCommitBlobsDeletionsInProgress(StaleCompoundCommit staleCompoundCommit) {
+        commitBlobsDeletionsInProgress.compute(staleCompoundCommit.shardId(), (key, currentSet) -> {
+            if (currentSet == null) {
+                currentSet = ConcurrentCollections.newConcurrentSet();
+            }
+            currentSet.add(staleCompoundCommit);
+            return currentSet;
+        });
+    }
+
+    private void removeFromCommitBlobsDeletionsInProgress(StaleCompoundCommit staleCompoundCommit) {
+        commitBlobsDeletionsInProgress.compute(staleCompoundCommit.shardId(), (key, currentSet) -> {
+            if (currentSet != null) {
+                currentSet.remove(staleCompoundCommit);
+                if (currentSet.isEmpty()) {
+                    return null;
+                }
+            }
+            return currentSet;
+        });
+    }
+
     @Override
     protected void doStart() {
         if (repositoriesService == null) {
@@ -669,6 +698,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
+        addToCommitBlobsDeletionsInProgress(staleCompoundCommit);
         asyncDeleteFile(() -> {
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
@@ -842,10 +872,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     ) throws IOException {
         var lastEntry = blobs.lastEntry();
         if (lastEntry != null) {
-            assert startsWithBlobPrefix(lastEntry.getValue().name()) : lastEntry.getValue();
-            return readBatchedCompoundCommitUsingCache(directory, context, lastEntry.getKey(), lastEntry.getValue().length());
+            return readLatestBccUsingCache(directory, context, lastEntry.getKey(), lastEntry.getValue());
         }
         return null;
+    }
+
+    private static BatchedCompoundCommit readLatestBccUsingCache(
+        BlobStoreCacheDirectory directory,
+        IOContext context,
+        PrimaryTermAndGeneration bccBlobTermAndGen,
+        BlobMetadata bccBlobMetadata
+    ) throws IOException {
+        assert startsWithBlobPrefix(bccBlobMetadata.name()) : bccBlobMetadata;
+        return readBatchedCompoundCommitUsingCache(directory, context, bccBlobTermAndGen, bccBlobMetadata.length());
     }
 
     // Package private for testing
@@ -920,66 +959,22 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         boolean useReplicatedRanges,
         Executor bccHeaderReadExecutor,
         boolean readSingleBlobIfHollow,
+        @Nullable StatelessCommitService.SourceBlobsInfo passedBlobsUponRelocation,
         ActionListener<IndexingShardState> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-        SubscribableListener
-            // List the existing blob containers (with their primary terms) in the object store
-            .<List<Tuple<Long, BlobContainer>>>newForked(l -> ActionListener.completeWith(l, () -> {
-                var blobContainersWithTerms = getContainersToSearch(shardContainer, primaryTerm);
-                if (logger.isTraceEnabled() && blobContainersWithTerms.isEmpty()) {
-                    logger.trace(
-                        () -> format(
-                            "%s no blob containers found for recovery in [%s]",
-                            directory.getShardId(),
-                            shardContainer.path().buildAsString()
-                        )
-                    );
-                }
-                return blobContainersWithTerms;
-            }))
-            // Build a list of all blobs in the object store that are in a container with term <= primary term
-            .<NavigableMap<PrimaryTermAndGeneration, BlobMetadata>>andThen((l, blobContainersWithTerms) -> {
-                if (blobContainersWithTerms.isEmpty()) {
-                    ActionListener.completeWith(l, Collections::emptyNavigableMap);
-                    return;
-                }
-                var blobs = new ConcurrentSkipListMap<PrimaryTermAndGeneration, BlobMetadata>();
-                try (
-                    var listeners = new RefCountingListener(
-                        // Fork back to generic thread pool to continue the recovery (or fail the recovery if a listing throws)
-                        ActionListener.wrap(ignored -> threadPool.generic().execute(ActionRunnable.supply(l, () -> blobs)), l::onFailure)
-                    )
-                ) {
-                    for (var blobContainerWithTerm : blobContainersWithTerms) {
-                        // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
-                        threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
-                            .execute(
-                                ActionRunnable.run(
-                                    listeners.acquire(),
-                                    () -> blobs.putAll(listBlobs(blobContainerWithTerm.v1(), blobContainerWithTerm.v2()))
-                                )
-                            );
-                    }
-                }
-            })
-            .<IndexingShardState>andThen((l, blobs) -> {
+
+        final ActionListener<Tuple<BatchedCompoundCommit, Set<BlobFile>>> blobsListener = listener.delegateFailureAndWrap(
+            (l, bccAndBlobs) -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
-                // Find the most recent batched compound commit and read its headers using cache
-                var latestBcc = ObjectStoreService.readLatestBccUsingCache(directory, context, blobs);
+                final BatchedCompoundCommit latestBcc = bccAndBlobs.v1();
                 if (latestBcc == null) {
                     logger.trace(() -> format("%s no blob found for recovery", directory.getShardId()));
                     ActionListener.completeWith(l, () -> IndexingShardState.EMPTY);
                     return;
                 }
-
-                // List of non latest blobs found in the object store
-                var otherBlobs = blobs.entrySet()
-                    .stream()
-                    .filter(entry -> Objects.equals(entry.getKey(), latestBcc.primaryTermAndGeneration()) == false)
-                    .map(entry -> new BlobFile(entry.getValue().name(), entry.getKey()))
-                    .collect(Collectors.toUnmodifiableSet());
+                final Set<BlobFile> otherBlobs = bccAndBlobs.v2();
                 logger.trace(
                     () -> format(
                         "%s found non-latest blobs in [%s]: %s",
@@ -988,7 +983,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         otherBlobs
                     )
                 );
-
                 // If the last CC is hollow, we do not need to read any other blobs than the last CC itself.
                 if (readSingleBlobIfHollow && latestBcc.lastCompoundCommit().hollow()) {
                     ActionListener.completeWith(l, () -> {
@@ -1037,8 +1031,86 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         l.map(aVoid -> new IndexingShardState(latestBcc, otherBlobs, blobFileRanges))
                     );
                 }
-            })
-            .addListener(listener);
+            }
+        );
+
+        if (passedBlobsUponRelocation != null) {
+            // Short-circuit during relocation to avoid unnecessary LISTing when we get passed the blobs info from source.
+            SubscribableListener.<Tuple<BatchedCompoundCommit, Set<BlobFile>>>newForked(l -> ActionListener.completeWith(l, () -> {
+                BatchedCompoundCommit latestBcc = ObjectStoreService.readLatestBccUsingCache(
+                    directory,
+                    context,
+                    passedBlobsUponRelocation.latestBlobFile().termAndGeneration(),
+                    new BlobMetadata(
+                        passedBlobsUponRelocation.latestBlobFile().blobName(),
+                        passedBlobsUponRelocation.latestBlobFileLength()
+                    )
+                );
+                return new Tuple<>(latestBcc, passedBlobsUponRelocation.otherBlobs());
+            })).addListener(blobsListener);
+        } else {
+            SubscribableListener
+                // List the existing blob containers (with their primary terms) in the object store
+                .<List<Tuple<Long, BlobContainer>>>newForked(l -> ActionListener.completeWith(l, () -> {
+                    var blobContainersWithTerms = getContainersToSearch(shardContainer, primaryTerm);
+                    if (logger.isTraceEnabled() && blobContainersWithTerms.isEmpty()) {
+                        logger.trace(
+                            () -> format(
+                                "%s no blob containers found for recovery in [%s]",
+                                directory.getShardId(),
+                                shardContainer.path().buildAsString()
+                            )
+                        );
+                    }
+                    return blobContainersWithTerms;
+                }))
+                // Build a list of all blobs in the object store that are in a container with term <= primary term
+                .<NavigableMap<PrimaryTermAndGeneration, BlobMetadata>>andThen((l, blobContainersWithTerms) -> {
+                    if (blobContainersWithTerms.isEmpty()) {
+                        ActionListener.completeWith(l, Collections::emptyNavigableMap);
+                        return;
+                    }
+                    var blobs = new ConcurrentSkipListMap<PrimaryTermAndGeneration, BlobMetadata>();
+                    try (
+                        var listeners = new RefCountingListener(
+                            // Fork back to generic thread pool to continue the recovery (or fail the recovery if a listing throws)
+                            ActionListener.wrap(
+                                ignored -> threadPool.generic().execute(ActionRunnable.supply(l, () -> blobs)),
+                                l::onFailure
+                            )
+                        )
+                    ) {
+                        for (var blobContainerWithTerm : blobContainersWithTerms) {
+                            // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
+                            threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
+                                .execute(
+                                    ActionRunnable.run(
+                                        listeners.acquire(),
+                                        () -> blobs.putAll(listBlobs(blobContainerWithTerm.v1(), blobContainerWithTerm.v2()))
+                                    )
+                                );
+                        }
+                    }
+                })
+                .<Tuple<BatchedCompoundCommit, Set<BlobFile>>>andThen((l, blobs) -> {
+                    // Find the most recent batched compound commit and read its headers using cache
+                    final BatchedCompoundCommit latestBcc = ObjectStoreService.readLatestBccUsingCache(directory, context, blobs);
+                    final Set<BlobFile> otherBlobs;
+                    if (latestBcc != null) {
+                        // List of non latest blobs found in the object store
+                        otherBlobs = blobs.entrySet()
+                            .stream()
+                            .filter(entry -> Objects.equals(entry.getKey(), latestBcc.primaryTermAndGeneration()) == false)
+                            .map(entry -> new BlobFile(entry.getValue().name(), entry.getKey()))
+                            .collect(Collectors.toUnmodifiableSet());
+                    } else {
+                        // No blobs found
+                        otherBlobs = Set.of();
+                    }
+                    l.onResponse(new Tuple<>(latestBcc, otherBlobs));
+                })
+                .addListener(blobsListener);
+        }
     }
 
     public void copyShard(CancellableTask task, ShardId source, ShardId destination, long primaryTerm) throws IOException {
@@ -1651,6 +1723,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
         @Override
         public void onAfter() {
+            toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
             shardFileDeleteSchedulePermit.release();
             if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
@@ -1666,35 +1739,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
         @Override
         protected void doRun() throws Exception {
-            boolean success = false;
-            try {
-                final var iterator = toDeleteInThisTask.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    final var entry = iterator.next();
-                    final ProjectId projectId = entry.getKey();
-                    final BlobStoreRepository projectObjectStore;
-                    try {
-                        projectObjectStore = getProjectObjectStore(projectId);
-                    } catch (RepositoryException e) {
-                        SHARD_FILES_DELETES_LOGGER.info(
-                            () -> format("project [%s] not found, skipping deletion of shard files [%s]", projectId, entry.getValue()),
-                            e
-                        );
-                        continue;
-                    }
-                    projectObjectStore.blobStore()
-                        .blobContainer(BlobPath.EMPTY)
-                        .deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream(entry.getValue()).iterator());
-                    SHARD_FILES_DELETES_LOGGER.debug(
-                        () -> format("project [%s] deleted shard files %s", projectId, blobPathStream(entry.getValue()).toList())
+            final var iterator = toDeleteInThisTask.entrySet().iterator();
+            while (iterator.hasNext()) {
+                final var entry = iterator.next();
+                final ProjectId projectId = entry.getKey();
+                final BlobStoreRepository projectObjectStore;
+                try {
+                    projectObjectStore = getProjectObjectStore(projectId);
+                } catch (RepositoryException e) {
+                    SHARD_FILES_DELETES_LOGGER.info(
+                        () -> format("project [%s] not found, skipping deletion of shard files [%s]", projectId, entry.getValue()),
+                        e
                     );
+                    entry.getValue().forEach(ObjectStoreService.this::removeFromCommitBlobsDeletionsInProgress);
                     iterator.remove();
+                    continue;
                 }
-                success = true;
-            } finally {
-                if (success == false) {
-                    toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
-                }
+                projectObjectStore.blobStore()
+                    .blobContainer(BlobPath.EMPTY)
+                    .deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream(entry.getValue()).iterator());
+                SHARD_FILES_DELETES_LOGGER.debug(
+                    () -> format("project [%s] deleted shard files %s", projectId, blobPathStream(entry.getValue()).toList())
+                );
+                entry.getValue().forEach(ObjectStoreService.this::removeFromCommitBlobsDeletionsInProgress);
+                iterator.remove();
             }
         }
 

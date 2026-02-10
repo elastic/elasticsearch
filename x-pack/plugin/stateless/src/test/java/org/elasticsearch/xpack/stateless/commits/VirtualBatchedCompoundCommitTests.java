@@ -101,6 +101,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                         output
                     );
                     assertEquals(batchedCompoundCommit, deserializedBatchedCompoundCommit);
+                    assertEquals(output.size(), batchedCompoundCommit.calculateBccBlobLength());
 
                     // Ensure that the contents written into the blob store are the same as the local files
                     for (StatelessCompoundCommit compoundCommit : deserializedBatchedCompoundCommit.compoundCommits()) {

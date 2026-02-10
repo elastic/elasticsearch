@@ -147,3 +147,8 @@ tasks.register('buildSharedLibraryAndCopy') {
     println "Copied built libvec to " + outputDir.toString()
   }
 }
+
+// Keep this wrapper consistent with the repo's standard `-all` distribution.
+tasks.named('wrapper', org.gradle.api.tasks.wrapper.Wrapper).configure {
+  distributionType = org.gradle.api.tasks.wrapper.Wrapper.DistributionType.ALL
+}

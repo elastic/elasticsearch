@@ -319,7 +319,10 @@ public class CloneStep implements DlmStep {
                         new ElasticsearchException(String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", cloneIndex))
                     );
                 }
-            }, err -> logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", cloneIndex), err)));
+            }, err -> {
+                logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", cloneIndex), err);
+                listener.onFailure(err);
+            }));
     }
 
     private static ResizeRequest formCloneRequest(String sourceIndex, String targetIndex) {

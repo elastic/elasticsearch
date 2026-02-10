@@ -303,6 +303,27 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotStatusApisIT
   method: testFailedSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/141279
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:boolean.ConvertFromIntAndLong}
+  issue: https://github.com/elastic/elasticsearch/issues/141375
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {drop.WhereWithEvalGeneratedValue_DropHeight}
+  issue: https://github.com/elastic/elasticsearch/issues/141375
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:keep.WhereWithEvalGeneratedValue}
+  issue: https://github.com/elastic/elasticsearch/issues/141375
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:topN.SortingOnNumbersFromStrings}
+  issue: https://github.com/elastic/elasticsearch/issues/141375
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:drop.WhereWithEvalGeneratedValue_DropHeight}
+  issue: https://github.com/elastic/elasticsearch/issues/141375
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:rename.RenameIntertwinedWithSort}
+  issue: https://github.com/elastic/elasticsearch/issues/141375
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:ints.ConvertStringToBaseIndexGroup7}
+  issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.CartesianPolygonEnvelopeXYMinMax}
   issue: https://github.com/elastic/elasticsearch/issues/141425
@@ -356,12 +377,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/142032
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
-  method: testGroupingAggregate {TestCase=<random exponential histograms>}
-  issue: https://github.com/elastic/elasticsearch/issues/142037
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
-  method: testAggregateIntermediate {TestCase=<random exponential histograms>}
-  issue: https://github.com/elastic/elasticsearch/issues/142068
 - class: org.elasticsearch.xpack.diskbbq.DirectIOIT
   method: testDirectIOUsed {p0=bbq_disk}
   issue: https://github.com/elastic/elasticsearch/issues/141942
@@ -380,9 +395,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumTests
-  method: testGroupingAggregate {TestCase=<random exponential histograms>}
-  issue: https://github.com/elastic/elasticsearch/issues/142081
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/142087
@@ -392,6 +404,9 @@ tests:
 - class: org.elasticsearch.index.query.RewriteableTests
   method: testRewriteAndFetchWithExecutorOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/142140
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/142179
 
 # Examples:
 #

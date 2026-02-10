@@ -23,7 +23,10 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
     final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
-        if (in instanceof RandomAccessInput) {
+        if (in instanceof StoreMetricsIndexInput) {
+            // annoyingly, source-only snapshots do this for linked files.
+            return in;
+        } else if (in instanceof RandomAccessInput) {
             return new RandomAccessIndexInput(resourceDescription, in, metricHolder);
         } else {
             return new StoreMetricsIndexInput(resourceDescription, in, metricHolder);

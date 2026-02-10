@@ -476,7 +476,9 @@ public final class Case extends EsqlScalarFunction {
                     int[] positions = new int[] { p };
                     Page limited = new Page(
                         1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                        IntStream.range(0, page.getBlockCount())
+                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
+                            .toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (ConditionEvaluator condition : conditions) {

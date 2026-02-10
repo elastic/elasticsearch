@@ -516,6 +516,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     collectRemoteResolvedIndices(
+                        parentTaskId,
                         resolvesCrossProject,
                         rewritten,
                         resolutionIdxOpts,
@@ -594,9 +595,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             ? ProjectRoutingResolver.ORIGIN
                             : SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
                     );
-
-                    // TODO: pass parentTaskId
                     collectSearchShards(
+                        parentTaskId,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
@@ -1097,6 +1097,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * If Cross-Project Search (CPS) is enabled, then this method will fan out to the linked projects to resolve and validate their indices.
      */
     void collectRemoteResolvedIndices(
+        TaskId parentTaskId,
         boolean resolvesCrossProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
@@ -1129,6 +1130,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             originalResolvedIndices.getRemoteClusterIndices()
                 .forEach(
                     (projectName, projectIndices) -> resolveRemoteCrossProjectIndex(
+                        parentTaskId,
                         rewritten,
                         resolutionIdxOpts,
                         projectName,
@@ -1183,6 +1185,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Only used for ccs_minimize_roundtrips=true pathway
      */
     private void resolveRemoteCrossProjectIndex(
+        TaskId parentTaskId,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
         String projectName,
@@ -1195,12 +1198,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
         );
 
+        ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(projectIndices.indices(), resolutionIdxOpts);
+        resolveIndexRequest.setParentTask(parentTaskId);
+
         connectionListener.addListener(
             listener.delegateFailure(
                 (responseListener, connection) -> transportService.sendRequest(
                     connection,
                     ResolveIndexAction.REMOTE_TYPE.name(),
-                    new ResolveIndexAction.Request(projectIndices.indices(), resolutionIdxOpts),
+                    resolveIndexRequest,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
                         listener.map(response -> Map.entry(projectName, response)),
@@ -1225,6 +1231,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Used for ccs_minimize_roundtrips=false
      */
     static void collectSearchShards(
+        TaskId parentTaskId,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
@@ -1322,6 +1329,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         allowPartialResults,
                         clusterAlias
                     );
+
+                    searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(
                         connection,
                         TransportSearchShardsAction.TYPE.name(),
@@ -1335,6 +1344,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
                     ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
+
+                    searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(
                         connection,
                         TransportClusterSearchShardsAction.TYPE.name(),

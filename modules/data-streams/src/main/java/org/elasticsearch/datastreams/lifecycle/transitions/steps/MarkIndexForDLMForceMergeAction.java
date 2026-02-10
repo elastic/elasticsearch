@@ -148,8 +148,8 @@ public class MarkIndexForDLMForceMergeAction {
                 customMetadata
             ).build();
 
-            final ProjectMetadata.Builder updatedProject
-                = ProjectMetadata.builder(currentState.metadata().getProject(projectId)).put(updatedSourceIndexMetadata, true);
+            final ProjectMetadata.Builder updatedProject = ProjectMetadata.builder(currentState.metadata().getProject(projectId))
+                .put(updatedSourceIndexMetadata, true);
             return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
         }
 

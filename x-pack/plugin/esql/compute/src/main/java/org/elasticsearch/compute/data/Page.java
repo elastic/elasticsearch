@@ -300,12 +300,18 @@ public final class Page implements Writeable, Releasable {
         }
     }
 
-    public Page filter(int... positions) {
+    /**
+     * Creates a new page that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions to retain
+     * @return a filtered page
+     */
+    public Page filter(boolean mayContainDuplicates, int... positions) {
         Block[] filteredBlocks = new Block[blocks.length];
         boolean success = false;
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = getBlock(i).filter(positions);
+                filteredBlocks[i] = getBlock(i).filter(mayContainDuplicates, positions);
             }
             success = true;
         } finally {

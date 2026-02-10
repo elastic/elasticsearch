@@ -1,0 +1,7 @@
+ProjectExec[[$$event_duration$converted_to$double{f(MultiTypeEsField)$}#0 AS event_duration#1]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[$$event_duration$converted_to$double{f(MultiTypeEsField)$}#0],false]
+    \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[$$event_duration$converted_to$double{f(MultiTypeEsField)$}#0]]
+\_Limit[1000[INTEGER],false,false]
+  \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f}#2, client_ip{f}#3, event_duration{f}#4, message{f}#5, $$event_duration$converted_to$double{f$}#0]<>]]

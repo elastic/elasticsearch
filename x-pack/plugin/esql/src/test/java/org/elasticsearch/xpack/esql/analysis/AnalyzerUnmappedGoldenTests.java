@@ -432,8 +432,9 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     public void testMappedToNonKeywordInOneIndexOnlyCast() throws Exception {
         runTestsLoadOnly("""
             FROM sample_data, no_mapping_sample_data
-            | EVAL x = event_duration :: DOUBLE
-            """);
+            | EVAL event_duration = event_duration :: DOUBLE
+            | KEEP event_duration
+            """, EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
 
     public void testDifferentTypesAndUnmapped() throws Exception {
@@ -484,9 +485,15 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     }
 
     private void runTestsLoadOnly(String query) {
-        var loadException = tryRunTestsLoadOnly(query);
-        if (loadException.isPresent()) {
-            throw new RuntimeException("Load mode failed", loadException.get());
+        runTestsLoadOnly(query, STAGES);
+    }
+
+    private void runTestsLoadOnly(String query, EnumSet<Stage> stages) {
+        Optional<Throwable> result = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+            ? builder(setUnmappedLoad(query)).nestedPath("load").stages(stages).tryRun()
+            : Optional.empty();
+        if (result.isPresent()) {
+            throw new RuntimeException("Load mode failed", result.get());
         }
     }
 

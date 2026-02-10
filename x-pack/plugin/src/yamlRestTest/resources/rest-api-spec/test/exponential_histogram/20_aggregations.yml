@@ -178,3 +178,42 @@ setup:
   - lte: { aggregations.percentiles_agg.values.75\.0: 2730.7 }
   - gte: { aggregations.percentiles_agg.values.95\.0: 10922.6 }
   - lte: { aggregations.percentiles_agg.values.95\.0: 10922.7 }
+
+---
+"Percentile ranks aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentile_ranks" ]
+      reason: exponential_histogram percentile_ranks aggregations was introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            percentile_ranks_agg:
+              percentile_ranks:
+                field: histo
+                values: [0, 100, 1000, 5000]
+
+  - match: { hits.total.value: 5 }
+  - gte: { aggregations.percentile_ranks_agg.values.0\.0: 26.7 }
+  - lte: { aggregations.percentile_ranks_agg.values.0\.0: 26.9 }
+  - gte: { aggregations.percentile_ranks_agg.values.100\.0: 65.8 }
+  - lte: { aggregations.percentile_ranks_agg.values.100\.0: 65.9 }
+  - gte: { aggregations.percentile_ranks_agg.values.1000\.0: 70.7 }
+  - lte: { aggregations.percentile_ranks_agg.values.1000\.0: 70.8 }
+  - gte: { aggregations.percentile_ranks_agg.values.5000\.0: 77.9 }
+  - lte: { aggregations.percentile_ranks_agg.values.5000\.0: 78.1 }
+
+---
+"Exists query":
+  - do:
+      search:
+        index: test_exponential_histogram
+        body:
+          query:
+            exists:
+              field: histo
+
+  - match: { hits.total.value: 5 }
+

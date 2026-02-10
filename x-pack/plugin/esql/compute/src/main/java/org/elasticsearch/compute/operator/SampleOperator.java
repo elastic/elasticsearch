@@ -111,7 +111,7 @@ public class SampleOperator implements Operator {
             sampledPositions[sampledIdx++] = Math.toIntExact(i - rowsReceived);
         }
         if (sampledIdx > 0) {
-            outputPages.add(page.filter(Arrays.copyOf(sampledPositions, sampledIdx)));
+            outputPages.add(page.filter(false, Arrays.copyOf(sampledPositions, sampledIdx)));
         }
     }
 

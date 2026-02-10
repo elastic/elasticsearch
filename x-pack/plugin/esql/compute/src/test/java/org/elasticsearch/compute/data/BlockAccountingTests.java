@@ -57,7 +57,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusSome = blockFactory.newBooleanArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + randomData.length)));
 
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
@@ -76,7 +76,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusSome = blockFactory.newIntArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + (long) Integer.BYTES * randomData.length)));
 
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
@@ -95,7 +95,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusSome = blockFactory.newLongArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Long.BYTES * randomData.length));
 
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
 
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
@@ -116,7 +116,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Double.BYTES * randomData.length));
 
         // a filter becomes responsible for it's enclosing data, both in terms of accountancy and releasability
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
 
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
@@ -136,7 +136,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusOne = blockFactory.newBytesRefArrayVector(arrayWithOne, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), between(emptyVector.ramBytesUsed() + bytesRef.length, UPPER_BOUND));
 
-        Vector filterVector = emptyPlusOne.filter(0);
+        Vector filterVector = emptyPlusOne.filter(false, 0);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(emptyVector, emptyPlusOne, filterVector);
     }
@@ -178,7 +178,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
@@ -230,7 +230,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
@@ -279,7 +279,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
@@ -334,7 +334,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }

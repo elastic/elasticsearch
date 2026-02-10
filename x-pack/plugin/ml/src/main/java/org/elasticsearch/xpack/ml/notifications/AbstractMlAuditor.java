@@ -16,8 +16,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessageFactory;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
@@ -52,14 +50,9 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
     @Override
     protected TransportPutComposableIndexTemplateAction.Request putTemplateRequest() {
         var templateConfig = MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE;
-        try (
-            var parser = JsonXContent.jsonXContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE.loadBytes()
-            )
-        ) {
+        try {
             return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                ComposableIndexTemplate.parse(parser)
+                templateConfig.load(ComposableIndexTemplate::parse)
             ).masterNodeTimeout(MASTER_TIMEOUT);
         } catch (IOException e) {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);

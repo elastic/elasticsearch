@@ -12,11 +12,11 @@ import org.elasticsearch.xpack.esql.connector.Connector;
 import org.elasticsearch.xpack.esql.connector.ConnectorCapabilities;
 import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
+import org.elasticsearch.xpack.esql.connector.ConnectorPushdownRule;
 import org.elasticsearch.xpack.esql.connector.ConnectorSourceDescriptor;
 import org.elasticsearch.xpack.esql.connector.DistributionHints;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -140,18 +140,11 @@ public abstract class DataLakeConnector implements Connector {
         return new PushLimitToDataLake();
     }
 
-    private class PushFilterToDataLake extends OptimizerRules.OptimizerRule<Filter> {
+    private class PushFilterToDataLake extends ConnectorPushdownRule<Filter, DataLakePlan> {
+        PushFilterToDataLake() { super(DataLakeConnector.this, DataLakePlan.class); }
 
         @Override
-        protected LogicalPlan rule(Filter filter) {
-            if (filter.child() instanceof DataLakePlan == false) {
-                return filter;
-            }
-            DataLakePlan lakePlan = (DataLakePlan) filter.child();
-            if (lakePlan.connector() != DataLakeConnector.this) {
-                return filter;
-            }
-
+        protected LogicalPlan pushDown(Filter filter, DataLakePlan lakePlan) {
             FilterTranslation result = translateFilter(filter.condition());
 
             if (result.isFullyTranslated()) {
@@ -165,23 +158,16 @@ public abstract class DataLakeConnector implements Connector {
         }
     }
 
-    private class PushLimitToDataLake extends OptimizerRules.OptimizerRule<Limit> {
+    private class PushLimitToDataLake extends ConnectorPushdownRule<Limit, DataLakePlan> {
+        PushLimitToDataLake() { super(DataLakeConnector.this, DataLakePlan.class); }
 
         @Override
-        protected LogicalPlan rule(Limit limit) {
-            if (limit.child() instanceof DataLakePlan == false) {
-                return limit;
-            }
-            DataLakePlan lakePlan = (DataLakePlan) limit.child();
-            if (lakePlan.connector() != DataLakeConnector.this) {
-                return limit;
-            }
+        protected LogicalPlan pushDown(Limit limit, DataLakePlan lakePlan) {
             if (limit.limit().foldable() == false) {
                 return limit;
             }
             int limitValue = ((Number) limit.limit().fold(org.elasticsearch.xpack.esql.core.expression.FoldContext.small())).intValue();
-            DataLakePlan updated = applyLimit(lakePlan, limitValue);
-            return updated;
+            return applyLimit(lakePlan, limitValue);
         }
     }
 

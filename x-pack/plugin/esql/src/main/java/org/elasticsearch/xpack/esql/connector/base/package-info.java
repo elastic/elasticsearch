@@ -78,9 +78,8 @@
  * <ol>
  *   <li>Implement {@link org.elasticsearch.xpack.esql.connector.base.DataLakeConnector#getStorageProvider()}
  *       and {@link org.elasticsearch.xpack.esql.connector.base.DataLakeConnector#getFormatReader()}</li>
- *   <li>Define a connector-specific plan implementation
- *       ({@link org.elasticsearch.xpack.esql.connector.base.DataLakePlan}) that extends
- *       {@link org.elasticsearch.xpack.esql.plan.logical.LeafPlan}</li>
+ *   <li>Define a connector-specific plan class extending
+ *       {@link org.elasticsearch.xpack.esql.connector.base.DataLakePlan}</li>
  *   <li>Implement {@link org.elasticsearch.xpack.esql.connector.base.DataLakeConnector#createPlan}
  *       to create the plan node</li>
  *   <li>Implement the abstract operation methods (applyFilter, applyLimit, etc.)</li>
@@ -90,9 +89,8 @@
  *
  * <p>For SQL connectors, subclasses must:
  * <ol>
- *   <li>Define a connector-specific plan implementation
- *       ({@link org.elasticsearch.xpack.esql.connector.base.SqlPlan}) that extends
- *       {@link org.elasticsearch.xpack.esql.plan.logical.LeafPlan}</li>
+ *   <li>Define a connector-specific plan class extending
+ *       {@link org.elasticsearch.xpack.esql.connector.base.SqlPlan}</li>
  *   <li>Implement {@link org.elasticsearch.xpack.esql.connector.Connector#resolve} to create
  *       the plan node with schema</li>
  *   <li>Implement the abstract translation methods for filter/aggregation/etc.</li>

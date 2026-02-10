@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.connector.Connector;
 import org.elasticsearch.xpack.esql.connector.ConnectorCapabilities;
 import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
+import org.elasticsearch.xpack.esql.connector.ConnectorPushdownRule;
 import org.elasticsearch.xpack.esql.connector.DistributionHints;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -89,17 +90,11 @@ public abstract class SqlConnector implements Connector {
     /**
      * Pushes a Filter node into a SqlPlan leaf when the filter is translatable to SQL.
      */
-    private class PushFilterToSql extends OptimizerRules.OptimizerRule<Filter> {
+    private class PushFilterToSql extends ConnectorPushdownRule<Filter, SqlPlan> {
+        PushFilterToSql() { super(SqlConnector.this, SqlPlan.class); }
 
         @Override
-        protected LogicalPlan rule(Filter filter) {
-            if (filter.child() instanceof SqlPlan == false) {
-                return filter;
-            }
-            SqlPlan sqlPlan = (SqlPlan) filter.child();
-            if (sqlPlan.connector() != SqlConnector.this) {
-                return filter;
-            }
+        protected LogicalPlan pushDown(Filter filter, SqlPlan sqlPlan) {
             SqlFragment where = translateFilter(filter.condition());
             if (where == null) {
                 return filter; // Cannot translate — ES|QL will evaluate
@@ -111,17 +106,11 @@ public abstract class SqlConnector implements Connector {
     /**
      * Pushes a Limit node into a SqlPlan leaf when the database supports LIMIT.
      */
-    private class PushLimitToSql extends OptimizerRules.OptimizerRule<Limit> {
+    private class PushLimitToSql extends ConnectorPushdownRule<Limit, SqlPlan> {
+        PushLimitToSql() { super(SqlConnector.this, SqlPlan.class); }
 
         @Override
-        protected LogicalPlan rule(Limit limit) {
-            if (limit.child() instanceof SqlPlan == false) {
-                return limit;
-            }
-            SqlPlan sqlPlan = (SqlPlan) limit.child();
-            if (sqlPlan.connector() != SqlConnector.this) {
-                return limit;
-            }
+        protected LogicalPlan pushDown(Limit limit, SqlPlan sqlPlan) {
             if (limit.limit().foldable() == false) {
                 return limit;
             }
@@ -136,17 +125,11 @@ public abstract class SqlConnector implements Connector {
     /**
      * Pushes an OrderBy node into a SqlPlan leaf when translatable to SQL ORDER BY.
      */
-    private class PushOrderByToSql extends OptimizerRules.OptimizerRule<OrderBy> {
+    private class PushOrderByToSql extends ConnectorPushdownRule<OrderBy, SqlPlan> {
+        PushOrderByToSql() { super(SqlConnector.this, SqlPlan.class); }
 
         @Override
-        protected LogicalPlan rule(OrderBy orderBy) {
-            if (orderBy.child() instanceof SqlPlan == false) {
-                return orderBy;
-            }
-            SqlPlan sqlPlan = (SqlPlan) orderBy.child();
-            if (sqlPlan.connector() != SqlConnector.this) {
-                return orderBy;
-            }
+        protected LogicalPlan pushDown(OrderBy orderBy, SqlPlan sqlPlan) {
             SqlFragment orderBySql = translateOrderBy(orderBy.order());
             if (orderBySql == null) {
                 return orderBy; // Cannot translate
@@ -158,17 +141,11 @@ public abstract class SqlConnector implements Connector {
     /**
      * Pushes an Aggregate node into a SqlPlan leaf when translatable to SQL GROUP BY.
      */
-    private class PushAggregateToSql extends OptimizerRules.OptimizerRule<Aggregate> {
+    private class PushAggregateToSql extends ConnectorPushdownRule<Aggregate, SqlPlan> {
+        PushAggregateToSql() { super(SqlConnector.this, SqlPlan.class); }
 
         @Override
-        protected LogicalPlan rule(Aggregate aggregate) {
-            if (aggregate.child() instanceof SqlPlan == false) {
-                return aggregate;
-            }
-            SqlPlan sqlPlan = (SqlPlan) aggregate.child();
-            if (sqlPlan.connector() != SqlConnector.this) {
-                return aggregate;
-            }
+        protected LogicalPlan pushDown(Aggregate aggregate, SqlPlan sqlPlan) {
             SqlFragment select = translateAggregates(aggregate.aggregates());
             if (select == null) {
                 return aggregate; // Cannot translate

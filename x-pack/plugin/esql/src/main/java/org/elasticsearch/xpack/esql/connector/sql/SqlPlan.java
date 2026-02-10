@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.connector.base;
+package org.elasticsearch.xpack.esql.connector.sql;
 
 import org.elasticsearch.xpack.esql.connector.ConnectorPlan;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;

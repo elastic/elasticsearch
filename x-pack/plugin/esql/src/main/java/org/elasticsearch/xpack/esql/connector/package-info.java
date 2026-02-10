@@ -64,21 +64,36 @@
  *
  * <h2>Base Classes</h2>
  *
- * <p>The {@code base} sub-package provides abstract base classes for common patterns:
+ * <p>Sub-packages provide abstract base classes for common patterns:
  *
  * <ul>
- *   <li>{@link org.elasticsearch.xpack.esql.connector.base.DataLakeConnector} -
- *       For Iceberg, Delta Lake, Hudi, raw Parquet (composes {@link org.elasticsearch.xpack.esql.connector.base.StorageProvider}
- *       + {@link org.elasticsearch.xpack.esql.connector.base.FormatReader})</li>
- *   <li>{@link org.elasticsearch.xpack.esql.connector.base.SqlConnector} -
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.lakehouse.LakehouseConnector} -
+ *       For Iceberg, Delta Lake, Hudi, raw Parquet (composes
+ *       {@link org.elasticsearch.xpack.esql.connector.lakehouse.StorageProvider}
+ *       + {@link org.elasticsearch.xpack.esql.connector.lakehouse.FormatReader})</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.sql.SqlConnector} -
  *       For PostgreSQL, MySQL, Oracle, etc.</li>
+ * </ul>
+ *
+ * <h2>Lakehouse SPI</h2>
+ *
+ * <p>The {@link org.elasticsearch.xpack.esql.connector.lakehouse lakehouse} sub-package provides
+ * production-ready abstractions for data lake access:
+ *
+ * <ul>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.lakehouse.StorageProvider} /
+ *       {@link org.elasticsearch.xpack.esql.connector.lakehouse.StorageObject} — storage access</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.lakehouse.FormatReader} — format reading</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.lakehouse.TableCatalog} — catalog integration</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.lakehouse.FilterPushdownSupport} — filter pushdown</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.lakehouse.SourceMetadata} — schema and statistics</li>
  * </ul>
  *
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
  * // 1. Define connector-specific plan node
- * public class IcebergPlan extends DataLakePlan {
+ * public class IcebergPlan extends LakehousePlan {
  *     private final IcebergConnector connector;
  *     private final Expression filter;
  *     private final Integer limit;
@@ -87,13 +102,13 @@
  *     public Connector connector() { return connector; }
  *
  *     @Override
- *     public DataLakePlan withFilter(Expression filter) {
+ *     public LakehousePlan withFilter(Expression filter) {
  *         return new IcebergPlan(..., filter, this.limit);
  *     }
  * }
  *
  * // 2. Implement the connector (composes storage + format)
- * public class IcebergConnector extends DataLakeConnector {
+ * public class IcebergConnector extends LakehouseConnector {
  *
  *     @Override
  *     public String type() { return "iceberg"; }

@@ -142,8 +142,8 @@ public interface Connector {
      * to this connector instance (via {@code plan.connector() == this}) to avoid
      * interfering with other connectors in the same query.
      *
-     * <p>Base classes ({@link org.elasticsearch.xpack.esql.connector.base.DataLakeConnector},
-     * {@link org.elasticsearch.xpack.esql.connector.base.SqlConnector}) provide default
+     * <p>Base classes ({@link org.elasticsearch.xpack.esql.connector.lakehouse.LakehouseConnector},
+     * {@link org.elasticsearch.xpack.esql.connector.sql.SqlConnector}) provide default
      * rules. Subclasses can override to add, remove, or replace rules.
      *
      * @return List of optimization rules, or empty list if no pushdown is supported
@@ -230,7 +230,7 @@ public interface Connector {
      *
      * <p><b>What connectors implement:</b> Connectors extend {@link SourceOperator} directly
      * to open connections to external data sources and stream results as columnar Pages.
-     * See {@link org.elasticsearch.xpack.esql.connector.example.jdbc.JdbcConnector} for an example.
+     * See {@link org.elasticsearch.xpack.esql.connector.sql.JdbcConnector} for an example.
      *
      * <p><b>Page construction:</b> Use {@link DriverContext#blockFactory()} to create
      * {@link org.elasticsearch.compute.data.Block.Builder}s for each output column, append

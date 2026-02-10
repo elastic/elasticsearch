@@ -14,6 +14,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.CONTINUATION_BYTE;
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.TERMINATOR;
+import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.utf8CodeLength;
 
 /**
  * Encodes utf-8 strings as {@code nul} terminated strings.
@@ -98,34 +99,5 @@ final class Utf8DescTopNEncoder extends SortableDescTopNEncoder {
     @Override
     public String toString() {
         return "Utf8Desc";
-    }
-
-    // This section very inspired by Lucene's UnicodeUtil
-    static final int[] utf8CodeLength;
-
-    static {
-        int v = Integer.MIN_VALUE;
-
-        utf8CodeLength = Arrays.stream(
-            new int[][] {
-                // The next line differs from UnicodeUtil - the first entry is 0 because that's our terminator
-                { 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-                // The next line differs from UnicodeUtil - the first entry is 1 because it's valid in our encoding.
-                { 1, v, v, v, v, v, v, v, v, v, v, v, v, v, v, v },
-                { v, v, v, v, v, v, v, v, v, v, v, v, v, v, v, v },
-                { v, v, v, v, v, v, v, v, v, v, v, v, v, v, v, v },
-                { v, v, v, v, v, v, v, v, v, v, v, v, v, v, v, v },
-                { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 },
-                { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 },
-                { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-                { 4, 4, 4, 4, 4, 4, 4, 4 /* , 5, 5, 5, 5, 6, 6, 0, 0 */ } }
-        ).flatMapToInt(Arrays::stream).toArray();
     }
 }

@@ -101,6 +101,9 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.ALL;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.BACKING_INDICES;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.FAILURE_INDICES;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
@@ -529,17 +532,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             List<Index> indicesEligibleForAction;
             if (action.appliesToFailureStore()) {
-                indicesEligibleForAction = dataStream.getIndicesPastRetention(
-                    indexName -> projectState.metadata().index(indexName),
-                    nowSupplier,
-                    actionSchedule
-                );
-            } else {
-                indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                indicesEligibleForAction = dataStream.getIndicesOlderThan(
                     indexName -> projectState.metadata().index(indexName),
                     nowSupplier,
                     actionSchedule,
-                    false
+                    ALL
+                );
+            } else {
+                indicesEligibleForAction = dataStream.getIndicesOlderThan(
+                    indexName -> projectState.metadata().index(indexName),
+                    nowSupplier,
+                    actionSchedule,
+                    BACKING_INDICES
                 );
             }
 
@@ -1109,17 +1113,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (dataRetention == null && failureRetention == null) {
             return Set.of();
         }
-        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             dataRetention,
-            false
+            BACKING_INDICES
         );
-        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
+        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             failureRetention,
-            true
+            FAILURE_INDICES
         );
         if (backingIndicesOlderThanRetention.isEmpty() && failureIndicesOlderThanRetention.isEmpty()) {
             return Set.of();

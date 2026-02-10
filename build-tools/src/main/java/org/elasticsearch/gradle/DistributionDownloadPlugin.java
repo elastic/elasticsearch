@@ -89,7 +89,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     private void setupDistributionContainer(Project project) {
-        distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
+        distributionsContainer = project.getObjects().domainObjectContainer(ElasticsearchDistribution.class, name -> {
             var fileConfiguration = project.getConfigurations().create(DISTRO_CONFIG_PREFIX + name);
             fileConfiguration.setCanBeConsumed(false);
             var extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);

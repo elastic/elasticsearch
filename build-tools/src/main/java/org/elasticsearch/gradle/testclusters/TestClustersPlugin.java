@@ -172,7 +172,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         Provider<JavaLauncher> fallbackJdk17Launcher
     ) {
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
+        NamedDomainObjectContainer<ElasticsearchCluster> container = project.getObjects().domainObjectContainer(
             ElasticsearchCluster.class,
             name -> new ElasticsearchCluster(
                 project.getPath(),

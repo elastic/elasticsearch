@@ -118,7 +118,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.workingDirBase = workingDirBase;
         this.runtimeJava = runtimeJava;
         this.isReleasedVersion = isReleasedVersion;
-        this.nodes = project.container(ElasticsearchNode.class);
+        this.nodes = project.getObjects().domainObjectContainer(ElasticsearchNode.class);
         this.pluginAndModuleConfiguration = project.getObjects().fileCollection();
         this.jdk17FallbackLauncher = jdk17FallbackLauncher;
         this.nodes.add(

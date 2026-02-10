@@ -57,7 +57,7 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
     }
 
     private void registerAndConfigureDistributionArchivesExtension(Project project) {
-        container = project.container(DistributionArchive.class, name -> {
+        container = project.getObjects().domainObjectContainer(DistributionArchive.class, name -> {
             var subProjectDir = archiveToSubprojectName(name);
             var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
             TaskContainer tasks = project.getTasks();

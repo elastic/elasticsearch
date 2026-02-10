@@ -226,6 +226,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
             var searchHit = new SearchHit(1);
             var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, null);
+            searchHit.decRef();
+
             assertEquals(firstVector, vector);
         }
     }
@@ -261,6 +263,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             var matchQuery = new MatchQueryBuilder("testfield", queryPhrase);
             var queryWrapper = new InterceptedQueryBuilderWrapper(new InterceptedInferenceMatchQueryBuilder(matchQuery));
             var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, queryWrapper);
+            searchHit.decRef();
+
             assertEquals(matchedVector, vector);
         }
     }

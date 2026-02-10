@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -661,7 +662,8 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             });
             safeAwait(haveSentSomeContents);
             clientProvider.close();
-            assertThrows(ExecutionException.class, downloadFuture::get);
+            final var exception = assertThrows(ExecutionException.class, downloadFuture::get);
+            assertNotNull(ExceptionsHelper.unwrap(exception, AlreadyClosedException.class));
         }
     }
 

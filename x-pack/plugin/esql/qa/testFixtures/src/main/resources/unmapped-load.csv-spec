@@ -786,3 +786,29 @@ no_mapping_sample_data | Connected to 10.1.0.1!
 sample_data            | Connected to 10.1.0.2
 no_mapping_sample_data | Connected to 10.1.0.2!
 ;
+
+# Type resolution bug: event_duration is long in sample_data, unmapped (loaded) in no_mapping_sample_data; cast to DOUBLE fails to resolve
+unmappedLoadEventDurationCastToDouble
+required_capability: unmapped_fields
+required_capability: optional_fields
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL event_duration = event_duration :: DOUBLE
+| KEEP _index, event_duration
+| SORT event_duration, _index DESC
+| LIMIT 10
+;
+
+_index:keyword         | event_duration:double
+no_mapping_sample_data | 725447.0
+sample_data            | 725448.0
+no_mapping_sample_data | 1232381.0
+sample_data            | 1232382.0
+no_mapping_sample_data | 1756466.0
+sample_data            | 1756467.0
+no_mapping_sample_data | 2764888.0
+sample_data            | 2764889.0
+no_mapping_sample_data | 3450232.0
+sample_data            | 3450233.0
+;

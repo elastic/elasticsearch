@@ -14,7 +14,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1153,13 +1152,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var name = fa.name();
             EsField field = fa.field() instanceof InvalidMappedField imf
                 ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
-                : new InvalidMappedField(
-                    name,
-                    Strings.format(
-                        "mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [%s] in index mappings",
-                        fa.dataType().typeName()
-                    )
-                );
+                // FIXME(gal, NOCOMMIT) hard-coded for debugging
+                : new InvalidMappedField(name, Map.of("long", Set.of("sample_data"), "keyword", Set.of("no_mapping_sample_data")));
             return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
         }
 
@@ -2333,7 +2327,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     typesToConversionExpressions.put(typeName, typeResolutions.get(key));
                 }
             });
-            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
+            // FIXME(gal, NOCOMMIT) more temp hacks
+            var result = MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
+            result.potentiallyUnmappedExpression = typeResolutions.values()
+                .stream()
+                .filter(e -> ((ToDouble) e).field().dataType() == KEYWORD)
+                .findFirst()
+                .get();
+            return result;
         }
 
         private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {

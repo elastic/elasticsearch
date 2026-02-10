@@ -201,6 +201,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
+        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
@@ -212,13 +213,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
-        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, functionConfig);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
+        // FIXME(gal, NOCOMMIT) More temp hacks
+        if (unionTypes != null && indexName.equals("no_mapping_sample_data")) {
+            shardContext = new DefaultShardContextForUnmappedField2(
+                shardContext,
+                new PotentiallyUnmappedKeywordEsField(fieldName),
+                unionTypes.potentiallyUnmappedExpression
+            );
+        }
+        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, functionConfig);
         if (unionTypes == null) {
             return ValuesSourceReaderOperator.load(blockLoader);
         }
         // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
         Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
@@ -248,6 +256,49 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
             super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
+        }
+
+        @Override
+        public @Nullable MappedFieldType fieldType(String name) {
+            var superResult = super.fieldType(name);
+            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+        }
+
+        static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
+            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
+            builder.docValues(false);
+            builder.indexed(false);
+            return new KeywordFieldMapper.KeywordFieldType(
+                name,
+                IndexType.terms(false, false),
+                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                Lucene.KEYWORD_ANALYZER,
+                builder,
+                context.ctx.isSourceSynthetic()
+            );
+        }
+    }
+
+    // FIXME(gal, NOCOMMIT) document, rename, whatever
+    private static class DefaultShardContextForUnmappedField2 extends DefaultShardContext {
+        private static final FieldType UNMAPPED_FIELD_TYPE = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        static {
+            UNMAPPED_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
+            UNMAPPED_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            UNMAPPED_FIELD_TYPE.setStored(false);
+            UNMAPPED_FIELD_TYPE.freeze();
+        }
+        private final KeywordEsField unmappedEsField;
+        private final Expression converted;
+
+        DefaultShardContextForUnmappedField2(
+            DefaultShardContext ctx,
+            PotentiallyUnmappedKeywordEsField unmappedEsField,
+            Expression converted
+        ) {
+            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
+            this.unmappedEsField = unmappedEsField;
+            this.converted = converted;
         }
 
         @Override

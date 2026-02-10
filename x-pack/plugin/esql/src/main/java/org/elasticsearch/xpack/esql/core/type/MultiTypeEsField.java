@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -31,6 +32,9 @@ import java.util.Set;
 public class MultiTypeEsField extends EsField {
 
     private final Map<String, Expression> indexToConversionExpressions;
+    // FIXME(gal, NOCOMMIT) temp
+    @Nullable
+    public Expression potentiallyUnmappedExpression = null;
 
     public MultiTypeEsField(
         String name,

@@ -249,14 +249,14 @@ public class ExtractorTests extends ESTestCase {
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
-        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
+        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), InKey.NotInKey, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
             testCase.type,
             testCase.encoder.toUnsortable(),
-            false,
+            InKey.NotInKey,
             1
         );
         BytesRef values = valuesBuilder.bytesRefView();
@@ -274,19 +274,25 @@ public class ExtractorTests extends ESTestCase {
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
-        KeyExtractor.extractorFor(testCase.type, testCase.encoder.toSortable(), randomBoolean(), randomByte(), randomByte(), value)
+        boolean asc = randomBoolean();
+        KeyExtractor.extractorFor(testCase.type, testCase.encoder.toSortable(asc), asc, randomByte(), randomByte(), value)
             .writeKey(keysBuilder, 0);
         assertThat(keysBuilder.length(), greaterThan(0));
 
         BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
-        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
+        ValueExtractor.extractorFor(
+            testCase.type,
+            testCase.encoder.toUnsortable(),
+            asc ? InKey.InKeyAscending : InKey.InKeyDescending,
+            value
+        ).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
             testCase.type,
-            testCase.encoder.toUnsortable(),
-            true,
+            testCase.encoder,
+            asc ? InKey.InKeyAscending : InKey.InKeyDescending,
             1
         );
         BytesRef keys = keysBuilder.bytesRefView();

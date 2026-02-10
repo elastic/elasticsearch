@@ -22,7 +22,7 @@ public class FixedLengthDescTopNEncoderTests extends AbstractFixedTopNEncoderTes
 
     @Override
     protected TopNEncoder encoder() {
-        return SortableTopNEncoder.IP_DESC;
+        return SortableTopNEncoder.IP.toSortable(false);
     }
 
     @Override

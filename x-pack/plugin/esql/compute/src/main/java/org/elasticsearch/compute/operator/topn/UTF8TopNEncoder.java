@@ -23,9 +23,10 @@ import java.util.Arrays;
  * </p>
  */
 final class UTF8TopNEncoder extends SortableTopNEncoder {
-
-    private static final int CONTINUATION_BYTE = 0b1000_0000;
+    static final int CONTINUATION_BYTE = 0b1000_0000;
     static final byte TERMINATOR = 0x00;
+
+    private final UTF8DescTopNEncoder descEncoder = new UTF8DescTopNEncoder(this);
 
     @Override
     public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
@@ -80,8 +81,8 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return this;
+    public TopNEncoder toSortable(boolean asc) {
+        return asc ? this : descEncoder;
     }
 
     @Override

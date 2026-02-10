@@ -39,6 +39,7 @@ interface KeyExtractor {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
             throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
+        encoder = encoder.toSortable(ascending);
         return switch (block.elementType()) {
             case BOOLEAN -> KeyExtractorForBoolean.extractorFor(encoder, ascending, nul, nonNul, (BooleanBlock) block);
             case BYTES_REF -> KeyExtractorForBytesRef.extractorFor(encoder, ascending, nul, nonNul, (BytesRefBlock) block);

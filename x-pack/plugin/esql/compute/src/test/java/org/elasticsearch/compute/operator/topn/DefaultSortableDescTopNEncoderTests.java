@@ -18,7 +18,7 @@ public class DefaultSortableDescTopNEncoderTests extends AbstractDefaultSortable
 
     @Override
     protected TopNEncoder encoder() {
-        return TopNEncoder.DEFAULT_SORTABLE_DESC;
+        return TopNEncoder.DEFAULT_SORTABLE.toSortable(false);
     }
 
     @Override

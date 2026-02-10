@@ -36,19 +36,15 @@ abstract class KeyExtractorFor$Type$ implements KeyExtractor {
             : new KeyExtractorFor$Type$.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
-$if(BytesRef)$
     private final TopNEncoder encoder;
+$if(BytesRef)$
     protected final BytesRef scratch = new BytesRef();
 $endif$
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorFor$Type$(TopNEncoder encoder, byte nul, byte nonNul) {
-$if(BytesRef)$
         this.encoder = encoder;
-$else$
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
-$endif$
         this.nul = nul;
         this.nonNul = nonNul;
     }
@@ -58,10 +54,10 @@ $endif$
 $if(BytesRef)$
         return encoder.encodeBytesRef(value, key) + 1;
 $elseif(boolean)$
-        TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value, key);
+        encoder.encodeBoolean(value, key);
         return Byte.BYTES + 1;
 $else$
-        TopNEncoder.DEFAULT_SORTABLE.encode$Type$(value, key);
+        encoder.encode$Type$(value, key);
         return $BYTES$ + 1;
 $endif$
     }
@@ -231,6 +227,7 @@ $else$
             for (int i = start + 1; i < end; i++) {
                 max = Math.max(max, block.get$Type$(i));
             }
+            System.err.println("NOCOMMIT " + max);
             return nonNul(key, max);
 $endif$
         }

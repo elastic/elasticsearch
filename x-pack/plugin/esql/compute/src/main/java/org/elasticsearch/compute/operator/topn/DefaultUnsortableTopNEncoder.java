@@ -193,8 +193,8 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return TopNEncoder.DEFAULT_SORTABLE;
+    public TopNEncoder toSortable(boolean asc) {
+        return TopNEncoder.DEFAULT_SORTABLE.toSortable(asc);
     }
 
     @Override

@@ -34,7 +34,7 @@ class UnsupportedTypesTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
+    public TopNEncoder toSortable(boolean asc) {
         return this;
     }
 

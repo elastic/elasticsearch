@@ -18,7 +18,7 @@ public class VersionDescTopNEncoderTests extends AbstractVersionTopNEncoderTests
 
     @Override
     protected TopNEncoder encoder() {
-        return TopNEncoder.VERSION_DESC;
+        return TopNEncoder.VERSION.toSortable(false);
     }
 
     @Override

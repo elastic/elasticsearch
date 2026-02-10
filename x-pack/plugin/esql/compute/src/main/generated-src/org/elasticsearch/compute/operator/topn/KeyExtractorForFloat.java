@@ -33,18 +33,19 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
             : new KeyExtractorForFloat.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
+    private final TopNEncoder encoder;
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorForFloat(TopNEncoder encoder, byte nul, byte nonNul) {
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
+        this.encoder = encoder;
         this.nul = nul;
         this.nonNul = nonNul;
     }
 
     protected final int nonNul(BreakingBytesRefBuilder key, float value) {
         key.append(nonNul);
-        TopNEncoder.DEFAULT_SORTABLE.encodeFloat(value, key);
+        encoder.encodeFloat(value, key);
         return Float.BYTES + 1;
     }
 
@@ -150,6 +151,7 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 max = Math.max(max, block.getFloat(i));
             }
+            System.err.println("NOCOMMIT " + max);
             return nonNul(key, max);
         }
     }

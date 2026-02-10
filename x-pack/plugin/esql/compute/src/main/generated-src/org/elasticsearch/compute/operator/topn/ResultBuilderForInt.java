@@ -20,13 +20,15 @@ class ResultBuilderForInt implements ResultBuilder {
 
     private final boolean inKey;
 
+    private final TopNEncoder encoder;
+
     /**
      * The value previously set by {@link #decodeKey}.
      */
     private int key;
 
     ResultBuilderForInt(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        this.encoder = encoder;
         this.inKey = inKey;
         this.builder = blockFactory.newIntBlockBuilder(initialSize);
     }
@@ -34,7 +36,7 @@ class ResultBuilderForInt implements ResultBuilder {
     @Override
     public void decodeKey(BytesRef keys) {
         assert inKey;
-        key = TopNEncoder.DEFAULT_SORTABLE.decodeInt(keys);
+        key = encoder.decodeInt(keys);
     }
 
     @Override

@@ -24,10 +24,12 @@ abstract class ValueExtractorForInt implements ValueExtractor {
         return new ValueExtractorForInt.ForBlock(encoder, inKey, block);
     }
 
+    private final TopNEncoder encoder;
+
     protected final boolean inKey;
 
     ValueExtractorForInt(TopNEncoder encoder, boolean inKey) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        this.encoder = encoder.toUnsortable();
         this.inKey = inKey;
     }
 
@@ -36,7 +38,7 @@ abstract class ValueExtractorForInt implements ValueExtractor {
     }
 
     protected final void actualWriteValue(BreakingBytesRefBuilder values, int value) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(value, values);
+        encoder.encodeInt(value, values);
     }
 
     static class ForVector extends ValueExtractorForInt {

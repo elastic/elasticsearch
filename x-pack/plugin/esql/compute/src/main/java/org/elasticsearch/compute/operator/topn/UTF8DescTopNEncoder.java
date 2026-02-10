@@ -12,12 +12,18 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.compute.operator.topn.UTF8TopNEncoder.CONTINUATION_BYTE;
+import static org.elasticsearch.compute.operator.topn.UTF8TopNEncoder.TERMINATOR;
+
 /**
  * Encodes utf-8 strings as {@code nul} terminated strings.
  */
 final class UTF8DescTopNEncoder extends SortableDescTopNEncoder {
-    private static final int CONTINUATION_BYTE = 0b1000_0000;
-    static final byte TERMINATOR = 0x00;
+    private final UTF8TopNEncoder ascEncoder;
+
+    UTF8DescTopNEncoder(UTF8TopNEncoder ascEncoder) {
+        this.ascEncoder = ascEncoder;
+    }
 
     @Override
     public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
@@ -80,15 +86,14 @@ final class UTF8DescTopNEncoder extends SortableDescTopNEncoder {
         return scratch;
     }
 
-
     @Override
-    public TopNEncoder toSortable() {
-        return this;
+    public TopNEncoder toSortable(boolean asc) {
+        return asc ? ascEncoder : this;
     }
 
     @Override
     public TopNEncoder toUnsortable() {
-        return this;
+        return ascEncoder;
     }
 
     @Override

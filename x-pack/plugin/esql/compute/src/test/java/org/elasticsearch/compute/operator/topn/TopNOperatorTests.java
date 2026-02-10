@@ -787,19 +787,19 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     private void testCompare(Page page, ElementType elementType, TopNEncoder encoder) {
         Block nullBlock = TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(1);
-        Page nullPage = new Page(new Block[] { nullBlock, nullBlock, nullBlock, nullBlock, nullBlock });
+        Page nullPage = new Page(nullBlock, nullBlock, nullBlock, nullBlock, nullBlock);
 
         for (int b = 0; b < page.getBlockCount(); b++) {
             // Non-null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
                 TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
-                assertEquals(0, TopNOperator.compareRows(row, row));
+                assertThat(row, equalTo(row));
             }
 
             // Null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
                 TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
-                assertEquals(0, TopNOperator.compareRows(row, row));
+                assertThat(row, equalTo(row));
             }
 
             // nulls first
@@ -807,8 +807,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean asc = randomBoolean();
                 TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, true, page, p);
                 TopNOperator.Row nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
-                assertEquals(-1, TopNOperator.compareRows(nonNullRow, nullRow));
-                assertEquals(1, TopNOperator.compareRows(nullRow, nonNullRow));
+                assertThat(nonNullRow, lessThan(nullRow));
+                assertThat(nullRow, greaterThan(nonNullRow));
             }
 
             // nulls last
@@ -816,8 +816,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean asc = randomBoolean();
                 TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, false, page, p);
                 TopNOperator.Row nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
-                assertEquals(1, TopNOperator.compareRows(nonNullRow, nullRow));
-                assertEquals(-1, TopNOperator.compareRows(nullRow, nonNullRow));
+                assertThat(nonNullRow, greaterThan(nullRow));
+                assertThat(nullRow, lessThan(nonNullRow));
             }
 
             // ascending
@@ -825,16 +825,16 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean nullsFirst = randomBoolean();
                 TopNOperator.Row r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
                 TopNOperator.Row r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
-                assertThat(TopNOperator.compareRows(r1, r2), greaterThan(0));
-                assertThat(TopNOperator.compareRows(r2, r1), lessThan(0));
+                assertThat(r1, greaterThan(r2));
+                assertThat(r2, lessThan(r1));
             }
             // descending
             {
                 boolean nullsFirst = randomBoolean();
                 TopNOperator.Row r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
                 TopNOperator.Row r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
-                assertThat(TopNOperator.compareRows(r1, r2), lessThan(0));
-                assertThat(TopNOperator.compareRows(r2, r1), greaterThan(0));
+                assertThat(r1, lessThan(r2));
+                assertThat(r2, greaterThan(r1));
             }
         }
         page.releaseBlocks();

@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class VersionTopNEncoder extends SortableTopNEncoder {
+    private final VersionDescTopNEncoder descEncoder = new VersionDescTopNEncoder(this);
+
     @Override
     public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
@@ -44,8 +46,8 @@ class VersionTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return this;
+    public TopNEncoder toSortable(boolean asc) {
+        return asc ? this : descEncoder;
     }
 
     @Override

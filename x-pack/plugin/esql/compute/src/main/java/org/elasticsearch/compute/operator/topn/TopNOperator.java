@@ -56,7 +56,7 @@ public class TopNOperator implements Operator, Accountable {
      * It mirrors somehow the Block build in the sense that it keeps around an array of offsets and a count of values (to account for
      * multivalues) to reference each position in each block of the Page.
      */
-    static final class Row implements Accountable, Releasable {
+    static final class Row implements Accountable, Comparable<Row>, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
 
         private final CircuitBreaker breaker;
@@ -71,7 +71,7 @@ public class TopNOperator implements Operator, Accountable {
          * For ex, if a Long is represented as 8 bytes, each of these bytes will have the same value (set/unset) if the respective Long
          * value is used for sorting ascending/descending.
          */
-        final BytesOrder bytesOrder;
+        final BytesOrder bytesOrder; // NOCOMMIT remove it entirely
 
         /**
          * Values to reconstruct the row. Sort of. When we reconstruct the row we read
@@ -128,6 +128,24 @@ public class TopNOperator implements Operator, Accountable {
             this.shardRefCounter = shardRefCounted;
             this.shardRefCounter.mustIncRef();
         }
+
+        @Override
+        public int compareTo(Row rhs) {
+            return -keys.bytesRefView().compareTo(rhs.keys.bytesRefView());
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder b = new StringBuilder("Row[key=");
+            b.append(keys.bytesRefView());
+            b.append(", values=");
+            if (values.length() < 100) {
+                b.append(values.bytesRefView());
+            } else {
+                b.append("...");
+            }
+            return b.append("]").toString();
+        }
     }
 
     static final class BytesOrder implements Releasable, Accountable {
@@ -172,6 +190,7 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
+    // NOCOMMIT remove KeyFactory entirely - use KeyExtractor
     record KeyFactory(KeyExtractor extractor, boolean ascending) {}
 
     static final class RowFiller {
@@ -193,7 +212,7 @@ public class TopNOperator implements Operator, Accountable {
                 SortOrder so = sortOrders.get(k);
                 KeyExtractor extractor = KeyExtractor.extractorFor(
                     elementTypes.get(so.channel),
-                    encoders.get(so.channel).toSortable(),
+                    encoders.get(so.channel).toSortable(so.asc),
                     so.asc,
                     so.nul(),
                     so.nonNul(),
@@ -236,19 +255,11 @@ public class TopNOperator implements Operator, Accountable {
         }
 
         byte nul() {
-            if (nullsFirst) {
-                return asc ? SMALL_NULL : BIG_NULL;
-            } else {
-                return asc ? BIG_NULL : SMALL_NULL;
-            }
+            return nullsFirst ? SMALL_NULL : BIG_NULL;
         }
 
         byte nonNul() {
-            if (nullsFirst) {
-                return asc ? BIG_NULL : SMALL_NULL;
-            } else {
-                return asc ? SMALL_NULL : BIG_NULL;
-            }
+            return nullsFirst ? BIG_NULL : SMALL_NULL;
         }
     }
 
@@ -359,40 +370,6 @@ public class TopNOperator implements Operator, Accountable {
         this.inputOrdering = inputOrdering;
     }
 
-    static int compareRows(Row r1, Row r2) {
-        // This is similar to r1.key.compareTo(r2.key) but stopping somewhere in the middle so that
-        // we check the byte that mismatched
-        BytesRef br1 = r1.keys.bytesRefView();
-        BytesRef br2 = r2.keys.bytesRefView();
-        int mismatchedByteIndex = Arrays.mismatch(
-            br1.bytes,
-            br1.offset,
-            br1.offset + br1.length,
-            br2.bytes,
-            br2.offset,
-            br2.offset + br2.length
-        );
-        if (mismatchedByteIndex < 0) {
-            // the two rows are equal
-            return 0;
-        }
-
-        int length = Math.min(br1.length, br2.length);
-        // one value is the prefix of the other
-        if (mismatchedByteIndex == length) {
-            // the value with the greater length is considered greater than the other
-            if (length == br1.length) {// first row is less than the second row
-                return r2.bytesOrder.isByteOrderAscending(length) ? 1 : -1;
-            } else {// second row is less than the first row
-                return r1.bytesOrder.isByteOrderAscending(length) ? -1 : 1;
-            }
-        } else {
-            // compare the byte that mismatched accounting for that respective byte asc/desc ordering
-            int c = Byte.compareUnsigned(br1.bytes[br1.offset + mismatchedByteIndex], br2.bytes[br2.offset + mismatchedByteIndex]);
-            return r1.bytesOrder.isByteOrderAscending(mismatchedByteIndex) ? -c : c;
-        }
-    }
-
     @Override
     public boolean needsInput() {
         return output == null;
@@ -475,13 +452,13 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    private static boolean channelInKey(List<SortOrder> sortOrders, int channel) {
+    private static InKey channelInKey(List<SortOrder> sortOrders, int channel) {
         for (SortOrder so : sortOrders) {
             if (so.channel == channel) {
-                return true;
+                return so.asc ? InKey.InKeyAscending : InKey.InKeyDescending;
             }
         }
-        return false;
+        return InKey.NotInKey;
     }
 
     @Override
@@ -594,8 +571,9 @@ public class TopNOperator implements Operator, Accountable {
         }
 
         @Override
-        protected boolean lessThan(Row r1, Row r2) {
-            return compareRows(r1, r2) < 0;
+        protected boolean lessThan(Row lhs, Row rhs) {
+            // return compareRows(r1, r2) < 0;
+            return lhs.compareTo(rhs) < 0;
         }
 
         @Override
@@ -699,7 +677,7 @@ public class TopNOperator implements Operator, Accountable {
                     builders[b] = ResultBuilder.resultBuilderFor(
                         blockFactory,
                         elementTypes.get(b),
-                        encoders.get(b).toUnsortable(),
+                        encoders.get(b),
                         channelInKey(sortOrders, b),
                         size
                     );

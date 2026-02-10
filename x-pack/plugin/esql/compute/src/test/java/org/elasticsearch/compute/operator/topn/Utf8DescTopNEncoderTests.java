@@ -19,7 +19,7 @@ public class Utf8DescTopNEncoderTests extends AbstractUtf8TopNEncoderTests {
 
     @Override
     protected TopNEncoder encoder() {
-        return TopNEncoder.UTF8_DESC;
+        return TopNEncoder.UTF8.toSortable(false);
     }
 
     @Override

@@ -38,7 +38,7 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     @Override
     public void decodeKey(BytesRef keys) {
         assert inKey;
-        key = encoder.toSortable().decodeBytesRef(keys, scratch);
+        key = encoder.decodeBytesRef(keys, scratch);
     }
 
     @Override

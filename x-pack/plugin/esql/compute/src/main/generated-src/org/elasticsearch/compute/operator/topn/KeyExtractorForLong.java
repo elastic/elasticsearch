@@ -33,18 +33,19 @@ abstract class KeyExtractorForLong implements KeyExtractor {
             : new KeyExtractorForLong.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
+    private final TopNEncoder encoder;
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorForLong(TopNEncoder encoder, byte nul, byte nonNul) {
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
+        this.encoder = encoder;
         this.nul = nul;
         this.nonNul = nonNul;
     }
 
     protected final int nonNul(BreakingBytesRefBuilder key, long value) {
         key.append(nonNul);
-        TopNEncoder.DEFAULT_SORTABLE.encodeLong(value, key);
+        encoder.encodeLong(value, key);
         return Long.BYTES + 1;
     }
 
@@ -150,6 +151,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 max = Math.max(max, block.getLong(i));
             }
+            System.err.println("NOCOMMIT " + max);
             return nonNul(key, max);
         }
     }

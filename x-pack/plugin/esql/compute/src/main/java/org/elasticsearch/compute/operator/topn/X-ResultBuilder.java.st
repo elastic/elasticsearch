@@ -20,9 +20,9 @@ class ResultBuilderFor$Type$ implements ResultBuilder {
 
     private final boolean inKey;
 
-$if(BytesRef)$
     private final TopNEncoder encoder;
 
+$if(BytesRef)$
     private final BytesRef scratch = new BytesRef();
 $endif$
 
@@ -32,11 +32,7 @@ $endif$
     private $type$ key;
 
     ResultBuilderFor$Type$(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
-$if(BytesRef)$
         this.encoder = encoder;
-$else$
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
-$endif$
         this.inKey = inKey;
         this.builder = blockFactory.new$Type$BlockBuilder(initialSize);
     }
@@ -45,9 +41,9 @@ $endif$
     public void decodeKey(BytesRef keys) {
         assert inKey;
 $if(BytesRef)$
-        key = encoder.toSortable().decodeBytesRef(keys, scratch);
+        key = encoder.decodeBytesRef(keys, scratch);
 $else$
-        key = TopNEncoder.DEFAULT_SORTABLE.decode$Type$(keys);
+        key = encoder.decode$Type$(keys);
 $endif$
     }
 

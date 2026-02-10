@@ -33,18 +33,19 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
             : new KeyExtractorForBoolean.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
+    private final TopNEncoder encoder;
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorForBoolean(TopNEncoder encoder, byte nul, byte nonNul) {
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
+        this.encoder = encoder;
         this.nul = nul;
         this.nonNul = nonNul;
     }
 
     protected final int nonNul(BreakingBytesRefBuilder key, boolean value) {
         key.append(nonNul);
-        TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value, key);
+        encoder.encodeBoolean(value, key);
         return Byte.BYTES + 1;
     }
 

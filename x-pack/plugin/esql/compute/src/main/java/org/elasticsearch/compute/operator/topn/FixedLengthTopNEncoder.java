@@ -12,9 +12,11 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class FixedLengthTopNEncoder extends SortableTopNEncoder {
     private final int length;
+    private final FixedLengthDescTopNEncoder descEncoder;
 
     FixedLengthTopNEncoder(int length) {
         this.length = length;
+        this.descEncoder = new FixedLengthDescTopNEncoder(length, this);
     }
 
     @Override
@@ -45,8 +47,8 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return this;
+    public TopNEncoder toSortable(boolean asc) {
+        return asc ? this : descEncoder;
     }
 
     @Override

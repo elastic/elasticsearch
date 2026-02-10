@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -44,7 +45,10 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
                 long reads = 0;
                 for (String file : files) {
                     if (file.endsWith("lock") == false) {
-                        IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT);
+                        IndexInput indexInput = directory.openInput(
+                            file,
+                            file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT
+                        );
                         indexInput.readByte();
                         ++reads;
                         indexInput.seek(directory.fileLength(file) - 1);

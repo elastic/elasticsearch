@@ -449,6 +449,10 @@ GWL            |9                  |4                      |military
 
 byMvExpand
 required_capability: inline_stats
+required_capability: st_x_y_quantized
+// ST_X and ST_Y return slightly different precision in older versions
+// So mixed clusters will return no results due to precision differences
+// We could consider relaxing equality for spatial types, but that is expensive
 
 FROM airports
 | MV_EXPAND type
@@ -5189,4 +5193,123 @@ ROW x = 0
 
 x:integer | a:long | b:long | c:boolean | d:boolean
 0         | 0      | 0      | false     | true
+;
+
+
+inlineStatsGroupByNull_Basic
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c = COUNT(*) BY n = null
+| KEEP c, n
+| LIMIT 1
+;
+
+c:long	| n:null
+1     	| null         
+;
+
+
+inlineStatsGroupByNull_WithMultipleAggFunctions
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 10
+| INLINE STATS c = COUNT(*), s = SUM(x), m = MAX(x) BY n = null
+| KEEP c, s, m, n
+| LIMIT 1
+;
+
+c:long	| s:long	| m:integer	| n:null
+1     	| 10    	| 10       	| null           
+;
+
+
+inlineStatsGroupByNull_WithEval
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1, y = 2
+| EVAL z = x + y
+| INLINE STATS c = COUNT(*) BY n = null
+| KEEP x, y, z, c, n
+;
+
+x:integer	| y:integer	| z:integer	| c:long	| n:null
+1        	| 2        	| 3        	| 1     	| null          
+;
+
+
+inlineStatsGroupByNull_WithNullLiteral
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c = COUNT(*) BY null
+| KEEP c, null
+| LIMIT 1
+;
+
+c:long	| null:null
+1     	| null         
+;
+
+
+inlineStatsGroupByNull_FromEmployees
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*) BY n = null
+| KEEP emp_no, c, n
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer	| c:long	| n:null
+10001         	| 100     	| null  
+10002         	| 100     	| null  
+10003         	| 100     	| null          
+;
+
+
+inlineStatsGroupByNull_DoubleInlineStats
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c1 = COUNT(*) BY n1 = null
+| INLINE STATS c2 = COUNT(*) BY n2 = null
+| KEEP c1, n1, c2, n2
+| LIMIT 1
+;
+
+c1:long	| n1:null	| c2:long	| n2:null
+1      	| null   	| 1      	| null  
+;
+
+
+inlineStatsGroupByNull_MultipleNullKeys
+required_capability: fix_inline_stats_group_by_null
+
+ROW x = 1
+| INLINE STATS c = COUNT(*) BY n1 = null, n2 = null
+| KEEP c, n1, n2
+| LIMIT 1
+;
+
+c:long	| n1:null	| n2:null
+1     	| null   	| null  
+;
+
+
+inlineStatsGroupByNull_MixedNullAndNonNull
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*) BY n = null, emp_no
+| KEEP c, n, emp_no
+| SORT emp_no
+| LIMIT 3
+;
+
+c:long	| n:null	| emp_no:integer
+1     	| null  	| 10001         
+1     	| null  	| 10002         
+1     	| null  	| 10003          
 ;

@@ -416,6 +416,42 @@ public class SparseFileTracker {
         }
     }
 
+    /**
+     * Returns the number of bytes of the target range which are absent (possibly pending). This method does
+     * not acquire anything, which means that another thread may concurrently fill in some of the returned bytes.
+     *
+     * @param range The target range
+     * @return the number of bytes of the target range which are or were absent
+     */
+    public long getAbsentBytesWithin(ByteRange range) {
+        final long start = range.start();
+        final long end = range.end();
+        synchronized (ranges) {
+            if (ranges.isEmpty()) {
+                return end - start;
+            } else {
+                // Find the first absent byte in the range
+                final Range startRange = new Range(start, start, null);
+                final Range lastStartRange = ranges.floor(startRange);
+                SortedSet<Range> subRange = ranges.subSet(
+                    lastStartRange == null || lastStartRange.end <= start ? startRange : lastStartRange,
+                    new Range(end, end, null)
+                );
+                long last = start;
+                long sum = 0;
+                for (Range r : subRange) {
+                    sum += Math.max(r.start - last, 0);
+                    if (r.isPending()) {
+                        sum += Math.min(r.end, end) - Math.max(r.start, last);
+                    }
+                    last = r.end;
+                }
+                sum += Math.max(end - last, 0);
+                return sum;
+            }
+        }
+    }
+
     private boolean assertPendingRangeExists(Range range) {
         assert Thread.holdsLock(ranges);
         final SortedSet<Range> existingRanges = ranges.tailSet(range);

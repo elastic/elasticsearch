@@ -855,7 +855,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private MapperService mapperService(boolean indexDimensions) throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         return createMapperService(indexSettings(version, indexDimensions), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();

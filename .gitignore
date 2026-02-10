@@ -2,6 +2,9 @@
 # claude
 .claude
 
+# JetBrainsAI/Junie
+.junie/
+
 # intellij files
 .idea/
 *.iml
@@ -73,6 +76,8 @@ testfixtures_shared/
 # Generated
 checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/
+x-pack/plugin/esql/src/test/resources/org/elasticsearch/xpack/esql/**/golden_tests/**/*.actual
+
 server/src/main/resources/transport/definitions/manifest.txt
 
 # JEnv

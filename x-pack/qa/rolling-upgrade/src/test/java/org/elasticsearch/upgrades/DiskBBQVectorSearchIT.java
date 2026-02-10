@@ -7,6 +7,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -29,6 +30,8 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     public void test() throws Exception {
         Version v = Version.fromString(UPGRADE_FROM_VERSION);
         assumeTrue("DiskBBQ vector format introduced in version " + DISK_BBQ_VERSION, v.onOrAfter(DISK_BBQ_VERSION));
+        // because of any dev changes in ESNextDiskBBQVectorsFormat, enabled for snapshot builds, may make this test fail
+        assumeTrue("DiskBBQ rolling upgrade test runs for non-snapshot builds", Build.current().isSnapshot() == false);
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String mapping = """
                 {

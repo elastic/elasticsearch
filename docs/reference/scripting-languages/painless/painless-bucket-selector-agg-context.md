@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-bucket-selector-agg-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -28,46 +31,32 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example [_example_2]
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-The painless context in a `bucket_selector` aggregation provides a `params` map. This map contains both user-specified custom values, as well as the values from other aggregations specified in the `buckets_path` property.
+The following request filters out low-performing manufacturers and focuses only on brands with significant sales volume. The query groups orders by manufacturer, counts total orders for each brand, then uses a bucket selector to show only manufacturers with 50 or more orders. 
 
-Unlike some other aggregation contexts, the `bucket_selector` context must return a boolean `true` or `false`.
-
-This example finds the max of each bucket, adds a user-specified base_cost, and retains all of the buckets that are greater than `10`.
-
-```painless
-params.max + params.base_cost > 10
-```
-
-Note that the values are extracted from the `params` map. The script is in the form of an expression that returns `true` or `false`. In context, the aggregation looks like this:
-
-```console
-GET /seats/_search
+```json
+GET kibana_sample_data_ecommerce/_search
 {
   "size": 0,
   "aggs": {
-    "theatres": {
+    "manufacturers": {
       "terms": {
-        "field": "theatre",
-        "size": 10
+        "field": "manufacturer.keyword"
       },
       "aggs": {
-        "max_cost": {
-          "max": {
-            "field": "cost"
+        "total_orders": {
+          "value_count": {
+            "field": "order_id"
           }
         },
-        "filtering_agg": {
+        "high_volume_filter": {
           "bucket_selector": {
-            "buckets_path": { <1>
-              "max": "max_cost"
+            "buckets_path": {
+              "order_count": "total_orders"
             },
             "script": {
-              "params": {
-                "base_cost": 5 <2>
-              },
-              "source": "params.max + params.base_cost > 10"
+              "source": "params.order_count >= 50"
             }
           }
         }
@@ -76,10 +65,3 @@ GET /seats/_search
   }
 }
 ```
-% TEST[setup:seats]
-
-1. The `buckets_path` points to the max aggregations (`max_cost`) and adds `max` variables to the `params` map
-2. The user-specified `base_cost` is also added to the `params` map
-
-
-

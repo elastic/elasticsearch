@@ -10,7 +10,6 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 
@@ -90,43 +89,5 @@ public class BytesRefs {
         } catch (Exception e) {
             return prefix.toString();
         }
-    }
-
-    /**
-     * Calculate the number of code points in a utf-8 encoded string stored in a BytesRef.
-     * Use SWAR techniques to processes multiple bytes at once. Rather than counting leading
-     * bytes which start with 0 or 11, we count continuation bytes which start with 10. Since
-     * every byte which is not a continuation byte is the start of a code point, we subtract
-     * the number of continuation bytes from the number of bytes to get the number of code points.
-     *
-     * Lucene's UnicodeUtil.codePointCount throws an error on some invalid Unicode strings. This method
-     * never throws and thus assumes that all input strings are valid Unicode.
-     *
-     * @param bytes a value unicode string encoded in utf-8
-     * @return the number of Unicode code points in the string
-     */
-    public static int fastCodePointCount(BytesRef bytes) {
-        int pos = bytes.offset;
-        int limit = bytes.offset + bytes.length;
-        int continuations = 0;
-
-        for (; pos <= limit - 8; pos += 8) {
-            long data = (long) BitUtil.VH_NATIVE_LONG.get(bytes.bytes, pos);
-            long high = data & 0x8080808080808080L;
-            // If all bytes start with 0, they are all ascii, so the block can be skipped.
-            if (high != 0) {
-                // Set the high bit in `mask` if the high bit in data is set and the second bit is not set
-                long mask = high & (~data << 1);
-                continuations += Long.bitCount(mask);
-            }
-        }
-
-        // Last 7 or fewer bytes
-        while (pos < limit) {
-            continuations += (bytes.bytes[pos] & 0xC0) == 0x80 ? 1 : 0;
-            pos++;
-        }
-
-        return bytes.length - continuations;
     }
 }

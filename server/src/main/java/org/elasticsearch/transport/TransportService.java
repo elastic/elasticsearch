@@ -77,7 +77,8 @@ public class TransportService extends AbstractLifecycleComponent
     implements
         ReportingService<TransportInfo>,
         TransportMessageListener,
-        TransportConnectionListener {
+        TransportConnectionListener,
+        RemoteTransportClient {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
@@ -97,7 +98,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
      * including deadlocks.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
         "transport.enable_stack_protection",
         false,
@@ -130,8 +131,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     });
 
-    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {
-    };
+    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {};
 
     // tracer log
 
@@ -778,6 +778,7 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.removeListener(listener);
     }
 
+    @Override
     public <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
         final String action,

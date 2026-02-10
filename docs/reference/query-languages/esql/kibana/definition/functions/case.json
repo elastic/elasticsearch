@@ -14,6 +14,48 @@
         },
         {
           "name" : "trueValue",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "aggregate_metric_double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "aggregate_metric_double",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "aggregate_metric_double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
           "type" : "boolean",
           "optional" : false,
           "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
@@ -549,6 +591,48 @@
       ],
       "variadic" : true,
       "returnType" : "geotile"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "histogram",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "histogram",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "histogram",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "histogram"
     },
     {
       "params" : [
@@ -741,6 +825,48 @@
       ],
       "variadic" : true,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "tdigest",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "tdigest"
     },
     {
       "params" : [

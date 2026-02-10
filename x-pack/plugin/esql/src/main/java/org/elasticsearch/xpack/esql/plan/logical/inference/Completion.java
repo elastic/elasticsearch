@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -39,6 +40,8 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
+    public static final String TASK_SETTINGS_OPTION_NAME = "task_settings";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Completion",
@@ -46,13 +49,21 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     );
 
     private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
+    public static final MapExpression DEFAULT_TASK_SETTINGS = new MapExpression(Source.EMPTY, List.of());
 
     private final Expression prompt;
     private final Attribute targetField;
+    /**
+     * Model-specific task settings passed to the inference endpoint.
+     * Common settings include temperature, max_tokens, top_p, etc.
+     * Settings are validated by the inference service, not at parse time.
+     * Never null - defaults to empty map if not provided.
+     */
+    private final MapExpression taskSettings;
     private List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.NULL, rowLimit, prompt, targetField);
+        this(source, p, Literal.NULL, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS);
     }
 
     public Completion(
@@ -63,9 +74,22 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Expression prompt,
         Attribute targetField
     ) {
+        this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS);
+    }
+
+    public Completion(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression prompt,
+        Attribute targetField,
+        MapExpression taskSettings
+    ) {
         super(source, child, inferenceId, rowLimit);
         this.prompt = prompt;
         this.targetField = targetField;
+        this.taskSettings = taskSettings;
     }
 
     public Completion(StreamInput in) throws IOException {
@@ -75,7 +99,11 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             in.readNamedWriteable(Expression.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Attribute.class)
+            in.readNamedWriteable(Attribute.class),
+            // COMPLETION is coordinator-only and should not be serialized in normal operation.
+            // Deserialization is kept for rolling upgrade safety. Since old versions don't
+            // know about task_settings, we use empty defaults.
+            (MapExpression) in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -84,6 +112,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         super.writeTo(out);
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
+        out.writeNamedWriteable(taskSettings);
     }
 
     @Override
@@ -99,18 +128,34 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         return targetField;
     }
 
+    public MapExpression taskSettings() {
+        return taskSettings;
+    }
+
     @Override
     public Completion withInferenceId(Expression newInferenceId) {
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField);
+        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField, taskSettings);
+    }
+
+    public Completion withTaskSettings(MapExpression newTaskSettings) {
+        if (taskSettings.equals(newTaskSettings)) {
+            return this;
+        }
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, targetField, newTaskSettings);
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField);
+        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField, taskSettings);
+    }
+
+    @Override
+    public List<String> validOptionNames() {
+        return List.of(INFERENCE_ID_OPTION_NAME, TASK_SETTINGS_OPTION_NAME);
     }
 
     @Override
@@ -135,7 +180,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, this.renameTargetField(newNames.get(0)));
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, this.renameTargetField(newNames.get(0)), taskSettings);
     }
 
     private Attribute renameTargetField(String newName) {
@@ -170,7 +215,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField, taskSettings);
     }
 
     @Override
@@ -180,11 +225,13 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         if (super.equals(o) == false) return false;
         Completion completion = (Completion) o;
 
-        return Objects.equals(prompt, completion.prompt) && Objects.equals(targetField, completion.targetField);
+        return Objects.equals(prompt, completion.prompt)
+            && Objects.equals(targetField, completion.targetField)
+            && Objects.equals(taskSettings, completion.taskSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prompt, targetField);
+        return Objects.hash(super.hashCode(), prompt, targetField, taskSettings);
     }
 }

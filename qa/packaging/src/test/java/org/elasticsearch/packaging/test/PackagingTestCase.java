@@ -232,6 +232,22 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
 
+        // Only remove docker containers after each test when a test class explicitly opts in.
+        // This runs after the TestWatcher (which calls dumpDebug on failure), so the container is still
+        // available for diagnostics.
+        if (distribution().isDocker() && shouldRemoveDockerContainerAfterTest()) {
+            removeContainer();
+        }
+    }
+
+    /**
+     * Controls whether a Docker-based test should remove its container during {@link #teardown()}.
+     * <p>
+     * Default is {@code false} because some docker test classes intentionally reuse a container across
+     * multiple test methods (e.g., {@code KeystoreManagementTests}).
+     */
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return false;
     }
 
     /** The {@link Distribution} that should be tested in this case */

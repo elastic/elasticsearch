@@ -516,6 +516,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     collectRemoteResolvedIndices(
+                        parentTaskId,
                         resolvesCrossProject,
                         rewritten,
                         resolutionIdxOpts,
@@ -594,9 +595,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             ? ProjectRoutingResolver.ORIGIN
                             : SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
                     );
-
-                    // TODO: pass parentTaskId
                     collectSearchShards(
+                        parentTaskId,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
@@ -681,6 +681,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 isProfile,
                 allowPartialSearchResults
             ),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             rewriteListener
         );
     }
@@ -1096,6 +1097,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * If Cross-Project Search (CPS) is enabled, then this method will fan out to the linked projects to resolve and validate their indices.
      */
     void collectRemoteResolvedIndices(
+        TaskId parentTaskId,
         boolean resolvesCrossProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
@@ -1128,6 +1130,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             originalResolvedIndices.getRemoteClusterIndices()
                 .forEach(
                     (projectName, projectIndices) -> resolveRemoteCrossProjectIndex(
+                        parentTaskId,
                         rewritten,
                         resolutionIdxOpts,
                         projectName,
@@ -1182,6 +1185,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Only used for ccs_minimize_roundtrips=true pathway
      */
     private void resolveRemoteCrossProjectIndex(
+        TaskId parentTaskId,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
         String projectName,
@@ -1194,12 +1198,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
         );
 
+        ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(projectIndices.indices(), resolutionIdxOpts);
+        resolveIndexRequest.setParentTask(parentTaskId);
+
         connectionListener.addListener(
             listener.delegateFailure(
                 (responseListener, connection) -> transportService.sendRequest(
                     connection,
                     ResolveIndexAction.REMOTE_TYPE.name(),
-                    new ResolveIndexAction.Request(projectIndices.indices(), resolutionIdxOpts),
+                    resolveIndexRequest,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
                         listener.map(response -> Map.entry(projectName, response)),
@@ -1224,6 +1231,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Used for ccs_minimize_roundtrips=false
      */
     static void collectSearchShards(
+        TaskId parentTaskId,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
@@ -1321,6 +1329,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         allowPartialResults,
                         clusterAlias
                     );
+
+                    searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(
                         connection,
                         TransportSearchShardsAction.TYPE.name(),
@@ -1334,6 +1344,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
                     ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
+
+                    searchShardsRequest.setParentTask(parentTaskId);
                     transportService.sendRequest(
                         connection,
                         TransportClusterSearchShardsAction.TYPE.name(),
@@ -1733,7 +1745,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 searchRequest.getLocalClusterAlias(),
                 indicesAndAliases,
-                concreteLocalIndices
+                concreteLocalIndices,
+                false
             );
 
             // localShardIterators is empty since there are no matching indices. In such cases,
@@ -1790,6 +1803,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             localShardIterators.size() + remoteShardIterators.size(),
             defaultPreFilterShardSize
         );
+
+        // CanMatch will sort iterators after coordinator filtering. If filtering isn't done, we need to sort before the next phase
+        if (preFilterSearchShards == false) {
+            shardIterators.sort(SearchShardIterator::compareTo);
+        }
+
         final Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
             searchRequest,
             concreteLocalIndices
@@ -1908,7 +1927,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
         }
-        shards.sort(SearchShardIterator::compareTo);
         return shards;
     }
 
@@ -2018,6 +2036,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
+                        searchService.getBigArrays(),
                         connectionLookup,
                         aliasFilter,
                         concreteIndexBoosts,
@@ -2032,7 +2051,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchResponseMetrics,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        searchService.isPitRelocationEnabled()
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -2040,6 +2060,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
+                        searchService.getBigArrays(),
                         connectionLookup,
                         aliasFilter,
                         concreteIndexBoosts,
@@ -2054,6 +2075,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchService.batchQueryPhase(),
+                        searchService.isPitRelocationEnabled(),
                         searchResponseMetrics,
                         searchRequestAttributes
                     );
@@ -2310,11 +2332,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
                         if (shardSearchContextId.isRetryable()) {
                             for (ShardRouting shard : shards) {
-                                if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                if (shard.isSearchable() && shard.currentNodeId().equals(perNode.getNode()) == false) {
                                     targetNodes.add(shard.currentNodeId());
                                 }
                             }
                         }
+                        logger.trace("PIT retryable - adding shard copy on nodes [{}]", targetNodes);
                     } catch (IndexNotFoundException | ShardNotFoundException e) {
                         // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
                         // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards
@@ -2361,7 +2384,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         String clusterAlias,
         Set<ResolvedExpression> indicesAndAliases,
-        String[] concreteIndices
+        String[] concreteIndices,
+        boolean shouldSort
     ) {
         concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
@@ -2376,7 +2400,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 routingMap,
                 searchRequest.preference(),
                 responseCollectorService,
-                searchTransportService.getPendingSearchRequests()
+                searchTransportService.getPendingSearchRequests(),
+                shouldSort
             );
         final Map<String, OriginalIndices> originalIndices = buildPerIndexOriginalIndices(
             projectState,

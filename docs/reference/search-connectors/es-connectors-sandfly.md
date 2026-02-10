@@ -12,11 +12,6 @@ This connector is written in Python using the [Elastic connector framework](http
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sandfly) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available.
-All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ::::{note}
 This connector is a community contribution and is not supported by Elastic.
 Support for this connector is provided by the community.

@@ -63,7 +63,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
          * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
@@ -171,7 +171,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
          * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeWriteable);

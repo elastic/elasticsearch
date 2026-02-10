@@ -10,15 +10,14 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
-import org.elasticsearch.common.util.BigArrays;
 
 public class ES93TSDBDefaultCompressionLucene103Codec extends AbstractTSDBSyntheticIdCodec {
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public ES93TSDBDefaultCompressionLucene103Codec() {
-        this(new Lucene103Codec(), null);
+        this(new Lucene103Codec());
     }
 
-    public ES93TSDBDefaultCompressionLucene103Codec(Lucene103Codec delegate, BigArrays bigArrays) {
-        super("ES93TSDBDefaultCompressionLucene103Codec", delegate, bigArrays);
+    public ES93TSDBDefaultCompressionLucene103Codec(Lucene103Codec delegate) {
+        super("ES93TSDBDefaultCompressionLucene103Codec", delegate);
     }
 }

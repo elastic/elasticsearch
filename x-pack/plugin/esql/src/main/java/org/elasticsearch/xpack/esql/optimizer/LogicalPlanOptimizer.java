@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLimitIntoUnionAll;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -110,6 +113,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         operators(),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
+        warnings(),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
     );
 
@@ -225,12 +229,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownJoinPastProject(),
             new PushDownAndCombineOrderBy(),
             new PushDownFilterAndLimitIntoUnionAll(),
+            new PushDownLimitAndOrderByIntoFork(),
             new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses(),
             new PruneLeftJoinOnNullMatchingField(),
             new PruneInlineJoinOnEmptyRightSide(),
             new HoistOrderByBeforeInlineJoin(),
-            new PruneEmptyAggregates()
+            new PruneEmptyAggregates(),
+            new PruneEmptyForkBranches()
         );
     }
 
@@ -243,5 +249,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropgateUnmappedFields(),
             new CombineLimitTopN()
         );
+    }
+
+    protected static Batch<LogicalPlan> warnings() {
+        return new Batch<>("Warn On Plan Structure", Limiter.ONCE, new WarnLostSortOrder());
     }
 }

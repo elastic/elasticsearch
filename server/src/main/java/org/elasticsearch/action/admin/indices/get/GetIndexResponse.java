@@ -72,7 +72,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
      * The only usage of this constructor is for BwC cross-cluster transforms for clusters before v8.2. The ML team is aware that we
      * don't need to support that anymore now that we're on v9. Once they remove that BwC code, we can remove this constructor as well.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     GetIndexResponse(StreamInput in) throws IOException {
         this.indices = in.readStringArray();
         mappings = in.readImmutableOpenMap(
@@ -165,7 +165,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
      * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);

@@ -37,4 +37,28 @@ public class IndexReshardService {
         }
         return indices;
     }
+
+    /// Determines if a shard snapshot is impacted by an ongoing resharding operation.
+    /// Such shard snapshot may contain data inconsistent with other shards due to metadata changes or data movement
+    /// performed in scope of resharding.
+    /// @param maximumShardIdForIndexInTheSnapshot maximum [ShardId] by [ShardId#id()] of the same index as the provided `indexShard`
+    /// that is present in the snapshot metadata. This value is used to detect previously completed resharding operations.
+    public static boolean isShardSnapshotImpactedByResharding(IndexMetadata indexMetadata, int maximumShardIdForIndexInTheSnapshot) {
+        // Presence of resharding metadata obviously means that the snapshot is impacted.
+        if (indexMetadata.getReshardingMetadata() != null) {
+            return true;
+        } else if (maximumShardIdForIndexInTheSnapshot < indexMetadata.getNumberOfShards() - 1) {
+            // However resharding metadata may not be present because resharding has completed already
+            // but still could have impacted this snapshot.
+            // If a snapshot doesn't contain the shard with maximum id
+            // given the number of shards in the index metadata it means that there was a resharding
+            // that increased the number of shards since the snapshot was created.
+            // E.g. with resharding split 4 -> 8 an up-to-date snapshot would contain shard id 7.
+            // But a snapshot based on a pre-resharding index metadata would only contain shard id 3.
+            // Without resharding every snapshot would always contain the maximum shard id.
+            return true;
+        } else {
+            return false;
+        }
+    }
 }

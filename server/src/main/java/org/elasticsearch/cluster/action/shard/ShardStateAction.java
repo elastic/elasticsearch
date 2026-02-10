@@ -41,6 +41,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -71,6 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.ERROR;
@@ -83,6 +87,24 @@ public class ShardStateAction {
 
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
     public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
+
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<Priority> SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY = Setting.enumSetting(
+        Priority.class,
+        "cluster.service.shard_started_reroute.some_unassigned.priority",
+        Priority.HIGH,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<Priority> SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY = Setting.enumSetting(
+        Priority.class,
+        "cluster.service.shard_started_reroute.all_assigned.priority",
+        Priority.HIGH,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -108,7 +130,10 @@ public class ShardStateAction {
             SHARD_STARTED_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             StartedShardEntry::new,
-            new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService))
+            new ShardStartedTransportHandler(
+                clusterService,
+                new ShardStartedClusterStateTaskExecutor(clusterService.getClusterSettings(), allocationService, rerouteService)
+            )
         );
         transportService.registerRequestHandler(
             SHARD_FAILED_ACTION_NAME,
@@ -622,9 +647,28 @@ public class ShardStateAction {
         private final AllocationService allocationService;
         private final RerouteService rerouteService;
 
-        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
+        private volatile Priority rerouteSomeUnassignedPriority;
+        private volatile Priority rerouteAllAssignedPriority;
+
+        public ShardStartedClusterStateTaskExecutor(
+            ClusterSettings clusterSettings,
+            AllocationService allocationService,
+            RerouteService rerouteService
+        ) {
             this.allocationService = allocationService;
             this.rerouteService = rerouteService;
+
+            watchPrioritySetting(clusterSettings, SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY, v -> rerouteSomeUnassignedPriority = v);
+            watchPrioritySetting(clusterSettings, SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY, v -> rerouteAllAssignedPriority = v);
+        }
+
+        private static void watchPrioritySetting(ClusterSettings clusterSettings, Setting<Priority> setting, Consumer<Priority> consumer) {
+            if (clusterSettings.isDynamicSetting(setting.getKey())) {
+                // setting only registered in some tests today
+                clusterSettings.initializeAndWatch(setting, consumer);
+            } else {
+                consumer.accept(setting.get(Settings.EMPTY));
+            }
         }
 
         @Override
@@ -816,9 +860,27 @@ public class ShardStateAction {
 
         @Override
         public void clusterStatePublished(ClusterState newClusterState) {
+            final String reason;
+            final Priority priority;
+
+            final var rerouteSomeUnassignedPriority = this.rerouteSomeUnassignedPriority; // single volatile read
+            final var rerouteAllAssignedPriority = this.rerouteAllAssignedPriority; // single volatile read
+
+            if (rerouteSomeUnassignedPriority == rerouteAllAssignedPriority) {
+                // skip unassigned-shards check
+                reason = "reroute after starting shards";
+                priority = rerouteSomeUnassignedPriority;
+            } else if (newClusterState.getRoutingNodes().hasUnassignedShards()) {
+                reason = "reroute after starting shards with more shards to assign";
+                priority = rerouteSomeUnassignedPriority;
+            } else {
+                reason = "reroute after starting shards with no more shards to assign";
+                priority = rerouteAllAssignedPriority;
+            }
+
             rerouteService.reroute(
-                "reroute after starting shards",
-                Priority.HIGH,
+                reason,
+                priority,
                 ActionListener.wrap(
                     r -> logger.trace("reroute after starting shards succeeded"),
                     e -> logger.debug("reroute after starting shards failed", e)

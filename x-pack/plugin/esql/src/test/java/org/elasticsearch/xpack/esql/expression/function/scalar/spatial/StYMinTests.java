@@ -16,6 +16,7 @@ import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 @FunctionName("st_ymin")
@@ -35,22 +38,26 @@ public class StYMinTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StYMinFromWKBGeoEvaluator[wkbBlock=Attribute[channel=0]]";
-        String expectedCartesian = "StYMinFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String expected = "StYMinFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StYMinTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StYMinTests::valueOfCartesian, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StYMinTests::valueOfGeo, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StYMinTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expected, DOUBLE, StYMinTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expected, DOUBLE, StYMinTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, expected, DOUBLE, StYMinTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, expected, DOUBLE, StYMinTests::valueOfCartesian, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
+    private static double quantize(double value, SpatialCoordinateTypes type) {
+        long encoded = type.pointAsLong(0, value);
+        return type.decodeY(encoded);
+    }
+
     private static double valueOfGeo(BytesRef wkb) {
-        return valueOf(wkb, true);
+        return quantize(valueOf(wkb, true), GEO);
     }
 
     private static double valueOfCartesian(BytesRef wkb) {
-        return valueOf(wkb, false);
+        return quantize(valueOf(wkb, false), CARTESIAN);
     }
 
     private static double valueOf(BytesRef wkb, boolean geo) {

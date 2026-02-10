@@ -685,7 +685,7 @@ public class NodeStatsTests extends ESTestCase {
     public static NodeStats createNodeStats() {
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {

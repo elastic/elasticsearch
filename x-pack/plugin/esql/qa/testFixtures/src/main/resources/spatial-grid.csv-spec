@@ -1459,6 +1459,7 @@ geoGridDocValuesPushdownEnvelopeNPoints
 required_capability: spatial_grid_types
 required_capability: st_envelope_mv_fix
 required_capability: st_npoints
+required_capability: st_x_y_quantized
 
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1)

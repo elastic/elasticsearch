@@ -12,11 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SlowLogContext;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
@@ -46,23 +47,23 @@ public final class EsqlQueryLog {
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
-    private final SlowLogFields additionalFields;
+    private final ActionLoggingFields additionalFields;
 
     private volatile long queryWarnThreshold;
     private volatile long queryInfoThreshold;
     private volatile long queryDebugThreshold;
     private volatile long queryTraceThreshold;
 
-    public EsqlQueryLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
+    public EsqlQueryLog(ClusterSettings settings, ActionLoggingFieldsProvider loggingFieldsProvider) {
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING, this::setQueryTraceThreshold);
 
-        SlowLogContext logContext = new SlowLogContext();
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext();
         settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
 
-        this.additionalFields = slowLogFieldProvider.create(logContext);
+        this.additionalFields = loggingFieldsProvider.create(logContext);
     }
 
     public void onQueryPhase(Versioned<Result> esqlResult, String query) {
@@ -138,8 +139,8 @@ public final class EsqlQueryLog {
         private static void addResultFields(Map<String, Object> fieldMap, Result esqlResult) {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK, esqlResult.executionInfo().overallTook().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
-            PlanningProfile planningProfile = esqlResult.executionInfo().planningProfile();
-            for (PlanningProfile.TimeSpanMarker timeSpanMarker : planningProfile.timeSpanMarkers()) {
+            EsqlQueryProfile esqlQueryProfile = esqlResult.executionInfo().queryProfile();
+            for (TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
                 String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();
                 fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX, timeTook.nanos());

@@ -54,7 +54,7 @@ public abstract class SerializationTestCase extends ESTestCase {
     }
 
     <T extends Block> T serializeDeserializeBlock(T origBlock) throws IOException {
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         return serializeDeserializeBlockWithVersion(origBlock, version);
     }
 

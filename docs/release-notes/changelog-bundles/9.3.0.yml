@@ -1,0 +1,1706 @@
+version: 9.3.0
+released: true
+generated: 2026-02-03T16:30:41.317830115Z
+changelogs:
+  - pr: []
+    summary: Introduces a guided UI flow in Kibana to connect self-managed clusters to Elastic Cloud-hosted services like AutoOps and the Elastic Inference Service.
+    area: Management
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: New Cloud Connect UI for self-managed installations
+      body: "Adds Cloud Connect functionality to Kibana, which allows you to use cloud solutions like AutoOps and Elastic Inference Service in your self-managed Elasticsearch clusters."
+      pr: []
+  - pr: []
+    summary: Elastic Inference Service now adds new AI/ML models dynamically, independent of stack release cycles.
+    area: Machine Learning
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: Independent AI/ML model delivery
+      body: "Elastic will regularly be adding new AI/ML models from 9.3 onwards which will appear as pre-configured inference endpoints in Elasticsearch. See the [Elastic Inference Service](https://www.elastic.co/docs/explore-analyze/elastic-inference/eis) page for more details."
+      pr: []
+  - pr: 122491
+    summary: Add CEF processor to Ingest node
+    area: Ingest Node
+    type: feature
+    issues:
+      - 126201
+    highlight:
+      notable: true
+      title: Add CEF processor to Ingest node
+      body: "The `cef` ingest processor parses a CEF (Common Event Format) message into a structured JSON object. It follows the CEF specification to extract fields such as device vendor, device product, device version, signature ID, name, severity, and extension fields. This allows users to easily analyze and visualize CEF-formatted logs within Elasticsearch and Kibana."
+      pr: 122491
+  - pr: 127053
+    summary: Add missing fields to the Logstash Stack Monitoring Template
+    area: Monitoring
+    type: enhancement
+    issues:
+      - 125499
+  - pr: 128602
+    summary: ChangePointDetector now correctly detects when a constant function returns a different value
+    area: Machine Learning
+    type: bug
+    issues:
+      - 127517
+  - pr: 130564
+    summary: Enable early termination for HNSW by default
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 132388
+    summary: Added NVIDIA support to Inference Plugin
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 132757
+    summary: Late materialization after TopN (Node level)
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 132962
+    summary: Don't store keyword multi fields when they trip `ignore_above`
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 133405
+    summary: Fix wrong pruning of plans with no output columns
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 134320
+    summary: Add CHUNK function
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 134361
+    summary: Add `ThreadWatchdog` to `ClusterApplierService`
+    area: Cluster Coordination
+    type: enhancement
+    issues: []
+  - pr: 134604
+    summary: Adds certificate identity field to cross-cluster API keys
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 134708
+    summary: "Default [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields to use [ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis) when available"
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 134709
+    summary: "OTLP: store units in mappings"
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 135231
+    summary: Improve retrying PIT contexts for read-only indices
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 135380
+    summary: Add DirectIO bulk rescoring
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 135434
+    summary: Support extra field (`outputField`) in TOP function. Values of `outputField` will be returned instead of values of `field`
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 128630
+  - pr: 135549
+    summary: Add time range bucketing attribute to APM took time latency metrics
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 135597
+    summary: Track `shardStarted` events for simulation in `DesiredBalanceComputer`
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 135644
+    summary: Add small optimizations to `PUT _component_template` API
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 135674
+    summary: Send cross cluster api key signature as headers
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 135701
+    summary: "Add Google Model Garden's Meta, Mistral, Hugging Face and Ai21 providers support to Inference Plugin"
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 135714
+    summary: Improve performance when a single-valued field filter gets pushed down. (SingleValueMatchQuery)
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 135734
+    summary: Fill in topn values if competitive
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 135765
+    summary: Add deprecation notice for `max_size` rollover condition
+    area: ILM
+    type: deprecation
+    issues:
+      - 130737
+    deprecation:
+      area: REST API
+      title: Add deprecation notice for `max_size` rollover condition
+      details: "We have deprecated the `max_size` rollover condition, in favour of `max_primary_shard_size`, when used in `PUT /_ilm/policy/{name}` and `POST /{index}/_rollover` endpoints"
+      impact: Users can continue to use this condition however a warning will be issued via the response headers and in the server logs. The condition may be removed fully in a later version of Elasticsearch.
+      notable: false
+      essSettingChange: false
+  - pr: 135778
+    summary: "Add `on_disk_rescore: true` option to disk BBQ to rescore vectors on-disk without loading into memory"
+    area: Vector Search
+    type: feature
+    issues: []
+  - pr: 135800
+    summary: Switch `TextExpansionQueryBuilder` and `TextEmbeddingQueryVectorBuilder` to return 400 instead of 500 errors
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 135834
+    summary: Move force merge from the downsampling request to the ILM action and allow users to disable it.
+    area: Downsampling
+    type: enhancement
+    issues: []
+  - pr: 135851
+    summary: DiskBBQ - missing min competitive similarity check on tail docs
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 135854
+    summary: "Logstashbridge: map ES logging to log4j backend"
+    area: Ingest
+    type: enhancement
+    issues: []
+  - pr: 135873
+    summary: Adds retriever for result diversification using MMR
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 135883
+    summary: Improve block loader for source only runtime `geo_point` fields
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 135886
+    summary: Provide defaults for index sort settings
+    area: Mapping
+    type: bug
+    issues:
+      - 129062
+  - pr: 135895
+    summary: Add optional parameters support to KQL function
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 135823
+  - pr: 135899
+    summary: Fix date fields sort formatting with missing values
+    area: Search
+    type: bug
+    issues:
+      - 81960
+  - pr: 135901
+    summary: Add support for dot-separated attribute names (e.g. `foo.bar`) and for parameters (e.g. `??my_param`) in FUSE GROUP BY
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 135949
+    summary: Add convenience API key param to remote reindex
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 135961
+    summary: Late materialization of dimension fields in time-series
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 136039
+    summary: Disable cross-cluster functionality for `_fleet/_fleet_search`
+    area: Search
+    type: breaking
+    issues: []
+    breaking:
+      area: Search
+      title: Disable cross-cluster functionality for `_fleet/_fleet_search`
+      details: |-
+        This endpoint is largely used for local searches only and is not compatible with true cross-cluster searches where
+        arbitrary number of indices and remotes can be specified. Although it is meant to accept an index parameter that
+        denotes a single searchable target, such a limitation can be bypassed through various means.
+
+        Keeping in view this endpoint's stated intent and future scope, cross-cluster functionality is being explicitly disabled.
+      impact: |-
+        This endpoint will no longer accept remote indices. Should one be provided, a top-level error is returned with
+        an appropriate explanation.
+      notable: false
+      essSettingChange: false
+  - pr: 136043
+    summary: "Allocation: add balancer round summary as metrics"
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 136065
+    summary: Nightly maintenance for anomaly detection results indices to keep to manageable size.
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 136066
+    summary: Simulate shards moved by explicit commands
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 136072
+    summary: Extend time range bucketing attributes to retrievers
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 136086
+    summary: Delay automaton creation in `BinaryDvConfirmedQuery` to avoid OOM on queries against `WildCard` fields
+    area: Search
+    type: bug
+    issues: []
+  - pr: 136103
+    summary: Enable the TEXT_EMBEDDING function in non-snapshot build
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 136104
+    summary: Add support for Full Text Functions and Lucene pushable conditions on fields from the Lookup Index for Lookup Join
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 136120
+    summary: Allow updating `inference_id` of `semantic_text` fields
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 136133
+    summary: Implement `network_direction` function
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 136141
+    summary: Add settings for health indicator `shard_capacity` thresholds
+    area: Health
+    type: enhancement
+    issues:
+      - 116697
+  - pr: 136143
+    summary: Optionally ignore field when indexed field name exceeds length limit
+    area: Mapping
+    type: enhancement
+    issues:
+      - 135700
+  - pr: 136167
+    summary: "[Inference API] Remove worst-case additional 50ms latency for non-rate limited requests"
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 136195
+    summary: Further simplify `SingleValueMatchQuery`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 136265
+    summary: Adding `match_only_text` subfield to `*.display_name` fields in `ecs@mappings` to be compliant with the latest additions in ECS
+    area: Data streams
+    type: feature
+    issues: []
+  - pr: 136266
+    summary: Fix Page.equals()
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 136299
+    summary: Validate certificate identity from cross cluster creds
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 136350
+    summary: Prevent NPE when generating snapshot metrics before initial cluster state is set
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 136386
+    summary: Limit concurrent TLS handshakes
+    area: Network
+    type: enhancement
+    issues: []
+  - pr: 136412
+    summary: Add cached tokens to Unified API response
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 136438
+    summary: "`BlockSourceReader` should always apply source filtering"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 136441
+    summary: Add TRANGE ES|QL function
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 135599
+  - pr: 136448
+    summary: Add `m` alias for `minute` duration literal
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 135552
+  - pr: 136481
+    summary: Dfs query phase coordinator metric
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 136541
+    summary: Multiple patterns for grok command
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 132486
+  - pr: 136547
+    summary: Fetch search phase coordinator duration APM metric
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 136548
+    summary: Locale and timezone argument for `date_parse`
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 132487
+  - pr: 136610
+    summary: Pushing down eval expression when it requires data access
+    area: ES|QL
+    type: bug
+    issues:
+      - 133462
+  - pr: 136624
+    summary: Added Azure OpenAI chat_completion support to the Inference Plugin
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 136624
+    summary: "Added OpenShift AI text_embedding, completion, chat_completion and rerank support to the Inference Plugin"
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 136632
+    summary: Field caps transport changes to return for each original expression what it was resolved to
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 136646
+    summary: Can match search shard phase APM metric
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 136703
+    summary: Disable cross-cluster functionality for `_fleet/_fleet_msearch`
+    area: Search
+    type: breaking
+    issues: []
+    breaking:
+      area: Search
+      title: Disable cross-cluster functionality for `_fleet/_fleet_msearch`
+      details: |-
+        This endpoint is largely used for local searches only and is not compatible with true cross-cluster searches where
+        arbitrary number of indices and remotes can be specified. Although it is meant to accept an index parameter that
+        denotes a single searchable target, such a limitation can be bypassed through various means.
+
+        Keeping in view this endpoint's stated intent and future scope, cross-cluster functionality is being explicitly disabled.
+      impact: |-
+        This endpoint will no longer accept remote indices. Should one be provided, a top-level error is returned with
+        an appropriate explanation.
+      notable: false
+      essSettingChange: false
+  - pr: 136713
+    summary: Transition EIS auth polling to persistent task on a single node
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 136805
+    summary: Allow single fork branch
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 135825
+  - pr: 136813
+    summary: Add new sampling method to the Downsample API
+    area: Downsampling
+    type: enhancement
+    issues: []
+  - pr: 136828
+    summary: Can match phase coordinator duration APM metric
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 136854
+    summary: Do not attempt to canonicalize `InnerAggregate`
+    area: SQL
+    type: bug
+    issues: []
+  - pr: 136890
+    summary: "Cat API: added endpoint for Circuit Breakers"
+    area: Infra/REST API
+    type: enhancement
+    issues: []
+  - pr: 136891
+    summary: Fixing bug when handling 1d literal vectors
+    area: ES|QL
+    type: bug
+    issues:
+      - 136364
+  - pr: 136915
+    summary: Implement native synthetic source for normalized keywords
+    area: Mapping
+    type: breaking
+    issues: []
+    breaking:
+      area: Mapping
+      title: Implement native synthetic source for normalized keywords
+      details: "This adds a new mapping parameter `normalizer_skip_store_original_value` to keyword fields. When this parameter is set, and synthetic_source is enabled, keyword fields with configured normalizers will not store the original non-normalized value in _ignored_source, and will instead use the normalized value to reconstruct the source. This parameter enabled by default for the built-in `lowercase` normalizer, and is disabled by default for other custom normalizers."
+      impact: Keyword fields using the `lowercase` normalizer will return the normalized value in the source when synthetic source is enabled.
+      notable: false
+      essSettingChange: false
+  - pr: 136931
+    summary: Don't allow MV_EXPAND prior to STATS with TS
+    area: ES|QL
+    type: bug
+    issues:
+      - 136928
+  - pr: 136951
+    summary: Support different downsampling methods through ILM
+    area: ILM
+    type: enhancement
+    issues: []
+  - pr: 136988
+    summary: Enable score function in release builds
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 136996
+    summary: Add periodic PKC JWK set reloading capability to JWT realm
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 137017
+    summary: Manage INLINE STATS count(*) on result sets with no columns
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 137023
+    summary: Support choosing the downsampling method in data stream lifecycle
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 137024
+    summary: Catch-and-rethrow `TooComplexToDeterminizeException` within ESQL
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 137026
+    summary: Improve value loading for `match_only_text` mapping
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 137040
+    summary: Introduce a new interface to declare functions depending on the `@timestamp` attribute
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 136772
+  - pr: 137050
+    summary: Fixes memory leak in `BytesRefLongBlockHash`
+    area: ES|QL
+    type: bug
+    issues:
+      - 137021
+  - pr: 137072
+    summary: Adding base64 indexing for vector values
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 137082
+    summary: Validate multiple GROK patterns individually
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 137210
+    summary: Introduce INDEX_SHARD_COUNT_FORMAT
+    area: Snapshot/Restore
+    type: bug
+    issues:
+      - 131822
+  - pr: 137220
+    summary: Skip dataframes when disabled
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 137244
+    summary: Preserve deployments with zero allocations during assignment planning
+    area: Machine Learning
+    type: bug
+    issues:
+      - 137134
+  - pr: 137249
+    summary: Add `chunk_rescorer` usage to output of explain and profile for `text_similarity_rank_retriever`
+    area: Relevance
+    type: enhancement
+    issues: []
+  - pr: 137263
+    summary: Add late chunking configuration for JinaAI embedding task settings
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 137274
+    summary: Use a new synthetic `_id` format for time-series datastreams
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 137297
+    summary: Fixed inconsistency in the `isSyntheticSourceEnabled` flag
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 137302
+    summary: Add audit log testing for cert-based cross-cluster authentication
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 137306
+    summary: Shard started reroute high priority
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 137331
+    summary: Add ES93BloomFilterStoredFieldsFormat for efficient field existence checks
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 137367
+    summary: GROUP BY ALL
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 137382
+    summary: Make field fusion generic
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 137395
+    summary: Fix attribute only in full text function not found
+    area: ES|QL
+    type: bug
+    issues:
+      - 137396
+  - pr: 137409
+    summary: Coordinator phase duration APM metric attributes
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 137434
+    summary: Require basic licence for the Elastic Inference Service
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 137450
+    summary: "Timezone support in DATE_TRUNC, BUCKET and TBUCKET"
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 137455
+    summary: Preview index request
+    area: Transform
+    type: enhancement
+    issues: []
+  - pr: 137530
+    summary: Allows field caps to be cross project
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 137533
+    summary: Speed up sorts on secondary sort fields
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 137536
+    summary: Use DV rewrites where possible in Keyword queries
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 137560
+    summary: More friendly exceptions for validation errors
+    area: SQL
+    type: bug
+    issues: []
+  - pr: 137566
+    summary: Add support for `project_routing` for `_search` and `_async_search`
+    area: CCS
+    type: enhancement
+    issues: []
+  - pr: 137567
+    summary: "`TransportGetBasicStatusAction` runs on local"
+    area: Distributed
+    type: enhancement
+    issues: []
+  - pr: 137572
+    summary: Push filters past inline stats
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 137598
+    summary: Improve SAML error handling by adding metadata
+    area: Authentication
+    type: enhancement
+    issues:
+      - 128179
+  - pr: 137599
+    summary: In-response-to in saml successful response
+    area: Authentication
+    type: enhancement
+    issues:
+      - 128179
+  - pr: 137622
+    summary: Add support for merges in ES93BloomFilterStoredFieldsFormat
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 137641
+    summary: "Let `include_execution_metadata` always return data, also in local only"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 137648
+    summary: Pull `OrderBy` followed by `InlineJoin` on top of it
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 137653
+    summary: Add daily task to manage .ml-state indices
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 137677
+    summary: "[Inference] Implementing the completion task type on EIS"
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 137694
+    summary: Iterate directly over contents of `RoutingNode`
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 137705
+    summary: CPS usage telemetry support
+    area: CCS
+    type: enhancement
+    issues: []
+  - pr: 137706
+    summary: Use DEFAULT_UNSORTABLE topN encoder for the TSID_DATA_TYPE
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 137713
+    summary: TS Disallow renaming into timestamp prior to implicit use
+    area: ES|QL
+    type: bug
+    issues:
+      - 137655
+  - pr: 137728
+    summary: Set CPS index options only when not using PIT
+    area: CCS
+    type: bug
+    issues: []
+  - pr: 137830
+    summary: Release decay function
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 137833
+    summary: Enable CPS
+    area: EQL
+    type: enhancement
+    issues: []
+  - pr: 137853
+    summary: Use the new merge executor for intra-merge parallelism
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 137860
+    summary: Simple bulk loading for binary doc values
+    area: Mapping
+    type: feature
+    issues: []
+  - pr: 137883
+    summary: Addressing vector similarity concurrency issue with byte vectors
+    area: ES|QL
+    type: bug
+    issues:
+      - 137625
+  - pr: 137885
+    summary: Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties.
+    area: Infra/Logging
+    type: deprecation
+    issues:
+      - 128993
+    deprecation:
+      area: Logging
+      title: Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties.
+      details: Usage of lenient booleans was deprecated for analysis boolean setting in external plugins using the stable plugin API and various boolean system properties.
+      impact: Usage of lenient booleans other than `true` or `false` will result in deprecations logs. Future releases of ES may only accept strict boolean values `true` or `false.
+      notable: false
+      essSettingChange: false
+  - pr: 137907
+    summary: Prune columns when using fork
+    area: ES|QL
+    type: bug
+    issues:
+      - 136365
+  - pr: 137916
+    summary: Do not assume we hear back from all linked projects when validating resolved index expressions for CPS
+    area: CCS
+    type: enhancement
+    issues: []
+  - pr: 137920
+    summary: Avoid retrieving unnecessary fields on node-reduce phase
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 134363
+  - pr: 137941
+    summary: Additional DEBUG logging on authc failures
+    area: Authentication
+    type: enhancement
+    issues: []
+  - pr: 137959
+    summary: "[DiskBBQ] Support for centroid filtering for restrictive filters"
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 137966
+    summary: Allows PIT to be cross project
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 137995
+    summary: Improve bulk loading of binary doc values
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 138002
+    summary: Fix `SearchContext` CB memory accounting
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 138013
+    summary: ES|QL - Remove vectors from `_source` when applicable
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138015
+    summary: Don't fail delete index API if an index is deleted during the request
+    area: Indices APIs
+    type: bug
+    issues:
+      - 137422
+  - pr: 138023
+    summary: Push down COUNT(*) BY DATE_TRUNC
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 138029
+    summary: Fuse MV_MIN and MV_MAX and document process
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 138047
+    summary: Add configurable `max_batch_size` for `GoogleVertexAI` embedding service settings
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138051
+    summary: Support for parameters in LIKE and RLIKE
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138052
+    summary: Include Secure Setting Names and Keystore Modified Time in Reload API Response
+    area: Security
+    type: enhancement
+    issues:
+      - 112268
+  - pr: 138072
+    summary: Add a new setting for s3 API call timeout
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 138105
+    summary: MRT should default to `true` for CPS searches
+    area: CCS
+    type: enhancement
+    issues: []
+  - pr: 138112
+    summary: ES|QL completion command constant folding
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 136863
+  - pr: 138123
+    summary: ES|QL Update CHUNK to support `chunking_settings` as optional argument
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138139
+    summary: Support window function in time-series aggregations
+    area: ES|QL
+    type: enhancement
+    issues: []
+    highlight:
+      notable: true
+      title: Evaluate time series aggregation functions over sliding windows
+      body: |-
+        Time series aggregations in ES|QL can be optionally calculated over a sliding time window. Using a window
+        larger than the time bucket interval reduces jitter in dashboards, by taking a larger number of data points into
+        account.
+
+        Windows can be specified in all supported time series aggregations, as a second argument. For instance, the
+        following ES|QL query calculates the average rate of requests per host every minute, using a 10-minute window:
+
+        TS metrics
+        | WHERE TRANGE(1h)
+        | STATS avg(rate(requests, 10m)) BY TBUCKET(1m), host
+
+        Acceptable window values are currently limited to multiples of the time bucket value (e.g. `BUCKET` or `TBUCKET`),
+        as specified in the BY-clause. If no window is provided, it's implicitly set to the time bucket value,
+        matching existing behavior.
+      pr: 138139
+  - pr: 138160
+    summary: Add missing `job_id` filter to Anomaly Detection data deleter
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138198
+    summary: Add Embedding inference task type
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 138251
+    summary: Added Groq chat completion support to the Inference plugin
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 138260
+    summary: "[HealthAPI] Deterministic shard availability key order"
+    area: Health
+    type: enhancement
+    issues:
+      - 138043
+  - pr: 138282
+    summary: Allow fast blob-cache introspection by shard-id
+    area: Searchable Snapshots
+    type: enhancement
+    issues: []
+  - pr: 138305
+    summary: Fixing _rollup/data performance for a large number of indices
+    area: Rollup
+    type: bug
+    issues: []
+  - pr: 138316
+    summary: "`DateDiff` timezone support"
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 138332
+    summary: Do not skip a remote cluster base on the query's execution time status
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 138351
+    summary: Bumps jts version to 1.20.0
+    area: Geo
+    type: upgrade
+    issues: []
+  - pr: 138367
+    summary: Improve no-op check in PUT `_mapping` API
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 138372
+    summary: ES|QL - KNN function options support k and visit_percentage parameters
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138380
+    summary: Do not use Min or Max as Top's surrogate when there is an `outputField`
+    area: ES|QL
+    type: bug
+    issues:
+      - 134083
+  - pr: 138457
+    summary: Intercept filters to knn queries
+    area: Vector Search
+    type: bug
+    issues:
+      - 138410
+  - pr: 138464
+    summary: Always prefer YES over NOT_PREFERRED when allocating unassigned shards
+    area: Allocation
+    type: bug
+    issues: []
+  - pr: 138465
+    summary: "Allocation: add duration and count metrics for write load hotspot"
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 138467
+    summary: |
+      Fixed a bug where dash-prefixed expressions were not consistently excluded during index resolution.
+      This impacted both specific index names and wildcard patterns (example: `-index, -logs-*`).
+    area: Security
+    type: bug
+    issues:
+      - 64752
+      - 83435
+  - pr: 138484
+    summary: "[Inference API] Add `ElasticInferenceServiceDenseTextEmbeddingsServiceSettings` to `InferenceNamedWriteablesProvider`"
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138489
+    summary: Use existing `DocumentMapper` when creating new `MapperService`
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 138492
+    summary: Enable new exponential histograms field type
+    area: Mapping
+    type: enhancement
+    issues: []
+    highlight:
+      notable: true
+      title: New exponential_histogram field type for native OpenTelemetry exponential histogram support
+      body: |-
+        A new `exponential_histogram` field type has been added to Elasticsearch, providing native support for
+        OpenTelemetry exponential histograms.
+
+        Exponential histograms offer an efficient way to collect distributions (e.g. response times) at a high compression
+        ratio while still maintaining good accuracy for percentile estimation. They can be easily collected via
+        OpenTelemetry SDKs, as the only required configuration is the maximum allowed number of buckets. The actual buckets will be
+        chosen automatically based on the observed values.
+
+        The new `exponential_histogram` field type is supported in ES|QL.
+        It can be aggregated using the `PERCENTILES`, `AVG`, `MIN`, `MAX` and `SUM` functions.
+      pr: 138492
+  - pr: 138492
+    summary: Enable bfloat16 and on-disk rescoring for dense vectors
+    area: Vector Search
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: New dense_vector options for storing bfloat16 vectors and utilising on-disk rescoring
+      body: |-
+        New options have been added to the `dense_vector` field type.
+
+        The first is support for storing vectors in bfloat16 format.
+        This is a floating-point format that utilises two bytes per value rather than four, halving the storage space
+        required compared to `element_type: float`. This can be specified with `element_type: bfloat16`
+        when creating the index, for all `dense_vector` indexing types.
+
+        Float values are automatically rounded to two bytes when writing to disk, so this format can be used
+        with original source vectors at two- or four-byte precision. BFloat16 values are zero-expanded back to four-byte floats
+        when read into memory. Using `bfloat16` will cause a loss of precision compared to
+        the original vector values, as well as a small performance hit due to converting between `bfloat16` and `float`
+        when reading and writing vectors; however this may be counterbalanced by a corresponding decrease in I/O,
+        depending on your workload.
+
+        The second option is to enable on-disk rescoring. When rescoring vectors during kNN searches, the raw vectors
+        are read into memory. When the vector data is larger than the amount of available RAM, this might cause the OS
+        to evict some in-memory pages that then need to be paged back in immediately afterwards. This can cause
+        a significant slowdown in search speed. Enabling on-disk rescoring causes rescoring to use raw vector data
+        on-disk during rescoring, and to not read it into memory first. This can significantly increase search performance
+        in such low-memory situations.
+
+        Enable on-disk rescoring using the `on_disk_rescore: true` index option.
+      pr: 138492
+  - pr: 138515
+    summary: Integrate stored fields format bloom filter with synthetic `_id`
+    area: Codec
+    type: enhancement
+    issues: []
+  - pr: 138524
+    summary: Remove feature flag to enable binary doc value compression
+    area: Mapping
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: Add compression for binary doc values
+      body: |-
+        Add compression for binary doc values using Zstd and blocks with a variable number of values.
+
+        Block-wise LZ4 compression was previously added to Lucene in LUCENE-9211 and removed in LUCENE-9378 due to query performance issues.
+        This approach stored a constant number of values per block (specifically 32 values).
+        This made it easy to map a given value index (e.g., docId) to the block containing it by doing blockId = docId / 32.
+        Unfortunately, if values are very large, we must still have exactly 32 values per block, and (de)compressing a block could cause very high memory usage.
+        As a result, we had to keep the number of values small, meaning that in the average case, a block was much smaller than ideal.
+
+        To overcome the issues of blocks with a constant number of values, this PR adds block-wise compression with a variable number of values per block.
+        It stores a minimum of 1 document per block and stops adding values when the size of a block exceeds a threshold or the number of values exceeds a threshold.
+        Like the previous version, it stores an array of addresses for the start of each block.
+        Additionally, it stores a parallel array with the docId at the start of each block.
+        When looking up a given docId, if it is not in the current block, we binary search the array of docId starts to find the blockId containing the value.
+        We then look up the address of the block.
+        After this, decompression works very similarly to the code from LUCENE-9211; the main difference being that Zstd(1) is used instead of LZ4.
+
+        The introduction of binary doc value compression transparently affects wildcard field types, like URLs that are common in access logs, which will now compress much better.
+      pr: 138524
+  - pr: 138541
+    summary: Simple bulk loading of compressed binary doc values
+    area: Codec
+    type: enhancement
+    issues: []
+  - pr: 138552
+    summary: "[SIMD][ARM] Optimized native bulk dot product scoring for Int7"
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 138553
+    summary: Use common retry logic for GCS
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 138559
+    summary: Accept `project_routing` as query parameter
+    area: EQL
+    type: enhancement
+    issues: []
+  - pr: 138564
+    summary: ESQL - Add planning detailed timing to profile information
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138568
+    summary: Use doc values skipper for `_tsid` in synthetic `_id` postings
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 138569
+    summary: Ignore abort-on-cleanup failure in S3 repo
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 138595
+    summary: GROUP BY ALL with the dimensions output
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 138621
+    summary: Release CHUNK function as tech preview
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138631
+    summary: Improved bulk loading for binary doc values
+    area: Codec
+    type: enhancement
+    issues: []
+  - pr: 138634
+    summary: Add "close_job" parameter to the stop datafeed API
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 138010
+  - pr: 138647
+    summary: Run aggregations on aggregate metric double with default metric
+    area: ES|QL
+    type: feature
+    issues:
+      - 136297
+  - pr: 138663
+    summary: Support weaker consistency model for S3 MPUs
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 138681
+    summary: Field caps to support `project_routing` also in the body of the request
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 138685
+    summary: Introduce an adaptive HNSW Patience collector
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 138695
+    summary: Add `time_zone` request param support to KQL and QSTR functions
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 138718
+    summary: Add `project_routing` option
+    area: SQL
+    type: enhancement
+    issues: []
+  - pr: 138723
+    summary: Remove DOC_VALUES_SKIPPER feature flag
+    area: Mapping
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: Enable doc_values skippers
+      body: |-
+        Doc_values skippers add a sparse index to doc_values fields, allowing efficient
+        querying and filtering on a field without having to build a separate BKD or terms
+        index.  These are now enabled automatically on any field configured with
+        index=false and doc_values=true if the index setting `index.mapping.use_doc_values_skipper`
+        is set to `true` (default `false`, or `true` for TSDB indexes).
+
+        TSDB indexes now default to using skippers in place of indexes for their
+        @timestamp, dimension and  _tsid fields, greatly reducing their on-disk
+        footprint.  To disable skippers in TSDB indexes, set `index.mapping.use_doc_values_skipper`
+        to `false`.
+      pr: 138723
+  - pr: 138724
+    summary: "`AggregateMetricDouble` fields should not build BKD indexes"
+    area: Mapping
+    type: feature
+    issues: []
+  - pr: 138728
+    summary: Respect flexible field access pattern in geoip and `ip_location` processors
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 138745
+    summary: Disk usage don't include synthetic `_id` postings
+    area: Distributed
+    type: enhancement
+    issues: []
+  - pr: 138756
+    summary: Add project routing support to JDBC
+    area: SQL
+    type: enhancement
+    issues: []
+  - pr: 138765
+    summary: Feature/count by trunc with filter
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 138776
+    summary: "[Inference API] Support chunking settings for sparse embeddings in custom service"
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138803
+    summary: Enable CPS
+    area: SQL
+    type: enhancement
+    issues: []
+  - pr: 138822
+    summary: "CPS: Enable flatworld search and `project_routing` for `_msearch`"
+    area: CCS
+    type: enhancement
+    issues: []
+  - pr: 138876
+    summary: "Use doc values skipper for @timestamp in synthetic `_id` postings #138568"
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 138917
+    summary: Optimize geogrid functions to read points from doc-values
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138923
+    summary: Bump `mustache.java` to 0.9.14
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 138940
+    summary: Add TOP_SNIPPETS function to return the best snippets for a field
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138947
+    summary: Support date trunc in TS
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 138951
+    summary: Retry bulk-delete items in GCS
+    area: Snapshot/Restore
+    type: enhancement
+    issues:
+      - 138364
+  - pr: 138961
+    summary: Add `index.mapping.nested_parents.limit` and raise nested fields limit to 100
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 138962
+    summary: Allows Cross Project for close `PointInTime`
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 138982
+    summary: Semantic search CCS support when ccs_minimize_roundtrips=false
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 138989
+    summary: Auto prefiltering for queries on dense `semantic_text` fields
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 138993
+    summary: "[Security Solution] Add privileges to Kibana System role for management of internal indexes in support of Elastic Defend features"
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 138999
+    summary: Allow `semantic_text` fields to use optional GPU indexing for HNSW and int8_hnsw
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 139053
+    summary: Minimize doc values fetches in TSDBSyntheticIdFieldsProducer
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 139069
+    summary: "[SIMD][x64] Optimized native bulk dot product scoring for Int7"
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 139071
+    summary: Change FUSE KEY BY to receive a list of `qualifiedName`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 139074
+    summary: "[ESQL][Inference] Introduce usage limits for COMPLETION and RERANK"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139075
+    summary: Bump jruby/joni to 2.2.6
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 139084
+    summary: "GPU: Restrict GPU indexing to FLOAT element types"
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 139087
+    summary: Disk bbq license enforcement
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 139106
+    summary: Let terms queries rewrite to a filter on `constant_keyword` fields
+    area: Aggregations
+    type: enhancement
+    issues: []
+  - pr: 139113
+    summary: "[ES|QL]: Update Vector Similarity To Support BFLOAT16"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 139130
+    summary: Group by all optimization
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139228
+    summary: S3 `compareAndExchange` using conditional writes
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 139239
+    summary: "[DiskBBQ] Add concurrency on KMeansLocal"
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 139244
+    summary: "Inference command: support for CCS"
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 136860
+  - pr: 139245
+    summary: "[Security Solution] Add additional privileges to Kibana System role for `.endpoint-scripts-file*` indexes"
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 139247
+    summary: Add TDigest histogram as metric to time series data streams
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 139257
+    summary: Fix metrics for took between 1 and 10 hours
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 139272
+    summary: ES|QL - Add TOP_SNIPPETS as tech preview
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139293
+    summary: Ensure integer sorts are rewritten to long sorts for BWC indexes
+    area: Search
+    type: bug
+    issues:
+      - 139127
+      - 139128
+  - pr: 139318
+    summary: Remove `gpu_vectors_indexing` feature flag
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 139337
+    summary: Consistently prevent using exclusion prefix on its own
+    area: Security
+    type: bug
+    issues:
+      - 45504
+  - pr: 139345
+    summary: "[Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+  - pr: 139347
+    summary: Enable bfloat16 support for semantic text
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 139357
+    summary: Prune `InlineJoin` right aggregations by delegating to the child plan
+    area: ES|QL
+    type: bug
+    issues:
+      - 138283
+  - pr: 139363
+    summary: Add `upgrade.rollbacks` mapping to .fleet-agents system index
+    area: Infra/Plugins
+    type: enhancement
+    issues: []
+  - pr: 139365
+    summary: ES|QL - Add vector similarity functions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139366
+    summary: Fix `project_routing`
+    area: EQL
+    type: bug
+    issues: []
+  - pr: 139379
+    summary: Add MV_INTERSECTION Function
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139386
+    summary: Exempt internal request markers from streams request param restrictions
+    area: Data streams
+    type: bug
+    issues:
+      - 139367
+  - pr: 139397
+    summary: Fix slowness in `ValuesFromManyReader.estimatedRamBytesUsed`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139409
+    summary: Use new bulk scoring dot product for max inner product
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 139463
+    summary: Add bfloat16 support to `rank_vectors`
+    area: Vector Search
+    type: feature
+    issues: []
+  - pr: 139466
+    summary: Use binary doc values for `pattern_text` args column
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 139470
+    summary: No `EsqlIllegalArgumentException` for invalid window values
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 139503
+    summary: Enable large numeric blocks for TSDB codec in production
+    area: Codec
+    type: enhancement
+    issues: []
+    highlight:
+      notable: true
+      title: Enable large numeric blocks for TSDB codec
+      body: |-
+        The size of numeric blocks gets increased from 128 to 512, for indices with [index.mode:time-series].
+        This mostly improves compression for multi-values in fields using sorted-set doc values, such as keyword and
+        ip fields, as run-length encoding covers more data for the same storage footprint.
+      pr: 139503
+  - pr: 139518
+    summary: Report recent tasks updates when master starved
+    area: Cluster Coordination
+    type: enhancement
+    issues: []
+  - pr: 139526
+    summary: Fix `index.mapping.use_doc_values_skippers` defaults in serverless
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 139607
+    summary: Add a dedicated field type for T-Digests
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 139630
+    summary: Release CCS support for FORK
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139668
+    summary: Fix anomaly detection jobs stuck in opening by continously retrying to set the state to opened.
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 139703
+    summary: Release histogram data type
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139729
+    summary: Suppress Azure SDK error logs
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 139747
+    summary: Upgrade cuvs-java to version 25.12
+    area: Vector Search
+    type: upgrade
+    issues: []
+  - pr: 139774
+    summary: ES|QL - fix ENRICH command when using dense_vector columns
+    area: ES|QL
+    type: bug
+    issues:
+      - 137699
+  - pr: 139797
+    summary: Fix aggregation on null value
+    area: ES|QL
+    type: bug
+    issues:
+      - 110257
+      - 137544
+  - pr: 139798
+    summary: Fix interpolation for data points at bucket boundaries
+    area: ES|QL
+    type: bug
+    issues:
+      - 139732
+  - pr: 139808
+    summary: Fix bug when downsampling exponential histograms with last value
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 139821
+    summary: "GPU: add support for cosine with cuvs 2025.12"
+    area: Vector Search
+    type: upgrade
+    issues: []
+  - pr: 139854
+    summary: Avoiding creating `DataStreamShardStats` objects with negative timestamps
+    area: Stats
+    type: bug
+    issues: []
+  - pr: 139882
+    summary: Fix a validation message in `TimeSeriesGroupByAll`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 139922
+    summary: Binary doc values have stale value offset array if block contains all empty values
+    area: Codec
+    type: bug
+    issues: []
+  - pr: 140027
+    summary: "ESQL: Fix `INLINE STATS GROUP BY null` being incorrectly pruned"
+    area: ES|QL
+    type: bug
+    issues:
+      - 139887
+  - pr: 140034
+    summary: Fix extent reading when missing
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 140102
+    summary: Add block loader for the `_id` field of time-series indices
+    area: ES|QL
+    type: bug
+    issues:
+      - 140033
+      - 135689
+  - pr: 140126
+    summary: Aggressively free topn
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 140163
+    summary: Disallow `max_number_of_allocations` > 1 for low priority model deployments
+    area: Machine Learning
+    type: bug
+    issues:
+      - 111227
+  - pr: 140197
+    summary: Allow relocation to NOT_PREFERRED node for evacuating shards
+    area: Allocation
+    type: bug
+    issues: []
+  - pr: 140199
+    summary: Fix Decision.Type serialization BWC
+    area: Allocation
+    type: bug
+    issues: []
+  - pr: 140237
+    summary: Overall Decision for Deciders prioritizes THROTTLE
+    area: Allocation
+    type: bug
+    issues: []
+  - pr: 140301
+    summary: Disable `_delete_by_query` and `_update_by_query` for CCS/stateful
+    area: Reindex
+    type: bug
+    issues: []
+  - pr: 140331
+    summary: "[Inference API] Include rerank in supported tasks for IBM watsonx integration"
+    area: Inference
+    type: bug
+    issues:
+      - 140328
+  - pr: 140463
+    summary: "Introduce support for mapping-unavailable fields (Fork from #139417)"
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 140478
+    summary: T digest field type docs
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 140528
+    summary: Enable nullify and fail unmapped resolution in tech-preview
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 140536
+    summary: Support `LimitedRole` in idp role resolution
+    area: IdentityProvider
+    type: enhancement
+    issues: []
+  - pr: 140622
+    summary: Use sub keyword block loader with `ignore_above` for text fields
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 140671
+    summary: Fix Present/Absent agg functions
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 140699
+    summary: Handle deleted source index in allocation deciders
+    area: Allocation
+    type: bug
+    issues:
+      - 140630
+  - pr: 140701
+    summary: Fix stderr leak in Docker ES process detection
+    area: Packaging
+    type: bug
+    issues: []
+  - pr: 140771
+    summary: Sort the values of a legacy histogram during downsampling
+    area: Downsampling
+    type: bug
+    issues:
+      - 139382
+  - pr: 140791
+    summary: Fix readiness edge case on startup
+    area: Infra/Node Lifecycle
+    type: bug
+    issues:
+      - 136955
+  - pr: 140839
+    summary: Corrects a seemingly simple bug where we pass `numCands` instead of k
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 140855
+    summary: Use a single array for buffering rate data points
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 140886
+    summary: Fix `_index` on missing events in CCS
+    area: EQL
+    type: bug
+    issues: []
+  - pr: 140892
+    summary: Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting`
+    area: ILM
+    type: bug
+    issues:
+      - 140885
+  - pr: 140963
+    summary: "Quantize ST_X, ST_Y and related functions"
+    area: ES|QL
+    type: bug
+    issues:
+      - 139943
+  - pr: 141049
+    summary: Use Double.compare to compare doubles in tdigest.Sort
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 141157
+    summary: Fix folding of case() function with date period and time duration
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 141158
+    summary: Ensure we parse `on_disk_rescore` as its valid to pass false
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 141185
+    summary: Add `max_batch_size` setting to EIS dense and sparse service settings
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 141323
+    summary: Fix race condition in `CancellableRateLimitedFluxIterator`
+    area: Snapshot/Restore
+    type: bug
+    issues: []

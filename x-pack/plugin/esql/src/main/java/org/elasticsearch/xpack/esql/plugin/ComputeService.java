@@ -280,7 +280,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     finalListener.map(profiles -> {
                         execInfo.markEndQuery();
-                        return new Result(mainPlan.output(), collectedPages, profiles, execInfo);
+                        return new Result(mainPlan.output(), collectedPages, configuration, profiles, execInfo);
                     })
                 )
             ) {
@@ -383,7 +383,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     listener.map(completionInfo -> {
                         updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(physicalPlan.output(), collectedPages, completionInfo, execInfo);
+                        return new Result(physicalPlan.output(), collectedPages, configuration, completionInfo, execInfo);
                     })
                 )
             ) {
@@ -420,7 +420,7 @@ public class ComputeService {
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
+                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
                 })
             )
         ) {
@@ -434,7 +434,7 @@ public class ComputeService {
                         computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
-                                    var tookTime = execInfo.tookSoFar();
+                                    var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (execInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
@@ -583,7 +583,7 @@ public class ComputeService {
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         execInfo.markEndQuery();
         if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && execInfo.isMainPlan()) {
-            assert execInfo.planningProfile().planning().timeTook() != null
+            assert execInfo.queryProfile().planning().timeTook() != null
                 : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {

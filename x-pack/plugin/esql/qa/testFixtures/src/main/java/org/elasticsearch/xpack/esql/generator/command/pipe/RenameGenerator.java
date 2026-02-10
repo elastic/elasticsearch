@@ -67,11 +67,15 @@ public class RenameGenerator implements CommandGenerator {
                 newName = names.get(randomIntBetween(0, names.size() - 1));
             }
             nameToType.put(newName, nameToType.get(name));
-            if (randomBoolean() && name.startsWith("`") == false) {
-                name = "`" + name + "`";
+            if (EsqlQueryGenerator.needsQuoting(name)) {
+                name = EsqlQueryGenerator.quote(name);
+            } else if (randomBoolean()) {
+                name = EsqlQueryGenerator.quote(name);
             }
-            if (randomBoolean() && newName.startsWith("`") == false) {
-                newName = "`" + newName + "`";
+            if (EsqlQueryGenerator.needsQuoting(newName)) {
+                newName = EsqlQueryGenerator.quote(newName);
+            } else if (randomBoolean()) {
+                newName = EsqlQueryGenerator.quote(newName);
             }
             proj.add(name + " AS " + newName);
         }

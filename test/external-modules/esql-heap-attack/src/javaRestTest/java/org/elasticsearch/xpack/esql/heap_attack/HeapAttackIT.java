@@ -494,7 +494,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchManyBigFields() throws IOException {
-        initManyBigFieldsIndex(100, "keyword");
+        initManyBigFieldsIndex(100, "keyword", false);
         Map<?, ?> response = fetchManyBigFields(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -504,7 +504,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword");
+        initManyBigFieldsIndex(500, "keyword", false);
         // 500 docs is plenty to circuit break on most nodes
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
@@ -521,7 +521,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testAggManyBigTextFields() throws IOException {
         int docs = 100;
         int fields = 100;
-        initManyBigFieldsIndex(docs, "text");
+        initManyBigFieldsIndex(docs, "text", false);
         Map<?, ?> response = aggManyBigFields(fields);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -552,7 +552,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testAggGiantTextField() throws IOException {
         int docs = 100;
-        initGiantTextField(docs);
+        initGiantTextField(docs, false, 5);
         Map<?, ?> response = aggGiantTextField();
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -572,7 +572,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
 
     public void testAggMvLongs() throws IOException {
         int fieldValues = 100;
-        initMvLongsIndex(1, 3, fieldValues);
+        initMvLongsIndex(1, 3, fieldValues, false);
         Map<?, ?> response = aggMvLongs(3);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(f00)").entry("type", "long"))
             .item(matchesMap().entry("name", "f00").entry("type", "long"))
@@ -582,7 +582,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testAggTooManyMvLongs() throws IOException {
-        initMvLongsIndex(1, 3, 1000);
+        initMvLongsIndex(1, 3, 1000, false);
         // 3 fields is plenty on most nodes
         assertCircuitBreaks(attempt -> aggMvLongs(attempt * 3));
     }
@@ -598,7 +598,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
 
     public void testFetchMvLongs() throws IOException {
         int fields = 100;
-        initMvLongsIndex(100, fields, 1000);
+        initMvLongsIndex(100, fields, 1000, false);
         Map<?, ?> response = fetchMvLongs();
         ListMatcher columns = matchesList();
         for (int f = 0; f < fields; f++) {
@@ -608,7 +608,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyMvLongs() throws IOException {
-        initMvLongsIndex(500, 100, 1000);
+        initMvLongsIndex(500, 100, 1000, false);
         assertCircuitBreaks(attempt -> fetchMvLongs());
     }
 
@@ -658,7 +658,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
             """);
     }
 
-    private void initManyBigFieldsIndex(int docs, String type) throws IOException {
+    void initManyBigFieldsIndex(int docs, String type, boolean random) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
         int fields = 1000;
@@ -689,7 +689,8 @@ public class HeapAttackIT extends HeapAttackTestCase {
                     bulk.append(", ");
                 }
                 bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": \"");
-                bulk.append(Integer.toString(f % 10).repeat(fieldSize));
+                // if requested, generate random string to hit the CBE faster
+                bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
                 bulk.append('"');
             }
             bulk.append("}\n");
@@ -701,24 +702,18 @@ public class HeapAttackIT extends HeapAttackTestCase {
         initIndex("manybigfields", bulk.toString());
     }
 
-    private void initGiantTextField(int docs) throws IOException {
-        int docsPerBulk = 10;
-        for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
-            for (Object module : (List<?>) nodeInfo.get("modules")) {
-                Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                final String moduleName = moduleInfo.get("name").toString();
-                if (moduleName.startsWith("serverless-")) {
-                    docsPerBulk = 3;
-                }
-            }
-        }
+    void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {
+        int docsPerBulk = isServerless() ? 3 : 10;
         logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
 
-        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
+        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(fieldSizeInMb).getBytes());
 
         Request request = new Request("PUT", "/bigtext");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         config.startObject("mappings").startObject("properties");
+        if (includeId) {
+            config.startObject("id").field("type", "long").endObject();
+        }
         config.startObject("f").field("type", "text").endObject();
         config.endObject().endObject();
         request.setJsonEntity(Strings.toString(config.endObject()));
@@ -731,7 +726,12 @@ public class HeapAttackIT extends HeapAttackTestCase {
         StringBuilder bulk = new StringBuilder();
         for (int d = 0; d < docs; d++) {
             bulk.append("{\"create\":{}}\n");
-            bulk.append("{\"f\":\"");
+            if (includeId) {
+                String s = String.format(Locale.ROOT, "{\"id\":\"%s\", \"f\":\"", d);
+                bulk.append(s);
+            } else {
+                bulk.append("{\"f\":\"");
+            }
             bulk.append(Integer.toString(d % 10).repeat(fieldSize));
             bulk.append("\"}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
@@ -743,7 +743,68 @@ public class HeapAttackIT extends HeapAttackTestCase {
         logger.info("loaded");
     }
 
-    private void initMvLongsIndex(int docs, int fields, int fieldValues) throws IOException {
+    /**
+     * Tests that FIRST agg with a large grouping state trips the circuit breaker.
+     * We don't require many fields in the index. However, for the small number of fields that we have, we want them to have a large
+     * number of multivalues. We also require a large number of documents. Further, our query groups by a unique id field, in order to
+     * generate a large of buckets. All the aforementioned participates in inflating the size of the grouping state.
+     */
+    public void testFirstAggWithManyLongs() throws IOException {
+        initMvLongsIndex(5000, 2, 3000, true);
+        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("FIRST"));
+    }
+
+    /**
+     * Tests that LAST agg with a large grouping state trips the circuit breaker.
+     * @throws IOException
+     * @see #testFirstAggWithManyLongs()
+     */
+    public void testLastAggWithManyLongs() throws IOException {
+        initMvLongsIndex(5000, 2, 3000, true);
+        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("LAST"));
+    }
+
+    /**
+     * Tests that FIRST agg with huge text fields trips the circuit breaker.
+     * @throws IOException
+     * @see #testFirstAggWithManyLongs()
+     */
+    public void testFirstAggWithGiantText() throws IOException {
+        initGiantTextField(50, true, 3);
+        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("FIRST"));
+    }
+
+    /**
+     * Tests that LAST agg with huge text fields trips the circuit breaker.
+     * @throws IOException
+     * @see #testFirstAggWithManyLongs()
+     */
+    public void testLastAggWithGiantText() throws IOException {
+        initGiantTextField(50, true, 3);
+        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
+    }
+
+    private Map<String, Object> aggregateByIdOnLargeText(String aggregation) throws IOException {
+        StringBuilder query = new StringBuilder("{\"query\": \"FROM bigtext\n");
+        // Grouping on the unique id field generates a large number of buckets where each bucket's value contains the
+        // entire set of multivalues.
+        String aggClause = "| STATS x = %s(f, id) BY id\n";
+        query.append(String.format(Locale.ROOT, aggClause, aggregation));
+        query.append("\"}");
+        return responseAsMap(query(query.toString(), "columns"));
+    }
+
+    private Map<String, Object> aggregateByIdOnManyLongs(String aggregation) throws IOException {
+        StringBuilder query = new StringBuilder("{\"query\": \"FROM mv_longs\n");
+        // Grouping on the unique id field generates a large number of buckets where each bucket's value contains the
+        // entire set of multivalues.
+        query.append(String.format(Locale.ROOT, "| STATS x = %s(f00, f01) BY id\n", aggregation));
+        query.append("\"}");
+
+        return responseAsMap(query(query.toString(), "columns"));
+    }
+
+    private void initMvLongsIndex(int docs, int fields, int fieldValues, boolean includeId) throws IOException {
         logger.info("loading documents with many multivalued longs");
         int docsPerBulk = 100;
 
@@ -753,6 +814,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
             for (int f = 0; f < fields; f++) {
                 if (f == 0) {
                     bulk.append('{');
+                    if (includeId) {
+                        String idField = String.format("\"id\": %s, ", d);
+                        bulk.append(idField);
+                    }
                 } else {
                     bulk.append(", ");
                 }

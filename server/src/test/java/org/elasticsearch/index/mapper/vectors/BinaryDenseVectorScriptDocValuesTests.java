@@ -34,7 +34,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        for (IndexVersion indexVersion : List.of(IndexVersionUtils.randomCompatibleVersion(random()), IndexVersion.current())) {
+        for (IndexVersion indexVersion : List.of(IndexVersionUtils.randomCompatibleVersion(), IndexVersion.current())) {
             BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
             DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", ElementType.FLOAT, dims, indexVersion);
             DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();

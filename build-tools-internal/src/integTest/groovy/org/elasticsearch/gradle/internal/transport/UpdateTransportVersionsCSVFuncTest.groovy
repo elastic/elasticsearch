@@ -12,20 +12,20 @@ package org.elasticsearch.gradle.internal.transport
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
-class UpdateTransportVersionsFuncTest extends AbstractTransportVersionFuncTest {
+class UpdateTransportVersionsCSVFuncTest extends AbstractTransportVersionFuncTest {
     def runUpdateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
-        args.add(":myserver:updateTransportVersions")
+        args.add(":myserver:updateTransportVersionsCSV")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
     }
 
     void assertUpdateSuccess(BuildResult result) {
-        assert result.task(":myserver:updateTransportVersions").outcome == TaskOutcome.SUCCESS
+        assert result.task(":myserver:updateTransportVersionsCSV").outcome == TaskOutcome.SUCCESS
     }
 
     void assertUpdateFailure(BuildResult result, String expectedOutput) {
-        assert result.task(":myserver:updateTransportVersions").outcome == TaskOutcome.FAILED
+        assert result.task(":myserver:updateTransportVersionsCSV").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 
@@ -87,12 +87,28 @@ class UpdateTransportVersionsFuncTest extends AbstractTransportVersionFuncTest {
         then:
         assertUpdateSuccess(result1)
         assertUpdateSuccess(result2)
-        assertOutputContains(result2.output, "Version 9.2.0 already exists in TransportVersions.csv, skipping")
+        assertOutputContains(result2.output, "Version 9.2.0 already exists in TransportVersions.csv with correct transport version ID, skipping")
         // Should only have one entry for 9.2.0
         assertTransportVersionsCsv("""
             9.0.0,8000000
             9.1.0,8012001
             9.2.0,8123000
         """)
+    }
+
+    def "fails when existing version has wrong transport version ID"() {
+        given:
+        // Manually add an entry with wrong transport version ID
+        javaResource("myserver", "org/elasticsearch/TransportVersions.csv", """
+            9.0.0,8000000
+            9.1.0,8012001
+            9.2.0,9999999
+        """)
+
+        when:
+        def result = runUpdateTask("--stack-version", "9.2.0").buildAndFail()
+
+        then:
+        assertUpdateFailure(result, "Version 9.2.0 already exists in TransportVersions.csv with transport version ID 9999999, but expected 8123000")
     }
 }

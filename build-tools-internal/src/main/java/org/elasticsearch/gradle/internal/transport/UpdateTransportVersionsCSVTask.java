@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 
-public abstract class UpdateTransportVersionsTask extends DefaultTask {
+public abstract class UpdateTransportVersionsCSVTask extends DefaultTask {
 
     @ServiceReference("transportVersionResources")
     abstract Property<TransportVersionResourcesService> getResourceService();
@@ -38,13 +38,6 @@ public abstract class UpdateTransportVersionsTask extends DefaultTask {
     @TaskAction
     public void run() throws IOException {
         Version stackVersion = Version.fromString(getStackVersion().get());
-
-        // Check if this version is already in the CSV file (idempotency check)
-        if (isVersionAlreadyRecorded(stackVersion)) {
-            getLogger().lifecycle("Version {} already exists in TransportVersions.csv, skipping", stackVersion);
-            return;
-        }
-
         String upperBoundName = getUpperBoundName(stackVersion);
         TransportVersionResourcesService resources = getResourceService().get();
         TransportVersionUpperBound upperBound = resources.getUpperBoundFromGitBase(upperBoundName);
@@ -53,15 +46,48 @@ public abstract class UpdateTransportVersionsTask extends DefaultTask {
             throw new RuntimeException("Missing upper bound " + upperBoundName + " for stack version " + stackVersion);
         }
 
-        int transportVersionId = upperBound.definitionId().complete();
-        addTransportVersionRecord(stackVersion, transportVersionId);
+        int expectedTransportVersionId = upperBound.definitionId().complete();
+
+        // Check if this version is already in the CSV file (idempotency check)
+        Integer existingTransportVersionId = getExistingTransportVersionId(stackVersion);
+        if (existingTransportVersionId != null) {
+            if (existingTransportVersionId != expectedTransportVersionId) {
+                throw new RuntimeException(
+                    "Version "
+                        + stackVersion
+                        + " already exists in TransportVersions.csv with transport version ID "
+                        + existingTransportVersionId
+                        + ", but expected "
+                        + expectedTransportVersionId
+                );
+            }
+            getLogger().lifecycle(
+                "Version {} already exists in TransportVersions.csv with correct transport version ID, skipping",
+                stackVersion
+            );
+            return;
+        }
+
+        addTransportVersionRecord(stackVersion, expectedTransportVersionId);
     }
 
-    private boolean isVersionAlreadyRecorded(Version stackVersion) throws IOException {
+    private Integer getExistingTransportVersionId(Version stackVersion) throws IOException {
         var csvFile = getTransportVersionsFile().getAsFile().get().toPath();
-
         String versionPrefix = stackVersion.toString() + ",";
-        return Files.readAllLines(csvFile).stream().anyMatch(line -> line.trim().startsWith(versionPrefix));
+
+        return Files.readAllLines(csvFile)
+            .stream()
+            .map(String::trim)
+            .filter(line -> line.startsWith(versionPrefix))
+            .findFirst()
+            .map(line -> {
+                String[] parts = line.split(",");
+                if (parts.length >= 2) {
+                    return Integer.parseInt(parts[1]);
+                }
+                return null;
+            })
+            .orElse(null);
     }
 
     private void addTransportVersionRecord(Version stackVersion, int transportVersionId) throws IOException {

@@ -125,12 +125,13 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             });
         validateTask.configure(t -> t.mustRunAfter(generateInitialTask));
 
-        var updateTransportVersionsTask = project.getTasks().register("updateTransportVersions", UpdateTransportVersionsTask.class, t -> {
-            t.setGroup(taskGroup);
-            t.setDescription("Updates TransportVersions.csv with a new stack version entry");
-            t.getTransportVersionsFile()
-                .set(project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/TransportVersions.csv"));
-        });
+        var updateTransportVersionsTask = project.getTasks()
+            .register("updateTransportVersionsCSV", UpdateTransportVersionsCSVTask.class, t -> {
+                t.setGroup(taskGroup);
+                t.setDescription("Updates TransportVersions.csv with a new stack version entry");
+                t.getTransportVersionsFile()
+                    .set(project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/TransportVersions.csv"));
+            });
         validateTask.configure(t -> t.mustRunAfter(updateTransportVersionsTask));
     }
 

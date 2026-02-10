@@ -381,11 +381,10 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
     }
 
     private Directory newParametrizedDirectory() throws IOException {
-        Path tempDir = createTempDir();
         return switch (directoryType) {
-            case NIOFS -> new NIOFSDirectory(tempDir);
-            case MMAP -> new MMapDirectory(tempDir);
-            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(Path.of(tempDir.toString()));
+            case NIOFS -> new NIOFSDirectory(createTempDir());
+            case MMAP -> new MMapDirectory(createTempDir());
+            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(createTempDir());
         };
     }
 

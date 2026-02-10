@@ -255,17 +255,17 @@ public class SearchableSnapshotDirectoryFactory {
             IndexId indexId = new IndexId("_name", "_uuid");
             ShardId shardId = new ShardId("_name", "_uuid", 0);
             Path topDir = path.resolve(shardId.getIndex().getUUID());
-            Path shardDir = topDir.resolve(Path.of(Integer.toString(shardId.getId())));
+            Path shardDir = topDir.resolve(Integer.toString(shardId.getId()));
             ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             Path cacheDir = Files.createDirectories(CacheService.resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             threadPool = new SimpleThreadPool("tp", SearchableSnapshots.executorBuilders(Settings.EMPTY));
-            nodeEnvironment = newNodeEnvironment(Settings.EMPTY, path);
+            nodeEnvironment = newNodeEnvironment(Settings.EMPTY, path, data.length);
             clusterService = createClusterService(threadPool, clusterSettings());
 
             Settings.Builder cacheSettings = Settings.builder();
             cacheService = new CacheService(cacheSettings.build(), clusterService, threadPool, new PersistentCache(nodeEnvironment));
             cacheService.start();
-            sharedBlobCacheService = defaultFrozenCacheService(threadPool, nodeEnvironment, path);
+            sharedBlobCacheService = defaultFrozenCacheService(threadPool, nodeEnvironment, path, data.length);
 
             delegate = new SearchableSnapshotDirectory(
                 () -> blobContainer,
@@ -390,31 +390,38 @@ public class SearchableSnapshotDirectoryFactory {
         );
     }
 
-    private static Settings buildEnvSettings(Settings settings, Path path) {
+    private static Settings buildEnvSettings(Settings settings, Path path, long dataLength) {
+        long sizeInBytes = roundUpTo16MB(dataLength);
         return Settings.builder()
             .put(settings)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), 0L)
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), path.toAbsolutePath().toString())
             .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(100).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(sizeInBytes).getStringRep())
             .build();
     }
 
-    private static NodeEnvironment newNodeEnvironment(Settings settings, Path path) throws IOException {
-        Settings build = buildEnvSettings(settings, path);
-        Settings envBuild = buildEnvSettings(settings, path);
+    public static long roundUpTo16MB(long value) {
+        long block = 16L * 1024 * 1024; // 16 MB
+        return ((value + block - 1) / block) * block;
+    }
+
+    private static NodeEnvironment newNodeEnvironment(Settings settings, Path path, long dataLength) throws IOException {
+        Settings build = buildEnvSettings(settings, path, dataLength);
+        Settings envBuild = buildEnvSettings(settings, path, dataLength);
         return new NodeEnvironment(build, new Environment(envBuild, null));
     }
 
     private static SharedBlobCacheService<CacheKey> defaultFrozenCacheService(
         ThreadPool threadPool,
         NodeEnvironment nodeEnvironment,
-        Path path
+        Path path,
+        long dataLength
     ) {
         return new SharedBlobCacheService<>(
             nodeEnvironment,
-            buildEnvSettings(Settings.EMPTY, path),
+            buildEnvSettings(Settings.EMPTY, path, dataLength),
             threadPool,
             threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
             BlobCacheMetrics.NOOP

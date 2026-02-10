@@ -67,23 +67,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         this.query = query;
     }
 
-    public IVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query filter,
-        float visitRatio,
-        boolean doPrecondition,
-        boolean enableProximityBasedAllocation,
-        float proximityWeight,
-        float densityWeight,
-        float qualityWeight
-    ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, enableProximityBasedAllocation, proximityWeight, densityWeight, qualityWeight);
-        this.query = query;
-    }
-
     public float[] getQuery() {
         return query;
     }

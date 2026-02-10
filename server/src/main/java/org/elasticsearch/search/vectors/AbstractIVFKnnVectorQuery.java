@@ -65,12 +65,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected int vectorOpsCount;
     protected boolean doPrecondition;
     protected final boolean enableProximityBasedAllocation;
-    protected final float proximityWeight;
-    protected final float densityWeight;
-    protected final float qualityWeight;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
-        this(field, visitRatio, k, numCands, filter, doPrecondition, true, 0.6f, 0.3f, 0.1f);
+        this(field, visitRatio, k, numCands, filter, doPrecondition, true);
     }
 
     protected AbstractIVFKnnVectorQuery(
@@ -82,21 +79,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         boolean doPrecondition,
         boolean enableProximityBasedAllocation
     ) {
-        this(field, visitRatio, k, numCands, filter, doPrecondition, enableProximityBasedAllocation, 0.6f, 0.3f, 0.1f);
-    }
-
-    protected AbstractIVFKnnVectorQuery(
-        String field,
-        float visitRatio,
-        int k,
-        int numCands,
-        Query filter,
-        boolean doPrecondition,
-        boolean enableProximityBasedAllocation,
-        float proximityWeight,
-        float densityWeight,
-        float qualityWeight
-    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -106,13 +88,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (numCands < k) {
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
-        if (proximityWeight < 0f || densityWeight < 0f || qualityWeight < 0f) {
-            throw new IllegalArgumentException("segment selection weights must be non-negative");
-        }
-        float totalWeight = proximityWeight + densityWeight + qualityWeight;
-        if (totalWeight <= 0f) {
-            throw new IllegalArgumentException("sum of segment selection weights must be positive");
-        }
 
         this.field = field;
         this.providedVisitRatio = visitRatio;
@@ -121,9 +96,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
         this.enableProximityBasedAllocation = enableProximityBasedAllocation;
-        this.proximityWeight = proximityWeight;
-        this.densityWeight = densityWeight;
-        this.qualityWeight = qualityWeight;
     }
 
     @Override
@@ -142,10 +114,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
             && Objects.equals(providedVisitRatio, that.providedVisitRatio)
-            && Objects.equals(enableProximityBasedAllocation, that.enableProximityBasedAllocation)
-            && Float.compare(proximityWeight, that.proximityWeight) == 0
-            && Float.compare(densityWeight, that.densityWeight) == 0
-            && Float.compare(qualityWeight, that.qualityWeight) == 0;
+            && Objects.equals(enableProximityBasedAllocation, that.enableProximityBasedAllocation);
     }
 
     @Override
@@ -155,10 +124,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             k,
             filter,
             providedVisitRatio,
-            enableProximityBasedAllocation,
-            proximityWeight,
-            densityWeight,
-            qualityWeight
+            enableProximityBasedAllocation
         );
     }
 
@@ -322,17 +288,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      */
     private static float calculateSegmentAffinity(
         SegmentMetadata metadata,
-        float proximityWeight,
-        float densityWeight,
-        float qualityWeight,
-        float maxGlobalCentroidScore
-    ) {
+        float maxGlobalCentroidScore,
+        int totalVectors) {
         if (metadata.isValid() == false || Float.isNaN(metadata.globalCentroidScore) || metadata.similarityFunction() == null) {
             return 0f;
         }
 
         // distance to global centroid
-        float proximityScore = (metadata.globalCentroidScore / maxGlobalCentroidScore) * 1.1f;
+        float proximityScore = (metadata.globalCentroidScore / maxGlobalCentroidScore);
         proximityScore = Math.max(0f, proximityScore);
 
         // density score (average cluster size - logarithmic to prefer moderate density)
@@ -342,6 +305,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             densityScore = (float) Math.log(metadata.averageClusterSize());
         }
 
+        // ratio of tot vectors in this segment
+        float segmentWeight = (float) metadata.vectorCount / totalVectors;
+
         // quality score (cluster variance - inverse to prefer balanced clusters)
         float qualityScore = 0f;
         if (metadata.clusterVariance() >= 0) {
@@ -350,17 +316,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
 
         // normalize scores (simple min-max normalization based on expected ranges)
-        proximityScore = Math.min(1.0f, proximityScore); // Assume similarity scores are normalized
+        //proximityScore = Math.min(1.0f, proximityScore); // Assume similarity scores are normalized
         densityScore = Math.min(1.0f, densityScore / 10.0f); // Normalize log scores
         qualityScore = Math.min(1.0f, qualityScore);
 
-        // weighted/convex combination
-        float totalWeight = proximityWeight + densityWeight + qualityWeight;
-        if (totalWeight <= 0f) {
-            return proximityScore; // fallback to proximity only
-        }
-
-        return (proximityWeight * proximityScore + densityWeight * densityScore + qualityWeight * qualityScore) / totalWeight;
+        return proximityScore + (densityScore + qualityScore) * segmentWeight;
     }
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
@@ -470,7 +430,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         for (int i = 0; i < segmentMetadata.size(); i++) {
             SegmentMetadata metadata = segmentMetadata.get(i);
             if (metadata.isValid()) {
-                float affinity = calculateSegmentAffinity(metadata, proximityWeight, densityWeight, qualityWeight, maxGlobalCentroidScore);
+                float affinity = calculateSegmentAffinity(metadata, maxGlobalCentroidScore, totalVectors);
                 affinityScores[i] = Math.max(0f, affinity);
                 totAffinity += affinityScores[i];
                 validSegments++;
@@ -484,11 +444,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return new float[segmentMetadata.size()];
         }
 
-        // distribute budget proportionally to relevance scores
+        // distribute budget proportionally to affinity scores
         float[] segmentVisitRatios = new float[segmentMetadata.size()];
         for (int i = 0; i < segmentMetadata.size(); i++) {
             if (affinityScores[i] > 0f) {
-                // allocate proportionally to relevance, ensuring total doesn't exceed base budget
+                // allocate proportionally to affinity, ensuring total doesn't exceed base budget
                 segmentVisitRatios[i] = (affinityScores[i] / totAffinity) * baseVisitRatio * validSegments;
             } else {
                 // give minimal allocation to non-relevant segments

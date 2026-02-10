@@ -286,7 +286,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "multimodal",
                 "open-weights"
               ],
-              "release_date": "2026-02-01",
+              "release_date": "2024-05-01",
               "configuration": {
                 "similarity": "cosine",
                 "dimensions": 1024,
@@ -297,8 +297,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "overlap": 2
                 }
               },
-              "kibana_connector_name": "Jina Clips V2",
-              "fingerprint": "fingerprint_clips_v2"
+              "kibana_connector_name": "Jina Clip V2",
+              "fingerprint": "fingerprint_clip_v2"
             },
             {
               "id": ".jina-reranker-v2",
@@ -317,7 +317,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         }
         """;
 
-    private static final String RELEASE_DATE_FEB_1_26_STRING = "2026-02-01";
     private static final String RELEASE_DATE_STRING = "2024-05-01";
     private static final String END_OF_LIFE_DATE_STRING = "2024-05-02";
     private static final String RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME = "Rainbow Sprinkles Elastic";
@@ -330,8 +329,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
     private static final String ELSER_V2_FINGERPRINT = "fingerprint789";
     private static final String JINA_EMBED_V3_KIBANA_CONNECTOR_NAME = "Jina Embeddings V3";
     private static final String JINA_EMBED_V3_FINGERPRINT = "fingerprint456";
-    private static final String JINA_CLIPS_V2_KIBANA_CONNECTOR_NAME = "Jina Clips V2";
-    private static final String JINA_CLIPS_V2_FINGERPRINT = "fingerprint_clips_v2";
+    private static final String JINA_CLIP_V2_KIBANA_CONNECTOR_NAME = "Jina Clip V2";
+    private static final String JINA_CLIP_V2_FINGERPRINT = "fingerprint_clip_v2";
     private static final String RERANK_V1_KIBANA_CONNECTOR_NAME = "Jina Reranker V2";
     private static final String RERANK_V1_FINGERPRINT = "fingerprint567";
     private static final LocalDate RELEASE_DATE_PARSED = LocalDate.parse(RELEASE_DATE_STRING);
@@ -594,7 +593,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             createTaskTypeObject(EIS_MULTIMODAL_EMBED_PATH, "embedding"),
             "beta",
             List.of("multilingual", "multimodal", "open-weights"),
-            RELEASE_DATE_FEB_1_26_STRING,
+            RELEASE_DATE_STRING,
             null,
             new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
                 "cosine",
@@ -602,8 +601,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            JINA_CLIPS_V2_KIBANA_CONNECTOR_NAME,
-            JINA_CLIPS_V2_FINGERPRINT
+            JINA_CLIP_V2_KIBANA_CONNECTOR_NAME,
+            JINA_CLIP_V2_FINGERPRINT
         );
     }
 
@@ -618,11 +617,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "multimodal", "open-weights"),
                     StatusHeuristic.fromString("beta"),
-                    LocalDate.parse(RELEASE_DATE_FEB_1_26_STRING),
+                    LocalDate.parse(RELEASE_DATE_STRING),
                     null
                 ),
-                new EndpointMetadata.Internal(JINA_CLIPS_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(JINA_CLIPS_V2_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Internal(JINA_CLIP_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
+                new EndpointMetadata.Display(JINA_CLIP_V2_KIBANA_CONNECTOR_NAME)
             )
         );
     }

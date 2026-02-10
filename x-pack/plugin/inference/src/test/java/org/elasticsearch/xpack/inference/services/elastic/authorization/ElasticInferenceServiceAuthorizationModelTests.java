@@ -1402,6 +1402,6 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             )
         );
 
-        assertThat(scoped.getEndpoints(Set.of(id1)).get(0), is(expectedEndpoint));
+        assertThat(scoped.getEndpoints(Set.of(id1, id2)).get(0), is(expectedEndpoint));
     }
 }

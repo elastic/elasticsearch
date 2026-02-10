@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,6 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
     public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
@@ -104,6 +104,13 @@ public final class QueryPragmas implements Writeable {
         this.settings = settings;
     }
 
+    /**
+     * Returns the underlying settings.
+     */
+    public Settings settings() {
+        return settings;
+    }
+
     public QueryPragmas(StreamInput in) throws IOException {
         this.settings = Settings.readSettingsFromStream(in);
     }
@@ -122,7 +129,7 @@ public final class QueryPragmas implements Writeable {
     }
 
     public int concurrentExchangeClients() {
-        return EXCHANGE_CONCURRENT_CLIENTS.get(settings);
+        return ExchangeSourceHandler.CONCURRENT_CLIENTS_SETTING.get(settings);
     }
 
     public DataPartitioning dataPartitioning(DataPartitioning defaultDataPartitioning) {

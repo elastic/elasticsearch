@@ -30,7 +30,6 @@ import java.util.function.LongSupplier;
  * @see ExchangeSourceHandler
  */
 public final class ExchangeSinkHandler {
-
     private final ExchangeBuffer buffer;
     private final Queue<ActionListener<ExchangeResponse>> listeners = new ConcurrentLinkedQueue<>();
     private final AtomicInteger outstandingSinks = new AtomicInteger();

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -48,11 +49,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging(
@@ -79,6 +84,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     private static final String LANGUAGES_LOOKUP_INDEX = "languages_lookup";
     private static final String LANGUAGES_MIXED_NUMERICS_INDEX = "languages_mixed_numerics";
     private static final String MESSAGE_TYPES_LOOKUP_INDEX = "message_types_lookup";
+    private static final String SAMPLE_DATA_INDEX = "sample_data";
 
     // Enrich policy name constants
     private static final String AGES_POLICY = "ages_policy";
@@ -363,5 +369,86 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = runQuery(query)) {
             assertValues(response.values(), List.of(List.of("left", "Connected to 10.1.0.1", "right", "Success")));
         }
+    }
+
+    // Test ported from csv-spec:lookup-join.lookupMessageFromIndexKeep
+    // Tests LOOKUP JOIN from an index with KEEP to select specific fields
+    public void testLookupMessageFromIndexKeep() throws IOException {
+        // Required indices for this test
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        // Run the query (added SORT for deterministic results - csv-spec uses ignoreOrder:true)
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(
+                response.values(),
+                List.of(
+                    List.of("2023-10-23T13:55:01.543Z", "172.21.3.15", 1756467L, "Connected to 10.1.0.1", "Success"),
+                    List.of("2023-10-23T13:53:55.832Z", "172.21.3.15", 5033755L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:52:55.015Z", "172.21.3.15", 8268153L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:51:54.732Z", "172.21.3.15", 725448L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:33:34.937Z", "172.21.0.5", 1232382L, "Disconnected", "Disconnected"),
+                    List.of("2023-10-23T12:27:28.948Z", "172.21.2.113", 2764889L, "Connected to 10.1.0.2", "Success"),
+                    List.of("2023-10-23T12:15:03.360Z", "172.21.2.162", 3450233L, "Connected to 10.1.0.3", "Success")
+                )
+            );
+        }
+    }
+
+    /**
+     * Test ported from csv-spec:lookup-join.mvJoinKeyOnFrom
+     * Tests that multi-value join keys generate the expected warnings.
+     * This test uses real transport (not MockTransport) so warnings should propagate correctly.
+     */
+    public void testMultiValueJoinKeyWarnings() throws Exception {
+        // Required indices for this test
+        ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | WHERE emp_no < 10006
+            | EVAL language_code = salary_change.int
+            | LOOKUP JOIN %s ON language_code
+            | SORT emp_no
+            | KEEP emp_no, language_code, language_name
+            """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+
+        // Use async pattern to capture warnings from the thread context (like WarningsIT)
+        CountDownLatch latch = new CountDownLatch(1);
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        AtomicReference<List<String>> capturedWarnings = new AtomicReference<>();
+
+        client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+            try {
+                // Capture warnings from thread context
+                var threadpool = internalCluster().getInstance(TransportService.class, internalCluster().getRandomNodeName())
+                    .getThreadPool();
+                Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
+                capturedWarnings.set(new ArrayList<>(responseHeaders.getOrDefault("Warning", List.of())));
+            } finally {
+                latch.countDown();
+            }
+        }));
+
+        assertTrue("Test timed out", latch.await(30, TimeUnit.SECONDS));
+
+        // Verify warnings were captured
+        List<String> warnings = capturedWarnings.get();
+        assertNotNull("Warnings should not be null", warnings);
+
+        // Filter warnings for the LOOKUP JOIN multi-value warning
+        List<String> lookupJoinWarnings = warnings.stream().filter(w -> w.contains("LOOKUP JOIN encountered multi-value")).toList();
+
+        assertThat(
+            "Expected LOOKUP JOIN multi-value warning to be present. All warnings: " + warnings,
+            lookupJoinWarnings.size(),
+            greaterThanOrEqualTo(1)
+        );
     }
 }

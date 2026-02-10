@@ -686,9 +686,10 @@ public class SnapshotStressTestsHelper {
 
                     final ListenableFuture<List<String>> getIndicesStep = new ListenableFuture<>();
 
+                    final TrackedRepository trackedRepository = trackedSnapshot.trackedRepository;
                     logger.info(
                         "--> listing indices in [{}:{}] in preparation for cloning",
-                        trackedSnapshot.trackedRepository.repositoryName,
+                        trackedRepository.repositoryName,
                         trackedSnapshot.snapshotName
                     );
 
@@ -718,7 +719,7 @@ public class SnapshotStressTestsHelper {
                         if (indexNames.isEmpty()) {
                             logger.info(
                                 "--> no successful indices in [{}:{}], skipping clone",
-                                trackedSnapshot.trackedRepository.repositoryName,
+                                trackedRepository.repositoryName,
                                 trackedSnapshot.snapshotName
                             );
                             Releasables.close(releaseAll);
@@ -730,21 +731,21 @@ public class SnapshotStressTestsHelper {
 
                         logger.info(
                             "--> starting clone of [{}:{}] as [{}:{}] with indices {}",
-                            trackedSnapshot.trackedRepository.repositoryName,
+                            trackedRepository.repositoryName,
                             trackedSnapshot.snapshotName,
-                            trackedSnapshot.trackedRepository.repositoryName,
+                            trackedRepository.repositoryName,
                             cloneName,
                             indexNames
                         );
 
                         final boolean abortSnapshot = randomBoolean();
-                        final Runnable abortRunnable = createAbortRunnable(abortSnapshot, trackedSnapshot.trackedRepository, cloneName);
+                        final Runnable abortRunnable = createAbortRunnable(abortSnapshot, trackedRepository, cloneName);
 
                         client.admin()
                             .cluster()
                             .prepareCloneSnapshot(
                                 TEST_REQUEST_TIMEOUT,
-                                trackedSnapshot.trackedRepository.repositoryName,
+                                trackedRepository.repositoryName,
                                 trackedSnapshot.snapshotName,
                                 cloneName
                             )
@@ -753,25 +754,20 @@ public class SnapshotStressTestsHelper {
                                 @Override
                                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                                     assertTrue(acknowledgedResponse.isAcknowledged());
-                                    pollForSnapshotCompletion(
-                                        client,
-                                        trackedSnapshot.trackedRepository.repositoryName,
-                                        cloneName,
-                                        releaseAll,
-                                        () -> {
-                                            logger.info(
-                                                "--> completed clone of [{}:{}] as [{}:{}]",
-                                                trackedSnapshot.trackedRepository.repositoryName,
-                                                trackedSnapshot.snapshotName,
-                                                trackedSnapshot.trackedRepository.repositoryName,
-                                                cloneName
-                                            );
-                                            if (abortSnapshot == false) {
-                                                completedSnapshotLatch.countDown();
-                                            }
-                                            startCloner();
+                                    pollForSnapshotCompletion(client, trackedRepository.repositoryName, cloneName, releaseAll, () -> {
+                                        logger.info(
+                                            "--> completed clone of [{}:{}] as [{}:{}]",
+                                            trackedRepository.repositoryName,
+                                            trackedSnapshot.snapshotName,
+                                            trackedRepository.repositoryName,
+                                            cloneName
+                                        );
+                                        if (abortSnapshot == false) {
+                                            snapshots.put(cloneName, new TrackedSnapshot(trackedRepository, cloneName));
+                                            completedSnapshotLatch.countDown();
                                         }
-                                    );
+                                        startCloner();
+                                    });
                                 }
 
                                 @Override

@@ -10,13 +10,13 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1215,12 +1215,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * In the special case where this instance has not yet made any progress on any shard this method just returns
          * {@code null} since no abort is needed and the snapshot can simply be removed from the cluster state outright.
          *
+         * @param statusUpdater Async updater to update shard snapshot status on the master
+         *
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort(TriConsumer<ShardId, RepositoryShardId, ShardSnapshotStatus> onAbortConsumer) {
+        public Entry abort(AsyncStatusUpdater statusUpdater) {
             if (isClone()) {
-                return abortClone(onAbortConsumer);
+                return abortClone(statusUpdater);
             }
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
@@ -1258,7 +1260,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             );
         }
 
-        private Entry abortClone(TriConsumer<ShardId, RepositoryShardId, ShardSnapshotStatus> onAbortConsumer) {
+        private Entry abortClone(AsyncStatusUpdater statusUpdater) {
             final Map<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = new HashMap<>();
             boolean allQueued = true;
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : shardStatusByRepoShardId.entrySet()) {
@@ -1266,13 +1268,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    final var newState = nodeId == null ? ShardState.FAILED : ShardState.ABORTED;
-                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
-                    if (newState == ShardState.ABORTED) {
-                        onAbortConsumer.apply(
+                    if (nodeId == null) {
+                        status = new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), "aborted by snapshot deletion");
+                    } else {
+                        // The clone is running, submit a request to master to FAIL it.
+                        // It may race with SUCCESS. That's OK, we can take either final state.
+                        statusUpdater.sendUpdate(
+                            snapshot,
                             null,
                             shardEntry.getKey(),
-                            new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), "failed by snapshot deletion")
+                            new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), "aborted by snapshot deletion"),
+                            ActionListener.noop()
                         );
                     }
                 }
@@ -2023,5 +2029,20 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 positionDiff.writeTo(out);
             }
         }
+    }
+
+    /**
+     * Updater that updates a shard snapshot's status asynchronously
+     */
+    @FunctionalInterface
+    public interface AsyncStatusUpdater {
+
+        void sendUpdate(
+            Snapshot snapshot,
+            @Nullable ShardId shardId,
+            RepositoryShardId repositoryShardId,
+            ShardSnapshotStatus status,
+            ActionListener<Void> listener
+        );
     }
 }

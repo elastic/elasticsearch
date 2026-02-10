@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.connector.base;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.esql.connector.Connector;
 import org.elasticsearch.xpack.esql.connector.ConnectorCapabilities;
 import org.elasticsearch.xpack.esql.connector.ConnectorPartition;
@@ -59,6 +61,8 @@ import java.util.List;
  * @see SqlPlan
  */
 public abstract class SqlConnector implements Connector {
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     @Override
     public ConnectorCapabilities capabilities() {
@@ -214,6 +218,7 @@ public abstract class SqlConnector implements Connector {
             }
             sql = sql.select(sqlPlan.output());
 
+            logger.debug("Built SQL for [{}]: {}", getTableName(sqlPlan), sql.build());
             return applyBuiltSql(sqlPlan, sql);
         }
     }

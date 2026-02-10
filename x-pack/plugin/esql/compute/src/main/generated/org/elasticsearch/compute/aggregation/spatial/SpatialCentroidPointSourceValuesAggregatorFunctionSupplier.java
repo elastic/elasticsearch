@@ -13,37 +13,37 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SpatialCentroidGeoPointSourceValuesAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SpatialCentroidPointSourceValuesAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier() {
+public final class SpatialCentroidPointSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public SpatialCentroidPointSourceValuesAggregatorFunctionSupplier() {
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return SpatialCentroidGeoPointSourceValuesAggregatorFunction.intermediateStateDesc();
+    return SpatialCentroidPointSourceValuesAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return SpatialCentroidGeoPointSourceValuesGroupingAggregatorFunction.intermediateStateDesc();
+    return SpatialCentroidPointSourceValuesGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public SpatialCentroidGeoPointSourceValuesAggregatorFunction aggregator(
-      DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidGeoPointSourceValuesAggregatorFunction.create(driverContext, channels);
+  public SpatialCentroidPointSourceValuesAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return SpatialCentroidPointSourceValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SpatialCentroidGeoPointSourceValuesGroupingAggregatorFunction groupingAggregator(
+  public SpatialCentroidPointSourceValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidGeoPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return SpatialCentroidPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "spatial_centroid_geo_point_source of valuess";
+    return "spatial_centroid_point_source of valuess";
   }
 }

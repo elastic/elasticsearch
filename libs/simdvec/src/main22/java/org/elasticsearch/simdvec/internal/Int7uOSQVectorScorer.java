@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7u;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7uBulkWithOffsets;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
 
 /**
  * JDK-22+ implementation for Int7 OSQ query-time scorers.
@@ -132,7 +132,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     @Override
     public float score(int node) throws IOException {
         checkOrdinal(node);
-        int dotProduct = dotProduct7u(query, getSegment(node), vectorByteSize);
+        int dotProduct = dotProductI7u(query, getSegment(node), vectorByteSize);
         return applyCorrections(dotProduct, node);
     }
 
@@ -146,7 +146,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             var scoresSeg = MemorySegment.ofArray(scores);
 
             var vectorPitch = vectorByteSize + 3 * Float.BYTES + Integer.BYTES;
-            dotProduct7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
+            dotProductI7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
             return applyCorrectionsBulk(scores, nodes, numNodes);
         }
     }

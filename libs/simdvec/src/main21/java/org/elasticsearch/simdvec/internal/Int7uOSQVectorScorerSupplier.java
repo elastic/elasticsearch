@@ -21,8 +21,8 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 import static org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.SUPPORTS_HEAP_SEGMENTS;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7u;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7uBulkWithOffsets;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
 
 /**
  * Int7 OSQ scorer supplier backed by {@link MemorySegmentAccessInput} storage.
@@ -88,7 +88,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         if (first == null || second == null) {
             return scoreViaFallback(query, secondOrd, firstVectorOffset, secondVectorOffset);
         }
-        int rawScore = dotProduct7u(first, second, dims);
+        int rawScore = dotProductI7u(first, second, dims);
         return applyCorrections(rawScore, secondOrd, query);
     }
 
@@ -145,7 +145,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         MemorySegment scores,
         int numNodes
     ) throws IOException {
-        dotProduct7uBulkWithOffsets(vectors, firstVector, dims, (int) getVectorPitch(), ordinals, numNodes, scores);
+        dotProductI7uBulkWithOffsets(vectors, firstVector, dims, (int) getVectorPitch(), ordinals, numNodes, scores);
     }
 
     protected final long getVectorPitch() {

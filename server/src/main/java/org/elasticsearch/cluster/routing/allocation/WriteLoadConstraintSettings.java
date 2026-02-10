@@ -34,7 +34,7 @@ public class WriteLoadConstraintSettings {
         DISABLED,
         /**
          * Only the low write low threshold, to try to avoid allocating to a node exceeding
-         * {@link #WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
+         * {@link #WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
          */
         LOW_THRESHOLD_ONLY,
         /**
@@ -90,10 +90,11 @@ public class WriteLoadConstraintSettings {
     );
 
     /**
-     * The threshold over which we consider write thread pool utilization "high"
+     * The threshold over which we consider write thread pool utilization "high" in a balancing movement, when a node
+     * is being considered as a destination for a shard
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
-        SETTING_PREFIX + "high_utilization_threshold",
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_THRESHOLD_SETTING = new Setting<>(
+        SETTING_PREFIX + "high_utilization_balance_threshold",
         "90%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
@@ -103,8 +104,8 @@ public class WriteLoadConstraintSettings {
     /**
      * The duration for which we need to see "high" utilization before we consider the low threshold exceeded
      */
-    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING = Setting.timeSetting(
-        SETTING_PREFIX + "high_utilization_duration",
+    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_DURATION_SETTING = Setting.timeSetting(
+        SETTING_PREFIX + "high_utilization_balance_duration",
         TimeValue.timeValueMinutes(10),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -144,7 +145,7 @@ public class WriteLoadConstraintSettings {
 
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
-    private volatile double highUtilizationThreshold;
+    private volatile double highUtilizationBalanceThreshold;
     private volatile TimeValue queueLatencyThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
@@ -154,8 +155,8 @@ public class WriteLoadConstraintSettings {
             timeValue -> this.minimumRerouteInterval = timeValue
         );
         clusterSettings.initializeAndWatch(
-            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
-            value -> highUtilizationThreshold = value.getAsRatio()
+            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_THRESHOLD_SETTING,
+            value -> highUtilizationBalanceThreshold = value.getAsRatio()
         );
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
     }
@@ -173,9 +174,10 @@ public class WriteLoadConstraintSettings {
     }
 
     /**
-     * @return The threshold as a ratio - i.e. in [0, 1]
+     * @return The threshold as a ratio - i.e. in [0, 1], for use in checking whether a node can accept
+     * a shard in a balance movement
      */
-    public double getHighUtilizationThreshold() {
-        return this.highUtilizationThreshold;
+    public double getHighUtilizationBalanceThreshold() {
+        return this.highUtilizationBalanceThreshold;
     }
 }

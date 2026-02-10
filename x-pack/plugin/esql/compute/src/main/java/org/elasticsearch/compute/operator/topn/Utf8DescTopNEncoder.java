@@ -10,8 +10,6 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
-import java.util.Arrays;
-
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.CONTINUATION_BYTE;
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.TERMINATOR;
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.utf8CodeLength;

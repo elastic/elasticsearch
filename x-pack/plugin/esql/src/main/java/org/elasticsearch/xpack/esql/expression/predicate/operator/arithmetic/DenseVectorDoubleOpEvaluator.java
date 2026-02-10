@@ -19,17 +19,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.ADD_DENSE_VECTOR_EVALUATOR;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.DIV_DENSE_VECTOR_EVALUATOR;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.MUL_DENSE_VECTOR_EVALUATOR;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorsEvaluator.SUB_DENSE_VECTOR_EVALUATOR;
-
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations on lhs=dense_vector and rhs=double argument.
  *
  */
 class DenseVectorDoubleOpEvaluator implements EvalOperator.ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorDoubleOpEvaluator.class);
+    private static final String ADD_DENSE_VECTOR_EVALUATOR = "AddDenseVectorAndDoubleEvaluator";
+    private static final String SUB_DENSE_VECTOR_EVALUATOR = "SubDenseVectorAndDoubleEvaluator";
+    private static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorAndDoubleEvaluator";
+    private static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorAndDoubleEvaluator";
 
     private final BiFunction<Float, Double, Float> op;
     private final String name;

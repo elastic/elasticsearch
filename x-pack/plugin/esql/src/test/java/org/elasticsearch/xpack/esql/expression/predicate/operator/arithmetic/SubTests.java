@@ -305,8 +305,9 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
 
         suppliers.addAll(
             denseVectorScalarCases(
-                "SubDenseVectorsEvaluator",
+                "SubDoubleAndDenseVectorEvaluator",
                 (v, s) -> v.stream().map(f -> (float) (f.doubleValue() - s.doubleValue())).toList(),
+                "SubDenseVectorAndDoubleEvaluator",
                 (s, v) -> v.stream().map(f -> (float) (s.doubleValue() - f.doubleValue())).toList()
             )
         );

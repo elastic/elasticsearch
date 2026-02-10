@@ -26,10 +26,10 @@ import java.util.function.BiFunction;
  */
 class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorsEvaluator.class);
-    static final String ADD_DENSE_VECTOR_EVALUATOR = "AddDenseVectorsEvaluator";
-    static final String SUB_DENSE_VECTOR_EVALUATOR = "SubDenseVectorsEvaluator";
-    static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorsEvaluator";
-    static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorsEvaluator";
+    private static final String ADD_DENSE_VECTOR_EVALUATOR = "AddDenseVectorsEvaluator";
+    private static final String SUB_DENSE_VECTOR_EVALUATOR = "SubDenseVectorsEvaluator";
+    private static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorsEvaluator";
+    private static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorsEvaluator";
 
     private final BiFunction<Float, Float, Float> op;
     private final String name;

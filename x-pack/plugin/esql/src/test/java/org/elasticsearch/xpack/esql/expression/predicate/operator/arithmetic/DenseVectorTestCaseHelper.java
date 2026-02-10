@@ -26,8 +26,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class DenseVectorTestCaseHelper {
 
     static List<TestCaseSupplier> denseVectorScalarCases(
-        String evaluatorName,
+        String vectorScalarEvaluatorName,
         BiFunction<List<Float>, Number, List<Float>> vectorScalarOp,
+        String scalarVectorEvaluatorName,
         BiFunction<Number, List<Float>, List<Float>> scalarVectorOp
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -43,7 +44,7 @@ public class DenseVectorTestCaseHelper {
                     new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
                     new TestCaseSupplier.TypedData(scalar, DataType.INTEGER, "scalar").forceLiteral()
                 ),
-                evaluatorName + "[lhs=Attribute[channel=0], rhs=" + (double) scalar + "]",
+                vectorScalarEvaluatorName + "[lhs=Attribute[channel=0], rhs=" + (double) scalar + "]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -60,7 +61,7 @@ public class DenseVectorTestCaseHelper {
                     new TestCaseSupplier.TypedData(scalar, DataType.INTEGER, "scalar").forceLiteral(),
                     new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
                 ),
-                evaluatorName + "[lhs=" + (double) scalar + ", rhs=Attribute[channel=0]]",
+                scalarVectorEvaluatorName + "[lhs=" + (double) scalar + ", rhs=Attribute[channel=0]]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -77,7 +78,7 @@ public class DenseVectorTestCaseHelper {
                     new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
                     new TestCaseSupplier.TypedData(scalar, DataType.LONG, "scalar").forceLiteral()
                 ),
-                evaluatorName + "[lhs=Attribute[channel=0], rhs=" + (double) scalar + "]",
+                vectorScalarEvaluatorName + "[lhs=Attribute[channel=0], rhs=" + (double) scalar + "]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -94,7 +95,7 @@ public class DenseVectorTestCaseHelper {
                     new TestCaseSupplier.TypedData(scalar, DataType.LONG, "scalar").forceLiteral(),
                     new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
                 ),
-                evaluatorName + "[lhs=" + (double) scalar + ", rhs=Attribute[channel=0]]",
+                scalarVectorEvaluatorName + "[lhs=" + (double) scalar + ", rhs=Attribute[channel=0]]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -111,7 +112,7 @@ public class DenseVectorTestCaseHelper {
                     new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
                     new TestCaseSupplier.TypedData(scalar, DataType.DOUBLE, "scalar").forceLiteral()
                 ),
-                evaluatorName + "[lhs=Attribute[channel=0], rhs=" + scalar + "]",
+                vectorScalarEvaluatorName + "[lhs=Attribute[channel=0], rhs=" + scalar + "]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -128,7 +129,7 @@ public class DenseVectorTestCaseHelper {
                     new TestCaseSupplier.TypedData(scalar, DataType.DOUBLE, "scalar").forceLiteral(),
                     new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
                 ),
-                evaluatorName + "[lhs=" + scalar + ", rhs=Attribute[channel=0]]",
+                scalarVectorEvaluatorName + "[lhs=" + scalar + ", rhs=Attribute[channel=0]]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );

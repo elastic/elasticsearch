@@ -29,14 +29,17 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
 
     /** Set of arithmetic (quad) functions for dense_vectors. */
     public interface DenseVectorBinaryEvaluator {
+        // when both arguments are dense_vectors
         EvalOperator.ExpressionEvaluator.Factory apply(
             Source source,
             EvalOperator.ExpressionEvaluator.Factory lhs,
             EvalOperator.ExpressionEvaluator.Factory rhs
         );
 
+        // when lhs is a scalar and rhs is a dense_vector
         EvalOperator.ExpressionEvaluator.Factory apply(Source source, double lhs, EvalOperator.ExpressionEvaluator.Factory rhs);
 
+        // when lhs is a dense_vector and rhs is a scalar
         EvalOperator.ExpressionEvaluator.Factory apply(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, double rhs);
     }
 
@@ -80,10 +83,6 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         );
     }
 
-    private static boolean isSupportedScalar(DataType dataType) {
-        return isNullOrNumeric(dataType) && dataType != UNSIGNED_LONG;
-    }
-
     @Override
     protected TypeResolution checkCompatibility() {
         // dense_vectors arithmetic only supported when both arguments are dense_vectors or one argument is numeric or null
@@ -108,7 +107,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
             if (left().dataType() != DENSE_VECTOR) {
                 if (false == left().foldable()) {
                     throw new IllegalArgumentException(
-                        LoggerMessageFormat.format(null, "[{}] should yield a dense_vector or scalar constant", left().sourceText())
+                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", left().sourceText())
                     );
                 }
                 double lhs = ((Number) left().fold(toEvaluator.foldCtx())).doubleValue();
@@ -116,7 +115,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
             } else {
                 if (false == right().foldable()) {
                     throw new IllegalArgumentException(
-                        LoggerMessageFormat.format(null, "[{}] should yield a dense_vector or scalar constant", right().sourceText())
+                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", right().sourceText())
                     );
                 }
 
@@ -126,4 +125,21 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         }
         return super.toEvaluator(toEvaluator);
     }
+
+    private static double toDouble(Number num, String sourceText) {
+        double d = num.doubleValue();
+        if (num instanceof Long) {
+            if ((long) d != num.longValue()) {
+                throw new IllegalArgumentException(
+                    LoggerMessageFormat.format(null, "[{}] evaluates to a large value which is not supported", sourceText)
+                );
+            }
+        }
+        return d;
+    }
+
+    private static boolean isSupportedScalar(DataType dataType) {
+        return isNullOrNumeric(dataType) && dataType != UNSIGNED_LONG;
+    }
+
 }

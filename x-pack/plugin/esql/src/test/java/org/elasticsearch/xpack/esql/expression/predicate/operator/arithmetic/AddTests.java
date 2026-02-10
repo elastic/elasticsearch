@@ -347,8 +347,9 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
 
         suppliers.addAll(
             denseVectorScalarCases(
-                "AddDenseVectorsEvaluator",
+                "AddDenseVectorAndDoubleEvaluator",
                 (v, s) -> v.stream().map(f -> (float) (f.doubleValue() + s.doubleValue())).toList(),
+                "AddDoubleAndDenseVectorEvaluator",
                 (s, v) -> v.stream().map(f -> (float) (s.doubleValue() + f.doubleValue())).toList()
             )
         );

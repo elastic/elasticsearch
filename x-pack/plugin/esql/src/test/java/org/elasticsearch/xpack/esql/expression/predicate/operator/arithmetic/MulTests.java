@@ -178,8 +178,9 @@ public class MulTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             denseVectorScalarCases(
-                "MulDenseVectorsEvaluator",
+                "MulDoubleAndDenseVectorEvaluator",
                 (v, s) -> v.stream().map(f -> (float) (f.doubleValue() * s.doubleValue())).toList(),
+                "MulDenseVectorAndDoubleEvaluator",
                 (s, v) -> v.stream().map(f -> (float) (s.doubleValue() * f.doubleValue())).toList()
             )
         );

@@ -187,6 +187,19 @@ a.port:integer | a.scheme:keyword | a.domain:keyword
 ;
 
 
+literalPrefixQuotingSubfields
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS `a` = uri
+| KEEP `a.port`, `a.scheme`, `a.domain`
+;
+
+a.port:integer | a.scheme:keyword | a.domain:keyword
+8080           | https          | www.example.com
+;
+
+
 nameShadowing
 required_capability: uri_parts_command
 

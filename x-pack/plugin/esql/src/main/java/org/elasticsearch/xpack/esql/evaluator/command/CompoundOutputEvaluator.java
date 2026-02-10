@@ -46,16 +46,9 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         String collectorSimpleName();
     }
 
-    public static class Factory implements ColumnExtractOperator.Evaluator.Factory {
-        private final Source source;
-        private final DataType inputType;
-        private final OutputFieldsCollectorProvider outputFieldsCollectorProvider;
-
-        public Factory(DataType inputType, Source source, OutputFieldsCollectorProvider outputFieldsCollectorProvider) {
-            this.source = source;
-            this.inputType = inputType;
-            this.outputFieldsCollectorProvider = outputFieldsCollectorProvider;
-        }
+    public record Factory(DataType inputType, Source source, OutputFieldsCollectorProvider outputFieldsCollectorProvider)
+        implements
+            ColumnExtractOperator.Evaluator.Factory {
 
         public CompoundOutputEvaluator create(DriverContext driverContext) {
             Warnings warnings = (driverContext == null || source == null)

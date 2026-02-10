@@ -241,7 +241,7 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
     ) {
         var builtinPatterns = GrokBuiltinPatterns.get(true);
         Grok grok = new Grok(builtinPatterns, pattern, logger::warn);
-        GrokEvaluatorExtracter.Factory factory = new GrokEvaluatorExtracter.Factory(grok, pattern, () -> keyToBlock, () -> types);
+        GrokEvaluatorExtracter.Factory factory = new GrokEvaluatorExtracter.Factory(grok, pattern, keyToBlock, types);
         return factory.create(null);
     }
 

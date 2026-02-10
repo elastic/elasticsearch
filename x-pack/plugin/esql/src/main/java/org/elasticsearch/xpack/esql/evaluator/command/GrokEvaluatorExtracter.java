@@ -33,7 +33,6 @@ import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 
 public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, GrokCaptureExtracter {
 
@@ -173,27 +172,13 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
 
     }
 
-    public static class Factory implements ColumnExtractOperator.Evaluator.Factory {
-        private final Grok parser;
-        private final String pattern;
-        private final Supplier<Map<String, Integer>> keyToBlockSupplier;
-        private final Supplier<Map<String, ElementType>> typesSupplier;
-
-        public Factory(
-            Grok parser,
-            String pattern,
-            Supplier<Map<String, Integer>> keyToBlockSupplier,
-            Supplier<Map<String, ElementType>> typesSupplier
-        ) {
-            this.parser = parser;
-            this.pattern = pattern;
-            this.keyToBlockSupplier = keyToBlockSupplier;
-            this.typesSupplier = typesSupplier;
-        }
+    public record Factory(Grok parser, String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types)
+        implements
+            ColumnExtractOperator.Evaluator.Factory {
 
         @Override
         public GrokEvaluatorExtracter create(DriverContext driverContext) {
-            return new GrokEvaluatorExtracter(parser, pattern, keyToBlockSupplier.get(), typesSupplier.get());
+            return new GrokEvaluatorExtracter(parser, pattern, keyToBlock, types);
         }
 
         @Override

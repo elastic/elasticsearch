@@ -25,6 +25,7 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -126,7 +127,8 @@ public class SearchEngine extends Engine {
     private final LinkedBlockingQueue<NewCommitNotification> commitNotifications = new LinkedBlockingQueue<>();
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
-    private final SearchDirectory directory;
+    private final Directory directory;
+    private final SearchDirectory searchDirectory;
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
@@ -172,16 +174,17 @@ public class SearchEngine extends Engine {
         boolean success = false;
         store.incRef();
         try {
-            this.directory = SearchDirectory.unwrapDirectory(store.directory());
+            this.directory = store.directory();
+            this.searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
             directoryReader = ElasticsearchDirectoryReader.wrap(
                 new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory, config.getLeafSorter()), Lucene.SOFT_DELETES_FIELD),
                 shardId
             );
             IndexCommit initialCommit = directoryReader.getIndexCommit();
-            OptionalLong primaryTerm = directory.getPrimaryTerm(initialCommit.getSegmentsFileName());
+            OptionalLong primaryTerm = searchDirectory.getPrimaryTerm(initialCommit.getSegmentsFileName());
             var initialSegmentInfosAndCommit = new SegmentInfosAndCommit(
                 store.readLastCommittedSegmentsInfo(),
-                directory.getCurrentCommit()
+                searchDirectory.getCurrentCommit()
             );
 
             // do not consider the empty commit an open reader (no data to delete from object store)
@@ -252,9 +255,9 @@ public class SearchEngine extends Engine {
             }
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
             this.commitPrefetcher = new SearchCommitPrefetcher(
-                directory.getShardId(),
+                searchDirectory.getShardId(),
                 statelessSharedBlobCacheService,
-                directory::getCacheBlobReaderForPreFetching,
+                searchDirectory::getCacheBlobReaderForPreFetching,
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
@@ -314,7 +317,7 @@ public class SearchEngine extends Engine {
 
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
         // capture the term/gen used by opened Lucene generational files
-        final var termAndGens = new HashSet<>(directory.getAcquiredGenerationalFileTermAndGenerations());
+        final var termAndGens = new HashSet<>(searchDirectory.getAcquiredGenerationalFileTermAndGenerations());
         // CHM iterators are weakly consistent, meaning that we're not guaranteed to see new insertions while we compute
         // the set of remaining open reader referenced BCCs, that's why we use a regular HashMap with synchronized.
         synchronized (openReaders) {
@@ -340,8 +343,8 @@ public class SearchEngine extends Engine {
             notification.clusterStateVersion()
         );
         var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
-        directory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
-        directory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
+        searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
+        searchDirectory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
 
         SubscribableListener
             // Dispatch the pre-fetching if enabled right away and if there are multiple concurrent
@@ -403,7 +406,7 @@ public class SearchEngine extends Engine {
                     return;
                 }
                 StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
-                if (directory.isMarkedAsCorrupted()) {
+                if (searchDirectory.isMarkedAsCorrupted()) {
                     logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
                     failSegmentGenerationListeners();
                     return;
@@ -415,7 +418,7 @@ public class SearchEngine extends Engine {
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         latestCommit,
                         null,
-                        directory,
+                        searchDirectory,
                         IOContext.DEFAULT,
                         DIRECT_EXECUTOR_SERVICE,
                         referencedCompoundCommit -> {
@@ -438,9 +441,9 @@ public class SearchEngine extends Engine {
                     logger.trace("updating directory with commit {}", latestCommit);
                     final boolean commitUpdated;
                     if (blobFileRangesMap != null) {
-                        commitUpdated = directory.updateCommit(latestCommit, blobFileRangesMap);
+                        commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
                     } else {
-                        commitUpdated = directory.updateCommit(latestCommit);
+                        commitUpdated = searchDirectory.updateCommit(latestCommit);
                     }
                     if (commitUpdated) {
                         store.incRef();
@@ -548,7 +551,7 @@ public class SearchEngine extends Engine {
                             .flatMap(openReaderInfo -> openReaderInfo.files().stream())
                             .collect(Collectors.toSet());
                     }
-                    directory.retainFiles(filesToRetain);
+                    searchDirectory.retainFiles(filesToRetain);
                     logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
                     callSegmentGenerationListeners(
                         new PrimaryTermAndGeneration(primaryTerm(reader.getIndexCommit()), reader.getIndexCommit().getGeneration())
@@ -1141,7 +1144,7 @@ public class SearchEngine extends Engine {
     }
 
     private long primaryTerm(String segmentsFileName) throws FileNotFoundException {
-        return directory.getPrimaryTerm(segmentsFileName).orElse(UNKNOWN_PRIMARY_TERM);
+        return searchDirectory.getPrimaryTerm(segmentsFileName).orElse(UNKNOWN_PRIMARY_TERM);
     }
 
     private void callSegmentGenerationListeners(PrimaryTermAndGeneration currentTermGen) {
@@ -1226,7 +1229,7 @@ public class SearchEngine extends Engine {
                 // do the work of opening the reader inside the task runner to serialize with commit processing
                 try (releasable) {
                     // merging metadata is necessary to allow opening an old commit from SearchDirectory
-                    directory.mergeMetadata(metadata);
+                    searchDirectory.mergeMetadata(metadata);
                     SegmentInfos segmentCommitInfos = SegmentInfos.readCommit(
                         directory,
                         segmentsFileName,

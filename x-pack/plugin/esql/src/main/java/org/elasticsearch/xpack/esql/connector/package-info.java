@@ -28,14 +28,26 @@
  *       {@link org.elasticsearch.xpack.esql.connector.Connector#createSourceOperator}</li>
  * </ol>
  *
- * <h2>Key Interfaces</h2>
+ * <h2>Core Abstractions</h2>
  *
  * <ul>
  *   <li>{@link org.elasticsearch.xpack.esql.connector.Connector} - Main SPI interface with all lifecycle hooks</li>
- *   <li>{@link org.elasticsearch.xpack.esql.connector.ConnectorPlan} - Interface for connector-specific logical plan nodes</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.ConnectorPlan} - Abstract base class for connector plan leaves (extends LeafPlan)</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.ConnectorPartition} - Interface for units of work in distributed execution</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.ConnectorSourceDescriptor} - Parsed data source reference</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.ConnectorCapabilities} - Declares execution mode</li>
+ * </ul>
+ *
+ * <h2>Helpers</h2>
+ *
+ * <p>Convenience classes built on top of the core abstractions. Connectors can use these or
+ * implement the core abstractions directly.
+ *
+ * <ul>
+ *   <li>{@link org.elasticsearch.xpack.esql.connector.ConnectorPushdownRule} - Convenience base for
+ *       optimization rules that push operations into connector plan leaves</li>
  *   <li>{@link org.elasticsearch.xpack.esql.connector.Connector#applyOptimizationRules
- *       Connector.applyOptimizationRules()} - Runs connector-provided optimization rules</li>
- *   <li>{@link org.elasticsearch.xpack.esql.connector.ConnectorPartition} - Unit of work for distributed execution</li>
+ *       Connector.applyOptimizationRules()} - Collects and runs connector-provided optimization rules</li>
  * </ul>
  *
  * <h2>Design Principles</h2>
@@ -66,7 +78,7 @@
  *
  * <pre>{@code
  * // 1. Define connector-specific plan node
- * public class IcebergPlan extends LeafPlan implements DataLakePlan {
+ * public class IcebergPlan extends DataLakePlan {
  *     private final IcebergConnector connector;
  *     private final Expression filter;
  *     private final Integer limit;

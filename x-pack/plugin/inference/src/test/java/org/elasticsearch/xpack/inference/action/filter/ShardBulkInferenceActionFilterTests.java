@@ -1115,40 +1115,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         MockLicenseState licenseState,
         InferenceStats inferenceStats
     ) {
-        ModelRegistry modelRegistry = mock(ModelRegistry.class);
-        Answer<?> unparsedModelAnswer = invocationOnMock -> {
-            String id = (String) invocationOnMock.getArguments()[0];
-            ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocationOnMock.getArguments()[1];
-            var model = modelMap.get(id);
-            if (model != null) {
-                listener.onResponse(
-                    new UnparsedModel(
-                        model.getInferenceEntityId(),
-                        model.getTaskType(),
-                        model.getServiceSettings().model(),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getTaskSettings()), false),
-                        XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(model.getSecretSettings()), false)
-                    )
-                );
-            } else {
-                listener.onFailure(new ResourceNotFoundException("model id [{}] not found", id));
-            }
-            return null;
-        };
-        doAnswer(unparsedModelAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
-
-        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocationOnMock -> {
-            String inferenceId = (String) invocationOnMock.getArguments()[0];
-            var model = modelMap.get(inferenceId);
-            if (model == null) {
-                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
-            }
-
-            return new MinimalServiceSettings(model);
-        };
-        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
-
-        InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
             List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocationOnMock.getArguments()[2];
@@ -1171,6 +1137,41 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return null;
         };
+
+        return buildFilter(
+            modelMap,
+            createClusterService(useLegacyFormat),
+            licenseState,
+            indexingPressure,
+            inferenceStats,
+            createFilter_getModelWithSecretsAnswer(modelMap),
+            chunkedInferAnswer
+        );
+    }
+
+    private static ShardBulkInferenceActionFilter buildFilter(
+        Map<String, StaticModel> modelMap,
+        ClusterService clusterService,
+        MockLicenseState licenseState,
+        IndexingPressure indexingPressure,
+        InferenceStats inferenceStats,
+        Answer<?> getModelWithSecretsAnswer,
+        Answer<?> chunkedInferAnswer
+    ) {
+        ModelRegistry modelRegistry = mock(ModelRegistry.class);
+        doAnswer(getModelWithSecretsAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocationOnMock -> {
+            String inferenceId = (String) invocationOnMock.getArguments()[0];
+            var model = modelMap.get(inferenceId);
+            if (model == null) {
+                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
+            }
+            return new MinimalServiceSettings(model);
+        };
+        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
+
+        InferenceService inferenceService = mock(InferenceService.class);
         doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
         Answer<Model> modelAnswer = invocationOnMock -> {
@@ -1183,7 +1184,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
 
         return new ShardBulkInferenceActionFilter(
-            createClusterService(useLegacyFormat),
+            clusterService,
             inferenceServiceRegistry,
             modelRegistry,
             licenseState,
@@ -1715,21 +1716,22 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
 
-        Answer<?> defaultModelAnswer = defaultGetModelWithSecretsAnswer(modelMap);
+        // Wrap the standard model-loading answer with an optional delay
+        Answer<?> immediateModelAnswer = createFilter_getModelWithSecretsAnswer(modelMap);
         Answer<?> modelLoadingAnswer = invocation -> {
             long delay = modelLoadingDelayController.getModelLoadingDelayMs();
             if (delay > 0) {
                 ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocation.getArguments()[1];
                 threadPool.schedule(() -> {
                     try {
-                        defaultModelAnswer.answer(invocation);
+                        immediateModelAnswer.answer(invocation);
                     } catch (Throwable e) {
                         listener.onFailure(e instanceof Exception ? (Exception) e : new RuntimeException(e));
                     }
                 }, TimeValue.timeValueMillis(delay), threadPool.generic());
                 return null;
             }
-            return defaultModelAnswer.answer(invocation);
+            return immediateModelAnswer.answer(invocation);
         };
 
         Answer<?> chunkedInferAnswer = invocation -> {
@@ -1768,45 +1770,24 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             .put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(20))
             .put(INDICES_INFERENCE_BULK_TIMEOUT.getKey(), timeout)
             .build();
-        ClusterService clusterService = createClusterService(useLegacyFormat, settings);
 
-        ModelRegistry modelRegistry = mock(ModelRegistry.class);
-        doAnswer(modelLoadingAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
-
-        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocation -> {
-            String inferenceId = (String) invocation.getArguments()[0];
-            var model = modelMap.get(inferenceId);
-            if (model == null) {
-                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
-            }
-            return new MinimalServiceSettings(model);
-        };
-        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
-
-        InferenceService inferenceService = mock(InferenceService.class);
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
-
-        Answer<Model> parseModelAnswer = invocation -> {
-            String inferenceId = (String) invocation.getArguments()[0];
-            return modelMap.get(inferenceId);
-        };
-        doAnswer(parseModelAnswer).when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any());
-
-        InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
-        when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
-
-        return new ShardBulkInferenceActionFilter(
-            clusterService,
-            inferenceServiceRegistry,
-            modelRegistry,
+        return buildFilter(
+            modelMap,
+            createClusterService(useLegacyFormat, settings),
             licenseState,
             NOOP_INDEXING_PRESSURE,
-            InferenceStatsTests.mockInferenceStats()
+            InferenceStatsTests.mockInferenceStats(),
+            modelLoadingAnswer,
+            chunkedInferAnswer
         );
     }
 
+    /**
+     * Returns an Answer for ModelRegistry.getModelWithSecrets that performs an immediate synchronous lookup.
+     * Used directly by {@link #createFilter} and wrapped with a delay by {@link #createTimeoutFilter}.
+     */
     @SuppressWarnings("unchecked")
-    private static Answer<?> defaultGetModelWithSecretsAnswer(Map<String, StaticModel> modelMap) {
+    private static Answer<?> createFilter_getModelWithSecretsAnswer(Map<String, StaticModel> modelMap) {
         return invocation -> {
             String id = (String) invocation.getArguments()[0];
             ActionListener<UnparsedModel> listener = (ActionListener<UnparsedModel>) invocation.getArguments()[1];

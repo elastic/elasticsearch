@@ -91,7 +91,9 @@ public abstract class SqlConnector implements Connector {
      * Pushes a Filter node into a SqlPlan leaf when the filter is translatable to SQL.
      */
     private class PushFilterToSql extends ConnectorPushdownRule<Filter, SqlPlan> {
-        PushFilterToSql() { super(SqlConnector.this, SqlPlan.class); }
+        PushFilterToSql() {
+            super(SqlConnector.this, SqlPlan.class);
+        }
 
         @Override
         protected LogicalPlan pushDown(Filter filter, SqlPlan sqlPlan) {
@@ -107,7 +109,9 @@ public abstract class SqlConnector implements Connector {
      * Pushes a Limit node into a SqlPlan leaf when the database supports LIMIT.
      */
     private class PushLimitToSql extends ConnectorPushdownRule<Limit, SqlPlan> {
-        PushLimitToSql() { super(SqlConnector.this, SqlPlan.class); }
+        PushLimitToSql() {
+            super(SqlConnector.this, SqlPlan.class);
+        }
 
         @Override
         protected LogicalPlan pushDown(Limit limit, SqlPlan sqlPlan) {
@@ -126,7 +130,9 @@ public abstract class SqlConnector implements Connector {
      * Pushes an OrderBy node into a SqlPlan leaf when translatable to SQL ORDER BY.
      */
     private class PushOrderByToSql extends ConnectorPushdownRule<OrderBy, SqlPlan> {
-        PushOrderByToSql() { super(SqlConnector.this, SqlPlan.class); }
+        PushOrderByToSql() {
+            super(SqlConnector.this, SqlPlan.class);
+        }
 
         @Override
         protected LogicalPlan pushDown(OrderBy orderBy, SqlPlan sqlPlan) {
@@ -142,7 +148,9 @@ public abstract class SqlConnector implements Connector {
      * Pushes an Aggregate node into a SqlPlan leaf when translatable to SQL GROUP BY.
      */
     private class PushAggregateToSql extends ConnectorPushdownRule<Aggregate, SqlPlan> {
-        PushAggregateToSql() { super(SqlConnector.this, SqlPlan.class); }
+        PushAggregateToSql() {
+            super(SqlConnector.this, SqlPlan.class);
+        }
 
         @Override
         protected LogicalPlan pushDown(Aggregate aggregate, SqlPlan sqlPlan) {

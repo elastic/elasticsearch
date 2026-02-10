@@ -1397,7 +1397,6 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
-
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),

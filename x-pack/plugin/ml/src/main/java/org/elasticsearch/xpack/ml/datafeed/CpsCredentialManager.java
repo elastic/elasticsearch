@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;
@@ -131,7 +132,7 @@ public class CpsCredentialManager {
             return;
         }
 
-        // Build the grant request
+        // Build the grant request using the UIAM authenticating token
         GrantApiKeyRequest grantRequest = new GrantApiKeyRequest();
         Grant grant = grantRequest.getGrant();
         grant.setType(Grant.ACCESS_TOKEN_GRANT_TYPE);
@@ -140,7 +141,8 @@ public class CpsCredentialManager {
 
         // Configure the API key to create
         CreateApiKeyRequest apiKeyRequest = grantRequest.getApiKeyRequest();
-        apiKeyRequest.setName("_ml_datafeed_" + datafeedId);
+        apiKeyRequest.setName("ml-datafeed-" + datafeedId);
+        apiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         // No expiration for internal API keys (initial iteration per TDD)
         // No role descriptors - inherits caller roles
 

@@ -28,7 +28,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     LongBlock asBlock();
 
     @Override
-    LongVector filter(int... positions);
+    LongVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     LongBlock keepMask(BooleanVector mask);

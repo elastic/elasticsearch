@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -24,10 +25,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIServiceSettings> {
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
     public static JinaAIServiceSettings createRandom() {
         var model = randomAlphaOfLength(15);
@@ -35,52 +41,55 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
         return new JinaAIServiceSettings(model, RateLimitSettingsTests.createRandom());
     }
 
-    public void testFromMap() {
-        var model = "model";
-        var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
-            ConfigurationParseContext.REQUEST
-        );
+    public void testUpdateServiceSettings_AllFields_Success() {
+        Map<String, Object> settingsMap = getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(model, null)));
+        var serviceSettings = new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            .updateServiceSettings(settingsMap, TaskType.COMPLETION);
+
+        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            .updateServiceSettings(new HashMap<>(), TaskType.COMPLETION);
+
+        assertThat(serviceSettings, is(new JinaAIServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))));
+    }
+
+    public void testFromMap_DefaultRateLimitSettings() {
+        var serviceSettings = JinaAIServiceSettings.fromMap(getServiceSettingsMap(TEST_MODEL_ID, null), ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, DEFAULT_RATE_LIMIT_SETTINGS)));
     }
 
     public void testFromMap_WithRateLimit() {
-        var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    model,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
-                )
-            ),
+            getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(model, new RateLimitSettings(3))));
+        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
     public void testFromMap_WhenUsingModelId() {
-        var model = "model";
         var serviceSettings = JinaAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new JinaAIServiceSettings(model, null)));
+        assertThat(serviceSettings, is(new JinaAIServiceSettings(TEST_MODEL_ID, null)));
     }
 
     public void testXContent_WritesAllFields() throws IOException {
-        var entity = new JinaAIServiceSettings("model", new RateLimitSettings(1));
+        var entity = new JinaAIServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"model","rate_limit":{"requests_per_minute":1}}"""));
+        assertThat(xContentResult, is(Strings.format("""
+            {"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""", TEST_MODEL_ID, TEST_RATE_LIMIT)));
     }
 
     @Override

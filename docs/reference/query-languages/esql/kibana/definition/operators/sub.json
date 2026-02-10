@@ -190,24 +190,6 @@
       "params" : [
         {
           "name" : "lhs",
-          "type" : "dense_vector",
-          "optional" : false,
-          "description" : "A numeric value, dense_vector or a date time value."
-        },
-        {
-          "name" : "rhs",
-          "type" : "unsigned_long",
-          "optional" : false,
-          "description" : "A numeric value, dense_vector or a date time value."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "dense_vector"
-    },
-    {
-      "params" : [
-        {
-          "name" : "lhs",
           "type" : "double",
           "optional" : false,
           "description" : "A numeric value, dense_vector or a date time value."
@@ -455,24 +437,6 @@
       ],
       "variadic" : false,
       "returnType" : "time_duration"
-    },
-    {
-      "params" : [
-        {
-          "name" : "lhs",
-          "type" : "unsigned_long",
-          "optional" : false,
-          "description" : "A numeric value, dense_vector or a date time value."
-        },
-        {
-          "name" : "rhs",
-          "type" : "dense_vector",
-          "optional" : false,
-          "description" : "A numeric value, dense_vector or a date time value."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "dense_vector"
     },
     {
       "params" : [

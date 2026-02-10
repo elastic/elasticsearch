@@ -8,7 +8,6 @@
 | dense_vector | double | dense_vector |
 | dense_vector | integer | dense_vector |
 | dense_vector | long | dense_vector |
-| dense_vector | unsigned_long | dense_vector |
 | double | dense_vector | dense_vector |
 | double | double | double |
 | double | integer | double |
@@ -21,6 +20,5 @@
 | long | double | double |
 | long | integer | long |
 | long | long | long |
-| unsigned_long | dense_vector | dense_vector |
 | unsigned_long | unsigned_long | unsigned_long |
 

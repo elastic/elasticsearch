@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -132,6 +131,16 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.web.UriParts.DOMAIN;
+import static org.elasticsearch.web.UriParts.EXTENSION;
+import static org.elasticsearch.web.UriParts.FRAGMENT;
+import static org.elasticsearch.web.UriParts.PASSWORD;
+import static org.elasticsearch.web.UriParts.PATH;
+import static org.elasticsearch.web.UriParts.PORT;
+import static org.elasticsearch.web.UriParts.QUERY;
+import static org.elasticsearch.web.UriParts.SCHEME;
+import static org.elasticsearch.web.UriParts.USERNAME;
+import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -6101,22 +6110,33 @@ public class AnalyzerTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         UriParts parts = as(limit.child(), UriParts.class);
 
-        Map<String, Class<?>> expectedColumns = UriPartsFunctionBridge.getAllOutputFields();
         final List<Attribute> attributes = parts.generatedAttributes();
+
         // verify that the attributes list is unmodifiable
         assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
-        assertEquals(expectedColumns.size(), attributes.size());
-        expectedColumns.forEach((key, value) -> {
-            String expectedName = "p." + key;
-            DataType expectedType = DataType.fromJavaType(value);
-            Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
-            assertNotNull("Expected attribute " + expectedName + " not found", attr);
-            assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());
-        });
+
+        // detect output schema changes by matching attributes explicitly to known fields
+        assertContainsAttribute(attributes, "p." + DOMAIN, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + FRAGMENT, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PATH, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + EXTENSION, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PORT, DataType.INTEGER);
+        assertContainsAttribute(attributes, "p." + QUERY, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + SCHEME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USER_INFO, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USERNAME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PASSWORD, DataType.KEYWORD);
+        assertEquals(10, attributes.size());
 
         // Test invalid input type
         VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts p = uri"));
         assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
+    }
+
+    private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {
+        Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
+        assertNotNull("Expected attribute " + expectedName + " not found", attr);
+        assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

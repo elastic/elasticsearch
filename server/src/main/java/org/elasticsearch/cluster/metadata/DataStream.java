@@ -105,12 +105,54 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return sanitizeDataStreamField(type, DISALLOWED_IN_TYPE);
     }
 
+    /**
+     * Validates that the provided type value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param type the type value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateType(String type) {
+        validateDataStreamField("type", type, DataStream::sanitizeType);
+    }
+
     public static String sanitizeDataset(String dataset) {
         return sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET);
     }
 
+    /**
+     * Validates that the provided dataset value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param dataset the dataset value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateDataset(String dataset) {
+        validateDataStreamField("dataset", dataset, DataStream::sanitizeDataset);
+    }
+
     public static String sanitizeNamespace(String namespace) {
         return sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    /**
+     * Validates that the provided namespace value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param namespace the namespace value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateNamespace(String namespace) {
+        validateDataStreamField("namespace", namespace, DataStream::sanitizeNamespace);
+    }
+
+    private static void validateDataStreamField(String fieldName, String value, Function<String, String> sanitizer) {
+        if (Objects.equals(sanitizer.apply(value), value) == false) {
+            throw new IllegalArgumentException("[" + fieldName + "] '" + value + "' contains disallowed characters");
+        }
     }
 
     private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {

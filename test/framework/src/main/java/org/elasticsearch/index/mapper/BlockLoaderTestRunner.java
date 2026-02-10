@@ -51,7 +51,7 @@ public class BlockLoaderTestRunner {
     }
 
     public void defaultMatcher(Object expected, Object actual) {
-        assertThat(expected, PrettyEqual.prettyEqualTo(actual));
+        assertThat(actual, PrettyEqual.prettyEqualTo(expected));
     }
 
     public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)
@@ -146,7 +146,7 @@ public class BlockLoaderTestRunner {
                 }
             }
             BlockLoader.Docs docs = TestBlock.docs(docArray);
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset, false);
+            var block = (TestBlock) columnAtATimeReader.get().read(TestBlock.factory(), docs, offset, false);
             assertThat(block.size(), equalTo(docArray.length - offset));
             return block.get(0);
         }

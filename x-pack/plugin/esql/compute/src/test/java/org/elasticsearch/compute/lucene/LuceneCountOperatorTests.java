@@ -27,9 +27,9 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -311,7 +311,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             DriverContext ctx = contexts.get();
             drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add)));
         }
-        OperatorTestCase.runDriver(drivers);
+        new TestDriverRunner().run(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
         testCase.checkPages(size, limit, results);
     }

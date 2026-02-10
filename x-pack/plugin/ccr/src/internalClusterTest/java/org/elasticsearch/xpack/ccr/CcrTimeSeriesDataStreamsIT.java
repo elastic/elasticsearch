@@ -280,7 +280,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
                             indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                                 .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean())
-                                .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), useSyntheticId)
+                                .put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId)
                                 .build(),
                             new CompressedXContent("""
                                 {

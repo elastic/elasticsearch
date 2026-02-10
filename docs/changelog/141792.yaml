@@ -1,0 +1,5 @@
+area: Infra/Logging
+issues: []
+pr: 141792
+summary: Fix cluster name in ECS upgrade
+type: bug

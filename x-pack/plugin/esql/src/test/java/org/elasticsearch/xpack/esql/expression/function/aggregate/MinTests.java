@@ -248,7 +248,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     .orElse(null);
                 expectedReturnType = DataType.DOUBLE;
             } else {
-                expected = fieldTypedData.multiRowData()
+                expected = fieldTypedData.originalMultiRowData()
                     .stream()
                     .map(v -> (Comparable<? super Comparable<?>>) v)
                     .min(Comparator.naturalOrder())

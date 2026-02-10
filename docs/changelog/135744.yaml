@@ -1,5 +1,0 @@
-pr: 135744
-summary: Non-Correlated Subquery in FROM command
-area: ES|QL
-type: enhancement
-issues: []

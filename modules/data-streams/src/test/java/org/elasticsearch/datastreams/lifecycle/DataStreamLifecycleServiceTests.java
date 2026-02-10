@@ -1864,10 +1864,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         private final List<DlmStep> steps;
         private final TimeValue schedule;
         private boolean actionScheduleChecked = false;
+        private final boolean appliesFailureStore;
 
         private TestDlmAction(TimeValue schedule, DlmStep... steps) {
+            this(schedule, false, steps);
+        }
+
+        private TestDlmAction(TimeValue schedule, boolean appliesFailureStore, DlmStep... steps) {
             this.steps = Arrays.asList(steps);
             this.schedule = schedule;
+            this.appliesFailureStore = appliesFailureStore;
         }
 
         @Override
@@ -1884,6 +1890,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         public Function<DataStreamLifecycle, TimeValue> applyAfterTime() {
             actionScheduleChecked = true;
             return dsl -> schedule;
+        }
+
+        @Override
+        public boolean appliesToFailureStore() {
+            return appliesFailureStore;
         }
     }
 
@@ -2149,5 +2160,78 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(step2.executeCount, equalTo(0));
         assertThat(indicesToExclude, empty());
         assertThat(processedIndices, empty());
+    }
+
+    public void testActionUsesAppliesToFailureStoreForBackingIndices() {
+        TestDlmStep step1 = new TestDlmStep();
+        TimeValue schedule = TimeValue.timeValueMillis(1);
+        TestDlmAction action = new TestDlmAction(schedule, false, step1);
+        actions.add(action);
+
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        int numFailureIndices = 2;
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            numFailureIndices,
+            settings(IndexVersion.current()),
+            dataLifecycle,
+            null,
+            now
+        );
+        builder.put(dataStream);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Set<Index> indicesToExclude = new HashSet<>();
+
+        Set<Index> processedIndices = dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
+
+        assertThat(action.actionScheduleChecked, equalTo(true));
+        // When appliesToFailureStore is false, only backing indices should be processed
+        List<Index> backingIndicesEligible = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false);
+        assertThat(processedIndices, hasSize(numBackingIndices - 1)); // all but the write index, no failure store indices
+        assertThat(processedIndices, hasSize(backingIndicesEligible.size()));
+        assertThat(step1.executeCount, equalTo(backingIndicesEligible.size()));
+    }
+
+    public void testActionUsesAppliesToFailureStoreForFailureIndices() {
+        TestDlmStep step1 = new TestDlmStep();
+        TimeValue schedule = TimeValue.timeValueMillis(1);
+        TestDlmAction action = new TestDlmAction(schedule, true, step1);
+        actions.add(action);
+
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        int numFailureIndices = 2;
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle dataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            numFailureIndices,
+            settings(IndexVersion.current()),
+            dataLifecycle,
+            null,
+            now
+        );
+        builder.put(dataStream);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Set<Index> indicesToExclude = new HashSet<>();
+
+        Set<Index> processedIndices = dataStreamLifecycleService.maybeProcessDlmActions(projectState, dataStream, indicesToExclude);
+
+        assertThat(action.actionScheduleChecked, equalTo(true));
+        // When appliesToFailureStore is true, failure indices should be included
+        List<Index> failureIndicesEligible = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule);
+        // all but the write backing index, and write failure index
+        assertThat(processedIndices, hasSize(numBackingIndices + numFailureIndices - 2));
+        assertThat(step1.executeCount, equalTo(failureIndicesEligible.size()));
+        assertThat(processedIndices, hasSize(failureIndicesEligible.size()));
     }
 }

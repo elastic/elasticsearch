@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -73,7 +74,7 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far"))
             )
         ) {
-            expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type
+            expectThrows(Exception.class, () -> new TestDriverRunner().run(d));  // ### find a more specific exception type
         }
     }
 }

@@ -46,14 +46,15 @@ public class First extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         preview = true,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean" },
+        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = """
             This function calculates the earliest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort
-            field (the second parameter). Both fields support null, single-valued,
-            and multi-valued input. If the earliest sort field value appears in
-            multiple documents, this function is allowed to return any corresponding
-            search field value. Null values of the sort field always sort last.""",
+            field (the second parameter). This sorting order is always ascending
+            and null values always sort last. Both fields support null,
+            single-valued, and multi-valued input. If the earliest sort field
+            value appears in multiple documents, this function is allowed to
+            return any corresponding search field value.""",
         appendix = """
             ::::{warning}
             This can use a significant amount of memory and ES|QL doesn’t yet
@@ -71,11 +72,11 @@ public class First extends AggregateFunction implements ToAggregator {
     public First(
         Source source,
         @Param(
-            name = "value",
-            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean" },
-            description = "Values to return"
+            name = "field",
+            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
+            description = "The search field"
         ) Expression field,
-        @Param(name = "sort", type = { "long", "date", "date_nanos" }, description = "Sort key") Expression sort
+        @Param(name = "sortField", type = { "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
@@ -134,6 +135,7 @@ public class First extends AggregateFunction implements ToAggregator {
             field(),
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
@@ -159,7 +161,7 @@ public class First extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
+            case LONG, DATETIME, DATE_NANOS -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
             case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();

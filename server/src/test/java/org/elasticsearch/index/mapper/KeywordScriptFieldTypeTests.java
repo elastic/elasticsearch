@@ -446,7 +446,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
                 assertThat(loader, instanceOf(KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader.class));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
                 assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
                 var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
                 assertThat(rowStrideReader, instanceOf(KeywordScriptBlockDocValuesReader.class));

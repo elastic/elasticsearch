@@ -217,7 +217,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
                 function,
                 VectorSimilarityFunctions.DataType.INT8,
                 VectorSimilarityFunctions.Operation.SINGLE
-            ).invoke(a, b, length); // not invokeExact, as we want the implicit conversion int -> float where necessary
+            ).invokeExact(a, b, length);
         } catch (Throwable t) {
             throw rethrow(t);
         }

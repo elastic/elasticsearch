@@ -323,7 +323,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
     return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
-EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > sizeof(__m128i)) {
@@ -333,7 +333,7 @@ EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     for (; i < dims; i++) {
         res += a[i] * b[i];
     }
-    return res;
+    return (f32_t)res;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>
@@ -348,7 +348,7 @@ static inline void doti8_inner_bulk(
 ) {
     for (int c=0; c<count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_doti8(a0, b, dims);
+        results[c] = vec_doti8(a0, b, dims);
     }
 }
 
@@ -391,7 +391,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
     return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
-EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > sizeof(__m128i)) {
@@ -402,7 +402,7 @@ EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
         int32_t dist = a[i] - b[i];
         res += dist * dist;
     }
-    return res;
+    return (f32_t)res;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>

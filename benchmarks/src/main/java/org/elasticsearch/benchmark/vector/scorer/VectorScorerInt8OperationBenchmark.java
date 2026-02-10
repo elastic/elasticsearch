@@ -125,11 +125,7 @@ public class VectorScorerInt8OperationBenchmark {
     @Benchmark
     public float nativeWithNativeSeg() {
         try {
-            if (function == VectorSimilarityType.COSINE) {
-                return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
-            } else {
-                return (int) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
-            }
+            return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -138,11 +134,7 @@ public class VectorScorerInt8OperationBenchmark {
     @Benchmark
     public float nativeWithHeapSeg() {
         try {
-            if (function == VectorSimilarityType.COSINE) {
-                return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
-            } else {
-                return (int) nativeImpl.invokeExact(heapSegA, heapSegB, size);
-            }
+            return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
         } catch (Throwable t) {
             throw rethrow(t);
         }

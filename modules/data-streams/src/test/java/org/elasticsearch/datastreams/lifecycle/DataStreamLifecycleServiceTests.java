@@ -2282,7 +2282,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         assertThat(action.actionScheduleChecked, equalTo(true));
         // Action should be executed, so step1.executeCount should be > 0
-        int eligibleCount = dataStream.getIndicesPastRetention(projectState.metadata()::index, () -> now, schedule, false).size();
+        int eligibleCount = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, BACKING_INDICES).size();
         assertThat(step1.executeCount, equalTo(eligibleCount));
         assertThat(processedIndices, hasSize(eligibleCount));
     }

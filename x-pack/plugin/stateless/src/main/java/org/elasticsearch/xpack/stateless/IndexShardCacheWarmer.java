@@ -119,6 +119,8 @@ public class IndexShardCacheWarmer {
                     useReplicatedRanges,
                     bccHeaderReadExecutor,
                     readSingleBlobIfHollow,
+                    // TODO(ES-13400): pass blobs received from source shard after/if we require prewarming to be triggered by source.
+                    null,
                     ActionListener.releaseAfter(ActionListener.wrap(state -> {
                         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 

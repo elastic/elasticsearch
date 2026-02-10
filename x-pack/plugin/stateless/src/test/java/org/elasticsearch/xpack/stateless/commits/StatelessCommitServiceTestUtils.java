@@ -36,4 +36,8 @@ public class StatelessCommitServiceTestUtils {
     public static Set<String> getAllSearchNodesRetainingCommitsForShard(StatelessCommitService statelessCommitService, ShardId shardId) {
         return statelessCommitService.getAllSearchNodesRetainingCommitsForShard(shardId);
     }
+
+    public static StatelessCommitCleaner getStatelessCommitCleaner(StatelessCommitService statelessCommitService) {
+        return statelessCommitService.getCommitCleaner();
+    }
 }

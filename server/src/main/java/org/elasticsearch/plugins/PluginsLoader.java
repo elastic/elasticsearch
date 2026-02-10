@@ -17,7 +17,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.nativeaccess.NativeAccessUtil;
-import org.elasticsearch.plugins.PluginDescriptor.DistributionMode;
+import org.elasticsearch.plugins.PluginDescriptor.DeploymentTarget;
 
 import java.io.IOException;
 import java.lang.ModuleLayer.Controller;
@@ -138,7 +138,7 @@ public class PluginsLoader {
         final Set<PluginBundle> modules;
         if (modulesDirectory != null) {
             try {
-                modules = PluginsUtils.getModuleBundles(modulesDirectory, distributionModePredicate(isStatelessMode));
+                modules = PluginsUtils.getModuleBundles(modulesDirectory, deploymentTargetPredicate(isStatelessMode));
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
@@ -162,7 +162,7 @@ public class PluginsLoader {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
-                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory, distributionModePredicate(isStatelessMode));
+                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory, deploymentTargetPredicate(isStatelessMode));
                 } else {
                     plugins = Collections.emptySet();
                 }
@@ -175,8 +175,8 @@ public class PluginsLoader {
         return plugins;
     }
 
-    private static Predicate<PluginDescriptor> distributionModePredicate(boolean isStatelessMode) {
-        return descriptor -> switch (descriptor.getDistributionMode().orElse(DistributionMode.ALWAYS)) {
+    private static Predicate<PluginDescriptor> deploymentTargetPredicate(boolean isStatelessMode) {
+        return descriptor -> switch (descriptor.getDeploymentTarget().orElse(DeploymentTarget.ALWAYS)) {
             case STATEFUL_ONLY -> isStatelessMode == false;
             case STATELESS_ONLY -> isStatelessMode;
             case ALWAYS -> true; // always loaded

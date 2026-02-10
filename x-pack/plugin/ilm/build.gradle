@@ -10,7 +10,7 @@ esplugin {
   extendedPlugins = ['x-pack-core']
   hasNativeController = false
   requiresKeystore = true
-  distributionMode = 'STATEFUL_ONLY'
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 base {
   archivesName = 'x-pack-ilm'

@@ -213,24 +213,24 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
-    public void testReadDistributionMode() throws Exception {
-        assertThat(mockInternalDescriptor().getDistributionMode(), isEmpty());
+    public void testReadDeploymentTarget() throws Exception {
+        assertThat(mockInternalDescriptor().getDeploymentTarget(), isEmpty());
         assertThat(
-            mockInternalDescriptor("distribution.mode", "STATEFUL_ONLY").getDistributionMode(),
-            is(Optional.of(PluginDescriptor.DistributionMode.STATEFUL_ONLY))
+            mockInternalDescriptor("deployment.target", "STATEFUL_ONLY").getDeploymentTarget(),
+            is(Optional.of(PluginDescriptor.DeploymentTarget.STATEFUL_ONLY))
         );
         assertThat(
-            mockInternalDescriptor("distribution.mode", "STATELESS_ONLY").getDistributionMode(),
-            is(Optional.of(PluginDescriptor.DistributionMode.STATELESS_ONLY))
+            mockInternalDescriptor("deployment.target", "STATELESS_ONLY").getDeploymentTarget(),
+            is(Optional.of(PluginDescriptor.DeploymentTarget.STATELESS_ONLY))
         );
     }
 
-    public void testReadDistributionModeInvalid() throws Exception {
+    public void testReadDeploymentTargetInvalid() throws Exception {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mockInternalDescriptor("distribution.mode", "INVALID")
+            () -> mockInternalDescriptor("deployment.target", "INVALID")
         );
-        assertThat(e.getMessage(), containsString("invalid distribution.mode [INVALID]"));
+        assertThat(e.getMessage(), containsString("invalid deployment.target [INVALID]"));
         assertThat(e.getMessage(), containsString("expected one of [STATEFUL_ONLY, STATELESS_ONLY, ALWAYS]"));
     }
 

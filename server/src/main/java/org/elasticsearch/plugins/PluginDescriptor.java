@@ -45,9 +45,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
 
     /**
-     * Controls when to load a plugin in the current distribution.
+     * Deployment target describing when to load a plugin (stateful, stateless, or both).
      */
-    public enum DistributionMode {
+    public enum DeploymentTarget {
         /** Only load plugin when stateless mode is disabled */
         STATEFUL_ONLY,
         /** Only load plugin when stateless mode is enabled */
@@ -68,7 +68,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final boolean isLicensed;
     private final boolean isModular;
     private final boolean isStable;
-    private final Optional<DistributionMode> distributionMode;
+    private final Optional<DeploymentTarget> deploymentTarget;
 
     /**
      * Construct plugin info.
@@ -85,7 +85,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @param isLicensed           whether is this a licensed plugin
      * @param isModular            whether this plugin should be loaded in a module layer
      * @param isStable             whether this plugin is implemented using the stable plugin API
-     * @param distributionMode     when to load this plugin
+     * @param deploymentTarget     when to load this plugin
      */
     public PluginDescriptor(
         String name,
@@ -100,7 +100,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         boolean isLicensed,
         boolean isModular,
         boolean isStable,
-        Optional<DistributionMode> distributionMode
+        Optional<DeploymentTarget> deploymentTarget
     ) {
         this.name = name;
         this.description = description;
@@ -114,7 +114,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
-        this.distributionMode = distributionMode;
+        this.deploymentTarget = deploymentTarget;
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -140,7 +140,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         isModular = in.readBoolean();
         isStable = in.readBoolean();
-        distributionMode = Optional.empty(); // only read from descriptor property files, not serialized
+        deploymentTarget = Optional.empty(); // only read from descriptor property files, not serialized
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -271,7 +271,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         boolean isLicensed = readBoolean(propsMap, name, "licensed");
         boolean modular = module != null;
-        Optional<DistributionMode> distributionMode = readDistributionMode(propsMap, name);
+        Optional<DeploymentTarget> deploymentTarget = readDeploymentTarget(propsMap, name);
 
         return new PluginDescriptor(
             name,
@@ -286,24 +286,24 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             isLicensed,
             modular,
             false,
-            distributionMode
+            deploymentTarget
         );
     }
 
-    private static Optional<DistributionMode> readDistributionMode(Map<String, String> propsMap, String pluginId) {
-        String rawValue = propsMap.remove("distribution.mode");
+    private static Optional<DeploymentTarget> readDeploymentTarget(Map<String, String> propsMap, String pluginId) {
+        String rawValue = propsMap.remove("deployment.target");
         if (rawValue == null || rawValue.isBlank()) {
             return Optional.empty();
         }
         try {
-            return Optional.of(DistributionMode.valueOf(rawValue.trim()));
+            return Optional.of(DeploymentTarget.valueOf(rawValue.trim()));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                 Strings.format(
-                    "Descriptor of plugin [%s] contains invalid distribution.mode [%s], expected one of %s",
+                    "Descriptor of plugin [%s] contains invalid deployment.target [%s], expected one of %s",
                     pluginId,
                     rawValue,
-                    Arrays.toString(DistributionMode.values())
+                    Arrays.toString(DeploymentTarget.values())
                 )
             );
         }
@@ -316,7 +316,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
-        Optional<DistributionMode> distributionMode = readDistributionMode(propsMap, name);
+        Optional<DeploymentTarget> deploymentTarget = readDeploymentTarget(propsMap, name);
 
         return new PluginDescriptor(
             name,
@@ -331,7 +331,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             false,
             isModular,
             true,
-            distributionMode
+            deploymentTarget
         );
     }
 
@@ -483,10 +483,10 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     }
 
     /**
-     * The distribution mode of this plugin, specifically if to include the plugin in stateless mode or not.
+     * The deployment target of this plugin, specifically if to include the plugin in stateless mode or not.
      */
-    public Optional<DistributionMode> getDistributionMode() {
-        return distributionMode;
+    public Optional<DeploymentTarget> getDeploymentTarget() {
+        return deploymentTarget;
     }
 
     @Override
@@ -543,7 +543,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Licensed: ", isLicensed);
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
-        distributionMode.ifPresent(dm -> appendLine(lines, prefix, "Distribution Mode: ", dm.name()));
+        deploymentTarget.ifPresent(dt -> appendLine(lines, prefix, "Deployment Target: ", dt.name()));
 
         return String.join(System.lineSeparator(), lines);
     }

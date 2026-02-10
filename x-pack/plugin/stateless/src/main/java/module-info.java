@@ -16,6 +16,7 @@
  */
 
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessHeapUsageCollector;
 import org.elasticsearch.xpack.stateless.mapper.ServerlessRootObjectMapperNamespaceValidator;
 import org.elasticsearch.xpack.stateless.recovery.StatelessRestoreTransformer;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
+import org.elasticsearch.xpack.stateless.templates.StatelessTemplateSettingsDecoratorProvider;
 
 module org.elasticsearch.xpack.stateless {
     requires org.elasticsearch.base;
@@ -66,6 +68,7 @@ module org.elasticsearch.xpack.stateless {
                                                                                                                                 // PrimaryTermAndGeneration
     exports org.elasticsearch.xpack.stateless.recovery.shardinfo to org.elasticsearch.server; // For PrimaryTermAndGeneration
     exports org.elasticsearch.xpack.stateless.snapshots to org.elasticsearch.server; // for stateless snapshots
+    exports org.elasticsearch.xpack.stateless.templates to org.elasticsearch.server;
 
     provides org.elasticsearch.action.search.OnlinePrewarmingServiceProvider
         with
@@ -74,4 +77,5 @@ module org.elasticsearch.xpack.stateless {
     provides IndexMetadataRestoreTransformer with StatelessRestoreTransformer;
     provides RootObjectMapperNamespaceValidator with ServerlessRootObjectMapperNamespaceValidator;
     provides SnapshotShardContextFactory with StatelessSnapshotShardContextFactory;
+    provides TemplateDecoratorProvider with StatelessTemplateSettingsDecoratorProvider;
 }

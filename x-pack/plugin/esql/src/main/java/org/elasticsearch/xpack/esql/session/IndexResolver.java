@@ -500,6 +500,7 @@ public class IndexResolver {
                 typesToIndices.computeIfAbsent(type.typeName(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
+        // FIXME(gal, NOCOMMIT) this also needs to take into account potentially unmapped fields!
         return new InvalidMappedField(name, typesToIndices);
     }
 

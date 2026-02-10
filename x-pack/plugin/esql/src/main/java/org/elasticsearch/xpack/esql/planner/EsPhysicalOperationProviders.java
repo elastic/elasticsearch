@@ -227,7 +227,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return ValuesSourceReaderOperator.load(blockLoader);
         }
         // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-        Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
+        // FIXME(gal, NOCOMMIT) For unmapped indices, use the keyword conversion stored in the shard context hack
+        Expression conversion = shardContext instanceof DefaultShardContextForUnmappedField2 dsc
+            ? dsc.converted
+            : unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }

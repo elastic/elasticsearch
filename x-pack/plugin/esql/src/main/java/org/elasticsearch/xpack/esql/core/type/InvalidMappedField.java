@@ -31,20 +31,33 @@ public class InvalidMappedField extends EsField {
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
+    // FIXME(gal, NOCOMMIT) document
+    private final boolean isPotentiallyUnmapped;
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
-        this(name, errorMessage, properties, Map.of(), TimeSeriesFieldType.UNKNOWN);
+        this(name, errorMessage, properties, Map.of(), false, TimeSeriesFieldType.UNKNOWN);
     }
 
     public InvalidMappedField(String name, String errorMessage) {
         this(name, errorMessage, new TreeMap<>());
     }
 
+    public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
+        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
+    }
+
     /**
      * Constructor supporting union types, used in ES|QL.
      */
-    public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices, TimeSeriesFieldType.UNKNOWN);
+    public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
+        return new InvalidMappedField(
+            name,
+            makeErrorMessage(typesToIndices, true),
+            new TreeMap<>(),
+            typesToIndices,
+            true,
+            TimeSeriesFieldType.UNKNOWN
+        );
     }
 
     private InvalidMappedField(
@@ -52,11 +65,13 @@ public class InvalidMappedField extends EsField {
         String errorMessage,
         Map<String, EsField> properties,
         Map<String, Set<String>> typesToIndices,
+        boolean isPotentiallyUnmapped,
         TimeSeriesFieldType type
     ) {
         super(name, DataType.UNSUPPORTED, properties, false, type);
         this.errorMessage = errorMessage;
         this.typesToIndices = typesToIndices;
+        this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }
 
     protected InvalidMappedField(StreamInput in) throws IOException {
@@ -64,7 +79,9 @@ public class InvalidMappedField extends EsField {
             ((PlanStreamInput) in).readCachedString(),
             in.readString(),
             in.readImmutableMap(StreamInput::readString, EsField::readFrom),
+            // FIXME(gal, NOCOMMIT) Does this need to be protected with a version? Perhaps it's best to create a new type?
             Map.of(),
+            in.readBoolean(),
             readTimeSeriesFieldType(in)
         );
     }
@@ -78,6 +95,7 @@ public class InvalidMappedField extends EsField {
         ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+        out.writeBoolean(isPotentiallyUnmapped);
         writeTimeSeriesFieldType(out);
     }
 
@@ -119,6 +137,10 @@ public class InvalidMappedField extends EsField {
         return typesToIndices;
     }
 
+    public boolean isPotentiallyUnmapped() {
+        return isPotentiallyUnmapped;
+    }
+
     public static String makeErrorsMessageIncludingInsistKeyword(Map<String, Set<String>> typesToIndices) {
         return makeErrorMessage(typesToIndices, true);
     }
@@ -130,6 +152,7 @@ public class InvalidMappedField extends EsField {
         errorMessage.append(typesToIndices.size() + (isInsistKeywordOnlyKeyword ? 1 : 0));
         errorMessage.append("] incompatible types: ");
         boolean first = true;
+        // FIXME(gal, NOCOMMIT) Rephrase to use LOAD
         if (isInsistKeywordOnlyKeyword) {
             first = false;
             errorMessage.append("[keyword] enforced by INSIST command");

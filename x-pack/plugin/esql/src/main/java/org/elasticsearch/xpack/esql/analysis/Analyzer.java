@@ -171,6 +171,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -1140,7 +1142,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field is partially unmapped.
             // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
             if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
+                var esIndex = indices.stream().map(IndexResolution::get).filter(r -> r.isPartiallyUnmappedField(fa.name())).findFirst();
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex.get());
             }
 
             // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
@@ -1148,12 +1151,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa) {
+        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
             var name = fa.name();
-            EsField field = fa.field() instanceof InvalidMappedField imf
-                ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
-                // FIXME(gal, NOCOMMIT) hard-coded for debugging
-                : new InvalidMappedField(name, Map.of("long", Set.of("sample_data"), "keyword", Set.of("no_mapping_sample_data")));
+            Map<String, Set<String>> typesToIndices = new TreeMap<>();
+            if (fa.field() instanceof InvalidMappedField imf) {
+                typesToIndices.putAll(imf.getTypesToIndices());
+            } else {
+                typesToIndices.put(fa.dataType().typeName(), new TreeSet<>(esIndex.concreteQualifiedIndices()));
+            }
+            EsField field = InvalidMappedField.potentiallyUnmapped(name, typesToIndices);
             return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
         }
 
@@ -1184,7 +1190,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                     // Field is partially unmapped.
                     if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
+                        var esIndex = indexResolutions.stream()
+                            .map(IndexResolution::get)
+                            .filter(r -> r.isPartiallyUnmappedField(fa.name()))
+                            .findFirst()
+                            .get();
+                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex);
                         insistedMap.put(fa, newFA);
                         return newFA;
                     }
@@ -2237,8 +2248,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
+                if (imf.isPotentiallyUnmapped()) {
+                    typeResolutions(fa, convert, KEYWORD, imf, typeResolutions);
+                }
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
-                if (typeResolutions.size() == imf.getTypesToIndices().size()) {
+                int extra = imf.isPotentiallyUnmapped() ? 1 : 0;
+                if (typeResolutions.size() == imf.getTypesToIndices().size() + extra) {
                     var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }

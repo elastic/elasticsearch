@@ -12,6 +12,7 @@ import ch.obermuhlner.math.big.BigDecimalMath;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.core.ESSloppyMath;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,16 +28,16 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AcoshTests extends AbstractScalarFunctionTestCase {
+public class AsinhTests extends AbstractScalarFunctionTestCase {
 
     // Canonical formula: https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Definitions_in_terms_of_logarithms
-    private static double canonicalAcosh(double x) {
-        BigDecimal bd = BigDecimal.valueOf(x);
-        BigDecimal arg = bd.add(bd.multiply(bd).subtract(BigDecimal.ONE).sqrt(MathContext.DECIMAL128));
-        return BigDecimalMath.log(arg, MathContext.DECIMAL128).doubleValue();
+    private static double canonicalAsinh(double x) {
+        BigDecimal bd = BigDecimal.valueOf(x).abs();
+        BigDecimal arg = bd.add(bd.multiply(bd).add(BigDecimal.ONE).sqrt(MathContext.DECIMAL128));
+        return Math.copySign(BigDecimalMath.log(arg, MathContext.DECIMAL128).doubleValue(), x);
     }
 
-    public AcoshTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public AsinhTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -46,53 +47,64 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
 
         suppliers.add(
             new TestCaseSupplier(
-                "acosh(1)",
+                "asinh(0)",
                 List.of(DataType.DOUBLE),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(1.0, DataType.DOUBLE, "arg")),
-                    "AcoshEvaluator[val=Attribute[channel=0]]",
+                    List.of(new TestCaseSupplier.TypedData(0.0, DataType.DOUBLE, "arg")),
+                    "AsinhEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
                     equalTo(0.0)
                 )
             )
         );
+
         suppliers.add(
             new TestCaseSupplier(
-                "acosh(2)",
+                "asinh(1)",
                 List.of(DataType.DOUBLE),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(2.0, DataType.DOUBLE, "arg")),
-                    "AcoshEvaluator[val=Attribute[channel=0]]",
+                    List.of(new TestCaseSupplier.TypedData(1.0, DataType.DOUBLE, "arg")),
+                    "AsinhEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    closeTo(canonicalAcosh(2.0), Math.ulp(canonicalAcosh(2.0)))
-                )
-            )
-        );
-        suppliers.add(
-            new TestCaseSupplier(
-                "acosh(10)",
-                List.of(DataType.DOUBLE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
-                    "AcoshEvaluator[val=Attribute[channel=0]]",
-                    DataType.DOUBLE,
-                    closeTo(canonicalAcosh(10.0), Math.ulp(canonicalAcosh(10.0)))
+                    closeTo(canonicalAsinh(1.0), Math.ulp(canonicalAsinh(1.0)))
                 )
             )
         );
 
-        // Out of range (x < 1)
+        suppliers.add(
+            new TestCaseSupplier(
+                "asinh(-1)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(-1.0, DataType.DOUBLE, "arg")),
+                    "AsinhEvaluator[val=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    closeTo(canonicalAsinh(-1.0), Math.ulp(canonicalAsinh(-1.0)))
+                )
+            )
+        );
+
+        suppliers.add(
+            new TestCaseSupplier(
+                "asinh(10)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
+                    "AsinhEvaluator[val=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    closeTo(canonicalAsinh(10.0), Math.ulp(canonicalAsinh(10.0)))
+                )
+            )
+        );
+
         suppliers.addAll(
             TestCaseSupplier.forUnaryCastingToDouble(
-                "AcoshEvaluator",
+                "AsinhEvaluator",
                 "val",
-                k -> null,
+                ESSloppyMath::asinh,
                 Double.NEGATIVE_INFINITY,
-                0.999999d,
-                List.of(
-                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:1: java.lang.ArithmeticException: Acosh input out of range"
-                )
+                Double.POSITIVE_INFINITY,
+                List.of()
             )
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
@@ -100,6 +112,6 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Acosh(source, args.getFirst());
+        return new Asinh(source, args.getFirst());
     }
 }

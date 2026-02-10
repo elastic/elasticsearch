@@ -125,4 +125,101 @@ public class FastMathTests extends ESTestCase {
         );
         assertThat("acosh at 2^28", FastMath.acosh(threshold), closeTo(canonicalAcosh(threshold), ACOSH_RELATIVE_ERROR));
     }
+
+    // -----------------------------------------------------------------------
+    // ASINH tests
+    // -----------------------------------------------------------------------
+
+    private static final double ASINH_RELATIVE_ERROR = 2e-13;
+
+    // Canonical asinh reference using the odd-function property to avoid precision loss for negative values.
+    private static double canonicalAsinh(double x) {
+        double abs = Math.abs(x);
+        double result;
+        if (abs >= (double) (1L << 28)) {
+            // For large |x|, use simplified formula to avoid x*x overflow
+            result = Math.log(abs) + Math.log(2);
+        } else {
+            // Compute on |x| to avoid catastrophic cancellation for negative values
+            result = Math.log(abs + Math.sqrt(abs * abs + 1));
+        }
+        return Math.copySign(result, x);
+    }
+
+    public void testAsinhNaN() {
+        assertTrue(Double.isNaN(FastMath.asinh(Double.NaN)));
+    }
+
+    public void testAsinhZero() {
+        assertThat(FastMath.asinh(0.0), equalTo(0.0));
+        assertThat(FastMath.asinh(-0.0), equalTo(-0.0));
+    }
+
+    public void testAsinhInfinity() {
+        assertThat(FastMath.asinh(Double.POSITIVE_INFINITY), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(FastMath.asinh(Double.NEGATIVE_INFINITY), equalTo(Double.NEGATIVE_INFINITY));
+    }
+
+    public void testAsinhNearZero() {
+        // Values with |x| < 2^-28 use the identity asinh(x) ≈ x
+        double[] values = { 1e-10, 1e-15, 1e-20, -1e-10, -1e-15 };
+        for (double x : values) {
+            assertThat("asinh(" + x + ")", FastMath.asinh(x), equalTo(x));
+        }
+    }
+
+    public void testAsinhSmallValues() {
+        // Values in range [2^-28, 2] use the log1p formula
+        double[] values = { 0.001, 0.01, 0.1, 0.5, 1.0, 1.5, 2.0, -0.5, -1.0, -2.0 };
+        for (double x : values) {
+            assertThat("asinh(" + x + ")", FastMath.asinh(x), closeTo(canonicalAsinh(x), ASINH_RELATIVE_ERROR));
+        }
+    }
+
+    public void testAsinhModerateValues() {
+        // Values in range (2, 2^28) use the standard formula
+        double[] values = { 3.0, 5.0, 10.0, 100.0, 1000.0, 1e6, -3.0, -10.0, -1000.0 };
+        for (double x : values) {
+            assertThat("asinh(" + x + ")", FastMath.asinh(x), closeTo(canonicalAsinh(x), ASINH_RELATIVE_ERROR));
+        }
+    }
+
+    public void testAsinhLargeValues() {
+        // Values with |x| >= 2^28 use simplified formula: sign(x) * (log(|x|) + ln(2))
+        double threshold = (double) (1L << 28);
+        double[] values = { threshold, 1e10, 1e15, 1e100, Double.MAX_VALUE, -threshold, -1e10, -Double.MAX_VALUE };
+        for (double x : values) {
+            double actual = FastMath.asinh(x);
+            assertTrue("asinh(" + x + ") should be finite", Double.isFinite(actual));
+            if (Math.abs(x) <= 1e150) {
+                assertThat("asinh(" + x + ")", actual, closeTo(canonicalAsinh(x), ASINH_RELATIVE_ERROR));
+            }
+        }
+    }
+
+    public void testAsinhOddFunction() {
+        // asinh is an odd function: asinh(-x) == -asinh(x)
+        double[] values = { 0.5, 1.0, 2.0, 10.0, 1000.0, 1e10 };
+        for (double x : values) {
+            assertThat("asinh(-" + x + ") == -asinh(" + x + ")", FastMath.asinh(-x), equalTo(-FastMath.asinh(x)));
+        }
+    }
+
+    public void testAsinhBoundaryConsistency() {
+        // Boundary between log1p formula and standard formula at |x| = 2
+        double justBelow2 = Math.nextDown(2.0);
+        double justAbove2 = Math.nextUp(2.0);
+        assertThat("asinh just below 2", FastMath.asinh(justBelow2), closeTo(canonicalAsinh(justBelow2), ASINH_RELATIVE_ERROR));
+        assertThat("asinh just above 2", FastMath.asinh(justAbove2), closeTo(canonicalAsinh(justAbove2), ASINH_RELATIVE_ERROR));
+
+        // Boundary at 2^28 between standard formula and large value formula
+        double threshold = (double) (1L << 28);
+        double justBelowThreshold = Math.nextDown(threshold);
+        assertThat(
+            "asinh just below 2^28",
+            FastMath.asinh(justBelowThreshold),
+            closeTo(canonicalAsinh(justBelowThreshold), ASINH_RELATIVE_ERROR)
+        );
+        assertThat("asinh at 2^28", FastMath.asinh(threshold), closeTo(canonicalAsinh(threshold), ASINH_RELATIVE_ERROR));
+    }
 }

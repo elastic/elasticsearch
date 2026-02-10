@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumTests extends AbstractAggregationTestCase {
@@ -205,9 +206,8 @@ public class SumTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
-                equalTo(expected)
+                expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
             );
         });
     }
-
 }

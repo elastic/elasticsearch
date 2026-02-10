@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, each value is chunked separately."
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, each value is chunked separately."
         },
         {
           "name" : "chunking_settings",
@@ -41,7 +41,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, each value is chunked separately."
         }
       ],
       "variadic" : false,
@@ -53,7 +53,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, each value is chunked separately."
         },
         {
           "name" : "chunking_settings",

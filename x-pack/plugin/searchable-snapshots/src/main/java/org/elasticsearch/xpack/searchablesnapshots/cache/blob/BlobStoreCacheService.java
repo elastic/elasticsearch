@@ -55,7 +55,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
-    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(1);
+    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(4);
     private static final Cache<String, String> LOG_EXCEEDING_FILES_CACHE = CacheBuilder.<String, String>builder()
         .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
         .build();

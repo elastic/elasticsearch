@@ -194,15 +194,30 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
     }
 
-    public void testDecodeArbitraryBytesThrowsIllegalArgument() {
+    public void testDecodeArbitraryBytesThrowsIllegalArgument() throws IOException {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+
         // correct start, including transport version, but then invalid
-        BytesReference garbageId = new BytesArray(Base64.getUrlDecoder().decode("sKS2BP____8P"));
+        final BytesReference garbageId;
+        try (var out = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            TransportVersion.writeVersion(TransportVersion.current(), out);
+            out.writeVInt(-1);
+            garbageId = out.bytes();
+        }
+
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, garbageId));
         assertThat(e.getMessage(), equalTo("invalid search context id"));
+        assertThat(
+            asInstanceOf(NegativeArraySizeException.class, e.getCause()).getMessage(),
+            equalTo("array size must be positive but was: -1")
+        );
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(garbageId));
         assertThat(e2.getMessage(), equalTo("invalid search context id"));
+        assertThat(
+            asInstanceOf(NegativeArraySizeException.class, e2.getCause()).getMessage(),
+            equalTo("array size must be positive but was: -1")
+        );
     }
 
     public void testDecodeLegacyPitIdThrowsIllegalArgument() {

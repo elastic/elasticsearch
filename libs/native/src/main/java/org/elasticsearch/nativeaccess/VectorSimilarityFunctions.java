@@ -35,7 +35,11 @@ public interface VectorSimilarityFunctions {
         /**
          * Unsigned int7. Single vector score returns results as an int.
          */
-        INT7(Byte.BYTES),
+        INT7U(Byte.BYTES),
+        /**
+         * 1-byte int. Single vector score returns results as an int.
+         */
+        INT8(Byte.BYTES),
         /**
          * 4-byte float. Single vector score returns results as a float.
          */
@@ -59,11 +63,11 @@ public interface VectorSimilarityFunctions {
         /**
          * 1-bit data, 4-bit queries
          */
-        I1I4((byte) 1),
+        D1Q4((byte) 1),
         /**
          * 2-bit data, 4-bit queries
          */
-        I2I4((byte) 2);
+        D2Q4((byte) 2);
 
         private final byte dataBits;
 
@@ -126,4 +130,10 @@ public interface VectorSimilarityFunctions {
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);
 
     MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
+
+    MethodHandle applyCorrectionsEuclideanBulk();
+
+    MethodHandle applyCorrectionsMaxInnerProductBulk();
+
+    MethodHandle applyCorrectionsDotProductBulk();
 }

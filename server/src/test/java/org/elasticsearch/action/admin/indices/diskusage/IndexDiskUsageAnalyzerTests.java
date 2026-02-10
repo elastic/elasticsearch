@@ -970,7 +970,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    static class CodecWithBloomFilter extends Lucene103Codec {
+    static class CodecWithBloomFilter extends Lucene104Codec {
         private final ES94BloomFilterDocValuesFormat bloomFilterDocValuesFormat;
 
         CodecWithBloomFilter(Mode mode, int bloomFilterSize) {

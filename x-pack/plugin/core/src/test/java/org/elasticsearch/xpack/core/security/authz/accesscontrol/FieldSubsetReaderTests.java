@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
@@ -1489,19 +1490,21 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM))
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM).build(),
+                true
+            )
             .build();
 
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1537,12 +1540,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1577,12 +1579,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1607,12 +1608,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());

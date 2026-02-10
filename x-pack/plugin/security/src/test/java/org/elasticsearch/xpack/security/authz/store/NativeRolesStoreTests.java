@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -138,7 +140,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
-        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(ProjectId.DEFAULT));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Create the index
         securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
@@ -394,7 +396,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(ProjectId.DEFAULT));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Init for validation
         new ReservedRolesStore(Set.of("superuser"));
@@ -780,15 +782,16 @@ public class NativeRolesStoreTests extends ESTestCase {
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("_meta", Map.of(VERSION_META_KEY, 1)));
         when(mappingMetadata.getSha256()).thenReturn("test");
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(securityIndexName).putMapping(mappingMetadata).settings(settingsBuilder))
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder(securityIndexName).putMapping(mappingMetadata).settings(settingsBuilder).build(), true)
             .build();
 
         if (withAlias) {
-            metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
+            projectMetadata = SecurityTestUtils.addAliasToMetadata(projectMetadata, securityIndexName);
         }
 
-        Index index = metadata.getProject().index(securityIndexName).getIndex();
+        Index index = projectMetadata.index(securityIndexName).getIndex();
+        Metadata metadata = Metadata.builder().put(projectMetadata).build();
 
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
@@ -813,7 +816,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
             .metadata(metadata)
-            .routingTable(routingTable)
+            .putRoutingTable(projectMetadata.id(), routingTable)
             .putCompatibilityVersions(
                 "test",
                 new CompatibilityVersions(

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1217,7 +1218,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort() {
+        public Entry abort(TriConsumer<ShardId, RepositoryShardId, ShardSnapshotStatus> onAbortConsumer) {
+            if (isClone()) {
+                return abortClone(onAbortConsumer);
+            }
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
@@ -1252,6 +1256,32 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata,
                 version
             );
+        }
+
+        private Entry abortClone(TriConsumer<ShardId, RepositoryShardId, ShardSnapshotStatus> onAbortConsumer) {
+            final Map<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = new HashMap<>();
+            boolean allQueued = true;
+            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : shardStatusByRepoShardId.entrySet()) {
+                ShardSnapshotStatus status = shardEntry.getValue();
+                allQueued &= status.state() == ShardState.QUEUED;
+                if (status.state().completed() == false) {
+                    final String nodeId = status.nodeId();
+                    final var newState = nodeId == null ? ShardState.FAILED : ShardState.ABORTED;
+                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
+                    if (newState == ShardState.ABORTED) {
+                        onAbortConsumer.apply(
+                            null,
+                            shardEntry.getKey(),
+                            new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), "failed by snapshot deletion")
+                        );
+                    }
+                }
+                clonesBuilder.put(shardEntry.getKey(), status);
+            }
+            if (allQueued) {
+                return null;
+            }
+            return withClones(clonesBuilder);
         }
 
         /**

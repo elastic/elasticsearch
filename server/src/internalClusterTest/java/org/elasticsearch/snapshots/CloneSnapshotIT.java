@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStat
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -30,6 +31,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -53,8 +55,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
-        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
 
@@ -73,26 +73,28 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         waitForBlock(masterName, repoName);
         assertFalse(cloneFuture.isDone());
 
-        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "another-snapshot")
+        final String anotherSnapshot = "another-snapshot";
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, anotherSnapshot)
             .setWaitForCompletion(false)
             .setPartial(false)
             .execute()
             .get();
 
-        safeGet(startDeleteSnapshot(repoName, targetSnapshot));
+        safeGet(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, targetSnapshot).setWaitForCompletion(false).execute());
 
-        clusterService.state();
+        final var stateListener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).getEntries().isEmpty()
+        );
         unblockNode(repoName, masterName);
 
         assertBusy(() -> {
-            final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repoName)
-                .setSnapshots("another-snapshot")
-                .get()
-                .getSnapshots();
-            assertThat(status, hasSize(1));
-            assertThat(status.getFirst().getState(), is(SnapshotState.SUCCESS));
+            final var snapshotInfo = getSnapshot(repoName, anotherSnapshot);
+            assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+            expectThrows(SnapshotMissingException.class, () -> getSnapshot(repoName, targetSnapshot));
         });
 
+        safeAwait(stateListener);
     }
 
     public void testShardClone() throws Exception {

@@ -1583,7 +1583,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         if (existing.state() == SnapshotsInProgress.State.STARTED
                             && snapshotIdsRequiringCleanup.contains(existing.snapshot().getSnapshotId())) {
                             // snapshot is started - mark every non completed shard as aborted
-                            final SnapshotsInProgress.Entry abortedEntry = existing.abort();
+                            final SnapshotsInProgress.Entry abortedEntry = existing.abort((shardId, repoShardId, status) -> {
+                                createAndSubmitRequestToUpdateSnapshotState(
+                                    existing.snapshot(),
+                                    shardId,
+                                    repoShardId,
+                                    status,
+                                    ActionListener.noop()
+                                );
+                            });
                             if (abortedEntry == null) {
                                 // No work has been done for this snapshot yet so we remove it from the cluster state directly
                                 final Snapshot existingNotYetStartedSnapshot = existing.snapshot();

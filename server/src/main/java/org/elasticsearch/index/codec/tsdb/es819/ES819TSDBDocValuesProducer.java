@@ -48,6 +48,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.EsDocValueSkipper;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -1614,108 +1615,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final DocValuesSkipperEntry entry = skippers.get(field.number);
 
         // TODO: should we write to disk the actual max level for this segment?
-        return new DocValuesSkipper() {
-            final int[] minDocID = new int[SKIP_INDEX_MAX_LEVEL];
-            final int[] maxDocID = new int[SKIP_INDEX_MAX_LEVEL];
-
-            IndexInput input;
-
-            {
-                for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
-                    minDocID[i] = maxDocID[i] = -1;
-                }
-            }
-
-            final long[] minValue = new long[SKIP_INDEX_MAX_LEVEL];
-            final long[] maxValue = new long[SKIP_INDEX_MAX_LEVEL];
-            final int[] docCount = new int[SKIP_INDEX_MAX_LEVEL];
-            int levels = 1;
-
-            @Override
-            public void advance(int target) throws IOException {
-                if (target > entry.maxDocId) {
-                    // skipper is exhausted
-                    for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
-                        minDocID[i] = maxDocID[i] = DocIdSetIterator.NO_MORE_DOCS;
-                    }
-                } else {
-                    if (input == null) {
-                        input = data.slice("doc value skipper", entry.offset, entry.length);
-                    }
-                    // find next interval
-                    assert target > maxDocID[0] : "target must be bigger than current interval";
-                    while (true) {
-                        levels = input.readByte();
-                        assert levels <= SKIP_INDEX_MAX_LEVEL && levels > 0 : "level out of range [" + levels + "]";
-                        boolean valid = true;
-                        // check if current interval is competitive or we can jump to the next position
-                        for (int level = levels - 1; level >= 0; level--) {
-                            if ((maxDocID[level] = input.readInt()) < target) {
-                                input.skipBytes(SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level]); // the jump for the level
-                                valid = false;
-                                break;
-                            }
-                            minDocID[level] = input.readInt();
-                            maxValue[level] = input.readLong();
-                            minValue[level] = input.readLong();
-                            docCount[level] = input.readInt();
-                        }
-                        if (valid) {
-                            // adjust levels
-                            while (levels < SKIP_INDEX_MAX_LEVEL && maxDocID[levels] >= target) {
-                                levels++;
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            @Override
-            public int numLevels() {
-                return levels;
-            }
-
-            @Override
-            public int minDocID(int level) {
-                return minDocID[level];
-            }
-
-            @Override
-            public int maxDocID(int level) {
-                return maxDocID[level];
-            }
-
-            @Override
-            public long minValue(int level) {
-                return minValue[level];
-            }
-
-            @Override
-            public long maxValue(int level) {
-                return maxValue[level];
-            }
-
-            @Override
-            public int docCount(int level) {
-                return docCount[level];
-            }
-
-            @Override
-            public long minValue() {
-                return entry.minValue;
-            }
-
-            @Override
-            public long maxValue() {
-                return entry.maxValue;
-            }
-
-            @Override
-            public int docCount() {
-                return entry.docCount;
-            }
-        };
+        return new ES819TSDBDocValuesSkipper(entry);
     }
 
     @Override
@@ -2773,4 +2673,119 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    public class ES819TSDBDocValuesSkipper extends EsDocValueSkipper {
+        final int[] minDocID;
+        final int[] maxDocID;
+        private final DocValuesSkipperEntry entry;
+
+        IndexInput input;
+
+        final long[] minValue;
+        final long[] maxValue;
+        final int[] docCount;
+        int levels;
+
+        ES819TSDBDocValuesSkipper(DocValuesSkipperEntry entry) {
+            this.entry = entry;
+            minDocID = new int[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
+            maxDocID = new int[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
+            for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
+                minDocID[i] = maxDocID[i] = -1;
+            }
+            minValue = new long[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
+            maxValue = new long[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
+            docCount = new int[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
+            levels = 1;
+        }
+
+        @Override
+        public void advance(int target) throws IOException {
+            if (target > entry.maxDocId) {
+                // skipper is exhausted
+                for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
+                    minDocID[i] = maxDocID[i] = DocIdSetIterator.NO_MORE_DOCS;
+                }
+            } else {
+                if (input == null) {
+                    input = data.slice("doc value skipper", entry.offset, entry.length);
+                }
+                // find next interval
+                assert target > maxDocID[0] : "target must be bigger than current interval";
+                while (true) {
+                    levels = input.readByte();
+                    assert levels <= SKIP_INDEX_MAX_LEVEL && levels > 0 : "level out of range [" + levels + "]";
+                    boolean valid = true;
+                    // check if current interval is competitive or we can jump to the next position
+                    for (int level = levels - 1; level >= 0; level--) {
+                        if ((maxDocID[level] = input.readInt()) < target) {
+                            input.skipBytes(SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level]); // the jump for the level
+                            valid = false;
+                            break;
+                        }
+                        minDocID[level] = input.readInt();
+                        maxValue[level] = input.readLong();
+                        minValue[level] = input.readLong();
+                        docCount[level] = input.readInt();
+                    }
+                    if (valid) {
+                        // adjust levels
+                        while (levels < SKIP_INDEX_MAX_LEVEL && maxDocID[levels] >= target) {
+                            levels++;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        @Override
+        public int numLevels() {
+            return levels;
+        }
+
+        @Override
+        public int minDocID(int level) {
+            return minDocID[level];
+        }
+
+        @Override
+        public int maxDocID(int level) {
+            return maxDocID[level];
+        }
+
+        @Override
+        public long minValue(int level) {
+            return minValue[level];
+        }
+
+        @Override
+        public long maxValue(int level) {
+            return maxValue[level];
+        }
+
+        @Override
+        public int docCount(int level) {
+            return docCount[level];
+        }
+
+        @Override
+        public long minValue() {
+            return entry.minValue;
+        }
+
+        @Override
+        public long maxValue() {
+            return entry.maxValue;
+        }
+
+        @Override
+        public int docCount() {
+            return entry.docCount;
+        }
+
+        @Override
+        public int valueCount() {
+            throw new UnsupportedOperationException();
+        }
+    }
 }

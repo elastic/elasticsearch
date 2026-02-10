@@ -17,6 +17,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -25,15 +26,20 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -120,6 +126,35 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }
+        }
+    }
+
+    public void testTsdb() throws IOException {
+        MapperService mapper = createMapperService(mapping(setup::mapping));
+        IndexWriterConfig config = new IndexWriterConfig();
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        config.setCodec(
+            new PerFieldMapperCodec(
+                Zstd814StoredFieldsFormat.Mode.BEST_SPEED,
+                mapper,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                threadPool
+            )
+        );
+        try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d, config)) {
+            List<List<Object>> fieldValues = setup.build(iw);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                Query query = new SingleValueMatchQuery(
+                    ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
+                    "single-value function encountered multi-value"
+                );
+                runCase(fieldValues, ctx.searcher().count(query));
+                setup.assertRewrite(ctx.searcher(), query);
+            }
+        } finally {
+            threadPool.shutdown();
         }
     }
 

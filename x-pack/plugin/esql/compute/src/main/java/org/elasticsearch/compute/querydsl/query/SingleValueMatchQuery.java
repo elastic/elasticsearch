@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.index.EsDocValueSkipper;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -233,6 +235,13 @@ public final class SingleValueMatchQuery extends Query {
                     }
                 }
                 // TODO: check doc values skippers
+                DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldData.getFieldName());
+                if (skipper == null) {
+                    throw new UnsupportedOperationException("********* Null?");
+                }
+                if (skipper instanceof EsDocValueSkipper esDocValueSkipper) {
+                    throw new UnsupportedOperationException("********* yay, we got here");
+                }
                 final PointValues points = reader.getPointValues(fieldData.getFieldName());
                 if (points != null && points.getDocCount() == maxDoc && points.size() == points.getDocCount()) {
                     continue;
@@ -247,6 +256,13 @@ public final class SingleValueMatchQuery extends Query {
                     }
                 }
                 // TODO: check doc values skippers
+                DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldData.getFieldName());
+                if (skipper == null) {
+                    throw new UnsupportedOperationException("********* Null?");
+                }
+                if (skipper instanceof EsDocValueSkipper esDocValueSkipper) {
+                    throw new UnsupportedOperationException("********* yay, we got here");
+                }
                 Terms terms = reader.terms(fieldData.getFieldName());
                 if (terms != null && terms.getDocCount() == maxDoc && terms.getSumDocFreq() == terms.getDocCount()) {
                     continue;

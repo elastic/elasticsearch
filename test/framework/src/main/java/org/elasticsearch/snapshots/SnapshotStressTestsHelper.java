@@ -37,6 +37,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -737,9 +738,7 @@ public class SnapshotStressTestsHelper {
                         );
 
                         final boolean abortSnapshot = randomBoolean();
-                        final Runnable abortRunnable = abortSnapshot
-                            ? createAbortRunnable(trackedSnapshot.trackedRepository, cloneName)
-                            : (() -> {});
+                        final Runnable abortRunnable = createAbortRunnable(abortSnapshot, trackedSnapshot.trackedRepository, cloneName);
 
                         client.admin()
                             .cluster()
@@ -750,25 +749,43 @@ public class SnapshotStressTestsHelper {
                                 cloneName
                             )
                             .setIndices(indexNames.toArray(new String[0]))
-                            .execute(mustSucceed(acknowledgedResponse -> {
-                                Releasables.close(releaseAll);
-                                assertTrue(acknowledgedResponse.isAcknowledged());
-
-                                pollForSnapshotCompletion(client, trackedSnapshot.trackedRepository.repositoryName, cloneName, releaseAll, () -> {
-                                    logger.info(
-                                        "--> completed clone of [{}:{}] as [{}:{}]",
+                            .execute(ActionListener.runBefore(new ActionListener<>() {
+                                @Override
+                                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                                    assertTrue(acknowledgedResponse.isAcknowledged());
+                                    pollForSnapshotCompletion(
+                                        client,
                                         trackedSnapshot.trackedRepository.repositoryName,
-                                        trackedSnapshot.snapshotName,
-                                        trackedSnapshot.trackedRepository.repositoryName,
-                                        cloneName
+                                        cloneName,
+                                        releaseAll,
+                                        () -> {
+                                            logger.info(
+                                                "--> completed clone of [{}:{}] as [{}:{}]",
+                                                trackedSnapshot.trackedRepository.repositoryName,
+                                                trackedSnapshot.snapshotName,
+                                                trackedSnapshot.trackedRepository.repositoryName,
+                                                cloneName
+                                            );
+                                            if (abortSnapshot == false) {
+                                                completedSnapshotLatch.countDown();
+                                            }
+                                            startCloner();
+                                        }
                                     );
-                                    if (abortSnapshot == false) {
-                                        completedSnapshotLatch.countDown();
-                                    }
-                                    startCloner();
-                                });
-                            }));
+                                }
 
+                                @Override
+                                public void onFailure(Exception e) {
+                                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                    if (cause instanceof SnapshotException
+                                        && Regex.simpleMatch("*" + cloneName + "*Snapshot was aborted by deletion", cause.getMessage())) {
+                                        logger.info("--> clone was aborted before it is fully populated");
+                                        startCloner();
+                                    } else {
+                                        logAndFailTest(e);
+                                    }
+                                }
+                            }, () -> Releasables.close(releaseAll)));
                         abortRunnable.run();
                     }));
 
@@ -1095,7 +1112,7 @@ public class SnapshotStressTestsHelper {
                     }
 
                     final boolean abortSnapshot = randomBoolean();
-                    final Runnable abortRunnable = abortSnapshot ? createAbortRunnable(trackedRepository, snapshotName) : (() -> {});
+                    final Runnable abortRunnable = createAbortRunnable(abortSnapshot, trackedRepository, snapshotName);
 
                     createSnapshotRequestBuilder.execute(mustSucceed(createSnapshotResponse -> {
                         logger.info("--> started partial snapshot [{}:{}]", trackedRepository.repositoryName, snapshotName);
@@ -1120,47 +1137,63 @@ public class SnapshotStressTestsHelper {
             });
         }
 
-        private Runnable createAbortRunnable(TrackedRepository trackedRepository, String snapshotName) {
+        private Runnable createAbortRunnable(boolean abortSnapshot, TrackedRepository trackedRepository, String snapshotName) {
+            final boolean isClone = snapshotName.contains("-clone-");
             final Runnable abortRunnable;
-            try (TransferableReleasables abortReleasables = new TransferableReleasables()) {
+            if (abortSnapshot) {
+                try (TransferableReleasables abortReleasables = new TransferableReleasables()) {
 
-                assertNotNull(abortReleasables.add(blockFullClusterRestart()));
-                final Client abortClient = abortReleasables.add(acquireClient()).getClient();
+                    assertNotNull(abortReleasables.add(blockFullClusterRestart()));
+                    final Client abortClient = abortReleasables.add(acquireClient()).getClient();
 
-                assertNotNull(abortReleasables.add(tryAcquirePermit(trackedRepository.permits)));
+                    assertNotNull(abortReleasables.add(tryAcquirePermit(trackedRepository.permits)));
 
-                final DeleteSnapshotRequestBuilder deleteSnapshotRequestBuilder = abortClient.admin()
-                    .cluster()
-                    .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName, snapshotName);
+                    final DeleteSnapshotRequestBuilder deleteSnapshotRequestBuilder = abortClient.admin()
+                        .cluster()
+                        .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName, snapshotName);
 
-                final Releasable abortReleasable = abortReleasables.transfer();
+                    final Releasable abortReleasable = abortReleasables.transfer();
 
-                abortRunnable = mustSucceed(() -> {
-                    logger.info("--> abort/delete snapshot [{}:{}] start", trackedRepository.repositoryName, snapshotName);
-                    deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
-                        @Override
-                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                            logger.info("--> abort/delete snapshot [{}:{}] success", trackedRepository.repositoryName, snapshotName);
-                            Releasables.close(abortReleasable);
-                            assertTrue(acknowledgedResponse.isAcknowledged());
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            Releasables.close(abortReleasable);
-                            if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
-                                // processed before the snapshot even started
+                    abortRunnable = mustSucceed(() -> {
+                        logger.info(
+                            "--> abort/delete {} [{}:{}] start",
+                            isClone ? "clone" : "snapshot",
+                            trackedRepository.repositoryName,
+                            snapshotName
+                        );
+                        deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
+                            @Override
+                            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                                 logger.info(
-                                    "--> abort/delete snapshot [{}:{}] got snapshot missing",
+                                    "--> abort/delete {} [{}:{}] success",
+                                    isClone ? "clone" : "snapshot",
                                     trackedRepository.repositoryName,
                                     snapshotName
                                 );
-                            } else {
-                                logAndFailTest(e);
+                                Releasables.close(abortReleasable);
+                                assertTrue(acknowledgedResponse.isAcknowledged());
                             }
-                        }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                Releasables.close(abortReleasable);
+                                if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
+                                    // processed before the snapshot even started
+                                    logger.info(
+                                        "--> abort/delete {} [{}:{}] got snapshot missing",
+                                        isClone ? "clone" : "snapshot",
+                                        trackedRepository.repositoryName,
+                                        snapshotName
+                                    );
+                                } else {
+                                    logAndFailTest(e);
+                                }
+                            }
+                        });
                     });
-                });
+                }
+            } else {
+                abortRunnable = () -> {};
             }
             return abortRunnable;
         }

@@ -891,10 +891,12 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshotName, repoName, originalNode);
 
         // Start another snapshot to be queued
-        safeGet(clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-2")
-            .setWaitForCompletion(false)
-            .setPartial(false)
-            .execute());
+        safeGet(
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-2")
+                .setWaitForCompletion(false)
+                .setPartial(false)
+                .execute()
+        );
 
         // Mark data node for shutdown and ensure shard snapshot is paused
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -921,7 +923,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).getEntries().isEmpty()
         );
         assertTrue(safeGet(startDeleteSnapshot(repoName, snapshotName)).isAcknowledged());
-//        safeAwait(snapshotClearedListener);
+        safeAwait(snapshotClearedListener);
 
         // Snapshot creation has failed snapshot response
         final var createSnapshotResponse = safeGet(snapshotFuture);

@@ -551,9 +551,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
                         }
                     } else {
-                        // Extremely unlikely corner case of master failing over between starting the clone and
-                        // starting shard clones.
-                        logger.warn("Did not find expected entry [{}] in the cluster state", cloneEntry);
+                        // The clone maybe deleted before it is fully populated. Or it could be an extremely unlikely corner case
+                        // of master failing over between starting the clone and starting shard clones.
+                        logger.info("Did not find expected clone entry [{}] in the cluster state", cloneEntry);
                     }
                 }
 

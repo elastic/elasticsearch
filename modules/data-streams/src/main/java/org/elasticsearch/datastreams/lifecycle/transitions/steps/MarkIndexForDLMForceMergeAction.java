@@ -39,7 +39,7 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
 public class MarkIndexForDLMForceMergeAction {
 
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/dlm/mark_index_for_force_merge");
-    public static final String DLM_INDEX_FOR_FORCE_MERGE_KEY = "dlm_index_for_force_merged";
+    public static final String DLM_INDEX_FOR_FORCE_MERGE_KEY = "dlm_index_for_force_merge";
 
     /**
      * Request to mark an index to be force merged.

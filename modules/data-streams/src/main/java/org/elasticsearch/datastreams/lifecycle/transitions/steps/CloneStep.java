@@ -161,7 +161,7 @@ public class CloneStep implements DlmStep {
         public void onResponse(CreateIndexResponse createIndexResponse) {
             logger.debug("DLM successfully cloned index [{}] to index [{}]", sourceIndexName, targetIndexName);
             // on success, write the cloned index name to the custom metadata of the index metadata of original index
-            markIndexToBeForceMerged(targetIndexName, sourceIndexName, stepContext, listener.delegateFailure((l, v) -> {
+            markIndexToBeForceMerged(sourceIndexName, targetIndexName, stepContext, listener.delegateFailure((l, v) -> {
                 logger.info(
                     "DLM successfully marked index [{}] to be force merged for source index [{}]",
                     targetIndexName,

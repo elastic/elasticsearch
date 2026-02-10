@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction.DLM_INDEX_FOR_FORCE_MERGE_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -137,20 +138,20 @@ public class CloneStepTests extends ESTestCase {
 
     public void testStepCompletedWhenCloneExistsAndMarkedInMetadata() {
         String cloneIndexName = generateExpectedCloneName(indexName);
-        Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", cloneIndexName);
+        Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
         ProjectState projectState = createProjectStateWithCloneAndRouting(indexName, cloneIndexName, customMetadata, true);
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenShardsNotActive() {
         String cloneIndexName = generateExpectedCloneName(indexName);
-        Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", cloneIndexName);
+        Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
         ProjectState projectState = createProjectStateWithCloneAndRouting(indexName, cloneIndexName, customMetadata, false);
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepCompletedWhenOriginalIndexMarkedWithZeroReplicas() {
-        Map<String, String> customMetadata = Map.of("dlm_index_to_be_force_merged", indexName);
+        Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, indexName);
         ProjectState projectState = createProjectStateWithRouting(indexName, 0, customMetadata, true);
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
@@ -170,13 +171,26 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testExecuteDeletesExistingCloneAndRetriesClone() {
+        // Create a clone index that was created more than 12 hours ago (stuck)
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
+
         String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithClone(indexName, cloneIndexName, null);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        // Pre-populate the deduplicator to simulate a stuck in-progress request
+        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        deduplicator.executeOnce(
+            Tuple.tuple(projectId, cloneRequest),
+            ActionListener.noop(),
+            (req, listener) -> {} // Don't actually execute, just track as in-progress
+        );
+
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
 
-        // Should issue delete request for existing clone
+        // Should issue delete request for stuck clone
         assertThat(capturedDeleteRequest.get(), is(notNullValue()));
         assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
     }
@@ -233,8 +247,21 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testDeleteCloneSuccessfully() {
+        // Create a clone index that was created more than 12 hours ago (stuck)
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
+
         String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithClone(indexName, cloneIndexName, null);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        // Pre-populate the deduplicator to simulate a stuck in-progress request
+        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        deduplicator.executeOnce(
+            Tuple.tuple(projectId, cloneRequest),
+            ActionListener.noop(),
+            (req, listener) -> {} // Don't actually execute, just track as in-progress
+        );
+
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -245,8 +272,21 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testDeleteCloneWithFailure() {
+        // Create a clone index that was created more than 12 hours ago (stuck)
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
+
         String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithClone(indexName, cloneIndexName, null);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        // Pre-populate the deduplicator to simulate a stuck in-progress request
+        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        deduplicator.executeOnce(
+            Tuple.tuple(projectId, cloneRequest),
+            ActionListener.noop(),
+            (req, listener) -> {} // Don't actually execute, just track as in-progress
+        );
+
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -317,15 +357,15 @@ public class CloneStepTests extends ESTestCase {
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
 
-        // Should NOT issue a delete since it's fresh and might be completing
-        assertThat("Should not delete recent clone not in deduplicator", capturedDeleteRequest.get(), is(nullValue()));
+        // Should NOT issue a delete since it's not in the deduplicator (might be completing)
+        assertThat("Should not delete clone not in deduplicator", capturedDeleteRequest.get(), is(nullValue()));
         // Should NOT issue a new clone request
-        assertThat("Should not create new clone while recent one exists", capturedResizeRequest.get(), is(nullValue()));
+        assertThat("Should not create new clone while one exists", capturedResizeRequest.get(), is(nullValue()));
     }
 
-    public void testExecuteDeletesCloneWhenExistsOver12HoursEvenIfNotInDeduplicator() {
+    public void testExecuteWaitsWhenCloneExistsOver12HoursButNotInDeduplicator() {
         // Create a clone index that exists, is not in the deduplicator, and was created > 12 hours ago
-        // This indicates a stuck/failed clone that never completed
+        // Since it's not in the deduplicator, it's not considered "stuck" - might be completing or already completed
         long currentTime = System.currentTimeMillis();
         long creationTime = currentTime - TimeValue.timeValueHours(15).millis(); // 15 hours ago
 
@@ -335,9 +375,8 @@ public class CloneStepTests extends ESTestCase {
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
 
-        // Should issue delete request for old stuck clone even if not in deduplicator
-        assertThat("Should delete old clone even if not in deduplicator", capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
+        // Should NOT delete - not in deduplicator means not actively stuck
+        assertThat("Should not delete old clone if not in deduplicator", capturedDeleteRequest.get(), is(nullValue()));
     }
 
     public void testExecuteCreatesNewCloneAfterTimeoutAndCleanup() {
@@ -347,6 +386,14 @@ public class CloneStepTests extends ESTestCase {
 
         String cloneIndexName = generateExpectedCloneName(indexName);
         ProjectState projectStateWithOldClone = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        // Pre-populate the deduplicator to simulate a stuck in-progress request
+        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        deduplicator.executeOnce(
+            Tuple.tuple(projectId, cloneRequest),
+            ActionListener.noop(),
+            (req, listener) -> {} // Don't actually execute, just track as in-progress
+        );
 
         DlmStepContext stepContext = createStepContext(projectStateWithOldClone);
         cloneStep.execute(stepContext);
@@ -358,9 +405,10 @@ public class CloneStepTests extends ESTestCase {
         // Simulate successful delete
         capturedDeleteListener.get().onResponse(AcknowledgedResponse.of(true));
 
-        // Reset captures
+        // Reset captures and clear deduplicator to simulate that the old stuck request is no longer tracked
         capturedDeleteRequest.set(null);
         capturedResizeRequest.set(null);
+        deduplicator.clear();
 
         // Second run: now without the clone index
         ProjectState projectStateWithoutClone = createProjectState(indexName, 1, null);

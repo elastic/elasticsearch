@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -194,7 +196,7 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
     }
 
-    public void testDecodeArbitraryBytesThrowsIllegalArgument() throws IOException {
+    public void testDecodeKnownTransportVersionThenInvalid() throws IOException {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
 
         // correct start, including transport version, but then invalid

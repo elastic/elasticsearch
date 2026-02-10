@@ -16,9 +16,11 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
@@ -26,11 +28,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -155,6 +159,65 @@ public class S3RetryingInputStreamTests extends ESTestCase {
                 badEndHeader,
                 "unexpected Content-range header [" + badEndHeader + "], should have ended no later than " + (position + length - 1)
             );
+        }
+    }
+
+    public void testRetriesAreTerminatedWhenOpenThrowsNonSdkException() throws IOException {
+        final int blobLength = randomIntBetween(500, 1000);
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(blobStore.getRepositoryMetadata()).thenReturn(new RepositoryMetadata(randomIdentifier(), randomIdentifier(), Settings.EMPTY));
+        when(blobStore.getS3RepositoriesMetrics()).thenReturn(S3RepositoriesMetrics.NOOP);
+        when(blobStore.getMetricPublisher(any(), any())).thenReturn(mock(MetricPublisher.class));
+        when(blobStore.getMaxRetries()).thenReturn(randomIntBetween(5, 1000));
+
+        final var fatalException = randomBoolean() ? new IllegalStateException("test") : new RuntimeException("test");
+        final OperationPurpose purpose;
+        if (randomBoolean()) {
+            final S3Client failImmediatelyS3Client = mock(S3Client.class);
+            when(failImmediatelyS3Client.getObject(any(GetObjectRequest.class))).thenThrow(fatalException);
+            when(clientReference.client()).thenReturn(failImmediatelyS3Client);
+            purpose = randomPurpose();
+        } else {
+            final S3Client failOnFirstRetryS3Client = mock(S3Client.class);
+            when(failOnFirstRetryS3Client.getObject(any(GetObjectRequest.class))).thenReturn(
+                new ResponseInputStream<>(
+                    GetObjectResponse.builder().contentLength((long) blobLength).build(),
+                    new FailDuringReadInputStream(blobLength)
+                )
+            ).thenThrow(fatalException);
+            when(clientReference.client()).thenReturn(failOnFirstRetryS3Client);
+            // OperationPurpose.INDICES will retry forever, so we want to exercise that especially,
+            // but the behavior should be consistent for all purposes
+            purpose = randomBoolean() ? OperationPurpose.INDICES : randomRetryingPurpose();
+        }
+        try {
+            final S3RetryingInputStream stream = new S3RetryingInputStream(purpose, blobStore, "_blob");
+            Streams.consumeFully(stream);
+            fail("Exception wasn't thrown?!");
+        } catch (RuntimeException e) {
+            assertSame(fatalException, e);
+        }
+    }
+
+    private static class FailDuringReadInputStream extends InputStream {
+
+        private final byte[] contents;
+        private final int failurePosition;
+        private int position = 0;
+
+        FailDuringReadInputStream(int totalLength) {
+            contents = randomByteArrayOfLength(totalLength);
+            failurePosition = randomIntBetween(0, totalLength - 1);
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (position == failurePosition) {
+                throw new IOException("this should be retryable");
+            }
+            return contents[position++] & 0xFF;
         }
     }
 

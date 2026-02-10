@@ -331,9 +331,9 @@ public class DocVectorTests extends ComputeTestCase {
                 factory.newConstantIntVector(0, 10),
                 factory.newConstantIntVector(0, 10),
                 factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
-                DocVector.config().singleSegmentNonDecreasing(false)
+                DocVector.config().singleSegmentNonDecreasing(true)
             );
-            DocVector filtered = docs.filter(1, 2, 3);
+            DocVector filtered = docs.filter(false, 1, 2, 3);
             DocVector expected = new DocVector(
                 AlwaysReferencedIndexedByShardId.INSTANCE,
                 factory.newConstantIntVector(0, 3),
@@ -346,6 +346,69 @@ public class DocVectorTests extends ComputeTestCase {
         }
     }
 
+    public void testFilterWithDupes() {
+        BlockFactory factory = blockFactory();
+        try (
+            DocVector docs = new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                DocVector.config().singleSegmentNonDecreasing(true)
+            );
+            DocVector filtered = docs.filter(true, 1, 2, 2);
+            DocVector expected = new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                factory.newConstantIntVector(0, 3),
+                factory.newConstantIntVector(0, 3),
+                factory.newIntArrayVector(new int[] { 1, 2, 2 }, 3),
+                DocVector.config().mayContainDuplicates()
+            );
+        ) {
+            assertThat(filtered, equalTo(expected));
+        }
+    }
+
+    public void testWithDupesFilterWithoutDupes() {
+        BlockFactory factory = blockFactory();
+        try (
+            DocVector docs = new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                factory.newConstantIntVector(0, 4),
+                factory.newConstantIntVector(0, 4),
+                factory.newIntArrayVector(new int[] { 0, 0, 1, 2 }, 4),
+                DocVector.config().mayContainDuplicates()
+            );
+            DocVector filtered = docs.filter(false, 1, 2, 3);
+            DocVector expected = new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                factory.newConstantIntVector(0, 3),
+                factory.newConstantIntVector(0, 3),
+                factory.newIntArrayVector(new int[] { 0, 1, 2 }, 3),
+                DocVector.config().mayContainDuplicates()
+            );
+        ) {
+            assertThat(filtered, equalTo(expected));
+        }
+    }
+
+    public void testFilterWithDupesNotAllowed() {
+        BlockFactory factory = blockFactory();
+        try (
+            DocVector docs = new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                DocVector.config().singleSegmentNonDecreasing(false)
+            )
+        ) {
+            Exception e = expectThrows(IllegalStateException.class, () -> docs.filter(false, 1, 2, 2));
+            assertThat(e.getMessage(), equalTo("configured not to contain duplicates but Doc[shard=0, segment=0, doc=2] was duplicated"));
+
+        }
+    }
+
     public void testFilterBreaks() throws Exception {
         Function<BlockFactory, DocVector> buildDocVector = factory -> {
             IntVector shards = null;
@@ -355,7 +418,7 @@ public class DocVectorTests extends ComputeTestCase {
             try {
                 shards = factory.newConstantIntVector(0, 10);
                 segments = factory.newConstantIntVector(0, 10);
-                docs = factory.newConstantIntVector(0, 10);
+                docs = factory.newIntRangeVector(0, 10);
                 result = new DocVector(
                     AlwaysReferencedIndexedByShardId.INSTANCE,
                     shards,
@@ -377,13 +440,13 @@ public class DocVectorTests extends ComputeTestCase {
         ByteSizeValue filterBreakLimit = BreakerTestUtil.findBreakerLimit(ByteSizeValue.ofMb(128), limit -> {
             BlockFactory factory = blockFactory(limit);
             try (DocVector docs = buildDocVector.apply(factory)) {
-                docs.filter(1, 2, 3).close();
+                docs.filter(false, 1, 2, 3).close();
             }
         });
         ByteSizeValue limit = ByteSizeValue.ofBytes(randomLongBetween(buildBreakLimit.getBytes() + 1, filterBreakLimit.getBytes()));
         BlockFactory factory = blockFactory(limit);
         try (DocVector docs = buildDocVector.apply(factory)) {
-            Exception e = expectThrows(CircuitBreakingException.class, () -> docs.filter(1, 2, 3));
+            Exception e = expectThrows(CircuitBreakingException.class, () -> docs.filter(false, 1, 2, 3));
             assertThat(e.getMessage(), equalTo("over test limit"));
         }
     }

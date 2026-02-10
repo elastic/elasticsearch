@@ -31,7 +31,11 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_prometheus/api/v1/write"));
+        return List.of(
+            new Route(POST, "/_prometheus/api/v1/write"),
+            new Route(POST, "/_prometheus/{dataset}/api/v1/write"),
+            new Route(POST, "/_prometheus/{dataset}/{namespace}/api/v1/write")
+        );
     }
 
     @Override
@@ -43,13 +47,22 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         if (request.hasContent()) {
-            var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(request.content().retain());
+            String dataset = request.param("dataset", "generic");
+            String namespace = request.param("namespace", "default");
+            var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
+                request.content().retain(),
+                dataset,
+                namespace
+            );
             return channel -> client.execute(
                 PrometheusRemoteWriteTransportAction.TYPE,
                 transportRequest,
                 ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
+                        if (r.getMessage() != null) {
+                            return new RestResponse(r.getStatus(), r.getMessage());
+                        }
                         return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                     }
                 })

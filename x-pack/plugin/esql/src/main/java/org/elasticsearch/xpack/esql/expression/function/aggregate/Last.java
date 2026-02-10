@@ -46,7 +46,7 @@ public class Last extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         preview = true,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean" },
+        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = """
             This function calculates the latest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort
@@ -73,7 +73,7 @@ public class Last extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "field",
-            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean" },
+            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
             description = "The search field"
         ) Expression field,
         @Param(name = "sortField", type = { "long", "date", "date_nanos" }, description = "The sort field") Expression sort
@@ -135,6 +135,7 @@ public class Last extends AggregateFunction implements ToAggregator {
             field(),
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
@@ -160,7 +161,7 @@ public class Last extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new AllLastLongByTimestampAggregatorFunctionSupplier();
+            case LONG, DATETIME, DATE_NANOS -> new AllLastLongByTimestampAggregatorFunctionSupplier();
             case INTEGER -> new AllLastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new AllLastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new AllLastFloatByTimestampAggregatorFunctionSupplier();

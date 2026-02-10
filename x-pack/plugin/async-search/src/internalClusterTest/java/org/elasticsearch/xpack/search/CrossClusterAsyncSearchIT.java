@@ -101,6 +101,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     private static final long LATEST_TIMESTAMP = 1691348820000L;
 
     private boolean isRandomSkipUnavailable = false;
+
     @Override
     protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
@@ -1214,7 +1215,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     @Repeat(iterations = 100)
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
-        Map<String, Object> testClusterInfo = setupTwoClusters(); //randomIntBetween(20, 120), randomIntBetween(20, 120));
+        Map<String, Object> testClusterInfo = setupTwoClusters(); // randomIntBetween(20, 120), randomIntBetween(20, 120));
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");

@@ -28,10 +28,7 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new FloatArrayBlockSourceOperator(
-            blockFactory,
-            LongStream.range(0, size).mapToObj(l -> randomVector(VECTOR_DIMENSIONS))
-        );
+        return new FloatArrayBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToObj(l -> randomVector(VECTOR_DIMENSIONS)));
     }
 
     private float[] randomVector(int dimensions) {
@@ -82,11 +79,7 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
         for (int i = 0; i < VECTOR_DIMENSIONS; i++) {
             // Use a relative tolerance since float summation order changes across partitions
             double tolerance = Math.max(1.0, Math.abs(expectedSum[i]) * 0.001);
-            assertThat(
-                "Dimension " + i + " mismatch",
-                (double) resultBlock.getFloat(start + i),
-                closeTo(expectedSum[i], tolerance)
-            );
+            assertThat("Dimension " + i + " mismatch", (double) resultBlock.getFloat(start + i), closeTo(expectedSum[i], tolerance));
         }
     }
 }

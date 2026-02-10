@@ -125,7 +125,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
                 throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
             case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
-            case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);
+            case FLOAT, DENSE_VECTOR -> blockFactory.newFloatVectorFixedBuilder(size);
             case INT -> blockFactory.newIntVectorFixedBuilder(size);
             case LONG -> blockFactory.newLongVectorFixedBuilder(size);
         };

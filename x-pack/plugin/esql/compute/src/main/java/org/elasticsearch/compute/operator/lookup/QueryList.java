@@ -174,6 +174,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             case EXPONENTIAL_HISTOGRAM -> throw new IllegalArgumentException("can't read values from [exponential histogram] block");
             case TDIGEST -> throw new IllegalArgumentException("can't read values from [tdigest] block");
             case LONG_RANGE -> throw new IllegalArgumentException("can't read values from [long range] block");
+            case DENSE_VECTOR -> throw new IllegalArgumentException("can't read values from [dense vector] block");
             case UNKNOWN -> (block, offset) -> { throw new IllegalArgumentException("can't read values from [" + block + "]"); };
         };
     }

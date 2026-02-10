@@ -84,7 +84,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongVector asVector();
 
     @Override
-    LongBlock filter(int... positions);
+    LongBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

@@ -318,6 +318,13 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
+                    public BlockLoader.SingletonIntBuilder appendInts(int[] newValues, int from, int length) {
+                        System.arraycopy(newValues, from, values, count, length);
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
                     public BlockLoader.Builder appendNull() {
                         throw new UnsupportedOperationException();
                     }

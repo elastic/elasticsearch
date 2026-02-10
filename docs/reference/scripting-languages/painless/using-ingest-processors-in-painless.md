@@ -93,20 +93,50 @@ String uppercase(String value);
 
 ### JSON parsing [_json_parsing]
 
-Use the [JSON processor](/reference/enrich-processor/json-processor.md) to convert JSON strings to structured JSON objects. The first `json` method accepts a map and a key. The processor converts the JSON string in the map as specified by the `key` parameter to structured JSON content. That content is added directly to the `map` object.
-
-The second `json` method accepts a JSON string in the `value` parameter and returns a structured JSON object.
+Use the [JSON processor](/reference/enrich-processor/json-processor.md) to parse a string containing JSON data into a structured object, string, or other value. There are two `json` methods:
 
 ```painless
 void json(Map<String, Object> map, String key);
 Object json(Object value);
 ```
 
+The first `json` method accepts a map and a key. The processor parses the JSON string in the given map at the given key to a structured object. The entries in that object are added directly to the given map.
+
+For example, if the input document looks like this:
+
+```js
+{
+  "foo": {
+    "inputJsonString": "{\"bar\": 999}"
+  }
+}
+```
+% NOTCONSOLE
+
+then executing this script:
+
+```painless
+Processors.json(ctx.foo, 'inputJsonString');
+```
+
+will result in this document:
+
+```js
+{
+  "foo": {
+    "inputJsonString": "{\"bar\": 999}",
+    "bar" : 999
+  }
+}
+```
+% NOTCONSOLE
+
+The second `json` method accepts a JSON string in the `value` parameter and returns a structured object or other value.
+
 You can then add this object to the document through the context object:
 
 ```painless
-Object json = Processors.json(ctx.inputJsonString);
-ctx.structuredJson = json;
+ctx.parsedJson = Processors.json(ctx.inputJsonString);
 ```
 
 

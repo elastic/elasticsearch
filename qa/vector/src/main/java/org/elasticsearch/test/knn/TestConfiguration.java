@@ -56,7 +56,7 @@ record TestConfiguration(
     int numMergeWorkers,
     boolean doPrecondition,
     int preconditioningBlockDims,
-    int flatVectorThreshold
+    int flatVectorThreshold,
     int secondaryClusterSize
 ) {
 
@@ -542,7 +542,7 @@ record TestConfiguration(
                 numMergeWorkers,
                 doPrecondition,
                 preconditioningBlockDims,
-                flatVectorThreshold
+                flatVectorThreshold,
                 secondaryClusterSize
             );
         }

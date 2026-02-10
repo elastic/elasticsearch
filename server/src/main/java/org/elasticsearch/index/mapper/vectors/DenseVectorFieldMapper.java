@@ -1748,13 +1748,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
 
-                Object flushThresholdNode = indexOptionsMap.remove("flush_threshold");
-                int flushThreshold = clusterSize * ES920DiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
-                if (flushThresholdNode != null) {
-                    flushThreshold = XContentMapValues.nodeIntegerValue(flushThresholdNode);
-                    if (flushThreshold < 0) {
+                Object flatIndexBuildThresholdNode = indexOptionsMap.remove("flat_index_build_threshold");
+                int flatIndexThreshold = clusterSize * ES920DiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+                if (flatIndexBuildThresholdNode != null) {
+                    flatIndexThreshold = XContentMapValues.nodeIntegerValue(flatIndexBuildThresholdNode);
+                    if (flatIndexThreshold < 0) {
                         throw new IllegalArgumentException(
-                            "flush_threshold must be >= 0, got: " + flushThreshold + " for field [" + fieldName + "]"
+                            "flat_index_build_threshold must be >= 0, got: " + flatIndexThreshold + " for field [" + fieldName + "]"
                         );
                     }
                 }
@@ -1807,7 +1807,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
-                    flushThreshold,
+                    flatIndexThreshold,
                     visitPercentage,
                     onDiskRescore,
                     rescoreVector,
@@ -2462,7 +2462,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static class BBQIVFIndexOptions extends QuantizedIndexOptions {
         final int clusterSize;
-        final int flushThreshold;
+        final int flatIndexThreshold;
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
@@ -2471,7 +2471,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         BBQIVFIndexOptions(
             int clusterSize,
-            int flushThreshold,
+            int flatIndexThreshold,
             double defaultVisitPercentage,
             boolean onDiskRescore,
             RescoreVector rescoreVector,
@@ -2481,7 +2481,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
-            this.flushThreshold = flushThreshold;
+            this.flatIndexThreshold = flatIndexThreshold;
             this.defaultVisitPercentage = defaultVisitPercentage;
             this.onDiskRescore = onDiskRescore;
             this.indexVersionCreated = indexVersionCreated;
@@ -2511,7 +2511,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     numMergeWorkers,
                     doPrecondition,
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                    flushThreshold
+                    flatIndexThreshold
                 );
             }
             return new ES920DiskBBQVectorsFormat(
@@ -2521,7 +2521,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 onDiskRescore,
                 mergingExecutorService,
                 numMergeWorkers,
-                flushThreshold
+                flatIndexThreshold
             );
         }
 
@@ -2534,7 +2534,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean doEquals(DenseVectorIndexOptions other) {
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
             return clusterSize == that.clusterSize
-                && flushThreshold == that.flushThreshold
+                && flatIndexThreshold == that.flatIndexThreshold
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
@@ -2543,7 +2543,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, flushThreshold, defaultVisitPercentage, onDiskRescore, rescoreVector);
+            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, rescoreVector);
         }
 
         @Override
@@ -2556,7 +2556,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.startObject();
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
-            builder.field("flush_threshold", flushThreshold);
+            builder.field("flat_index_build_threshold", flatIndexThreshold);
             builder.field("default_visit_percentage", defaultVisitPercentage);
             if (onDiskRescore) {
                 builder.field("on_disk_rescore", true);
@@ -2578,8 +2578,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return clusterSize;
         }
 
-        public int getFlushThreshold() {
-            return flushThreshold;
+        public int getFlatIndexThreshold() {
+            return flatIndexThreshold;
         }
 
         public double getDefaultVisitPercentage() {

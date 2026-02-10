@@ -56,7 +56,7 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
             BytesRef key = vector.getBytesRef(0, scratch);
             long result = seenKeys.add(key);
             if (result >= 0) {
-                return page.filter(0);
+                return page.filter(false, 0);
             } else {
                 page.releaseBlocks();
                 return null;
@@ -85,7 +85,7 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
             return page;
         }
         positions = Arrays.copyOf(positions, rowCount);
-        return page.filter(positions);
+        return page.filter(false, positions);
     }
 
     @Override

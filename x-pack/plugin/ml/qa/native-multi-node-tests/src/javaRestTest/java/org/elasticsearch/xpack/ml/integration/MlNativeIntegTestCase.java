@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -102,6 +103,8 @@ import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -133,6 +136,9 @@ import static org.hamcrest.Matchers.is;
  * Base class of ML integration tests that use a native autodetect process
  */
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
+
+    @Rule
+    public final TestRule templateDecoratorRule = TemplateDecoratorRule.initDefault();
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

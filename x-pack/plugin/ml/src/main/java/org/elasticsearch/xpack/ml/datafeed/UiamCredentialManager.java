@@ -11,8 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -54,7 +52,7 @@ public class UiamCredentialManager {
     private final Client client;
     private final ThreadPool threadPool;
 
-    public UiamCredentialManager(Client client, ThreadPool threadPool, ClusterService clusterService, Settings settings) {
+    public UiamCredentialManager(Client client, ThreadPool threadPool) {
         this.client = client;
         this.threadPool = threadPool;
     }
@@ -93,26 +91,26 @@ public class UiamCredentialManager {
         // The UIAM _grant API is an external UIAM service endpoint that mints internal universal API keys
         // (cross-project credentials), NOT Elasticsearch API keys (project-local). The security team needs
         // to provide either:
-        //   1. A new injectable service that wraps the UIAM _grant HTTP call, or
-        //   2. A new internal-only transport action
+        // 1. A new injectable service that wraps the UIAM _grant HTTP call, or
+        // 2. A new internal-only transport action
         //
         // The grant flow per TDD:
-        //   - Input: original UIAM credential (from ThreadContext) + ES shared service secret
-        //   - Call UIAM _grant with X-Client-Authentication header containing the shared service secret
-        //   - Always use the ES shared service secret, not Kibana's
-        //   - Re-authenticate using the new internal key to obtain the authentication instance
-        //   - Output: internal API key credential + authentication info (persistable headers)
+        // - Input: original UIAM credential (from ThreadContext) + ES shared service secret
+        // - Call UIAM _grant with X-Client-Authentication header containing the shared service secret
+        // - Always use the ES shared service secret, not Kibana's
+        // - Re-authenticate using the new internal key to obtain the authentication instance
+        // - Output: internal API key credential + authentication info (persistable headers)
         //
         // Secondary authentication:
-        //   - If es-secondary-authorization header is present, grant under the secondary identity
-        //   - Primary identity is typically Kibana service account; secondary is end user UIAM credential
+        // - If es-secondary-authorization header is present, grant under the secondary identity
+        // - Primary identity is typically Kibana service account; secondary is end user UIAM credential
         //
         // Failures are hard failures and must abort datafeed creation.
         //
         // See: "Elasticsearch Security for Cross-Project ML TDD" sections:
-        //   - "GrantInternalUniversalApiKey" (Common tooling and primitives)
-        //   - "Transform creation" (Proposed flow, steps 1-4)
-        //   - "Secondary authentication handling"
+        // - "GrantInternalUniversalApiKey" (Common tooling and primitives)
+        // - "Transform creation" (Proposed flow, steps 1-4)
+        // - "Secondary authentication handling"
         listener.onFailure(
             new UnsupportedOperationException(
                 "GrantInternalUniversalApiKey is not yet implemented for CPS datafeed ["

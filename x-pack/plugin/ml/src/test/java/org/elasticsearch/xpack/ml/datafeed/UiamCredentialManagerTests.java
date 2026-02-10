@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -37,12 +36,7 @@ public class UiamCredentialManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
-        UiamCredentialManager manager = new UiamCredentialManager(
-            mock(Client.class),
-            threadPool,
-            mock(ClusterService.class),
-            Settings.EMPTY
-        );
+        UiamCredentialManager manager = new UiamCredentialManager(mock(Client.class), threadPool);
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         manager.grantInternalApiKey("test-datafeed", ActionListener.wrap(result -> fail("Expected failure"), failure::set));
@@ -59,12 +53,7 @@ public class UiamCredentialManagerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        UiamCredentialManager manager = new UiamCredentialManager(
-            mock(Client.class),
-            threadPool,
-            mock(ClusterService.class),
-            Settings.EMPTY
-        );
+        UiamCredentialManager manager = new UiamCredentialManager(mock(Client.class), threadPool);
 
         assertFalse(manager.hasUiamCredential());
 
@@ -76,12 +65,7 @@ public class UiamCredentialManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
-        UiamCredentialManager manager = new UiamCredentialManager(
-            mock(Client.class),
-            threadPool,
-            mock(ClusterService.class),
-            Settings.EMPTY
-        );
+        UiamCredentialManager manager = new UiamCredentialManager(mock(Client.class), threadPool);
 
         AtomicReference<Boolean> result = new AtomicReference<>();
         manager.revokeApiKey(null, "test-datafeed", ActionListener.wrap(result::set, e -> fail("Expected success")));
@@ -102,7 +86,7 @@ public class UiamCredentialManagerTests extends ESTestCase {
             return null;
         }).when(client).execute(same(InvalidateApiKeyAction.INSTANCE), any(), any());
 
-        UiamCredentialManager manager = new UiamCredentialManager(client, threadPool, mock(ClusterService.class), Settings.EMPTY);
+        UiamCredentialManager manager = new UiamCredentialManager(client, threadPool);
 
         AtomicReference<Boolean> result = new AtomicReference<>();
         manager.revokeApiKey("test-key-id", "test-datafeed", ActionListener.wrap(result::set, e -> fail("Expected success")));
@@ -123,7 +107,7 @@ public class UiamCredentialManagerTests extends ESTestCase {
             return null;
         }).when(client).execute(same(InvalidateApiKeyAction.INSTANCE), any(), any());
 
-        UiamCredentialManager manager = new UiamCredentialManager(client, threadPool, mock(ClusterService.class), Settings.EMPTY);
+        UiamCredentialManager manager = new UiamCredentialManager(client, threadPool);
 
         AtomicReference<Boolean> result = new AtomicReference<>();
         manager.revokeApiKey("old-key-id", "test-datafeed", ActionListener.wrap(result::set, e -> fail("Expected success")));
@@ -144,7 +128,7 @@ public class UiamCredentialManagerTests extends ESTestCase {
             return null;
         }).when(client).execute(any(ActionType.class), any(), any());
 
-        UiamCredentialManager manager = new UiamCredentialManager(client, threadPool, mock(ClusterService.class), Settings.EMPTY);
+        UiamCredentialManager manager = new UiamCredentialManager(client, threadPool);
 
         AtomicReference<Boolean> result = new AtomicReference<>();
         // Revocation failures should not fail the listener

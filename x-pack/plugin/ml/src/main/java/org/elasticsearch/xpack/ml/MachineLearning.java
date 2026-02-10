@@ -313,12 +313,12 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
-import org.elasticsearch.xpack.ml.datafeed.UiamCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.UiamCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -1069,7 +1069,7 @@ public class MachineLearning extends Plugin
             indexNameExpressionResolver,
             () -> NativeMemoryCalculator.getMaxModelMemoryLimit(clusterService)
         );
-        UiamCredentialManager uiamCredentialManager = new UiamCredentialManager(client, threadPool, clusterService, settings);
+        UiamCredentialManager uiamCredentialManager = new UiamCredentialManager(client, threadPool);
         DatafeedManager datafeedManager = new DatafeedManager(
             datafeedConfigProvider,
             jobConfigProvider,

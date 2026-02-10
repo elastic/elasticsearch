@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -238,10 +237,7 @@ public class DatafeedManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testPutDatafeed_RevokesKeyWhenDownstreamFails() {
         // CPS-enabled environment, security disabled
-        Settings settings = Settings.builder()
-            .put("serverless.cross_project.enabled", true)
-            .put("xpack.security.enabled", false)
-            .build();
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
@@ -267,8 +263,8 @@ public class DatafeedManagerTests extends ESTestCase {
 
         // Mock grantInternalApiKey to succeed
         doAnswer(invocation -> {
-            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<UiamCredentialManager.InternalApiKeyResult>)
-                invocation.getArguments()[1];
+            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<
+                UiamCredentialManager.InternalApiKeyResult>) invocation.getArguments()[1];
             listener.onResponse(new UiamCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
             return null;
         }).when(uiamCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
@@ -298,9 +294,15 @@ public class DatafeedManagerTests extends ESTestCase {
 
         // Call putDatafeed (non-security path with CPS)
         AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.putDatafeed(request, mockClusterStateWithNoTasks(), null, threadPool, ActionListener.wrap(r -> fail("Expected failure"), e -> {
-            failure.set(e);
-        }));
+        manager.putDatafeed(
+            request,
+            mockClusterStateWithNoTasks(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("Expected failure"), e -> {
+                failure.set(e);
+            })
+        );
 
         assertTrue("revokeApiKey should have been called to clean up the leaked key", revokeCalled.get());
         assertThat(failure.get(), notNullValue());
@@ -314,10 +316,7 @@ public class DatafeedManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeed_RevokesKeyWhenUpdateConfigFails() {
         // CPS-enabled environment, security disabled
-        Settings settings = Settings.builder()
-            .put("serverless.cross_project.enabled", true)
-            .put("xpack.security.enabled", false)
-            .build();
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
@@ -342,8 +341,8 @@ public class DatafeedManagerTests extends ESTestCase {
 
         // Mock grantInternalApiKey to succeed
         doAnswer(invocation -> {
-            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<UiamCredentialManager.InternalApiKeyResult>)
-                invocation.getArguments()[1];
+            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<
+                UiamCredentialManager.InternalApiKeyResult>) invocation.getArguments()[1];
             listener.onResponse(new UiamCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
             return null;
         }).when(uiamCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
@@ -375,9 +374,13 @@ public class DatafeedManagerTests extends ESTestCase {
         ClusterState clusterState = mockClusterStateForUpdate();
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.updateDatafeed(request, clusterState, null, threadPool, ActionListener.wrap(r -> fail("Expected failure"), e -> {
-            failure.set(e);
-        }));
+        manager.updateDatafeed(
+            request,
+            clusterState,
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("Expected failure"), e -> { failure.set(e); })
+        );
 
         assertTrue("revokeApiKey should have been called to clean up the leaked key", revokeCalled.get());
         assertThat(failure.get(), notNullValue());
@@ -391,10 +394,7 @@ public class DatafeedManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeed_RevokesKeyWhenPatchFails() {
         // CPS-enabled environment, security disabled
-        Settings settings = Settings.builder()
-            .put("serverless.cross_project.enabled", true)
-            .put("xpack.security.enabled", false)
-            .build();
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         UiamCredentialManager uiamCredentialManager = mock(UiamCredentialManager.class);
@@ -419,8 +419,8 @@ public class DatafeedManagerTests extends ESTestCase {
 
         // Mock grantInternalApiKey to succeed
         doAnswer(invocation -> {
-            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<UiamCredentialManager.InternalApiKeyResult>)
-                invocation.getArguments()[1];
+            ActionListener<UiamCredentialManager.InternalApiKeyResult> listener = (ActionListener<
+                UiamCredentialManager.InternalApiKeyResult>) invocation.getArguments()[1];
             listener.onResponse(new UiamCredentialManager.InternalApiKeyResult(apiKeyId, encodedKey, Map.of()));
             return null;
         }).when(uiamCredentialManager).grantInternalApiKey(eq("test-datafeed"), any());
@@ -461,9 +461,13 @@ public class DatafeedManagerTests extends ESTestCase {
         ClusterState clusterState = mockClusterStateForUpdate();
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.updateDatafeed(request, clusterState, null, threadPool, ActionListener.wrap(r -> fail("Expected failure"), e -> {
-            failure.set(e);
-        }));
+        manager.updateDatafeed(
+            request,
+            clusterState,
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("Expected failure"), e -> { failure.set(e); })
+        );
 
         assertTrue("revokeApiKey should have been called to clean up the leaked key", revokeCalled.get());
         assertThat(failure.get(), notNullValue());

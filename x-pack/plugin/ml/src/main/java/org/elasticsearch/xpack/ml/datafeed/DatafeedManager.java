@@ -254,68 +254,7 @@ public final class DatafeedManager {
             // CPS migration check: if the environment supports CPS and the request carries a UIAM credential,
             // we may need to mint an internal API key for a legacy datafeed transitioning to CPS.
             if (crossProjectModeDecider.crossProjectEnabled() && hasUiamCredential) {
-                String datafeedId = request.getUpdate().getId();
-
-                // First, grant the internal API key using the current UIAM credential.
-                uiamCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
-                    logger.info("[{}] Minted internal API key for CPS datafeed update (migration or re-key)", datafeedId);
-
-                    // Use the CPS auth headers (from the internal API key) instead of the original request headers.
-                    Map<String, String> cpsHeaders = result.authHeaders();
-
-                    // Wrap listener to revoke the newly minted key if any downstream operation fails
-                    ActionListener<PutDatafeedAction.Response> guardedListener = revokeKeyOnFailure(
-                        result.apiKeyId(),
-                        datafeedId,
-                        listener
-                    );
-
-                    // Apply the standard update (with CPS auth headers).
-                    datafeedConfigProvider.updateDatefeedConfig(
-                        datafeedId,
-                        request.getUpdate(),
-                        cpsHeaders,
-                        wrappedValidator,
-                        guardedListener.delegateFailureAndWrap((l, updatedConfig) -> {
-                            // DatafeedUpdate.apply() copies cloudInternalApiKey from the existing config.
-                            // Capture the old key (if any) for revocation, then always patch in the new key.
-                            String oldEncodedKey = updatedConfig.getCloudInternalApiKey();
-                            datafeedConfigProvider.patchCloudInternalApiKey(
-                                datafeedId,
-                                result.encodedCredential(),
-                                cpsHeaders,
-                                l.delegateFailureAndWrap((ll, patchedConfig) -> {
-                                    // Best-effort revoke the old key if it existed (re-key case)
-                                    if (oldEncodedKey != null) {
-                                        String oldApiKeyId = extractApiKeyId(oldEncodedKey);
-                                        if (oldApiKeyId != null) {
-                                            uiamCredentialManager.revokeApiKey(
-                                                oldApiKeyId,
-                                                datafeedId,
-                                                ActionListener.wrap(
-                                                    revoked -> ll.onResponse(new PutDatafeedAction.Response(patchedConfig)),
-                                                    e -> {
-                                                        logger.warn(
-                                                            "[{}] Failed to revoke old internal API key during update, "
-                                                                + "proceeding anyway",
-                                                            datafeedId,
-                                                            e
-                                                        );
-                                                        ll.onResponse(new PutDatafeedAction.Response(patchedConfig));
-                                                    }
-                                                )
-                                            );
-                                        } else {
-                                            ll.onResponse(new PutDatafeedAction.Response(patchedConfig));
-                                        }
-                                    } else {
-                                        ll.onResponse(new PutDatafeedAction.Response(patchedConfig));
-                                    }
-                                })
-                            );
-                        })
-                    );
-                }, listener::onFailure));
+                applyCpsUpdateWithRekey(request, wrappedValidator, listener);
             } else {
                 datafeedConfigProvider.updateDatefeedConfig(
                     request.getUpdate().getId(),
@@ -338,6 +277,88 @@ public final class DatafeedManager {
             ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure),
             MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
+    }
+
+    /**
+     * Grants a new UIAM internal API key, applies the datafeed update with CPS headers,
+     * patches the stored credential, and best-effort revokes the old key if one existed (re-key case).
+     */
+    private void applyCpsUpdateWithRekey(
+        UpdateDatafeedAction.Request request,
+        BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        String datafeedId = request.getUpdate().getId();
+
+        // Grant the internal API key using the current UIAM credential.
+        uiamCredentialManager.grantInternalApiKey(datafeedId, ActionListener.wrap(result -> {
+            logger.info("[{}] Minted internal API key for CPS datafeed update (migration or re-key)", datafeedId);
+
+            Map<String, String> cpsHeaders = result.authHeaders();
+
+            // Wrap listener to revoke the newly minted key if any downstream operation fails
+            ActionListener<PutDatafeedAction.Response> guardedListener = revokeKeyOnFailure(result.apiKeyId(), datafeedId, listener);
+
+            // Apply the standard update with CPS auth headers, then patch the credential
+            datafeedConfigProvider.updateDatefeedConfig(
+                datafeedId,
+                request.getUpdate(),
+                cpsHeaders,
+                wrappedValidator,
+                guardedListener.delegateFailureAndWrap(
+                    (l, updatedConfig) -> patchKeyAndRevokeOld(datafeedId, result, cpsHeaders, updatedConfig, l)
+                )
+            );
+        }, listener::onFailure));
+    }
+
+    /**
+     * Patches the newly minted internal API key credential into the datafeed config
+     * and best-effort revokes the previous key if one existed (re-key / migration case).
+     */
+    private void patchKeyAndRevokeOld(
+        String datafeedId,
+        UiamCredentialManager.InternalApiKeyResult newKey,
+        Map<String, String> cpsHeaders,
+        DatafeedConfig updatedConfig,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        String oldEncodedKey = updatedConfig.getCloudInternalApiKey();
+        datafeedConfigProvider.patchCloudInternalApiKey(
+            datafeedId,
+            newKey.encodedCredential(),
+            cpsHeaders,
+            listener.delegateFailureAndWrap((l, patchedConfig) -> {
+                if (oldEncodedKey != null) {
+                    bestEffortRevokeOldKey(datafeedId, oldEncodedKey, patchedConfig, l);
+                } else {
+                    l.onResponse(new PutDatafeedAction.Response(patchedConfig));
+                }
+            })
+        );
+    }
+
+    /**
+     * Best-effort revokes an old UIAM internal API key after a successful re-key.
+     * Revocation failure is logged but does not fail the update operation.
+     */
+    private void bestEffortRevokeOldKey(
+        String datafeedId,
+        String oldEncodedKey,
+        DatafeedConfig patchedConfig,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        String oldApiKeyId = extractApiKeyId(oldEncodedKey);
+        if (oldApiKeyId == null) {
+            listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
+            return;
+        }
+        uiamCredentialManager.revokeApiKey(oldApiKeyId, datafeedId, ActionListener.wrap(revoked -> {
+            listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
+        }, e -> {
+            logger.warn("[{}] Failed to revoke old internal API key during update, proceeding anyway", datafeedId, e);
+            listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
+        }));
     }
 
     public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
@@ -472,8 +493,7 @@ public final class DatafeedManager {
             PutDatafeedAction.Request updatedRequest = new PutDatafeedAction.Request(builder.build());
             updatedRequest.masterNodeTimeout(request.masterNodeTimeout());
             // Wrap listener to revoke the newly minted key if downstream operations (validation, persistence) fail
-            putDatafeed(updatedRequest, result.authHeaders(), clusterState,
-                revokeKeyOnFailure(result.apiKeyId(), datafeedId, listener));
+            putDatafeed(updatedRequest, result.authHeaders(), clusterState, revokeKeyOnFailure(result.apiKeyId(), datafeedId, listener));
         }, e -> {
             logger.error("[{}] Failed to create internal API key for CPS datafeed", datafeedId, e);
             listener.onFailure(e);

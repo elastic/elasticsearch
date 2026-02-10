@@ -17,6 +17,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -29,6 +31,8 @@ import java.util.Set;
 import static java.nio.file.StandardOpenOption.READ;
 
 class MemorySegmentUtils {
+
+    private static final Logger log = LogManager.getLogger(MemorySegmentUtils.class);
 
     /**
      * Encapsulates a {@link MemorySegment} in a closeable interface; when the MemorySegment is no longer used,
@@ -87,6 +91,11 @@ class MemorySegmentUtils {
         // opportunity to catch this in CI, if that ever happens.
         assert dir instanceof FSDirectory;
 
+        log.info(
+            "Unable to get a contiguous memory segment for [{}, size{}]. Falling back to manual mapping a temp copy.",
+            baseName,
+            input.length()
+        );
         Path tempVectorsFilePath = copyInputToTempFile((IndexInput) input, (FSDirectory) dir, baseName);
         return createFileBackedMemorySegment(tempVectorsFilePath, input.length());
     }
@@ -112,16 +121,29 @@ class MemorySegmentUtils {
         long packedVectorsDataSize = (long) numVectors * packedRowSize;
         MemorySegment sourceSegment = input.segmentSliceOrNull(0, input.length());
         if (sourceSegment != null) {
-            Arena arena = Arena.ofConfined();
-            var packedSegment = arena.allocate(packedVectorsDataSize, 64);
-            for (int i = 0; i < numVectors; i++) {
-                MemorySegment.copy(sourceSegment, (long) i * sourceRowPitch, packedSegment, (long) i * packedRowSize, packedRowSize);
+            Arena arena = null;
+            try {
+                arena = Arena.ofConfined();
+                var packedSegment = arena.allocate(packedVectorsDataSize, 64);
+                for (int i = 0; i < numVectors; i++) {
+                    MemorySegment.copy(sourceSegment, (long) i * sourceRowPitch, packedSegment, (long) i * packedRowSize, packedRowSize);
+                }
+                return new ArenaMemorySegmentHolder(packedSegment, arena);
+            } catch (Throwable t) {
+                if (arena != null) {
+                    arena.close();
+                }
+                throw t;
             }
-            return new ArenaMemorySegmentHolder(packedSegment, arena);
         }
 
         assert dir instanceof FSDirectory;
 
+        log.info(
+            "Unable to get a contiguous memory segment for [{}, size{}]. Falling back creating a packed temp copy.",
+            baseName,
+            input.length()
+        );
         var tempVectorsFile = copyInputToTempFilePacked(
             (IndexInput) input,
             (FSDirectory) dir,

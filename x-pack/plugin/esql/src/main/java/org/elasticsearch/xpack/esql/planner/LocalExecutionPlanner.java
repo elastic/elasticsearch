@@ -618,12 +618,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
-                new GrokEvaluatorExtracter.Factory(
-                    grok.pattern().grok(),
-                    grok.pattern().pattern(),
-                    () -> fieldToPos,
-                    () -> fieldToType
-                )
+                new GrokEvaluatorExtracter.Factory(grok.pattern().grok(), grok.pattern().pattern(), () -> fieldToPos, () -> fieldToType)
             ),
             layout
         );

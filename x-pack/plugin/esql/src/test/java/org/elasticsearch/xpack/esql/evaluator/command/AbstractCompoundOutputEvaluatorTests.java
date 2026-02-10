@@ -94,26 +94,24 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
                 return input;
             }
 
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
 
-                @Override
-                public void close() {}
-            },
-            new CompoundOutputEvaluator.Factory(getInputTypeForSimple(), null, new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
-                @Override
-                public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
-                    return AbstractCompoundOutputEvaluatorTests.this.createOutputFieldsCollector(requestedFields);
-                }
+            @Override
+            public void close() {}
+        }, new CompoundOutputEvaluator.Factory(getInputTypeForSimple(), null, new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
+            @Override
+            public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
+                return AbstractCompoundOutputEvaluatorTests.this.createOutputFieldsCollector(requestedFields);
+            }
 
-                @Override
-                public String collectorSimpleName() {
-                    return AbstractCompoundOutputEvaluatorTests.this.collectorSimpleName();
-                }
-            })
-        );
+            @Override
+            public String collectorSimpleName() {
+                return AbstractCompoundOutputEvaluatorTests.this.collectorSimpleName();
+            }
+        }));
     }
 
     @Override

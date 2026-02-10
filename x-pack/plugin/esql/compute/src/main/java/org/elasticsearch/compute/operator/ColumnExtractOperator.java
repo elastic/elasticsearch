@@ -18,7 +18,8 @@ import org.elasticsearch.core.Releasables;
 public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
     public record Factory(ElementType[] types, ExpressionEvaluator.Factory inputEvalSupplier, Evaluator.Factory evaluatorProvider)
-        implements OperatorFactory {
+        implements
+            OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
@@ -60,7 +61,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
         Block.Builder[] blockBuilders = new Block.Builder[types.length];
         try {
             for (int i = 0; i < types.length; i++) {
-                //noinspection resource we release in the finally section
+                // noinspection resource we release in the finally section
                 blockBuilders[i] = types[i].newBlockBuilder(rowsCount, driverContext.blockFactory());
             }
 

@@ -999,6 +999,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                     .settings(
                         ESTestCase.indexSettings(IndexVersion.current(), 1, 1)
                             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "@timestamp")
                     )
                     .build();
                 return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);

@@ -616,13 +616,7 @@ public class TopNOperator implements Operator, Accountable {
             ResultBuilder[] builders = new ResultBuilder[elementTypes.size()];
             try {
                 for (int b = 0; b < builders.length; b++) {
-                    builders[b] = ResultBuilder.resultBuilderFor(
-                        blockFactory,
-                        elementTypes.get(b),
-                        encoders.get(b),
-                        channelInKey[b],
-                        size
-                    );
+                    builders[b] = ResultBuilder.resultBuilderFor(blockFactory, elementTypes.get(b), encoders.get(b), channelInKey[b], size);
                 }
                 int rEnd = r + size;
                 while (r < rEnd) {

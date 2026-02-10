@@ -850,10 +850,13 @@ public class TopNOperatorTests extends OperatorTestCase {
         int position
     ) {
         final var sortOrders = List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst));
+        boolean[] channelInKey = new boolean[page.getBlockCount()];
+        channelInKey[channel] = true;
         TopNOperator.RowFiller rf = new TopNOperator.RowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
             sortOrders,
+            channelInKey,
             page
         );
         TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
@@ -1164,11 +1167,11 @@ public class TopNOperatorTests extends OperatorTestCase {
             10,
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthAscTopNEncoder(fixedLength)),
-            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
+            List.of(new TopNOperator.SortOrder(0, false, false), new TopNOperator.SortOrder(1, false, true)),
             randomPageSize(),
             InputOrdering.NOT_SORTED
         );
-        String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
+        String sorts = List.of("SortOrder[channel=0, asc=false, nullsFirst=false]", "SortOrder[channel=1, asc=false, nullsFirst=true]")
             .stream()
             .collect(Collectors.joining(", "));
         String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[Utf8Asc, FixedLengthAsc["

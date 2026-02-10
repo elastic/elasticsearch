@@ -67,6 +67,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getResourcesDir() {
         return this.resourcesDir;
     }

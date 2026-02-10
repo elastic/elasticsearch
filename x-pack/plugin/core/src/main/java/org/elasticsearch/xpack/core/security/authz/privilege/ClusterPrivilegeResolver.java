@@ -220,6 +220,8 @@ public class ClusterPrivilegeResolver {
         XPackInfoAction.NAME,
         // esql enrich
         "cluster:monitor/xpack/enrich/esql/resolve_policy",
+        // Legacy ESQL exchange actions retained for BWC during rolling upgrades.
+        // Remove once minimum version includes ESQL_EXCHANGE_INDICES_CONTEXT.
         "cluster:internal:data/read/esql/open_exchange",
         "cluster:internal:data/read/esql/exchange",
         // cluster stats for remote clusters

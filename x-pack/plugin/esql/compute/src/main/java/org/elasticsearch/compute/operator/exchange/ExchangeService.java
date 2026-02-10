@@ -14,7 +14,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -59,13 +61,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(ExchangeService.class);
 
-    // TODO: Make this a child action of the data node transport to ensure that exchanges
-    // are accessed only by the user initialized the session.
-    public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
-    public static final String EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/exchange";
+    public static final String EXCHANGE_ACTION_NAME = "indices:data/read/esql/exchange";
+    public static final String OPEN_EXCHANGE_ACTION_NAME = "indices:data/read/esql/open_exchange";
 
-    public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
-    private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
+    /**
+     * Legacy action names retained for backward compatibility during rolling upgrades.
+     * Nodes running older versions still send and register handlers under the {@code internal:} prefix
+     * (within-cluster) and the {@code cluster:internal:} prefix (cross-cluster via RCS/CPS).
+     * These constants and their handler registrations can be removed once the minimum supported
+     * version includes {@link ExchangeRequest#ESQL_EXCHANGE_INDICES_CONTEXT}.
+     */
+    public static final String LEGACY_EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
+    public static final String LEGACY_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/exchange";
+    public static final String LEGACY_OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
+    private static final String LEGACY_OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
@@ -79,6 +88,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Tracks the set of indices that each exchange sink was opened for.
+     * When an {@link ExchangeRequest} arrives to fetch pages, the indices it carries must match
+     * the indices recorded here. This prevents an entity with mTLS access from consuming pages
+     * from an exchange sink opened by a different user's query by guessing the session ID.
+     */
+    private final Map<String, Set<String>> sinkExpectedIndices = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
@@ -95,26 +111,26 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     public void registerTransportHandler(TransportService transportService) {
-        transportService.registerRequestHandler(EXCHANGE_ACTION_NAME, this.executor, ExchangeRequest::new, new ExchangeTransportAction());
+        var exchangeAction = new ExchangeTransportAction();
+        var openExchangeAction = new OpenExchangeRequestHandler();
+        // Register under the new indices: prefix
+        transportService.registerRequestHandler(EXCHANGE_ACTION_NAME, this.executor, ExchangeRequest::new, exchangeAction);
+        transportService.registerRequestHandler(OPEN_EXCHANGE_ACTION_NAME, this.executor, OpenExchangeRequest::new, openExchangeAction);
+        // Register legacy handlers so that older nodes (which still send internal: or cluster:internal: actions)
+        // can reach this node during a rolling upgrade. Remove once minimum version includes ESQL_EXCHANGE_INDICES_CONTEXT.
+        transportService.registerRequestHandler(LEGACY_EXCHANGE_ACTION_NAME, this.executor, ExchangeRequest::new, exchangeAction);
+        transportService.registerRequestHandler(LEGACY_EXCHANGE_ACTION_NAME_FOR_CCS, this.executor, ExchangeRequest::new, exchangeAction);
         transportService.registerRequestHandler(
-            OPEN_EXCHANGE_ACTION_NAME,
+            LEGACY_OPEN_EXCHANGE_ACTION_NAME,
             this.executor,
             OpenExchangeRequest::new,
-            new OpenExchangeRequestHandler()
-        );
-
-        // This allows the system user access this action when executed over CCS and the API key based security model is in use
-        transportService.registerRequestHandler(
-            EXCHANGE_ACTION_NAME_FOR_CCS,
-            this.executor,
-            ExchangeRequest::new,
-            new ExchangeTransportAction()
+            openExchangeAction
         );
         transportService.registerRequestHandler(
-            OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
+            LEGACY_OPEN_EXCHANGE_ACTION_NAME_FOR_CCS,
             this.executor,
             OpenExchangeRequest::new,
-            new OpenExchangeRequestHandler()
+            openExchangeAction
         );
     }
 
@@ -143,11 +159,43 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Validates that the given indices match the indices the exchange sink was opened for.
+     * This prevents an exchange sink opened for index X from being populated by a query for index Y.
+     * The check ensures that when a compute request (e.g. {@code ClusterComputeRequest} or {@code DataNodeRequest})
+     * links to an exchange sink, the query's indices are consistent with the sink's expected indices.
+     * <p>
+     * If no expected indices were recorded for the exchange (i.e. the sink was opened by a node on a transport
+     * version older than {@link ExchangeRequest#ESQL_EXCHANGE_INDICES_CONTEXT}), the check is bypassed.
+     * When expected indices <em>are</em> recorded, the caller must supply non-empty query indices;
+     * omitting them is treated as a lookup failure.
+     *
+     * @param exchangeId the exchange/session id
+     * @param queryIndices the indices from the compute request
+     * @throws ResourceNotFoundException if the exchange sink's indices do not match the query indices
+     */
+    public void validateSinkIndices(String exchangeId, String[] queryIndices) {
+        final Set<String> expectedIndices = sinkExpectedIndices.get(exchangeId);
+        if (expectedIndices == null) {
+            // The exchange was opened by a node on a transport version that does not send indices.
+            // Skip the indices check for backward compatibility.
+            return;
+        }
+        if (queryIndices == null || queryIndices.length == 0) {
+            throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for empty indices");
+        }
+        final Set<String> requestIndices = Set.of(queryIndices);
+        if (expectedIndices.equals(requestIndices) == false) {
+            throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for indices " + requestIndices);
+        }
+    }
+
+    /**
      * Removes the exchange sink handler associated with the given exchange id.
-     * W will abort the sink handler if the given failure is not null.
+     * Will abort the sink handler if the given failure is not null.
      */
     public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
+        sinkExpectedIndices.remove(exchangeId);
         if (sinkHandler != null) {
             if (failure != null) {
                 sinkHandler.onFailure(failure);
@@ -164,13 +212,18 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         Transport.Connection connection,
         String sessionId,
         int exchangeBuffer,
+        String[] indices,
+        IndicesOptions indicesOptions,
         Executor responseExecutor,
         ActionListener<Void> listener
     ) {
+        final String actionName = connection.getTransportVersion().supports(ExchangeRequest.ESQL_EXCHANGE_INDICES_CONTEXT)
+            ? OPEN_EXCHANGE_ACTION_NAME
+            : LEGACY_OPEN_EXCHANGE_ACTION_NAME;
         transportService.sendRequest(
             connection,
-            OPEN_EXCHANGE_ACTION_NAME,
-            new OpenExchangeRequest(sessionId, exchangeBuffer),
+            actionName,
+            new OpenExchangeRequest(sessionId, exchangeBuffer, indices, indicesOptions),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
         );
@@ -202,19 +255,30 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class OpenExchangeRequest extends AbstractTransportRequest {
+    static class OpenExchangeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
         private final String sessionId;
         private final int exchangeBuffer;
+        private String[] indices;
+        private final IndicesOptions indicesOptions;
 
-        OpenExchangeRequest(String sessionId, int exchangeBuffer) {
+        OpenExchangeRequest(String sessionId, int exchangeBuffer, String[] indices, IndicesOptions indicesOptions) {
             this.sessionId = sessionId;
             this.exchangeBuffer = exchangeBuffer;
+            this.indices = indices;
+            this.indicesOptions = indicesOptions;
         }
 
         OpenExchangeRequest(StreamInput in) throws IOException {
             super(in);
             this.sessionId = in.readString();
             this.exchangeBuffer = in.readVInt();
+            if (in.getTransportVersion().supports(ExchangeRequest.ESQL_EXCHANGE_INDICES_CONTEXT)) {
+                this.indices = in.readStringArray();
+                this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+            } else {
+                this.indices = new String[0];
+                this.indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            }
         }
 
         @Override
@@ -222,6 +286,26 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeVInt(exchangeBuffer);
+            if (out.getTransportVersion().supports(ExchangeRequest.ESQL_EXCHANGE_INDICES_CONTEXT)) {
+                out.writeStringArray(indices);
+                indicesOptions.writeIndicesOptions(out);
+            }
+        }
+
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.indices = indices;
+            return this;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return indicesOptions;
         }
     }
 
@@ -229,6 +313,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
             createSinkHandler(request.sessionId, request.exchangeBuffer);
+            if (request.indices() != null && request.indices().length > 0) {
+                sinkExpectedIndices.put(request.sessionId, Set.of(request.indices()));
+            }
             channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }
@@ -237,7 +324,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(ExchangeRequest request, TransportChannel channel, Task exchangeTask) {
             final String exchangeId = request.exchangeId();
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+            final ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+            // Validate that the indices in the request match the indices the exchange was opened for.
+            // This prevents an entity with mTLS access from consuming pages from an exchange sink
+            // that belongs to another user's query by guessing the session ID.
+            final Set<String> expectedIndices = sinkExpectedIndices.get(exchangeId);
+            if (expectedIndices != null) {
+                final Set<String> requestIndices = request.indices() != null ? Set.of(request.indices()) : Set.of();
+                if (expectedIndices.equals(requestIndices) == false) {
+                    listener.onFailure(
+                        new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for indices " + requestIndices)
+                    );
+                    return;
+                }
+            }
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
                 listener.onResponse(new ExchangeResponse(blockFactory, null, true));
@@ -310,9 +410,18 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param exchangeId       the exchange ID
      * @param transportService the transport service
      * @param conn             the connection to the remote node where the remote exchange sink is located
+     * @param indices          the indices associated with this exchange for authorization
+     * @param indicesOptions   the indices options for authorization
      */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
+    public RemoteSink newRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        String[] indices,
+        IndicesOptions indicesOptions
+    ) {
+        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, indices, indicesOptions, executor);
     }
 
     static final class TransportRemoteSink implements RemoteSink {
@@ -321,6 +430,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Transport.Connection connection;
         final Task parentTask;
         final String exchangeId;
+        final String[] indices;
+        final IndicesOptions indicesOptions;
         final Executor responseExecutor;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
@@ -332,6 +443,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Transport.Connection connection,
             Task parentTask,
             String exchangeId,
+            String[] indices,
+            IndicesOptions indicesOptions,
             Executor responseExecutor
         ) {
             this.transportService = transportService;
@@ -339,6 +452,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.connection = connection;
             this.parentTask = parentTask;
             this.exchangeId = exchangeId;
+            this.indices = indices;
+            this.indicesOptions = indicesOptions;
             this.responseExecutor = responseExecutor;
         }
 
@@ -375,10 +490,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 }
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
             }
+            final String actionName = connection.getTransportVersion().supports(ExchangeRequest.ESQL_EXCHANGE_INDICES_CONTEXT)
+                ? EXCHANGE_ACTION_NAME
+                : LEGACY_EXCHANGE_ACTION_NAME;
             transportService.sendChildRequest(
                 connection,
-                EXCHANGE_ACTION_NAME,
-                new ExchangeRequest(exchangeId, allSourcesFinished),
+                actionName,
+                new ExchangeRequest(exchangeId, allSourcesFinished, indices, indicesOptions),
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(listener, in -> {

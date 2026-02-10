@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -18,19 +21,33 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public final class ExchangeRequest extends AbstractTransportRequest {
+public final class ExchangeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+
+    static final TransportVersion ESQL_EXCHANGE_INDICES_CONTEXT = TransportVersion.fromName("esql_exchange_indices_context");
+
     private final String exchangeId;
     private final boolean sourcesFinished;
+    private String[] indices;
+    private final IndicesOptions indicesOptions;
 
-    public ExchangeRequest(String exchangeId, boolean sourcesFinished) {
+    public ExchangeRequest(String exchangeId, boolean sourcesFinished, String[] indices, IndicesOptions indicesOptions) {
         this.exchangeId = exchangeId;
         this.sourcesFinished = sourcesFinished;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
     }
 
     public ExchangeRequest(StreamInput in) throws IOException {
         super(in);
         this.exchangeId = in.readString();
         this.sourcesFinished = in.readBoolean();
+        if (in.getTransportVersion().supports(ESQL_EXCHANGE_INDICES_CONTEXT)) {
+            this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            this.indices = new String[0];
+            this.indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+        }
     }
 
     @Override
@@ -38,6 +55,10 @@ public final class ExchangeRequest extends AbstractTransportRequest {
         super.writeTo(out);
         out.writeString(exchangeId);
         out.writeBoolean(sourcesFinished);
+        if (out.getTransportVersion().supports(ESQL_EXCHANGE_INDICES_CONTEXT)) {
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 
     @Override
@@ -64,6 +85,22 @@ public final class ExchangeRequest extends AbstractTransportRequest {
      */
     public String exchangeId() {
         return exchangeId;
+    }
+
+    @Override
+    public String[] indices() {
+        return indices;
+    }
+
+    @Override
+    public IndicesRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     @Override

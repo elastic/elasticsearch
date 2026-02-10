@@ -105,7 +105,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  *     <ul>
  *     <li>
  *         Open ExchangeSink on the target data node and link it with local ExchangeSource for the query
- *         using `internal:data/read/esql/open_exchange` transport request.
+ *         using `indices:data/read/esql/open_exchange` transport request.
  *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService#openExchange}
  *     </li>
  *     <li>
@@ -118,7 +118,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  *         While coordinator plan executor is running it will read data from ExchangeSource that will poll pages
  *         from linked ExchangeSink on target data nodes or notify them that data set is already completed
  *         (for example when running FROM * | LIMIT 10 type of query) or query is canceled
- *         using `internal:data/read/esql/exchange` transport requests.
+ *         using `indices:data/read/esql/exchange` transport requests.
  *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService.ExchangeTransportAction#messageReceived}
  *     </li>
  *     </ul>

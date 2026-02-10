@@ -165,6 +165,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
+                    originalIndices.indices(),
+                    originalIndices.indicesOptions(),
                     esqlExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
@@ -220,7 +222,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     return r.completionInfo();
                                 }), DataNodeComputeResponse::new, esqlExecutor)
                             );
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            final var remoteSink = exchangeService.newRemoteSink(
+                                groupTask,
+                                childSessionId,
+                                transportService,
+                                connection,
+                                originalIndices.indices(),
+                                originalIndices.indicesOptions()
+                            );
                             exchangeSource.addRemoteSink(
                                 remoteSink,
                                 configuration.allowPartialResults() == false,

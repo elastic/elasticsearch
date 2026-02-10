@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.connector.base;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.connector.Connector;
 import org.elasticsearch.xpack.esql.connector.ConnectorCapabilities;
@@ -76,6 +78,8 @@ import java.util.OptionalLong;
  */
 public abstract class DataLakeConnector implements Connector {
 
+    private final Logger logger = LogManager.getLogger(getClass());
+
     @Override
     public ConnectorCapabilities capabilities() {
         return ConnectorCapabilities.forDistributed();
@@ -97,12 +101,15 @@ public abstract class DataLakeConnector implements Connector {
         StorageProvider storage = getStorageProvider();
         FormatReader format = getFormatReader();
 
+        logger.debug("Resolving [{}] via [{}] storage + [{}] format", expression, storage.type(), format.format());
         List<StorageObject> objects = storage.listObjects(expression);
         if (objects.isEmpty()) {
             throw new IllegalArgumentException("No files found matching: " + expression);
         }
+        logger.debug("Found [{}] files matching [{}]", objects.size(), expression);
 
         List<Attribute> schema = format.inferSchema(storage, objects.get(0));
+        logger.debug("Inferred schema with [{}] columns from [{}]", schema.size(), objects.get(0).path());
         return createPlan(source.describe(), schema, expression, null, null);
     }
 
@@ -262,11 +269,19 @@ public abstract class DataLakeConnector implements Connector {
         List<FileTask> tasks = getFileTasks(dataLakePlan);
 
         if (tasks.isEmpty()) {
+            logger.debug("No file tasks for [{}], returning empty partitions", dataLakePlan.location());
             return List.of();
         }
 
         // Partition tasks based on target parallelism
         List<List<FileTask>> groups = partitionTasks(tasks, hints.targetPartitions());
+        logger.debug(
+            "Partitioned [{}] file tasks into [{}] groups (target parallelism [{}]) for [{}]",
+            tasks.size(),
+            groups.size(),
+            hints.targetPartitions(),
+            dataLakePlan.location()
+        );
 
         return groups.stream().map(taskGroup -> createPartition(dataLakePlan, taskGroup)).toList();
     }
@@ -393,7 +408,15 @@ public abstract class DataLakeConnector implements Connector {
      * @return Translation result indicating success/partial/failure
      */
     protected FilterTranslation translateFilter(Expression filter) {
-        return getFormatReader().translateFilter(filter);
+        FilterTranslation result = getFormatReader().translateFilter(filter);
+        if (result.isFullyTranslated()) {
+            logger.trace("Filter fully translated for [{}] format", getFormatReader().format());
+        } else if (result.isPartiallyTranslated()) {
+            logger.trace("Filter partially translated for [{}] format, remainder: [{}]", getFormatReader().format(), result.remainder());
+        } else {
+            logger.trace("Filter not translatable for [{}] format", getFormatReader().format());
+        }
+        return result;
     }
 
     // =========================================================================

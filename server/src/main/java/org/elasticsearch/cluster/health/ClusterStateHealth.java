@@ -40,6 +40,7 @@ public final class ClusterStateHealth implements Writeable {
     private final double activeShardsPercent;
     private final ClusterHealthStatus status;
     private final Map<String, ClusterIndexHealth> indices;
+    private final IndexCountLevel indexCountLevel;
 
     /**
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and all indices in the cluster.
@@ -47,14 +48,18 @@ public final class ClusterStateHealth implements Writeable {
      * @param clusterState The current cluster state. Must not be null.
      * @param concreteAllIndices An array of index names to consider. Must not be null but may be empty.
      * @param projectId The project id that should be used to access project-specific data from the cluster state. Must not be null.
+     * @param indexCountLevel a categorized level indicating the number of customer indices and its potential impact on cluster stability
      */
-    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteAllIndices, final ProjectId projectId) {
+    public ClusterStateHealth(
+        final ClusterState clusterState, final String[] concreteAllIndices,
+        final ProjectId projectId, final IndexCountLevel indexCountLevel) {
         this(
             clusterState.metadata().getProject(projectId),
             clusterState.routingTable(projectId),
             clusterState.nodes(),
             clusterState.blocks(),
-            concreteAllIndices
+            concreteAllIndices,
+            indexCountLevel
         );
     }
 
@@ -68,7 +73,8 @@ public final class ClusterStateHealth implements Writeable {
         final RoutingTable routingTable,
         final DiscoveryNodes nodes,
         final ClusterBlocks blocks,
-        final String[] concreteIndices
+        final String[] concreteIndices,
+        final IndexCountLevel indexCountLevel
     ) {
         numberOfNodes = nodes.getSize();
         numberOfDataNodes = nodes.getDataNodes().size();
@@ -121,6 +127,7 @@ public final class ClusterStateHealth implements Writeable {
         this.initializingShards = computeInitializingShards;
         this.unassignedShards = computeUnassignedShards;
         this.unassignedPrimaryShards = computeUnassignedPrimaryShards;
+        this.indexCountLevel = indexCountLevel;
 
         // shortcut on green
         if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
@@ -142,6 +149,7 @@ public final class ClusterStateHealth implements Writeable {
         indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
         unassignedPrimaryShards = in.readVInt();
+        indexCountLevel = in.readEnum(IndexCountLevel.class);
     }
 
     /**
@@ -158,7 +166,8 @@ public final class ClusterStateHealth implements Writeable {
         int numberOfDataNodes,
         double activeShardsPercent,
         ClusterHealthStatus status,
-        Map<String, ClusterIndexHealth> indices
+        Map<String, ClusterIndexHealth> indices,
+        IndexCountLevel indexCountLevel
     ) {
         this.activePrimaryShards = activePrimaryShards;
         this.activeShards = activeShards;
@@ -171,6 +180,7 @@ public final class ClusterStateHealth implements Writeable {
         this.activeShardsPercent = activeShardsPercent;
         this.status = status;
         this.indices = indices;
+        this.indexCountLevel = indexCountLevel;
     }
 
     public int getActiveShards() {
@@ -217,6 +227,10 @@ public final class ClusterStateHealth implements Writeable {
         return activeShardsPercent;
     }
 
+    public IndexCountLevel getIndexCountLevel() {
+        return indexCountLevel;
+    }
+
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(activePrimaryShards);
@@ -230,6 +244,7 @@ public final class ClusterStateHealth implements Writeable {
         out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
         out.writeVInt(unassignedPrimaryShards);
+        out.writeEnum(indexCountLevel);
     }
 
     @Override
@@ -257,6 +272,8 @@ public final class ClusterStateHealth implements Writeable {
             + status
             + ", indices.size="
             + (indices == null ? "null" : indices.size())
+            + ", indexCountLevel="
+            + indexCountLevel.name()
             + '}';
     }
 
@@ -275,7 +292,8 @@ public final class ClusterStateHealth implements Writeable {
             && unassignedPrimaryShards == that.unassignedPrimaryShards
             && Double.compare(that.activeShardsPercent, activeShardsPercent) == 0
             && status == that.status
-            && Objects.equals(indices, that.indices);
+            && Objects.equals(indices, that.indices)
+            && indexCountLevel == that.indexCountLevel;
     }
 
     @Override
@@ -291,7 +309,8 @@ public final class ClusterStateHealth implements Writeable {
             unassignedPrimaryShards,
             activeShardsPercent,
             status,
-            indices
+            indices,
+            indexCountLevel
         );
     }
 }

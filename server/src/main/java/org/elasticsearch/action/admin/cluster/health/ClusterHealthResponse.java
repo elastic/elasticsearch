@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.health.IndexCountLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +50,7 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
     static final String UNASSIGNED_SHARDS = "unassigned_shards";
     static final String UNASSIGNED_PRIMARY_SHARDS = "unassigned_primary_shards";
     static final String INDICES = "indices";
+    static final String INDEX_COUNT_LEVEL = "index_count_level";
 
     private String clusterName;
     private int numberOfPendingTasks = 0;
@@ -82,7 +84,8 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
             -1,
             -1,
             -1,
-            TimeValue.timeValueHours(0)
+            TimeValue.timeValueHours(0),
+            IndexCountLevel.PASS
         );
     }
 
@@ -94,14 +97,15 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         int delayedUnassignedShards,
-        TimeValue taskMaxWaitingTime
+        TimeValue taskMaxWaitingTime,
+        IndexCountLevel indexCountLevel
     ) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
         this.delayedUnassignedShards = delayedUnassignedShards;
         this.taskMaxWaitingTime = taskMaxWaitingTime;
-        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, projectId);
+        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, projectId, indexCountLevel);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 
@@ -231,6 +235,13 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         return clusterStateHealth.getActiveShardsPercent();
     }
 
+    /**
+     * @return The number of user indices
+     */
+    public IndexCountLevel getIndexCountLevel() {
+        return clusterStateHealth.getIndexCountLevel();
+    }
+
     public static ClusterHealthResponse readResponseFrom(StreamInput in) throws IOException {
         return new ClusterHealthResponse(in);
     }
@@ -275,6 +286,7 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         builder.field(NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
         builder.humanReadableField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
         builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
+        builder.field(INDEX_COUNT_LEVEL, getIndexCountLevel());
 
         ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.CLUSTER);
         boolean outputIndices = level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS;

@@ -7,15 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.cluster.health;
+package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
-
-public enum IndexLimitTier implements ToXContentFragment {
+public enum IndexCountLevel {
 
     PASS(""),
     NUDGE(
@@ -37,7 +31,7 @@ public enum IndexLimitTier implements ToXContentFragment {
 
     private final String message;
 
-    IndexLimitTier(String message) {
+    IndexCountLevel(String message) {
         this.message = message;
     }
 
@@ -45,7 +39,7 @@ public enum IndexLimitTier implements ToXContentFragment {
         return this.message;
     }
 
-    public static IndexLimitTier parse(int totalUserIndices, int nudge, int warn, int critical, int block) {
+    public static IndexCountLevel parse(int totalUserIndices, int nudge, int warn, int critical, int block) {
         if (totalUserIndices < nudge) {
             return PASS;
         } else if (totalUserIndices < warn) {
@@ -58,13 +52,4 @@ public enum IndexLimitTier implements ToXContentFragment {
             return BLOCK;
         }
     }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        // Developed in collaboration with the Kibana team. Compact i8n friendly message mapped to descriptive text by Kibana.
-        builder.field(INDEX_COUNT_LEVEL, this.name());
-        return builder;
-    }
-
-    static final String INDEX_COUNT_LEVEL = "index_count_level";
 }

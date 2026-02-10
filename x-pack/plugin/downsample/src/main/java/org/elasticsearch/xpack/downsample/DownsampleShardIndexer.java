@@ -36,6 +36,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -98,6 +99,7 @@ class DownsampleShardIndexer {
     private final DocValueFormat timestampFormat;
     private final Rounding.Prepared rounding;
     private final List<AbstractFieldDownsampler<?>> fieldDownsamplers;
+    private final TimestampValueFetcher timestampValueFetcher;
     private final DownsampleShardTask task;
     private final DownsampleShardPersistentTaskState state;
     private final String[] dimensions;
@@ -156,6 +158,7 @@ class DownsampleShardIndexer {
                 )
             );
             downsamplers.addAll(DimensionFieldDownsampler.create(searchExecutionContext, dimensions, multiFieldSources));
+            this.timestampValueFetcher = new TimestampValueFetcher(timestampField, searchExecutionContext);
             this.fieldDownsamplers = Collections.unmodifiableList(downsamplers);
             toClose = null;
         } finally {
@@ -405,6 +408,7 @@ class DownsampleShardIndexer {
             for (int i = 0; i < tDigestHistogramDownsamplers.length; i++) {
                 tDigestHistogramValues[i] = tDigestHistogramDownsamplers[i].getLeaf(ctx);
             }
+            var timestampValues = timestampValueFetcher.getLeaf(ctx);
 
             return new LeafDownsampleCollector(
                 aggCtx,
@@ -412,7 +416,8 @@ class DownsampleShardIndexer {
                 numericValues,
                 formattedDocValues,
                 exponentialHistogramValues,
-                tDigestHistogramValues
+                tDigestHistogramValues,
+                timestampValues
             );
         }
 
@@ -430,6 +435,7 @@ class DownsampleShardIndexer {
             final FormattedDocValues[] formattedDocValues;
             final ExponentialHistogramValuesReader[] exponentialHistogramValues;
             final HistogramValues[] tDigestHistogramValues;
+            final SortedNumericLongValues timestampValues;
 
             final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
@@ -440,7 +446,8 @@ class DownsampleShardIndexer {
                 SortedNumericDoubleValues[] numericValues,
                 FormattedDocValues[] formattedDocValues,
                 ExponentialHistogramValuesReader[] exponentialHistogramValues,
-                HistogramValues[] tDigestHistogramValues
+                HistogramValues[] tDigestHistogramValues,
+                SortedNumericLongValues timestampValues
             ) {
                 this.aggCtx = aggCtx;
                 this.docCountProvider = docCountProvider;
@@ -448,6 +455,7 @@ class DownsampleShardIndexer {
                 this.formattedDocValues = formattedDocValues;
                 this.exponentialHistogramValues = exponentialHistogramValues;
                 this.tDigestHistogramValues = tDigestHistogramValues;
+                this.timestampValues = timestampValues;
             }
 
             @Override

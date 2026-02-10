@@ -63,6 +63,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 aggregatorMode,
                 aggregators,
                 () -> {
+                    // Use TimeSeriesBlockHash for groups over the [tsid, timestamp] pair, to reduce the group overhead.
                     if (groups.size() == 2) {
                         var g1 = groups.get(0);
                         var g2 = groups.get(1);
@@ -72,6 +73,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                             return new TimeSeriesBlockHash(g2.channel(), g1.channel(), driverContext.blockFactory());
                         }
                     }
+                    // Broken optimizations are allowed as the inputs are vectors.
                     return BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, true);
                 },
                 driverContext

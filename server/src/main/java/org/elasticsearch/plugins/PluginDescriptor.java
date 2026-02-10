@@ -48,9 +48,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * Deployment target describing when to load a plugin (stateful, stateless, or both).
      */
     public enum DeploymentTarget {
-        /** Only load plugin when stateless mode is disabled */
+        /** Only load plugin on stateful deployments (stateless mode disabled) */
         STATEFUL_ONLY,
-        /** Only load plugin when stateless mode is enabled */
+        /** Only load plugin on stateless deployments (stateless mode enabled) */
         STATELESS_ONLY,
         /** Always load plugin (default) */
         ALWAYS

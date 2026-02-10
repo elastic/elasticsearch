@@ -4676,6 +4676,111 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Test that ST_CENTROID_AGG on geo_shape uses centroid extraction from doc-values when available.
+     * This is similar to bounds extraction for ST_EXTENT_AGG but extracts centroid data instead.
+     */
+    public void testSpatialTypesAndStatsCentroidOfGeoShapeUsesCentroidExtraction() {
+        var query = "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary)";
+        for (boolean useDocValues : new Boolean[] { true, false }) {
+            var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+            var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregation does not use centroid extraction
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAgg = as(fragment.fragment(), Aggregate.class);
+            as(partialAgg.child(), EsRelation.class);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation uses centroid extraction if doc-values are available
+            var fieldExtractPreference = useDocValues ? FieldExtractPreference.EXTRACT_SPATIAL_CENTROID : FieldExtractPreference.NONE;
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, fieldExtractPreference);
+            assertChildIsExtractedAs(agg, fieldExtractPreference, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * This test verifies that the aggregation does not use spatial centroid extraction when the shape appears in an eval or filter.
+     */
+    public void testSpatialTypesAndStatsCentroidOfShapesNegativeCases() {
+        for (String query : new String[] { """
+            FROM airports_city_boundaries
+            | EVAL prefix = SUBSTRING(TO_STRING(city_boundary), 5)
+            | STATS centroid = ST_CENTROID_AGG(city_boundary) BY prefix""", """
+            FROM airports_city_boundaries
+            | WHERE STARTS_WITH(TO_STRING(city_boundary), "MULTIPOLYGON")
+            | STATS centroid = ST_CENTROID_AGG(city_boundary)""" }) {
+            var testData = airportsCityBoundaries;
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // Because the shape was used in EVAL/WHERE we cannot use doc-values centroid extraction optimization
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
+            assertChildIsExtractedAs(exec, FieldExtractPreference.NONE, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * Test cartesian_shape centroid extraction occurs when the shape has doc-values and not otherwise.
+     */
+    public void testSpatialTypesAndStatsCentroidOfCartesianShapesWithAndWithoutDocValues() {
+        for (boolean hasDocValues : new boolean[] { true, false }) {
+            var query = "FROM cartesian_multipolygons | STATS centroid = ST_CENTROID_AGG(shape)";
+            var testData = cartesianMultipolygons;
+            var fieldExtractPreference = FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
+            if (hasDocValues == false) {
+                query = "FROM cartesian_multipolygons_no_doc_values | STATS centroid = ST_CENTROID_AGG(shape)";
+                testData = cartesianMultipolygonsNoDocValues;
+                fieldExtractPreference = FieldExtractPreference.NONE;
+            }
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // We extract centroid from doc-values into a special double[] which the aggregation needs to know about.
+            assertAggregation(
+                agg,
+                "centroid",
+                "hasDocValues:" + hasDocValues,
+                SpatialCentroid.class,
+                CARTESIAN_SHAPE,
+                fieldExtractPreference
+            );
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
+            // For cartesian_shape, the centroid extraction is done in the FieldExtractExec
+            assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
+        }
+    }
+
+    /**
      * This tests all four combinations of geo_point and geo_shape with and without doc-values.
      * Since each will be extracted differently (points as encoded longs, and shapes as int[5] bounds representing Extents),
      * we want to verify that the combinations do not clash and work together.
@@ -9143,14 +9248,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             case NONE -> {
                 assertThat("Extracting without doc-values", extract.docValuesAttributes(), is(empty()));
                 assertThat("Extracting without doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting without doc-values", extract.centroidAttributes(), is(empty()));
             }
             case DOC_VALUES -> {
                 assertThat("Extracting from doc-values", extract.docValuesAttributes(), is(not(empty())));
                 assertThat("Extracting from doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting from doc-values", extract.centroidAttributes(), is(empty()));
             }
             case EXTRACT_SPATIAL_BOUNDS -> {
                 assertThat("Extracting spatial bounds from doc-values", extract.docValuesAttributes(), is(empty()));
                 assertThat("Extracting spatial bounds from doc-values", extract.boundsAttributes(), is(not(empty())));
+                assertThat("Extracting spatial bounds from doc-values", extract.centroidAttributes(), is(empty()));
+            }
+            case EXTRACT_SPATIAL_CENTROID -> {
+                assertThat("Extracting spatial centroid from doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting spatial centroid from doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting spatial centroid from doc-values", extract.centroidAttributes(), is(not(empty())));
             }
         }
         assertTrue(

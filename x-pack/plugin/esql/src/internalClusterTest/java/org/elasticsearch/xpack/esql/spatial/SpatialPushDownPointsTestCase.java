@@ -9,12 +9,8 @@ package org.elasticsearch.xpack.esql.spatial;
 
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
-import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -23,7 +19,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -258,49 +253,4 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
         }
     }
 
-    private Matcher<CentroidCalculator> matchesCentroid(Object result) throws IOException, ParseException {
-        Point point = (Point) WellKnownText.fromWKT(GeometryValidator.NOOP, false, result.toString());
-        return matchesCentroid(point);
-    }
-
-    private Matcher<CentroidCalculator> matchesCentroid(Point point) {
-        return new TestCentroidMatcher(point.getX(), point.getY());
-    }
-
-    private static class TestCentroidMatcher extends TypeSafeMatcher<CentroidCalculator> {
-        private final Matcher<Double> xMatcher;
-        private final Matcher<Double> yMatcher;
-
-        private TestCentroidMatcher(double x, double y) {
-            this.xMatcher = matchDouble(x);
-            this.yMatcher = matchDouble(y);
-        }
-
-        private Matcher<Double> matchDouble(double value) {
-            return closeTo(value, 0.0000001);
-        }
-
-        @Override
-        public boolean matchesSafely(CentroidCalculator actualCentroid) {
-            return xMatcher.matches(actualCentroid.getX()) && yMatcher.matches(actualCentroid.getY());
-        }
-
-        @Override
-        public void describeMismatchSafely(CentroidCalculator actualCentroid, Description description) {
-            describeSubMismatch(xMatcher, actualCentroid.getX(), "X value", description);
-            describeSubMismatch(yMatcher, actualCentroid.getY(), "Y value", description);
-        }
-
-        private void describeSubMismatch(Matcher<Double> matcher, double value, String name, Description description) {
-            if (matcher.matches(value) == false) {
-                description.appendText("\n\t" + name + " ");
-                matcher.describeMismatch(value, description);
-            }
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("Centroid (x:" + xMatcher.toString() + ", y:" + yMatcher + ")");
-        }
-    }
 }

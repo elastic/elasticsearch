@@ -145,6 +145,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             String typeName = switch (type) {
                                 case D1Q4 -> "d1q4";
                                 case D2Q4 -> "d2q4";
+                                case D4Q4 -> "d4q4";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
@@ -370,13 +371,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
 
-        /**
-         * Computes the dot product of a given int4 vector with a give bit vector (1 bit per element).
-         *
-         * @param a      address of the bit vector
-         * @param query  address of the int4 vector
-         * @param length the vector dimensions
-         */
         static long dotProductD1Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
@@ -387,17 +381,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE)
         );
 
-        /**
-         * Computes the dot product of a given int4 vector with a give int2 vector (2 bits per element).
-         *
-         * @param a      address of the int2 vector
-         * @param query  address of the int4 vector
-         * @param length the vector dimensions
-         */
         static long dotProductD2Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 2, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return callSingleDistanceLong(dotD2Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD4Q4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.SINGLE)
+        );
+
+        static long dotProductD4Q4(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0, length, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceLong(dotD4Q4Handle, a, query, length);
         }
 
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
@@ -544,7 +541,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             checkMethod += "F32";
                                             break;
                                     }
-
                                     yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod, type);
                                 }
                                 case BBQType bbq -> {

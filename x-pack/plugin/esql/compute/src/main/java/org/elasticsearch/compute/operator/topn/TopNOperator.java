@@ -122,6 +122,7 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public int compareTo(Row rhs) {
+            // TODO if we fill the trailing bytes with 0 we could do a comparison on the bytes which is faster
             return -keys.bytesRefView().compareTo(rhs.keys.bytesRefView());
         }
 
@@ -143,13 +144,19 @@ public class TopNOperator implements Operator, Accountable {
         private final ValueExtractor[] valueExtractors;
         private final KeyExtractor[] keyExtractors;
 
-        RowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<SortOrder> sortOrders, Page page) {
+        RowFiller(
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders,
+            List<SortOrder> sortOrders,
+            boolean[] channelInKey,
+            Page page
+        ) {
             valueExtractors = new ValueExtractor[page.getBlockCount()];
             for (int b = 0; b < valueExtractors.length; b++) {
                 valueExtractors[b] = ValueExtractor.extractorFor(
                     elementTypes.get(b),
                     encoders.get(b).toUnsortable(),
-                    channelInKey(sortOrders, b),
+                    channelInKey[b],
                     page.getBlock(b)
                 );
             }
@@ -256,6 +263,7 @@ public class TopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
+    private final boolean[] channelInKey;
 
     private Queue inputQueue;
     private Row spare;
@@ -307,6 +315,10 @@ public class TopNOperator implements Operator, Accountable {
         this.sortOrders = sortOrders;
         this.inputQueue = Queue.build(breaker, topCount);
         this.inputOrdering = inputOrdering;
+        this.channelInKey = new boolean[elementTypes.size()];
+        for (SortOrder so : sortOrders) {
+            channelInKey[so.channel] = true;
+        }
     }
 
     @Override
@@ -331,7 +343,7 @@ public class TopNOperator implements Operator, Accountable {
             if (inputQueue.topCount <= 0) {
                 return;
             }
-            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
@@ -389,18 +401,6 @@ public class TopNOperator implements Operator, Accountable {
             output = buildResult();
             emitNanos += System.nanoTime() - start;
         }
-    }
-
-    /**
-     * Is this channel in a key?
-     */
-    private static boolean channelInKey(List<SortOrder> sortOrders, int channel) {
-        for (SortOrder so : sortOrders) {
-            if (so.channel == channel) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override
@@ -620,7 +620,7 @@ public class TopNOperator implements Operator, Accountable {
                         blockFactory,
                         elementTypes.get(b),
                         encoders.get(b),
-                        channelInKey(sortOrders, b),
+                        channelInKey[b],
                         size
                     );
                 }

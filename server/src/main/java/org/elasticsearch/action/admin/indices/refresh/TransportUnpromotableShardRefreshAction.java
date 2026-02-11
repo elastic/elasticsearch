@@ -19,9 +19,11 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -32,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
@@ -111,8 +114,9 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         }
 
         var clusterStateObserver = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
+        var index = request.shardId().getIndex();
 
-        if (isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterStateObserver.setAndGetObservedState()) == false) {
+        if (isIndexBlockedForRefresh(index, clusterStateObserver.setAndGetObservedState()) == false) {
             listener.onResponse(null);
             return;
         }
@@ -133,15 +137,19 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
                 listener.onFailure(
                     new ElasticsearchTimeoutException(
                         "shard refresh timed out waiting for index block to be removed",
-                        new ClusterBlockException(Map.of(request.shardId().getIndexName(), Set.of(INDEX_REFRESH_BLOCK)))
+                        new ClusterBlockException(Map.of(index.getName(), Set.of(INDEX_REFRESH_BLOCK)))
                     )
                 );
             }
-        }, clusterState -> isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterState) == false);
+        }, clusterState -> isIndexBlockedForRefresh(index, clusterState) == false);
     }
 
-    private static boolean isIndexBlockedForRefresh(String index, ClusterState state) {
-        return state.blocks().hasIndexBlock(index, INDEX_REFRESH_BLOCK);
+    private static boolean isIndexBlockedForRefresh(Index index, ClusterState state) {
+        Optional<ProjectMetadata> project = state.metadata().lookupProject(index);
+        if (project.isEmpty()) {
+            return false;
+        }
+        return state.blocks().hasIndexBlock(project.get().id(), index.getName(), INDEX_REFRESH_BLOCK);
     }
 
     @Override

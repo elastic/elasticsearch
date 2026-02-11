@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -161,11 +164,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
 
         var withRefreshBlock = randomBoolean();
         if (withRefreshBlock) {
-            setState(
-                clusterService,
-                ClusterState.builder(clusterService.state())
-                    .blocks(ClusterBlocks.builder().addIndexBlock(shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK))
-            );
+            setState(clusterService, clusterStateWithRefreshBlock(clusterService.state(), shardId, Metadata.DEFAULT_PROJECT_ID));
         }
 
         final var future = new PlainActionFuture<ActionResponse.Empty>();
@@ -196,6 +195,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
                 ClusterState.builder(clusterService.state())
                     .blocks(
                         ClusterBlocks.builder()
+                            .blocks(clusterService.state().blocks())
                             .removeIndexBlock(Metadata.DEFAULT_PROJECT_ID, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK)
                     )
             );
@@ -231,11 +231,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             }
         };
 
-        setState(
-            clusterService,
-            ClusterState.builder(clusterService.state())
-                .blocks(ClusterBlocks.builder().addIndexBlock(shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK))
-        );
+        setState(clusterService, clusterStateWithRefreshBlock(clusterService.state(), shardId, Metadata.DEFAULT_PROJECT_ID));
 
         final var countDownLatch = new CountDownLatch(1);
         final var request = new UnpromotableShardRefreshRequest(
@@ -260,6 +256,20 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
         }
 
         safeAwait(countDownLatch);
+    }
+
+    private ClusterState clusterStateWithRefreshBlock(ClusterState base, ShardId shardId, ProjectId projectId) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(shardId.getIndexName())
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Metadata metadata = Metadata.builder(base.metadata())
+            .put(ProjectMetadata.builder(projectId).put(indexMetadata, false).build())
+            .build();
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder(base.blocks());
+        blocksBuilder.addIndexBlock(projectId, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+        return ClusterState.builder(base).metadata(metadata).blocks(blocksBuilder.build()).build();
     }
 
     private IndexShardRoutingTable createShardRoutingTableWithPrimaryAndSearchShards(ShardId shardId, boolean withSearchShards) {

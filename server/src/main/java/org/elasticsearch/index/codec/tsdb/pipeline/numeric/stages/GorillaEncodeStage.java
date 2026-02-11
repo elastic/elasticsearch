@@ -192,14 +192,6 @@ public final class GorillaEncodeStage implements PayloadEncoder {
     }
 
     @Override
-    public boolean requiresExplicitClose() {
-        return false;
-    }
-
-    @Override
-    public void close() {}
-
-    @Override
     public String toString() {
         return "GorillaEncodeStage";
     }

@@ -21,9 +21,7 @@ import java.util.stream.LongStream;
 public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
 
     public void testIdAndName() {
-        try (ZstdEncodeStage stage = new ZstdEncodeStage(randomBlockSize(), ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL)) {
-            assertEquals((byte) 0xA2, stage.id());
-        }
+        assertEquals((byte) 0xA2, new ZstdEncodeStage(randomBlockSize(), ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL).id());
     }
 
     public void testRoundTrip() throws IOException {

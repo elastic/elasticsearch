@@ -75,11 +75,6 @@ public final class BitPackCodecStage implements PayloadEncoder, PayloadDecoder {
     }
 
     @Override
-    public boolean requiresExplicitClose() {
-        return false;
-    }
-
-    @Override
     public void close() {}
 
     @Override

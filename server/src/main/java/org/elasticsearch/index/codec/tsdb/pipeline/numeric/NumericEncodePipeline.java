@@ -231,10 +231,6 @@ public final class NumericEncodePipeline implements Closeable {
         return stages.length + 1;
     }
 
-    public boolean requiresExplicitClose() {
-        return payloadStage.requiresExplicitClose();
-    }
-
     @Override
     public void close() throws IOException {
         payloadStage.close();

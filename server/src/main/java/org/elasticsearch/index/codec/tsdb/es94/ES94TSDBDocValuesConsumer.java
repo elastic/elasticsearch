@@ -90,8 +90,6 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private final PipelineResolutionPolicy resolutionPolicy;
     private final NumericCodecFactory numericCodecFactory;
-    // NOTE: Track all encoders created for this segment. Encoders own native resources (e.g., ZstdEncodeStage buffers)
-    // that must be released when the consumer is closed.
     private final List<NumericEncoder> perFieldEncoders = new ArrayList<>();
 
     ES94TSDBDocValuesConsumer(
@@ -158,9 +156,7 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private NumericEncoder newEncoder(final PipelineConfig pipelineConfig) {
         final NumericEncoder encoder = numericCodecFactory.createEncoder(pipelineConfig);
-        if (encoder.requiresExplicitClose()) {
-            perFieldEncoders.add(encoder);
-        }
+        perFieldEncoders.add(encoder);
         return encoder;
     }
 

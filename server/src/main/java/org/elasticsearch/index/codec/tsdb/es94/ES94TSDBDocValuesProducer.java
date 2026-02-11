@@ -90,12 +90,6 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
     // IMPORTANT TODO: Native buffers (ZstdDecodeStage srcBuffer/destBuffer) are allocated when the
     // decoder is created and only released when this producer is closed, which happens when the segment
     // reader is closed. A segment reader can stay open for the entire shard lifetime (large segments may
-    // never merge), so native memory accumulates per Zstd-encoded field and is held indefinitely. The
-    // JVM GC has no visibility into off-heap allocations, so there is no back-pressure to reclaim them.
-    // Fix: use thread-local native arenas (see DiskIoBufferPool for the pattern) so each search thread
-    // owns a reusable buffer pair. Memory is bounded by thread pool size, no Lucene/ES bridging needed.
-    // SearchContext.addReleasable() and ReaderContext.addOnClose() are alternatives but require bridging
-    // from the Lucene codec layer to the ES search layer.
     private final List<NumericDecoder> perFieldDecoders = new ArrayList<>();
 
     ES94TSDBDocValuesProducer(
@@ -240,9 +234,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 .descriptor();
             decoder = numericCodecFactory.createDecoder(defaultDescriptor);
         }
-        if (decoder.requiresExplicitClose()) {
-            perFieldDecoders.add(decoder);
-        }
+        perFieldDecoders.add(decoder);
         return decoder.newBlockDecoder();
     }
 

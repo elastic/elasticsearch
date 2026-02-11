@@ -48,10 +48,6 @@ public final class NumericEncoder implements Closeable {
         return pipeline.blockSize();
     }
 
-    public boolean requiresExplicitClose() {
-        return pipeline.requiresExplicitClose();
-    }
-
     @Override
     public void close() throws IOException {
         pipeline.close();

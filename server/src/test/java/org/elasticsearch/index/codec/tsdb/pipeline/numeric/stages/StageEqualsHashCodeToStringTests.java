@@ -154,9 +154,7 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
     }
 
     public void testZstdEncodeStageToString() {
-        final var stage = new ZstdEncodeStage(128, 1);
-        assertEquals("ZstdEncodeStage{compressionLevel=1, blockSize=128}", stage.toString());
-        stage.close();
+        assertEquals("ZstdEncodeStage{compressionLevel=1, blockSize=128}", new ZstdEncodeStage(128, 1).toString());
     }
 
     public void testZstdDecodeStageEqualsHashCode() {
@@ -164,15 +162,10 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
         final var b = new ZstdDecodeStage(128);
         final var c = new ZstdDecodeStage(256);
         assertEqualsContract(a, b, c);
-        a.close();
-        b.close();
-        c.close();
     }
 
     public void testZstdDecodeStageToString() {
-        final var stage = new ZstdDecodeStage(128);
-        assertEquals("ZstdDecodeStage{blockSize=128}", stage.toString());
-        stage.close();
+        assertEquals("ZstdDecodeStage{blockSize=128}", new ZstdDecodeStage(128).toString());
     }
 
     public void testAlpDoubleTransformEncodeStageEqualsHashCode() {

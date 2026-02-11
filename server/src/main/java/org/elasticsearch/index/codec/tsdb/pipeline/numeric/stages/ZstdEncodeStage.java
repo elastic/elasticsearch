@@ -13,42 +13,21 @@ import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 
 public final class ZstdEncodeStage implements PayloadEncoder {
 
     public static final int DEFAULT_COMPRESSION_LEVEL = 1;
-    private static final int MAX_COPY_BUFFER_SIZE = 4096;
 
     private final int compressionLevel;
     private final int blockSize;
-    private final CloseableByteBuffer srcBuffer;
-    private final CloseableByteBuffer destBuffer;
-    private final byte[] copyBuffer;
-    private final Zstd zstd;
 
     public ZstdEncodeStage(int blockSize, int compressionLevel) {
         this.blockSize = blockSize;
         this.compressionLevel = compressionLevel;
-        final int maxUncompressedSize = blockSize * Long.BYTES;
-
-        final NativeAccess nativeAccess = NativeAccess.instance();
-        this.zstd = nativeAccess.getZstd();
-        final int compressBound = zstd.compressBound(maxUncompressedSize);
-
-        this.srcBuffer = nativeAccess.newConfinedBuffer(compressBound);
-        this.destBuffer = nativeAccess.newConfinedBuffer(compressBound);
-        this.copyBuffer = new byte[Math.min(MAX_COPY_BUFFER_SIZE, compressBound)];
-
-        this.srcBuffer.buffer().order(ByteOrder.LITTLE_ENDIAN);
-        this.destBuffer.buffer().order(ByteOrder.LITTLE_ENDIAN);
     }
 
     @Override
@@ -75,40 +54,24 @@ public final class ZstdEncodeStage implements PayloadEncoder {
             valueCount = blockSize;
         }
 
-        final int uncompressedSize = valueCount * Long.BYTES;
-        srcBuffer.buffer().clear();
-        destBuffer.buffer().clear();
+        final ZstdBuffers buffers = ZstdBuffers.get();
+        buffers.src.buffer().clear();
+        buffers.dest.buffer().clear();
 
         for (int i = 0; i < valueCount; i++) {
-            srcBuffer.buffer().putLong(values[i]);
+            buffers.src.buffer().putLong(values[i]);
         }
-        srcBuffer.buffer().flip();
+        buffers.src.buffer().flip();
 
-        final int compressedLen = zstd.compress(destBuffer, srcBuffer, compressionLevel);
+        final int compressedLen = buffers.zstd.compress(buffers.dest, buffers.src, compressionLevel);
 
         out.writeVInt(compressedLen);
         for (int written = 0; written < compressedLen;) {
-            final int numBytes = Math.min(copyBuffer.length, compressedLen - written);
-            destBuffer.buffer().get(copyBuffer, 0, numBytes);
-            out.writeBytes(copyBuffer, 0, numBytes);
+            final int numBytes = Math.min(buffers.copyBuffer.length, compressedLen - written);
+            buffers.dest.buffer().get(buffers.copyBuffer, 0, numBytes);
+            out.writeBytes(buffers.copyBuffer, 0, numBytes);
             written += numBytes;
         }
-    }
-
-    // NOTE: srcBuffer and destBuffer are native (off-heap) allocations via
-    // NativeAccess. The JVM GC does not track or reclaim native memory, so
-    // failing to close these buffers leaks memory outside the Java heap.
-    // requiresExplicitClose() signals the pipeline to call close() when the
-    // stage is no longer needed, rather than relying on GC finalization.
-    @Override
-    public boolean requiresExplicitClose() {
-        return true;
-    }
-
-    @Override
-    public void close() {
-        srcBuffer.close();
-        destBuffer.close();
     }
 
     @Override

@@ -50,10 +50,5 @@ public final class TestPayloadCodecStage implements PayloadEncoder, PayloadDecod
     }
 
     @Override
-    public boolean requiresExplicitClose() {
-        return false;
-    }
-
-    @Override
     public void close() {}
 }

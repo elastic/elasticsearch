@@ -17,7 +17,6 @@ import java.io.IOException;
 
 /**
  * Serializes values to bytes as the terminal stage of the encode pipeline.
- * Extends Closeable for stages that hold native resources (e.g., Zstd buffers).
  */
 public interface PayloadEncoder extends Closeable {
 
@@ -26,11 +25,6 @@ public interface PayloadEncoder extends Closeable {
 
     /** Serializes values to the output stream. */
     void encode(long[] values, int valueCount, DataOutput out, EncodingContext context) throws IOException;
-
-    /** Whether this stage holds resources that require explicit close. */
-    default boolean requiresExplicitClose() {
-        return false;
-    }
 
     @Override
     default void close() throws IOException {}

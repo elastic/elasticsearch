@@ -13,38 +13,16 @@ import org.apache.lucene.store.DataInput;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.Zstd;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 
 public final class ZstdDecodeStage implements PayloadDecoder {
 
-    private static final int MAX_COPY_BUFFER_SIZE = 4096;
-
     private final int blockSize;
-    private final CloseableByteBuffer srcBuffer;
-    private final CloseableByteBuffer destBuffer;
-    private final byte[] copyBuffer;
-    private final Zstd zstd;
 
     public ZstdDecodeStage(int blockSize) {
         this.blockSize = blockSize;
-        final int maxUncompressedSize = blockSize * Long.BYTES;
-
-        final NativeAccess nativeAccess = NativeAccess.instance();
-        this.zstd = nativeAccess.getZstd();
-        final int compressBound = zstd.compressBound(maxUncompressedSize);
-
-        this.srcBuffer = nativeAccess.newConfinedBuffer(compressBound);
-        this.destBuffer = nativeAccess.newConfinedBuffer(compressBound);
-        this.copyBuffer = new byte[Math.min(MAX_COPY_BUFFER_SIZE, compressBound)];
-
-        this.srcBuffer.buffer().order(ByteOrder.LITTLE_ENDIAN);
-        this.destBuffer.buffer().order(ByteOrder.LITTLE_ENDIAN);
     }
 
     @Override
@@ -54,7 +32,7 @@ public final class ZstdDecodeStage implements PayloadDecoder {
 
     // NOTE: Payload layout: [compressedLen: VInt] [compressed bytes].
     // Decompresses into a native buffer and reads little-endian longs.
-    // Expected decompressed size is blockSize × 8 bytes.
+    // Expected decompressed size is blockSize x 8 bytes.
     @Override
     public int decode(final long[] values, final DataInput in, final DecodingContext context) throws IOException {
         final int uncompressedSize = context.blockSize() * Long.BYTES;
@@ -69,44 +47,29 @@ public final class ZstdDecodeStage implements PayloadDecoder {
             throw new IllegalArgumentException("blockSize " + context.blockSize() + " exceeds stage block size " + blockSize);
         }
 
-        srcBuffer.buffer().clear();
-        destBuffer.buffer().clear();
+        final ZstdBuffers buffers = ZstdBuffers.get();
+        buffers.src.buffer().clear();
+        buffers.dest.buffer().clear();
 
         for (int read = 0; read < compressedLen;) {
-            final int numBytes = Math.min(copyBuffer.length, compressedLen - read);
-            in.readBytes(copyBuffer, 0, numBytes);
-            srcBuffer.buffer().put(copyBuffer, 0, numBytes);
+            final int numBytes = Math.min(buffers.copyBuffer.length, compressedLen - read);
+            in.readBytes(buffers.copyBuffer, 0, numBytes);
+            buffers.src.buffer().put(buffers.copyBuffer, 0, numBytes);
             read += numBytes;
         }
-        srcBuffer.buffer().flip();
+        buffers.src.buffer().flip();
 
-        final int decompressedLen = zstd.decompress(destBuffer, srcBuffer);
+        final int decompressedLen = buffers.zstd.decompress(buffers.dest, buffers.src);
         if (decompressedLen != uncompressedSize) {
             throw new IOException("Expected " + uncompressedSize + " decompressed bytes, got " + decompressedLen);
         }
 
         final int valueCount = uncompressedSize / Long.BYTES;
         for (int i = 0; i < valueCount; i++) {
-            values[i] = destBuffer.buffer().getLong(i * Long.BYTES);
+            values[i] = buffers.dest.buffer().getLong(i * Long.BYTES);
         }
 
         return valueCount;
-    }
-
-    // NOTE: srcBuffer and destBuffer are native (off-heap) allocations via
-    // NativeAccess. The JVM GC does not track or reclaim native memory, so
-    // failing to close these buffers leaks memory outside the Java heap.
-    // requiresExplicitClose() signals the pipeline to call close() when the
-    // stage is no longer needed, rather than relying on GC finalization.
-    @Override
-    public boolean requiresExplicitClose() {
-        return true;
-    }
-
-    @Override
-    public void close() {
-        srcBuffer.close();
-        destBuffer.close();
     }
 
     @Override

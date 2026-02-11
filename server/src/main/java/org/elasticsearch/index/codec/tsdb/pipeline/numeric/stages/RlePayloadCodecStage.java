@@ -88,11 +88,6 @@ public final class RlePayloadCodecStage implements PayloadEncoder, PayloadDecode
     }
 
     @Override
-    public boolean requiresExplicitClose() {
-        return false;
-    }
-
-    @Override
     public void close() {}
 
     @Override

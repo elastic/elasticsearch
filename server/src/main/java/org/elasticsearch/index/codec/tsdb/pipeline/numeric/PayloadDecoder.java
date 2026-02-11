@@ -17,7 +17,6 @@ import java.io.IOException;
 
 /**
  * Deserializes bytes back to values as the terminal stage of the decode pipeline.
- * Extends Closeable for stages that hold native resources (e.g., Zstd buffers).
  */
 public interface PayloadDecoder extends Closeable {
 
@@ -30,11 +29,6 @@ public interface PayloadDecoder extends Closeable {
      * @return the value count
      */
     int decode(long[] values, DataInput in, DecodingContext context) throws IOException;
-
-    /** Whether this stage holds resources that require explicit close. */
-    default boolean requiresExplicitClose() {
-        return false;
-    }
 
     @Override
     default void close() throws IOException {}

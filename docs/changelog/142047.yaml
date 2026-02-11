@@ -1,0 +1,5 @@
+area: Compute Engine
+issues: []
+pr: 142047
+summary: Memory usage & pressure optimizations for HLL++
+type: bug

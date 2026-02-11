@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 /**
- * Represents a location in a storage system. Similar to Trino's Location class.
+ * Represents a location in a storage system.
  * Uses URI-like format: scheme://[userInfo@]host[:port][/path]
  *
  * Unlike java.net.URI, this class:

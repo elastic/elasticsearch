@@ -143,6 +143,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         var right = pruneColumns(ij.right(), used, true);
 
         if (right.outputSet().subtract(ij.references()).isEmpty() || isLocalEmptyRelation(right)) {
+            // ij.references() are the join keys and if the output of the inline join doesn't contain anything else except the join keys,
+            // then the inline join doesn't add any new columns. Since it preserves rows, it doesn't do anything and can be pruned.
             p = pruneRightSideAndProject(ij);
             recheck.set(true);
         }

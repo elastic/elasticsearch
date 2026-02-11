@@ -5458,3 +5458,19 @@ FROM employees
 28035          |1.0            |50576.7        |15.0           |50576.7        
 28336          |null           |null           |null           |null
 ;
+
+removeGroupingByKeepingWhereFalse
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| INLINE STATS x = MAX(salary) WHERE false, c = COUNT(*) BY emp_no
+| KEEP x, c
+| SORT x, c
+| LIMIT 3
+;
+
+x:integer | c:long
+null      | 1
+null      | 1
+null      | 1
+;

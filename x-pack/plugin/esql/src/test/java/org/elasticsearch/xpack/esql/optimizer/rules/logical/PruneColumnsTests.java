@@ -709,7 +709,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var limit = asLimit(project.child(), 1000, false);
         var inlineJoin = as(limit.child(), InlineJoin.class);
 
-        // Left branch: Project with avg, decades, idecades
+        // Left branch: Project with avg, decades
         var leftProject = as(inlineJoin.left(), Project.class);
         assertThat(Expressions.names(leftProject.projections()), is(List.of("avg", "decades")));
         var leftEval = as(leftProject.child(), Eval.class);
@@ -1296,8 +1296,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /*
-     * https://github.com/elastic/elasticsearch/issues/138283
-     *
      * Limit[1000[INTEGER],false,false]
      * \_InlineJoin[LEFT,[],[]]
      *   |_InlineJoin[LEFT,[languages{f}#21],[languages{r}#21]]

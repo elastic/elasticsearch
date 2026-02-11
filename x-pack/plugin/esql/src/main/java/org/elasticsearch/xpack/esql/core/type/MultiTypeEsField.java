@@ -56,7 +56,7 @@ public class MultiTypeEsField extends EsField {
             in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
             readTimeSeriesFieldType(in),
             // FIXME(gal, NOCOMMIT) Does this need to be protected by a version check?
-            in.readNamedWriteable(Expression.class)
+            in.readBoolean() ? in.readNamedWriteable(Expression.class) : null
         );
     }
 
@@ -67,7 +67,12 @@ public class MultiTypeEsField extends EsField {
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);
-        out.writeNamedWriteable(potentiallyUnmappedExpression);
+        if (potentiallyUnmappedExpression == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeNamedWriteable(potentiallyUnmappedExpression);
+        }
     }
 
     public String getWriteableName() {

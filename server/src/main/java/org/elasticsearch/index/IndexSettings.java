@@ -731,8 +731,12 @@ public final class IndexSettings {
                 }
 
                 var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                if (indexVersion.equals(IndexVersions.ZERO) == false
-                    && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) == false) {
+                if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) == false
+                    && indexVersion.equals(IndexVersions.ZERO) == false) {
+                    // We validate settings in different places before a real indexVersion has been assigned or
+                    // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
+                    // and we don't want to fail those validations. At index creation time we _will_ validate with
+                    // the creation version.
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,

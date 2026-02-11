@@ -10,7 +10,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -276,10 +275,6 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_3_0)) {
-            // Before 8.0 the no-jdk distributions could have bundledJdk false, this is always true now.
-            in.readBoolean();
-        }
         usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
@@ -310,9 +305,6 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)) {
-            out.writeBoolean(true);
-        }
         out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);

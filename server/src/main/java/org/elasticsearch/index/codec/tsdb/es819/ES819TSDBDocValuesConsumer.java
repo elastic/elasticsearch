@@ -73,6 +73,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final int minDocsPerOrdinalForOrdinalRangeEncoding;
     final boolean enableOptimizedMerge;
     private final int primarySortFieldNumber;
+    private final int numericBlockShift;
+    private final int numericBlockSize;
     final SegmentWriteState state;
     final BinaryDVCompressionMode binaryDVCompressionMode;
     private final boolean enablePerBlockCompression; // only false for testing
@@ -84,6 +86,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,
+        int numericBlockShift,
         String dataCodec,
         String dataExtension,
         String metaCodec,
@@ -97,6 +100,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
         this.primarySortFieldNumber = ES819TSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.context = state.context;
+        this.numericBlockShift = numericBlockShift;
+        this.numericBlockSize = 1 << numericBlockShift;
+
         boolean success = false;
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
@@ -108,6 +114,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
+
             String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
             meta = state.directory.createOutput(metaName, state.context);
             CodecUtil.writeIndexHeader(
@@ -117,6 +124,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
+            meta.writeByte((byte) numericBlockShift);
+
             maxDoc = state.segmentInfo.maxDoc();
             this.skipIndexIntervalSize = skipIndexIntervalSize;
             this.enableOptimizedMerge = enableOptimizedMerge;
@@ -218,13 +227,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     indexWriter = DirectMonotonicWriter.getInstance(
                         meta,
                         new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
-                        1L + ((numValues - 1) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+                        1L + ((numValues - 1) >>> numericBlockShift),
                         ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
                     );
                     meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
-                    final long[] buffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                    final long[] buffer = new long[numericBlockSize];
                     int bufferSize = 0;
-                    final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                    final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(numericBlockSize);
                     values = valuesProducer.getSortedNumeric(field);
                     final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
                     if (valuesProducer.mergeStats.supported() && numDocsWithValue < maxDoc) {
@@ -240,7 +249,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                         }
                         for (int i = 0; i < count; ++i) {
                             buffer[bufferSize++] = values.nextValue();
-                            if (bufferSize == ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                            if (bufferSize == numericBlockSize) {
                                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
                                 if (maxOrd >= 0) {
                                     encoder.encodeOrdinals(buffer, data, bitsPerOrd);
@@ -254,7 +263,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     if (bufferSize > 0) {
                         indexWriter.add(data.getFilePointer() - valuesDataOffset);
                         // Fill unused slots in the block with zeroes rather than junk
-                        Arrays.fill(buffer, bufferSize, ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
+                        Arrays.fill(buffer, bufferSize, numericBlockSize, 0L);
                         if (maxOrd >= 0) {
                             encoder.encodeOrdinals(buffer, data, bitsPerOrd);
                         } else {

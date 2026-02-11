@@ -7,13 +7,15 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 
@@ -48,10 +50,10 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             listener.onResponse(null);
             return;
         }
-        getClient(currentProject.id()).admin()
-            .cluster()
-            .prepareDeleteSnapshot(TimeValue.MAX_VALUE, repositoryName, snapshotName)
-            .execute(new ActionListener<>() {
+        getClient(currentProject.id()).execute(
+            TransportDeleteSnapshotAction.TYPE,
+            new DeleteSnapshotRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName),
+            new ActionListener<>() {
 
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -84,6 +86,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                         }
                     }
                 }
-            });
+            }
+        );
     }
 }

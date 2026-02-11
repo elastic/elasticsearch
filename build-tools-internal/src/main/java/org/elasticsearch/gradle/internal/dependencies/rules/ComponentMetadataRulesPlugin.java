@@ -194,7 +194,6 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.apache.arrow:arrow-vector", ExcludeAllTransitivesRule.class);
 
         // Apache Commons dependencies
-        components.withModule("org.apache.commons:commons-compress", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.commons:commons-text", ExcludeAllTransitivesRule.class);
 
         // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
@@ -457,9 +456,6 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
 
         // SubEtha SMTP dependencies
         components.withModule("org.subethamail:subethasmtp", ExcludeAllTransitivesRule.class);
-
-        // Testcontainers dependencies
-        components.withModule("org.testcontainers:testcontainers", ExcludeAllTransitivesRule.class);
 
         // AWS SDK dependencies
         components.withModule("software.amazon.awssdk:apache-client", ExcludeAllTransitivesRule.class);

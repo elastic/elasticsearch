@@ -10,8 +10,6 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -49,10 +47,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 public class CommonStats implements Writeable, ToXContentFragment {
-
-    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersions.V_8_5_0;
-    private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersions.V_8_10_X;
-    private static final TransportVersion VERSION_SUPPORTING_SPARSE_VECTOR_STATS = TransportVersions.V_8_15_0;
 
     @Nullable
     public DocsStats docs;
@@ -225,15 +219,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
         bulk = in.readOptionalWriteable(BulkStats::new);
         shards = in.readOptionalWriteable(ShardCountStats::new);
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
-            nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
-        }
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
-            denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
-        }
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
-        }
+        nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
+        denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
+        sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
     }
 
     @Override
@@ -256,15 +244,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(recoveryStats);
         out.writeOptionalWriteable(bulk);
         out.writeOptionalWriteable(shards);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
-            out.writeOptionalWriteable(nodeMappings);
-        }
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
-            out.writeOptionalWriteable(denseVectorStats);
-        }
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            out.writeOptionalWriteable(sparseVectorStats);
-        }
+        out.writeOptionalWriteable(nodeMappings);
+        out.writeOptionalWriteable(denseVectorStats);
+        out.writeOptionalWriteable(sparseVectorStats);
     }
 
     @Override

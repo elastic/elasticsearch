@@ -95,7 +95,7 @@ public class SlowRunningQueryBuilder extends AbstractQueryBuilder<SlowRunningQue
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        final Query delegate = Queries.newMatchAllQuery();
+        final Query delegate = Queries.ALL_DOCS_INSTANCE;
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {

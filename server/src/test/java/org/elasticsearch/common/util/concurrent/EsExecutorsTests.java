@@ -690,7 +690,8 @@ public class EsExecutorsTests extends ESTestCase {
                 threadContext,
                 randomBoolean()
                     ? EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(executionTimeEwma).build()
-                    : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(executionTimeEwma).build()
+                    : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(executionTimeEwma).build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             );
             assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
         }
@@ -719,7 +720,8 @@ public class EsExecutorsTests extends ESTestCase {
                 randomBoolean(),
                 TestEsExecutors.testOnlyDaemonThreadFactory("test"),
                 threadContext,
-                DO_NOT_TRACK
+                DO_NOT_TRACK,
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             );
             assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
         }
@@ -840,7 +842,8 @@ public class EsExecutorsTests extends ESTestCase {
                 new EsExecutors.ExecutorScalingQueue<>(),
                 TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
                 new EsExecutors.ForceQueuePolicy(true, true),
-                threadContext
+                threadContext,
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             )
         );
     }
@@ -857,7 +860,8 @@ public class EsExecutorsTests extends ESTestCase {
                 new EsExecutors.ExecutorScalingQueue<>(),
                 TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
                 new EsExecutors.ForceQueuePolicy(true, true),
-                threadContext
+                threadContext,
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             )
         );
     }

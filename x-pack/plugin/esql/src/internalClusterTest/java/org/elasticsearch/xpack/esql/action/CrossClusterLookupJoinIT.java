@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -633,29 +631,6 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
             .actionGet();
         assertAcked(client.admin().indices().prepareDelete("hosts"));
-    }
-
-    private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {
-        assertNotNull(executionInfo);
-        assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
-        assertTrue(executionInfo.isCrossClusterSearch());
-        List<EsqlExecutionInfo.Cluster> clusters = executionInfo.clusterAliases().stream().map(executionInfo::getCluster).toList();
-
-        for (EsqlExecutionInfo.Cluster cluster : clusters) {
-            assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(cluster.getSkippedShards(), equalTo(0));
-            assertThat(cluster.getFailedShards(), equalTo(0));
-        }
-    }
-
-    protected void setupAlias(String clusterAlias, String indexName, String aliasName) {
-        Client client = client(clusterAlias);
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client.admin()
-            .indices()
-            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName));
-        assertAcked(client.admin().indices().aliases(indicesAliasesRequestBuilder.request()));
     }
 
     protected void populateEmptyIndices(String clusterAlias, String indexName) {

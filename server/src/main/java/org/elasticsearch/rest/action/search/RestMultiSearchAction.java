@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -80,10 +81,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
             client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
         }
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
         final MultiSearchRequest multiSearchRequest = parseRequest(
             request,
             allowExplicitIndex,
@@ -135,6 +132,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
     ) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
+
+        if (multiRequest.allowsCrossProject() && crossProjectEnabled.orElse(false)) {
+            // These indices options trickle down and apply to each search request.
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+            multiRequest.setProjectRouting(restRequest.param("project_routing"));
+        }
+
         multiRequest.indicesOptions(indicesOptions);
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
@@ -159,13 +165,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
             RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             if (searchRequest.pointInTimeBuilder() != null) {
                 RestSearchAction.preparePointInTime(searchRequest, restRequest);
-            } else {
-                searchRequest.setCcsMinimizeRoundtrips(
-                    SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, restRequest, searchRequest.isCcsMinimizeRoundtrips())
-                );
             }
             multiRequest.add(searchRequest);
-        }, extraParamParser, crossProjectEnabled);
+        }, extraParamParser, crossProjectEnabled, multiRequest.getProjectRouting());
         List<SearchRequest> requests = multiRequest.requests();
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
@@ -189,7 +191,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         Optional<Boolean> crossProjectEnabled
     ) throws IOException {
-        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (k, v, r) -> false, crossProjectEnabled);
+        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (k, v, r) -> false, crossProjectEnabled, null);
     }
 
     /**
@@ -202,7 +204,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         boolean allowExplicitIndex,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser,
-        Optional<Boolean> crossProjectEnabled
+        Optional<Boolean> crossProjectEnabled,
+        @Nullable String projectRouting
     ) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
@@ -225,7 +228,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
             ccsMinimizeRoundtrips,
             allowExplicitIndex,
             extraParamParser,
-            crossProjectEnabled
+            crossProjectEnabled,
+            projectRouting
         );
     }
 

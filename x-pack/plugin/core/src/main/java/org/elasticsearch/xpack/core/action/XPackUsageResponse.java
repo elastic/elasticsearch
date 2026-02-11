@@ -35,7 +35,7 @@ public class XPackUsageResponse extends ActionResponse {
     public void writeTo(final StreamOutput out) throws IOException {
         // we can only write the usages with version the coordinating node is compatible with otherwise it will not know the named writeable
         final List<XPackFeatureUsage> usagesToWrite = usages.stream()
-            .filter(usage -> out.getTransportVersion().onOrAfter(usage.getMinimalSupportedVersion()))
+            .filter(usage -> out.getTransportVersion().supports(usage.getMinimalSupportedVersion()))
             .toList();
         writeTo(out, usagesToWrite);
     }
@@ -44,4 +44,15 @@ public class XPackUsageResponse extends ActionResponse {
         out.writeNamedWriteableCollection(usages);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        XPackUsageResponse that = (XPackUsageResponse) o;
+        return Objects.equals(usages, that.usages);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(usages);
+    }
 }

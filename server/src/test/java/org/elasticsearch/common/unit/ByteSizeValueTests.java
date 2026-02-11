@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.TransportVersions.V_8_16_0;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -565,15 +564,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testIntegerTransportRoundTrips() throws IOException {
-        for (var tv : List.of(TransportVersion.current(), V_8_16_0)) {
-            checkTransportRoundTrip(ByteSizeValue.ONE, tv);
-            checkTransportRoundTrip(ByteSizeValue.ZERO, tv);
-            checkTransportRoundTrip(ByteSizeValue.MINUS_ONE, tv);
-            for (var unit : ByteSizeUnit.values()) {
-                // Try increasing values until we exceed Long.MAX_VALUE and it wraps around negative
-                for (long bytes = unit.toBytes(1); bytes > 0; bytes *= 10) {
-                    checkTransportRoundTrip(new ByteSizeValue(bytes, unit), tv);
-                }
+        checkTransportRoundTrip(ByteSizeValue.ONE, TransportVersion.current());
+        checkTransportRoundTrip(ByteSizeValue.ZERO, TransportVersion.current());
+        checkTransportRoundTrip(ByteSizeValue.MINUS_ONE, TransportVersion.current());
+        for (var unit : ByteSizeUnit.values()) {
+            // Try increasing values until we exceed Long.MAX_VALUE and it wraps around negative
+            for (long bytes = unit.toBytes(1); bytes > 0; bytes *= 10) {
+                checkTransportRoundTrip(new ByteSizeValue(bytes, unit), TransportVersion.current());
             }
         }
     }

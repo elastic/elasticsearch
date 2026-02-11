@@ -18,12 +18,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -44,10 +47,11 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.InferenceString.toStringList;
+import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
     public static final String NAME = "amazon_sagemaker";
@@ -119,12 +123,17 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
 
     @Override
     public Model parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return modelBuilder.fromStorage(modelId, taskType, NAME, config, secrets);
+        return modelBuilder.fromStorage(inferenceEntityId, taskType, NAME, config, secrets);
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return modelBuilder.fromStorage(config, secrets);
     }
 
     @Override
@@ -258,6 +267,11 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     }
 
     @Override
+    public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        throwUnsupportedEmbeddingOperation(NAME);
+    }
+
+    @Override
     public void chunkedInfer(
         Model model,
         String query,
@@ -270,6 +284,9 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         if (model instanceof SageMakerModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
+        }
+        if (input.isEmpty()) {
+            listener.onResponse(List.of());
         }
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);

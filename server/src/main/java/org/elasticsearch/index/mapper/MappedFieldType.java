@@ -709,10 +709,13 @@ public abstract class MappedFieldType {
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
+        /**
+         * MappingLookup for the queried index.
+         */
+        MappingLookup mappingLookup();
+
         @Nullable
-        default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-            return null;
-        }
+        BlockLoaderFunctionConfig blockLoaderFunctionConfig();
     }
 
 }

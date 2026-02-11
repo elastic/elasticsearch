@@ -357,7 +357,8 @@ public class MultiSearchRequestTests extends ESTestCase {
                 null,
                 null,
                 true,
-                Optional.empty()
+                Optional.empty(),
+                null
             );
             assertEquals(originalRequest, parsedRequest);
         }

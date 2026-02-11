@@ -50,9 +50,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.StorageOperation.GET;
@@ -138,7 +140,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final StatsMap wantStats = new StatsMap(purpose);
         assertStatsEquals(wantStats.add(INSERT, 1), store.stats());
         try (InputStream is = container.readBlob(purpose, blobName)) {
-            assertEquals(blobContents, Streams.readFully(is));
+            assertThat(Streams.readFully(is), equalBytes(blobContents));
         }
         assertStatsEquals(wantStats.add(GET, 1), store.stats());
     }
@@ -164,7 +166,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         assertStatsEquals(wantStats.add(INSERT, 1, totalRequests), store.stats());
 
         try (InputStream is = container.readBlob(purpose, blobName)) {
-            assertEquals(blobContents, Streams.readFully(is));
+            assertThat(Streams.readFully(is), equalBytes(blobContents));
         }
         assertStatsEquals(wantStats.add(GET, 1), store.stats());
     }
@@ -253,7 +255,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(getEndpointForServer(httpServer) + "/token"),
-            null
+            null,
+            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY)
         );
         googleCloudStorageService.refreshAndClearCache(Map.of(clientName, clientSettings));
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(

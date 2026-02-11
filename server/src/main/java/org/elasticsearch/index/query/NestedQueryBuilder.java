@@ -297,7 +297,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
         if (mapper == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] failed to find nested object under path [" + path + "]");
             }

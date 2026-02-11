@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -63,10 +65,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     private InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        boolean ccsRequest
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
     ) {
-        super(other, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -92,7 +94,34 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> customDoRewriteWaitForInferenceResults(
+        QueryRewriteContext queryRewriteContext
+    ) throws IOException {
+        // knn query may contain filters that are also intercepted.
+        // We need to rewrite those here so that we can get inference results for them too.
+        return rewriteFilterQueries(queryRewriteContext);
+    }
+
+    private InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> rewriteFilterQueries(QueryRewriteContext queryRewriteContext)
+        throws IOException {
+        boolean filtersChanged = false;
+        List<QueryBuilder> rewrittenFilters = new ArrayList<>(originalQuery.filterQueries().size());
+        for (QueryBuilder filter : originalQuery.filterQueries()) {
+            QueryBuilder rewrittenFilter = filter.rewrite(queryRewriteContext);
+            if (rewrittenFilter != filter) {
+                filtersChanged = true;
+            }
+            rewrittenFilters.add(rewrittenFilter);
+        }
+        if (filtersChanged) {
+            originalQuery.setFilterQueries(rewrittenFilters);
+            return copy(inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
+        }
+        return this;
+    }
+
+    @Override
+    protected boolean preInferenceCoordinatorNodeValidate(ResolvedIndices resolvedIndices) {
         if (originalQuery.queryVector() == null && originalQuery.queryVectorBuilder() instanceof TextEmbeddingQueryVectorBuilder == false) {
             // This should never happen because either query vector or query vector builder must be non-null, which is enforced by the
             // KnnVectorQueryBuilder constructor. The only query vector builder used in production is TextEmbeddingQueryVectorBuilder,
@@ -104,22 +133,76 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             );
         }
 
-        // Check if we are querying any non-inference fields
+        // Check if we are querying any non-inference fields locally
+        int inferenceFieldsQueried = 0;
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(getField());
             if (inferenceFieldMetadata == null) {
-                QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
-                if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
-                    && textEmbeddingQueryVectorBuilder.getModelId() == null) {
-                    throw new IllegalArgumentException("[model_id] must not be null.");
-                }
+                missingInferenceIdOverrideCheck();
+            } else {
+                inferenceFieldsQueried++;
             }
+        }
+
+        // We can skip remote cluster inference info gathering if:
+        // - Inference fields are queried locally, guaranteeing that the query will be intercepted
+        // - The inference ID override or query vector is set. In either case, remote cluster inference results are not required.
+        return inferenceFieldsQueried > 0 && (getInferenceIdOverride() != null || originalQuery.queryVector() != null);
+    }
+
+    @Override
+    protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {
+        // Detect if we are querying any non-inference fields locally or remotely. We can do this by comparing the inference field count to
+        // the index count. Since the knn query is a single-field query, they should match if we are querying only inference fields.
+        if (inferenceInfo.inferenceFieldCount() < inferenceInfo.indexCount()) {
+            missingInferenceIdOverrideCheck();
         }
     }
 
     @Override
-    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+    protected KnnVectorQueryBuilder rewriteToOriginalQuery(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+        KnnVectorQueryBuilder rewritten = originalQuery;
+
+        FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();
+        if (inferenceIdOverride != null) {
+            InferenceResults inferenceResults = inferenceResultsMap.get(inferenceIdOverride);
+            if (inferenceResults == null) {
+                // The inference results map should always contain the inference results for the override
+                throw new IllegalStateException(
+                    "Inference results map does not contain inference results for [" + inferenceIdOverride + "]"
+                );
+            }
+
+            if (inferenceResults instanceof MlDenseEmbeddingResults mlDenseEmbeddingResults) {
+                rewritten = new KnnVectorQueryBuilder(
+                    originalQuery.getFieldName(),
+                    mlDenseEmbeddingResults.getInferenceAsFloat(),
+                    originalQuery.k(),
+                    originalQuery.numCands(),
+                    originalQuery.visitPercentage(),
+                    originalQuery.rescoreVectorBuilder(),
+                    originalQuery.getVectorSimilarity()
+                );
+                rewritten.queryName(originalQuery.queryName()).boost(originalQuery.boost()).setFilterQueries(originalQuery.filterQueries());
+            } else {
+                throw new IllegalArgumentException(
+                    "expected a result of type ["
+                        + MlDenseEmbeddingResults.NAME
+                        + "] received ["
+                        + inferenceResults.getWriteableName()
+                        + "]. Is ["
+                        + inferenceIdOverride.inferenceId()
+                        + "] a text embedding model?"
+                );
+            }
+        }
+
+        return rewritten;
+    }
+
+    @Override
+    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = this;
         if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
@@ -129,12 +212,12 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder copy(
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        boolean ccsRequest
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
     ) {
-        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -265,5 +348,13 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         }
 
         return (MlDenseEmbeddingResults) inferenceResults;
+    }
+
+    private void missingInferenceIdOverrideCheck() {
+        QueryVectorBuilder queryVectorBuilder = originalQuery.queryVectorBuilder();
+        if (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder
+            && textEmbeddingQueryVectorBuilder.getModelId() == null) {
+            throw new IllegalArgumentException("[model_id] must not be null.");
+        }
     }
 }

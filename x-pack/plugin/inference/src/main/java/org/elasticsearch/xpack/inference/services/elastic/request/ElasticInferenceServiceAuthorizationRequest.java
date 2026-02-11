@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -25,6 +26,7 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
 
     private final URI uri;
     private final TraceContextHandler traceContextHandler;
+    static final String AUTHORIZATION_PATH = "/api/v2/authorizations";
 
     public ElasticInferenceServiceAuthorizationRequest(
         String url,
@@ -37,10 +39,9 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
 
-    private URI createUri(String url) throws ElasticsearchStatusException {
+    private static URI createUri(String url) throws ElasticsearchStatusException {
         try {
-            // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(url + "/api/v1/authorizations");
+            return new URIBuilder(url).setPath(AUTHORIZATION_PATH).build();
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service [" + ElasticInferenceService.NAME + "]: " + e.getMessage(),

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import java.util.Collection;
 import java.util.function.Function;
 
 /**
@@ -24,13 +23,16 @@ public interface IndexedByShardId<T> {
     T get(int shardId);
 
     /**
-     * This is not necessarily a list of all values visible via get(int), but rather, a list of the relevant values.
+     * This is not necessarily an iterable of all values visible via get(int), but rather, an iterable of the relevant values.
      * This is useful when you need to perform an operation over all relevant values, e.g., closing them.
      */
-    Collection<? extends T> collection();
+    Iterable<? extends T> iterable();
+
+    /** The number of elements returned by {@link IndexedByShardId#iterable()}. */
+    int size();
 
     default boolean isEmpty() {
-        return collection().isEmpty();
+        return iterable().iterator().hasNext() == false;
     }
 
     /**

@@ -15,7 +15,10 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class DerivDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public DerivDoubleAggregatorFunctionSupplier() {
+  private final boolean dateNanos;
+
+  public DerivDoubleAggregatorFunctionSupplier(boolean dateNanos) {
+    this.dateNanos = dateNanos;
   }
 
   @Override
@@ -31,13 +34,13 @@ public final class DerivDoubleAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public DerivDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivDoubleAggregatorFunction.create(driverContext, channels);
+    return DerivDoubleAggregatorFunction.create(driverContext, channels, dateNanos);
   }
 
   @Override
   public DerivDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return DerivDoubleGroupingAggregatorFunction.create(channels, driverContext, dateNanos);
   }
 
   @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -1167,6 +1168,45 @@ public class DocumentParserTests extends MapperServiceTestCase {
         fields = doc.rootDoc().getFields("address.home");
         assertThat(fields, hasSize(1));
         assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
+    }
+
+    public void testWithDynamicTemplateParams() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("my_dynamic_template");
+                    {
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "keyword");
+                            b.startObject("meta");
+                            {
+                                b.field("unit", "{{unit}}");
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template")));
+        Mapper fieldMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        assertThat(fieldMapper, instanceOf(KeywordFieldMapper.class));
+        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo(""));
+
+        doc = mapper.parse(
+            source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template"), Map.of("foo", Map.of("unit", "By")))
+        );
+        fieldMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        assertThat(fieldMapper, instanceOf(KeywordFieldMapper.class));
+        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo("By"));
     }
 
     public void testDynamicTemplatesNotFound() throws Exception {
@@ -2679,7 +2719,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             newMapping.toCompressedXContent(),
             IndexVersion.current(),
             MapperMetrics.NOOP,
-            "myIndex"
+            "myIndex",
+            randomFrom(IndexMode.values())
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {

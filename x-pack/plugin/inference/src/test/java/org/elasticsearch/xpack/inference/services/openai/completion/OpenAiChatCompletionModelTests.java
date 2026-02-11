@@ -121,4 +121,23 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
         );
     }
 
+    public static OpenAiChatCompletionModel createModelWithTaskType(
+        String endpointId,
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
+        @Nullable String user,
+        TaskType taskType
+    ) {
+        return new OpenAiChatCompletionModel(
+            endpointId,
+            taskType,
+            "service",
+            new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
+            new OpenAiChatCompletionTaskSettings(user, null),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
 }

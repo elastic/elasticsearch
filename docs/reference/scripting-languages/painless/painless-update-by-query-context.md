@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-update-by-query-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,9 @@ products:
 
 Use a Painless script in an [update by query](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query) operation to add, modify, or delete fields within each of a set of documents collected as the result of query.
 
-**Variables**
+Check out the [document update tutorial](docs-content://explore-analyze/scripting/modules-scripting-document-update-tutorial.md) for related examples.
+
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -32,7 +37,7 @@ Use a Painless script in an [update by query](https://www.elastic.co/docs/api/do
 [`ctx['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`)
 :   Contains extracted JSON in a `Map` and `List` structure for the fields existing in a stored document.
 
-**Side Effects**
+## Side Effects
 
 `ctx['op']`
 :   Use the default of `index` to update a document. Set to `none` to specify no operation or `delete` to delete the current document from the index.
@@ -40,49 +45,61 @@ Use a Painless script in an [update by query](https://www.elastic.co/docs/api/do
 [`ctx['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
 :   Modify the values in the `Map/List` structure to add, modify, or delete the fields of a document.
 
-**Return**
+## Return
 
 `void`
 :   No expected return value.
 
-**API**
+## API
 
 The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) is available.
 
-**Example**
+## Example
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-The following query finds all seats in a specific section that have not been sold and lowers the price by 2:
+The following request uses the `_update_by_query` API to apply a discount to products that meet two conditions:
 
-```console
-POST /seats/_update_by_query
+1. The product’s `base_price` is greater than or equal to 20\.  
+2. The product currently has a `discount_percentage` of 0 (no discount applied).
+
+```json
+POST /kibana_sample_data_ecommerce/_update_by_query
 {
   "query": {
     "bool": {
       "filter": [
         {
           "range": {
-            "row": {
-              "lte": 3
+            "products.base_price": {
+              "gte": 20
             }
           }
         },
         {
           "match": {
-            "sold": false
+            "products.discount_percentage": 0
           }
         }
       ]
     }
   },
   "script": {
-    "source": "ctx._source.cost -= params.discount",
     "lang": "painless",
+    "source": """
+        for (product in ctx._source.products) { 
+            // If product has no discount applied 
+            if (product.discount_percentage == 0) { 
+                product.discount_percentage = params.discount_rate;  // Assigns the discount rate
+                product.discount_amount = product.base_price * (params.discount_rate / 100) ; // Calculates and assigns the total discount
+
+                product.price = product.base_price - product.discount_amount; // Calculates and assigns the product price with discount
+            } 
+        }
+    """,
     "params": {
-      "discount": 2
+      "discount_rate": 15
     }
   }
 }
 ```
-% TEST[setup:seats]

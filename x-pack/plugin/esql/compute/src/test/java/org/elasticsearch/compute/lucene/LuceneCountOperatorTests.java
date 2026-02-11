@@ -13,10 +13,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -27,9 +27,9 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -71,7 +71,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         MATCH_ALL {
             @Override
             List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
-                return List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of()));
+                return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
             }
 
             @Override
@@ -311,7 +311,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             DriverContext ctx = contexts.get();
             drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add)));
         }
-        OperatorTestCase.runDriver(drivers);
+        new TestDriverRunner().run(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
         testCase.checkPages(size, limit, results);
     }
@@ -325,7 +325,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
     }
 
     private static void checkSeen(Page p, Matcher<Integer> positionCount) {
-        BooleanBlock b = p.getBlock(1);
+        BooleanBlock b = p.getBlock(p.getBlockCount() - 1);
         BooleanVector v = b.asVector();
         assertThat(v.getPositionCount(), positionCount);
         assertThat(v.isConstant(), equalTo(true));
@@ -337,9 +337,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(3));
             checkSeen(page, greaterThanOrEqualTo(0));
-            LongBlock countsBlock = page.getBlock(0);
+            LongBlock countsBlock = page.getBlock(page.getBlockCount() - 2);
             LongVector counts = countsBlock.asVector();
-            IntBlock groupsBlock = page.getBlock(2);
+            IntBlock groupsBlock = page.getBlock(0);
             IntVector groups = groupsBlock.asVector();
             for (int p = 0; p < page.getPositionCount(); p++) {
                 long count = counts.getLong(p);

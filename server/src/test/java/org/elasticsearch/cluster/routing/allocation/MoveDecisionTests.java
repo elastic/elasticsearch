@@ -96,12 +96,14 @@ public class MoveDecisionTests extends ESTestCase {
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Type finalDecision = randomFrom(Type.values());
-        DiscoveryNode assignedNode = finalDecision.allowed() ? node1 : null;
+        DiscoveryNode assignedNode = finalDecision.assignmentAllowed() ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
         nodeDecisions.add(
             new NodeAllocationResult(
                 node2,
-                finalDecision.allowed() ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                finalDecision.assignmentAllowed()
+                    ? randomFrom(Decision.NOT_PREFERRED, Decision.YES)
+                    : randomFrom(Decision.NO, Decision.THROTTLE),
                 1
             )
         );
@@ -121,6 +123,7 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(moveDecision.getTargetNode(), readDecision.getTargetNode());
         assertEquals(moveDecision.getAllocationDecision(), readDecision.getAllocationDecision());
         // node2 should have the highest sort order
+        assertEquals("node2", moveDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertEquals("node2", readDecision.getNodeDecisions().iterator().next().getNode().getId());
     }
 

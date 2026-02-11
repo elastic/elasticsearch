@@ -1,5 +1,0 @@
-pr: 138160
-summary: Add missing `job_id` filter to Anomaly Detection data deleter
-area: Machine Learning
-type: bug
-issues: []

@@ -565,7 +565,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             assertThat(thrownException.getCause(), instanceOf(ConnectionClosedException.class));
             assertThat(thrownException.getMessage(), is("Failed execution"));
             assertThat(thrownException.getSuppressed().length, is(0));
-            verify(httpClient, times(RetryingHttpSender.MAX_RETIES)).send(any(), any(), any());
+            verify(httpClient, times(RetryingHttpSender.MAX_RETRIES)).send(any(), any(), any());
             verifyNoMoreInteractions(httpClient);
         } finally {
             terminate(threadPool);
@@ -603,7 +603,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             assertThat(thrownException.getCause(), instanceOf(ConnectionClosedException.class));
             assertThat(thrownException.getMessage(), is("Failed execution"));
             assertThat(thrownException.getSuppressed().length, is(0));
-            verify(httpClient, times(RetryingHttpSender.MAX_RETIES)).stream(any(), any(), any());
+            verify(httpClient, times(RetryingHttpSender.MAX_RETRIES)).stream(any(), any(), any());
             verifyNoMoreInteractions(httpClient);
         } finally {
             terminate(threadPool);
@@ -643,7 +643,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             assertThat(thrownException.getCause(), instanceOf(ConnectionClosedException.class));
             assertThat(thrownException.getMessage(), is("Failed execution"));
             assertThat(thrownException.getSuppressed().length, is(0));
-            verify(httpClient, times(RetryingHttpSender.MAX_RETIES)).send(any(), any(), any());
+            verify(httpClient, times(RetryingHttpSender.MAX_RETRIES)).send(any(), any(), any());
             verifyNoMoreInteractions(httpClient);
         } finally {
             terminate(threadPool);

@@ -10,7 +10,6 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 
 import java.util.EnumSet;
 import java.util.Locale;
@@ -40,10 +39,6 @@ public enum SimilarityMeasure {
      * @return the similarity that is known to the version passed in
      */
     public static SimilarityMeasure translateSimilarity(SimilarityMeasure similarityMeasure, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_14_0) && BEFORE_L2_NORM_ENUMS.contains(similarityMeasure) == false) {
-            return null;
-        }
-
         return similarityMeasure;
     }
 }

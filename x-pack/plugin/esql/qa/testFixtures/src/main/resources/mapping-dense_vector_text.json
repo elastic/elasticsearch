@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "text_field": {
+      "type": "text"
+    },
+    "text_embedding_field": {
+      "type": "dense_vector",
+      "dims": 3,
+      "similarity": "l2_norm"
+    }
+  }
+}

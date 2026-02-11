@@ -54,7 +54,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -382,6 +384,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                     }
                 };
             }
+            if (toBuildClass == ResolvingProject.class && pt.getRawType() == java.util.function.Function.class) {
+                return java.util.function.Function.identity();
+            }
 
             throw new IllegalArgumentException("Unsupported parameterized type [" + pt + "], for " + toBuildClass.getSimpleName());
         }
@@ -446,7 +451,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomResolvedExpression(argClass);
         } else if (argClass == Stat.class) {
             // record field
-            return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
+            return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {
@@ -643,9 +648,23 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
              */
             Type[] argTypes = ctor.getGenericParameterTypes();
             Object[] args = new Object[argTypes.length];
-            for (int i = 0; i < argTypes.length; i++) {
-                args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
+
+            if (transformed instanceof ResolvingProject transformedProject && changedArgValue instanceof LogicalPlan newChild) {
+                for (int i = 0; i < argTypes.length; i++) {
+                    if (i == changedArgOffset) {
+                        args[i] = changedArgValue;
+                    } else if (i == changedArgOffset + 2) {
+                        args[i] = transformedProject.resolver().apply(newChild.output());
+                    } else {
+                        args[i] = nodeCtorArgs[i];
+                    }
+                }
+            } else {
+                for (int i = 0; i < argTypes.length; i++) {
+                    args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
+                }
             }
+
             T reflectionTransformed = ctor.newInstance(args);
             assertEquals(reflectionTransformed, transformed);
         }

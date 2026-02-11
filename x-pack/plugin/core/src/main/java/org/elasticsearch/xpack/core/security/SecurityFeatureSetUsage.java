@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,25 +54,17 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         realmsUsage = in.readGenericMap();
         rolesStoreUsage = in.readGenericMap();
         sslUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            tokenServiceUsage = in.readGenericMap();
-            apiKeyServiceUsage = in.readGenericMap();
-        }
+        tokenServiceUsage = in.readGenericMap();
+        apiKeyServiceUsage = in.readGenericMap();
         auditUsage = in.readGenericMap();
         ipFilterUsage = in.readGenericMap();
         anonymousUsage = in.readGenericMap();
         roleMappingStoreUsage = in.readGenericMap();
         fips140Usage = in.readGenericMap();
         operatorPrivilegesUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            domainsUsage = in.readGenericMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            userProfileUsage = in.readGenericMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            remoteClusterServerUsage = in.readGenericMap();
-        }
+        domainsUsage = in.readGenericMap();
+        userProfileUsage = in.readGenericMap();
+        remoteClusterServerUsage = in.readGenericMap();
     }
 
     public SecurityFeatureSetUsage(
@@ -121,25 +112,17 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(realmsUsage);
         out.writeGenericMap(rolesStoreUsage);
         out.writeGenericMap(sslUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeGenericMap(tokenServiceUsage);
-            out.writeGenericMap(apiKeyServiceUsage);
-        }
+        out.writeGenericMap(tokenServiceUsage);
+        out.writeGenericMap(apiKeyServiceUsage);
         out.writeGenericMap(auditUsage);
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
         out.writeGenericMap(fips140Usage);
         out.writeGenericMap(operatorPrivilegesUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeGenericMap(domainsUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeGenericMap(userProfileUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeGenericMap(remoteClusterServerUsage);
-        }
+        out.writeGenericMap(domainsUsage);
+        out.writeGenericMap(userProfileUsage);
+        out.writeGenericMap(remoteClusterServerUsage);
     }
 
     @Override

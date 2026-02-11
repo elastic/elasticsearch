@@ -14,6 +14,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.util.Map;
+
 public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable, FilteredXContent {
 
     /**
@@ -53,6 +55,10 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
         return null;
     }
 
+    default boolean isMultimodal() {
+        return false;
+    }
+
     /**
      * The model to use in the inference endpoint (e.g. text-embedding-ada-002). Sometimes the model is not defined in the service
      * settings. This can happen for external providers (e.g. hugging face, azure ai studio) where the provider requires that the model
@@ -61,4 +67,8 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
      */
     @Nullable
     String modelId();
+
+    default ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        return this;
+    }
 }

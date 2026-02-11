@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.hasEntry;
 
 public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815HnswBitVectorsFormat());
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815HnswBitRWVectorsFormat());
 
     @Override
     protected Codec getCodec() {

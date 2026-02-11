@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,7 +20,6 @@ import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,8 +65,9 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
         waitForMigrationCompletion();
         var roles = createRoles();
         final var nativeRoleStore = internalCluster().getInstance(NativeRolesStore.class);
-
-        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+        PlainActionFuture<Void> roleUpdatesCompleteListener = new PlainActionFuture<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (RefCountingListener refs = new RefCountingListener(roleUpdatesCompleteListener)) {
             final AtomicBoolean runUpdateRolesBackground = new AtomicBoolean(true);
             executor.submit(() -> {
                 while (runUpdateRolesBackground.get()) {
@@ -86,7 +87,7 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
                     nativeRoleStore.putRole(
                         WriteRequest.RefreshPolicy.IMMEDIATE,
                         updatedRole,
-                        ActionListener.wrap(resp -> {}, ESTestCase::fail)
+                        refs.acquire(resp -> logger.trace("Updated role [{}]", updatedRole))
                     );
                     try {
                         Thread.sleep(10);
@@ -97,14 +98,14 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
             });
 
             resetMigration();
-            try {
-                waitForMigrationCompletion();
-            } finally {
-                runUpdateRolesBackground.set(false);
-                executor.shutdown();
-            }
+            waitForMigrationCompletion();
+            runUpdateRolesBackground.set(false);
+            assertAllRolesHaveMetadataFlattened();
+        } finally {
+            // Await all role updates before shutting down
+            roleUpdatesCompleteListener.get();
+            terminate(executor);
         }
-        assertAllRolesHaveMetadataFlattened();
     }
 
     private void resetMigration() {

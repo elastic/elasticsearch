@@ -922,6 +922,28 @@ public abstract class DocumentParserContext {
         return null;
     }
 
+    /**
+     * Provides parameters for the {@link DynamicTemplate} returned by
+     * {@link #findDynamicTemplate(String, DynamicTemplate.XContentFieldType)}.
+     * The {@link DynamicTemplate} can use placeholders in its definition that
+     * will be replaced by the values returned by this method.
+     * For example, a dynamic template may contain a snippet like this:
+     * <pre>
+     * "meta": {
+     *   "unit": "{{unit}}"
+     * }
+     * </pre>
+     * When applying the dynamic template to a field, the placeholder <code>{{unit}}</code>
+     * will be replaced by the value returned by this method for the key <code>unit</code>.
+     *
+     * @param fieldName the name of the field
+     * @return a map of parameter names to values; empty map if no parameters exist
+     */
+    public final Map<String, String> getDynamicTemplateParams(String fieldName) {
+        final String pathAsString = path().pathAsText(fieldName);
+        return sourceToParse.dynamicTemplateParams().getOrDefault(pathAsString, Map.of());
+    }
+
     // XContentParser that wraps an existing parser positioned on a value,
     // and a field name, and returns a stream that looks like { 'field' : 'value' }
     private static class CopyToParser extends FilterXContentParserWrapper {

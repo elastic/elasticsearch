@@ -37,6 +37,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -183,16 +184,14 @@ public class AzureStorageService {
             case SECONDARY_THEN_PRIMARY -> primaryUri;
         };
 
-        // The request retry policy uses seconds as the default time unit, since
-        // it's possible to configure a timeout < 1s we should ceil that value
-        // as RequestRetryOptions expects a value >= 1.
-        // See https://github.com/Azure/azure-sdk-for-java/issues/17590 for a proposal
-        // to fix this issue.
-        TimeValue configuredTimeout = azureStorageSettings.getTimeout();
-        int timeout = configuredTimeout.duration() == -1 ? Integer.MAX_VALUE : Math.max(1, Math.toIntExact(configuredTimeout.getSeconds()));
+        // The Azure client complains if you try to set timeout < 1s, round anything below that up
+        final TimeValue configuredTimeout = azureStorageSettings.getTimeout();
+        final Duration timeout = configuredTimeout.duration() == -1
+            ? Duration.ofSeconds(Integer.MAX_VALUE)
+            : Duration.ofMillis(Math.max(1_000, configuredTimeout.millis()));
         return new RequestRetryOptions(
             RetryPolicyType.EXPONENTIAL,
-            azureStorageSettings.getMaxRetries(),
+            azureStorageSettings.getMaxRetries() + 1,   // This is maximum "tries"
             timeout,
             null,
             null,

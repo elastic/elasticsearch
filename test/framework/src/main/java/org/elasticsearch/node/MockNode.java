@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -49,6 +50,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,6 +65,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -78,6 +81,21 @@ import java.util.function.LongSupplier;
 public class MockNode extends Node {
 
     private static class MockServiceProvider extends NodeServiceProvider {
+        @Override
+        TaskManager newTaskManager(
+            PluginsService pluginsService,
+            Settings settings,
+            ThreadPool threadPool,
+            Set<String> taskHeaders,
+            Tracer tracer,
+            String nodeId
+        ) {
+            if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).findAny().isEmpty()) {
+                return super.newTaskManager(pluginsService, settings, threadPool, taskHeaders, tracer, nodeId);
+            }
+            return MockTaskManager.create(settings, threadPool, taskHeaders, tracer, nodeId);
+        }
+
         @Override
         BigArrays newBigArrays(
             PluginsService pluginsService,
@@ -208,7 +226,7 @@ public class MockNode extends Node {
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    MockTransportService.createTaskManager(settings, threadPool, taskManager.getTaskHeaders(), Tracer.NOOP, nodeId),
+                    taskManager,
                     linkedProjectConfigService,
                     telemetryProvider,
                     projectResolver
@@ -220,15 +238,24 @@ public class MockNode extends Node {
         protected ClusterInfoService newClusterInfoService(
             PluginsService pluginsService,
             Settings settings,
+            WriteLoadConstraintSettings writeLoadConstraintSettings,
             ClusterService clusterService,
             ThreadPool threadPool,
             NodeClient client
         ) {
             if (pluginsService.filterPlugins(MockInternalClusterInfoService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newClusterInfoService(pluginsService, settings, clusterService, threadPool, client);
+                return super.newClusterInfoService(
+                    pluginsService,
+                    settings,
+                    writeLoadConstraintSettings,
+                    clusterService,
+                    threadPool,
+                    client
+                );
             } else {
                 final MockInternalClusterInfoService service = new MockInternalClusterInfoService(
                     settings,
+                    writeLoadConstraintSettings,
                     clusterService,
                     threadPool,
                     client

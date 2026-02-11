@@ -29,9 +29,9 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("count", ElementType.LONG),
       new IntermediateStateDesc("sumVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTs", ElementType.LONG),
+      new IntermediateStateDesc("sumTs", ElementType.DOUBLE),
       new IntermediateStateDesc("sumTsVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("sumTsSq", ElementType.LONG)  );
+      new IntermediateStateDesc("sumTsSq", ElementType.DOUBLE)  );
 
   private final DerivDoubleAggregator.GroupingState state;
 
@@ -39,16 +39,19 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
+  private final boolean dateNanos;
+
   public DerivLongGroupingAggregatorFunction(List<Integer> channels,
-      DerivDoubleAggregator.GroupingState state, DriverContext driverContext) {
+      DerivDoubleAggregator.GroupingState state, DriverContext driverContext, boolean dateNanos) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.dateNanos = dateNanos;
   }
 
   public static DerivLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new DerivLongGroupingAggregatorFunction(channels, DerivLongAggregator.initGrouping(driverContext), driverContext);
+      DriverContext driverContext, boolean dateNanos) {
+    return new DerivLongGroupingAggregatorFunction(channels, DerivLongAggregator.initGrouping(driverContext, dateNanos), driverContext, dateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -203,7 +206,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
     if (sumTsUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTs = ((LongBlock) sumTsUncast).asVector();
+    DoubleVector sumTs = ((DoubleBlock) sumTsUncast).asVector();
     Block sumTsValUncast = page.getBlock(channels.get(3));
     if (sumTsValUncast.areAllValuesNull()) {
       return;
@@ -213,7 +216,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
     if (sumTsSqUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
+    DoubleVector sumTsSq = ((DoubleBlock) sumTsSqUncast).asVector();
     assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -224,7 +227,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getDouble(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getDouble(valuesPosition));
       }
     }
   }
@@ -297,7 +300,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
     if (sumTsUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTs = ((LongBlock) sumTsUncast).asVector();
+    DoubleVector sumTs = ((DoubleBlock) sumTsUncast).asVector();
     Block sumTsValUncast = page.getBlock(channels.get(3));
     if (sumTsValUncast.areAllValuesNull()) {
       return;
@@ -307,7 +310,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
     if (sumTsSqUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
+    DoubleVector sumTsSq = ((DoubleBlock) sumTsSqUncast).asVector();
     assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -318,7 +321,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getDouble(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getDouble(valuesPosition));
       }
     }
   }
@@ -377,7 +380,7 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
     if (sumTsUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTs = ((LongBlock) sumTsUncast).asVector();
+    DoubleVector sumTs = ((DoubleBlock) sumTsUncast).asVector();
     Block sumTsValUncast = page.getBlock(channels.get(3));
     if (sumTsValUncast.areAllValuesNull()) {
       return;
@@ -387,12 +390,12 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
     if (sumTsSqUncast.areAllValuesNull()) {
       return;
     }
-    LongVector sumTsSq = ((LongBlock) sumTsSqUncast).asVector();
+    DoubleVector sumTsSq = ((DoubleBlock) sumTsSqUncast).asVector();
     assert count.getPositionCount() == sumVal.getPositionCount() && count.getPositionCount() == sumTs.getPositionCount() && count.getPositionCount() == sumTsVal.getPositionCount() && count.getPositionCount() == sumTsSq.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+      DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getDouble(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getDouble(valuesPosition));
     }
   }
 

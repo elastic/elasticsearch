@@ -10,10 +10,10 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -105,7 +105,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         String service,
         ServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        ChunkingSettings chunkingSettings
+        @Nullable ChunkingSettings chunkingSettings
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
@@ -121,9 +121,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
-        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-            ? in.readOptionalNamedWriteable(ChunkingSettings.class)
-            : null;
+        this.chunkingSettings = in.readOptionalNamedWriteable(ChunkingSettings.class);
     }
 
     @Override
@@ -133,9 +131,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalNamedWriteable(chunkingSettings);
-        }
+        out.writeOptionalNamedWriteable(chunkingSettings);
     }
 
     public String getInferenceEntityId() {
@@ -215,7 +211,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -227,11 +223,12 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
             && taskType == model.taskType
             && Objects.equals(service, model.service)
             && Objects.equals(serviceSettings, model.serviceSettings)
-            && Objects.equals(taskSettings, model.taskSettings);
+            && Objects.equals(taskSettings, model.taskSettings)
+            && Objects.equals(chunkingSettings, model.chunkingSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        return Objects.hash(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings);
     }
 }

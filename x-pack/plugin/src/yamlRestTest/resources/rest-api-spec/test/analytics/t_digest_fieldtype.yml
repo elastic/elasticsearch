@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: [ "mapper.tdigest_type" ]
+      reason: tdigest field type was introduced
   - skip:
       features: headers
   - do:

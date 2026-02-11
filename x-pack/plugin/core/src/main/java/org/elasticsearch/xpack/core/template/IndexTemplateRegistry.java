@@ -45,9 +45,7 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
@@ -197,7 +195,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutTemplateFailure(String templateName, Exception e) {
-        logger.error(() -> format("error adding index template [%s] for [%s]", templateName, getOrigin()), e);
+        logger.warn(() -> format("error adding index template [%s] for [%s]", templateName, getOrigin()), e);
     }
 
     /**
@@ -206,7 +204,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPolicyFailure(LifecyclePolicy policy, Exception e) {
-        logger.error(() -> format("error adding lifecycle policy [%s] for [%s]", policy.getName(), getOrigin()), e);
+        logger.warn(() -> format("error adding lifecycle policy [%s] for [%s]", policy.getName(), getOrigin()), e);
     }
 
     @Override
@@ -489,7 +487,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding legacy template [{}] for [{}], request was not acknowledged",
                                 templateName,
                                 getOrigin()
@@ -527,7 +525,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding component template [{}] for [{}], request was not acknowledged",
                                 templateName,
                                 getOrigin()
@@ -572,7 +570,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                             }
                         } else {
                             creationCheck.set(false);
-                            logger.error(
+                            logger.warn(
                                 "error adding composable template [{}] for [{}], request was not acknowledged",
                                 templateName,
                                 getOrigin()
@@ -642,7 +640,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding lifecycle policy [{}] for [{}], request was not acknowledged",
                                 policy.getName(),
                                 getOrigin()
@@ -661,14 +659,34 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
-    protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
+    private static <T> Map<String, T> parseTemplates(TemplateUtils.TemplateParser<T> templateParser, IndexTemplateConfig... config) {
         return Arrays.stream(config).collect(Collectors.toUnmodifiableMap(IndexTemplateConfig::getTemplateName, indexTemplateConfig -> {
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, indexTemplateConfig.loadBytes())) {
-                return ComposableIndexTemplate.parse(parser);
+            try {
+                return indexTemplateConfig.load(templateParser);
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         }));
+    }
+
+    /**
+     * Parses the provided index templates using an optional {@link Template.TemplateDecorator} provided via SPI,
+     * see {@link org.elasticsearch.cluster.metadata.TemplateDecoratorProvider}.
+     *
+     * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
+     */
+    protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
+        return parseTemplates(ComposableIndexTemplate::parse, config);
+    }
+
+    /**
+     * Parses the provided component templates using an optional {@link Template.TemplateDecorator} provided via SPI,
+     * see {@link org.elasticsearch.cluster.metadata.TemplateDecoratorProvider}.
+     *
+     * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
+     */
+    protected static Map<String, ComponentTemplate> parseComponentTemplates(IndexTemplateConfig... config) {
+        return parseTemplates(ComponentTemplate::parse, config);
     }
 
     private void addIngestPipelinesIfMissing(ProjectMetadata project) {
@@ -754,7 +772,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding ingest pipeline [{}] for [{}], request was not acknowledged",
                                 pipelineConfig.getId(),
                                 getOrigin()
@@ -794,7 +812,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPipelineFailure(String pipelineId, Exception e) {
-        logger.error(() -> format("error adding ingest pipeline template [%s] for [%s]", pipelineId, getOrigin()), e);
+        logger.warn(() -> format("error adding ingest pipeline template [%s] for [%s]", pipelineId, getOrigin()), e);
     }
 
     /**
@@ -864,9 +882,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     void onRolloverFailure(ProjectId projectId, Exception e) {
-        logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), e);
+        logger.warn(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), e);
         for (Throwable throwable : e.getSuppressed()) {
-            logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), throwable);
+            logger.warn(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), throwable);
         }
     }
 

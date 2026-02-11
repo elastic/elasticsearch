@@ -41,13 +41,12 @@ import org.apache.lucene.store.FileDataHint;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
-import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.search.internal.FilterFloatVectorValues;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -55,6 +54,7 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 import static org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION;
 
 /**
@@ -85,7 +85,6 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
             state.segmentSuffix,
             ES816BinaryQuantizedVectorsFormat.META_EXTENSION
         );
-        boolean success = false;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
             Throwable priorE = null;
             try {
@@ -112,11 +111,9 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 // graph.
                 state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -233,17 +230,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        if (knnCollector.k() == 0) return;
-        final RandomVectorScorer scorer = getRandomVectorScorer(field, target);
-        if (scorer == null) return;
-        OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-        Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
-        for (int i = 0; i < scorer.maxOrd(); i++) {
-            if (acceptedOrds == null || acceptedOrds.get(i)) {
-                collector.collect(i, scorer.score(i));
-                collector.incVisitedCount(1);
-            }
-        }
+        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
     }
 
     @Override
@@ -288,7 +275,6 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         IndexInput in = state.directory.openInput(fileName, context);
-        boolean success = false;
         try {
             int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
@@ -305,12 +291,10 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 );
             }
             CodecUtil.retrieveChecksum(in);
-            success = true;
             return in;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(in);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(in);
+            throw t;
         }
     }
 
@@ -375,48 +359,17 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     }
 
     /** Binarized vector values holding row and quantized vector values */
-    protected static final class BinarizedVectorValues extends FloatVectorValues {
-        private final FloatVectorValues rawVectorValues;
-        private final BinarizedByteVectorValues quantizedVectorValues;
+    protected static class BinarizedVectorValues extends FilterFloatVectorValues {
+        final BinarizedByteVectorValues quantizedVectorValues;
 
         BinarizedVectorValues(FloatVectorValues rawVectorValues, BinarizedByteVectorValues quantizedVectorValues) {
-            this.rawVectorValues = rawVectorValues;
+            super(rawVectorValues);
             this.quantizedVectorValues = quantizedVectorValues;
         }
 
         @Override
-        public int dimension() {
-            return rawVectorValues.dimension();
-        }
-
-        @Override
-        public int size() {
-            return rawVectorValues.size();
-        }
-
-        @Override
-        public float[] vectorValue(int ord) throws IOException {
-            return rawVectorValues.vectorValue(ord);
-        }
-
-        @Override
         public BinarizedVectorValues copy() throws IOException {
-            return new BinarizedVectorValues(rawVectorValues.copy(), quantizedVectorValues.copy());
-        }
-
-        @Override
-        public Bits getAcceptOrds(Bits acceptDocs) {
-            return rawVectorValues.getAcceptOrds(acceptDocs);
-        }
-
-        @Override
-        public int ordToDoc(int ord) {
-            return rawVectorValues.ordToDoc(ord);
-        }
-
-        @Override
-        public DocIndexIterator iterator() {
-            return rawVectorValues.iterator();
+            return new BinarizedVectorValues(in.copy(), quantizedVectorValues.copy());
         }
 
         @Override

@@ -52,12 +52,16 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.ALL;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.BACKING_INDICES;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.FAILURE_INDICES;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomIndexInstances;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomNonEmptyIndexInstances;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomSettings;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1392,12 +1396,84 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
     }
 
-    public void testGetBackingIndicesPastRetention() {
+    public void testGetBackingIndicesOlderThan() {
         testIndicesPastRetention(false);
     }
 
-    public void testGetFailureIndicesPastRetention() {
+    public void testGetFailureIndicesOlderThan() {
         testIndicesPastRetention(true);
+    }
+
+    public void testGetIndicesOlderThanWithoutFailureStoreParam() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        // Create backing indices with mixed ages
+        List<DataStreamMetadata> backingIndicesMetadata = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        // Create failure indices with mixed ages
+        List<DataStreamMetadata> failureIndicesMetadata = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 6000_000, now - 5000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        Metadata.Builder builder = Metadata.builder();
+
+        List<Index> backingIndices = createDataStreamIndices(
+            builder,
+            dataStreamName,
+            backingIndicesMetadata,
+            settings(IndexVersion.current()),
+            backingIndicesMetadata.size(),
+            false
+        );
+
+        List<Index> failureIndices = createDataStreamIndices(
+            builder,
+            dataStreamName,
+            failureIndicesMetadata,
+            settings(IndexVersion.current()),
+            failureIndicesMetadata.size(),
+            true
+        );
+
+        DataStream dataStream = newInstance(
+            dataStreamName,
+            backingIndices,
+            backingIndices.size(),
+            null,
+            false,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            failureIndices
+        );
+        builder.put(dataStream);
+        Metadata metadata = builder.build();
+
+        List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
+            metadata.getProject()::index,
+            () -> now,
+            timeValueSeconds(2500),
+            ALL
+        );
+
+        // Expected: 2 old backing indices + 2 old failure indices (excluding write indices)
+        assertThat(indicesPastRetention.size(), is(4));
+
+        // Verify we got indices from both backing and failure stores
+        List<String> backingIndexNames = backingIndices.stream().map(Index::getName).toList();
+        List<String> failureIndexNames = failureIndices.stream().map(Index::getName).toList();
+
+        long backingIndicesCount = indicesPastRetention.stream().filter(idx -> backingIndexNames.contains(idx.getName())).count();
+        long failureIndicesCount = indicesPastRetention.stream().filter(idx -> failureIndexNames.contains(idx.getName())).count();
+
+        assertThat(backingIndicesCount, is(2L));
+        assertThat(failureIndicesCount, is(2L));
     }
 
     private void testIndicesPastRetention(boolean failureStore) {
@@ -1428,7 +1504,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Metadata metadata = builder.build();
 
                 assertThat(
-                    dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, TimeValue.ZERO, failureStore).isEmpty(),
+                    dataStream.getIndicesOlderThan(
+                        metadata.getProject()::index,
+                        () -> now,
+                        TimeValue.ZERO,
+                        failureStore ? FAILURE_INDICES : BACKING_INDICES
+                    ).isEmpty(),
                     is(true)
                 );
             }
@@ -1447,11 +1528,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // Mix of indices younger and older than retention
-            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(2500),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(2));
             for (int i = 0; i < indicesPastRetention.size(); i++) {
@@ -1461,11 +1543,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // All indices past retention, but we keep the write index
-            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(4));
             for (int i = 0; i < indicesPastRetention.size(); i++) {
@@ -1475,11 +1558,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // All indices younger than retention
-            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueSeconds(6000),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }
@@ -1495,26 +1579,27 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "some-policy").build())
                     .build();
             };
-            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 indexMetadataWithSomeLifecycleSupplier,
                 () -> now,
                 TimeValue.ZERO,
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(1));
             assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(2).getName()));
         }
     }
 
-    public void testBackingIndicesPastRetentionWithOriginationDate() {
-        testIndicesPastRetentionWithOriginationDate(false);
+    public void testBackingIndicesOlderThanWithOriginationDate() {
+        testIndicesOlderThanWithOriginationDate(false);
     }
 
-    public void testFailureIndicesPastRetentionWithOriginationDate() {
-        testIndicesPastRetentionWithOriginationDate(true);
+    public void testFailureIndicesOlderThanWithOriginationDate() {
+        testIndicesOlderThanWithOriginationDate(true);
     }
 
-    private void testIndicesPastRetentionWithOriginationDate(boolean failureStore) {
+    private void testIndicesOlderThanWithOriginationDate(boolean failureStore) {
         // First, build an ordinary data stream:
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
@@ -1539,16 +1624,25 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Supplier<List<Index>> indicesSupplier = () -> failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
         {
             // no retention configured so we expect an empty list
-            assertThat(dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null, failureStore).isEmpty(), is(true));
+            assertThat(
+                dataStream.getIndicesOlderThan(
+                    metadata.getProject()::index,
+                    () -> now,
+                    null,
+                    failureStore ? FAILURE_INDICES : BACKING_INDICES
+                ).isEmpty(),
+                is(true)
+            );
         }
 
         {
             // retention period where first and second index is too old, and 5th has old origination date.
-            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(2500),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.size(), is(3));
             assertThat(indicesPastRetention.get(0).getName(), is(indicesSupplier.get().get(0).getName()));
@@ -1558,11 +1652,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // no index matches the retention age
-            List<Index> indicesPastRetention = dataStream.getIndicesPastRetention(
+            List<Index> indicesPastRetention = dataStream.getIndicesOlderThan(
                 metadata.getProject()::index,
                 () -> now,
                 TimeValue.timeValueMillis(9000),
-                failureStore
+                failureStore ? FAILURE_INDICES : BACKING_INDICES
+
             );
             assertThat(indicesPastRetention.isEmpty(), is(true));
         }

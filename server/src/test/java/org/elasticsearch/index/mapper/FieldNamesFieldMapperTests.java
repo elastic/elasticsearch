@@ -86,7 +86,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      */
     public void testUsingEnabledBefore8() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0),
             topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject())
         );
 
@@ -103,7 +103,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      */
     public void testMergingMappingsBefore8() throws Exception {
         MapperService mapperService = createMapperService(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0),
             mapping(b -> {})
         );
 

@@ -162,6 +162,11 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        return packedValuesBlockHash.numKeys();
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return packedValuesBlockHash.seenGroupIds(bigArrays);
     }

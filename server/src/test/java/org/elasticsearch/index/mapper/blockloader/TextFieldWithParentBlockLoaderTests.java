@@ -40,7 +40,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
     public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
-        this.runner = new BlockLoaderTestRunner(params);
+        this.runner = new BlockLoaderTestRunner(params, randomBoolean());
     }
 
     // This is similar to BlockLoaderTestCase#testBlockLoaderOfMultiField but has customizations required to properly test the case
@@ -79,6 +79,6 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
         // we are using block loader of the text field itself
         var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("subfield_text");
-        return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext);
+        return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext, false);
     }
 }

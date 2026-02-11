@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -117,7 +116,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         this.modifiedDate = in.readVLong();
         this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
-        this.invocationsSinceLastSuccess = in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0) ? in.readVLong() : 0L;
+        this.invocationsSinceLastSuccess = in.readVLong();
     }
 
     @Override
@@ -128,9 +127,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         out.writeVLong(this.modifiedDate);
         out.writeOptionalWriteable(this.lastSuccess);
         out.writeOptionalWriteable(this.lastFailure);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeVLong(this.invocationsSinceLastSuccess);
-        }
+        out.writeVLong(this.invocationsSinceLastSuccess);
     }
 
     public static Builder builder() {

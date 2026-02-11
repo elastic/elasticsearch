@@ -158,6 +158,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedCount) {
+        return factory.newLongRangeBlockBuilder(expectedCount);
+    }
+
+    @Override
     public BlockLoader.Block buildAggregateMetricDoubleDirect(
         BlockLoader.Block minBlock,
         BlockLoader.Block maxBlock,
@@ -211,5 +216,10 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) sums,
             (LongBlock) valueCounts
         );
+    }
+
+    @Override
+    public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+        return factory.newTDigestBlockBuilder(count);
     }
 }

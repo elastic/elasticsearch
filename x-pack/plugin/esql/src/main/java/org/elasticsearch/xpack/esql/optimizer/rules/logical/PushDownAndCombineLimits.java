@@ -15,12 +15,14 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -93,17 +95,64 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // And the verifier checks that there are no non-synthetic limits before the join.
             // TODO: However, this means that the non-remote join will be always forced on the coordinator. We may want to revisit this.
             return duplicateLimitAsFirstGrandchild(limit, false);
+        } else if (limit.child() instanceof Fork fork) {
+            return maybePushDownLimitToFork(limit, fork, ctx);
         }
         return limit;
+    }
+
+    private static LogicalPlan maybePushDownLimitToFork(Limit limit, Fork fork, LogicalOptimizerContext ctx) {
+        // TODO: there's no reason why UnionAll should not benefit from this optimization
+        if (fork instanceof UnionAll) {
+            return limit;
+        }
+
+        List<LogicalPlan> newForkChildren = new ArrayList<>();
+        boolean changed = false;
+
+        for (LogicalPlan forkChild : fork.children()) {
+            LogicalPlan newForkChild = maybePushDownLimitToForkBranch(limit, forkChild, ctx);
+            changed = changed || newForkChild != forkChild;
+            newForkChildren.add(newForkChild);
+        }
+
+        return changed ? limit.replaceChild(fork.replaceChildren(newForkChildren)) : limit;
+    }
+
+    private static LogicalPlan maybePushDownLimitToForkBranch(Limit limit, LogicalPlan forkBranch, LogicalOptimizerContext ctx) {
+        if (forkBranch instanceof UnaryPlan == false) {
+            return forkBranch;
+        }
+
+        Limit descendantLimit = descendantLimit((UnaryPlan) forkBranch);
+        if (descendantLimit == null) {
+            return forkBranch;
+        }
+        var descendantLimitValue = (int) descendantLimit.limit().fold(ctx.foldCtx());
+        var limitValue = (int) limit.limit().fold(ctx.foldCtx());
+
+        // We push down a limit to a Fork branch when the Fork branch contains a limit with a higher value
+        return descendantLimitValue > limitValue ? new Limit(forkBranch.source(), limit.limit(), forkBranch) : forkBranch;
     }
 
     private static Limit combineLimits(Limit upper, Limit lower, FoldContext ctx) {
         // Keep the smallest limit
         var upperLimitValue = (int) upper.limit().fold(ctx);
         var lowerLimitValue = (int) lower.limit().fold(ctx);
-        // We want to preserve the duplicated() value of the smaller limit.
-        if (lowerLimitValue <= upperLimitValue) {
-            return lower.withLocal(lower.local());
+        /*
+         * We always want to select the smaller of the limits, but with the local flag it gets a bit tricky.
+         * If one of the limits is smaller, that's what we will choose. But if the limits are exactly equal,
+         * then we can choose the local limit because this may enable some queries that would otherwise be prohibited
+         * due to pipeline-breaking nature of non-local limits in combination with remote Enrich.
+         * However this may not be true if we have more situations where local limits are generated which do not have
+         * guarantees that local limit produced by remote enrich pushing provides.
+         * See also: https://github.com/elastic/elasticsearch/pull/139399#pullrequestreview-3573026118
+         */
+        if (lowerLimitValue < upperLimitValue) {
+            return lower;
+        } else if (lowerLimitValue == upperLimitValue) {
+            // If any of them is local, we want the local limit
+            return lower.local() ? lower : lower.withLocal(upper.local());
         } else {
             return new Limit(upper.source(), upper.limit(), lower.child(), upper.duplicated(), upper.local());
         }

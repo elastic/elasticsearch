@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.JnaCleanerThreadsFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -21,7 +22,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class, TestContainersThreadFilter.class })
+@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class, TestContainersThreadFilter.class, JnaCleanerThreadsFilter.class })
 public class SecureHdfsRepositoryAnalysisRestIT extends AbstractHdfsRepositoryAnalysisRestIT {
 
     public static Krb5kDcContainer krb5Fixture = new Krb5kDcContainer();

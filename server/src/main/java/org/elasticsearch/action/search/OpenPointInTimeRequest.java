@@ -9,10 +9,11 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,11 +41,16 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
     @Nullable
     private String preference;
 
+    private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private String projectRouting;
+
     private QueryBuilder indexFilter;
 
     private boolean allowPartialSearchResults = false;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
+    public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = SearchRequest.DEFAULT_CPS_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
         this.indices = Objects.requireNonNull(indices, "[index] is not specified");
@@ -57,15 +63,9 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            this.maxConcurrentShardRequests = in.readVInt();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.allowPartialSearchResults = in.readBoolean();
-        }
+        this.maxConcurrentShardRequests = in.readVInt();
+        this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.allowPartialSearchResults = in.readBoolean();
     }
 
     @Override
@@ -76,17 +76,9 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeVInt(maxConcurrentShardRequests);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(indexFilter);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        } else if (allowPartialSearchResults) {
-            throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());
-        }
+        out.writeVInt(maxConcurrentShardRequests);
+        out.writeOptionalWriteable(indexFilter);
+        out.writeBoolean(allowPartialSearchResults);
     }
 
     @Override
@@ -97,6 +89,13 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         }
         if (keepAlive == null) {
             validationException = addValidationError("[keep_alive] is not specified", validationException);
+        }
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
+
         }
         return validationException;
     }
@@ -184,6 +183,33 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
     @Override
     public boolean allowsRemoteIndices() {
         return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public void projectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+        this.projectRouting = projectRouting;
     }
 
     @Override

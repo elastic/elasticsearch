@@ -14,10 +14,15 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -27,6 +32,8 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -35,12 +42,13 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
@@ -50,6 +58,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -61,6 +70,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -82,12 +92,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -191,6 +203,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
                 document.add(new StringField("field", "value", Field.Store.NO));
+                document.add(new TextField("p_field", "value", Field.Store.NO));
                 iw.addDocument(document);
                 if (rarely()) {
                     iw.flush();
@@ -249,7 +262,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     Integer.MAX_VALUE,
                     1
                 );
-                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+                Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertEquals(numDocs, totalHits.intValue());
                 int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
                 // check that each slice except for one that executes on the calling thread goes to the executor, no matter the queue size
@@ -351,7 +364,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(1, searcher.count(new TermQuery(new Term("foo", "bar"))));
 
         // make sure scorers are created only once, see #1725
-        assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
+        assertEquals(1, searcher.count(new CreateScorerOnceQuery(Queries.ALL_DOCS_INSTANCE)));
 
         TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
         assertEquals(1, topDocs.totalHits.value());
@@ -610,6 +623,98 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testMaxClause() throws Exception {
+        ThreadPoolExecutor executor = null;
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            try (var directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                var searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                var query = new PhraseQuery.Builder().add(new Term("p_field", "value1"))
+                    .add(new Term("p_field", "value2"))
+                    .add(new Term("p_field", "value"))
+                    .build();
+                IndexSearcher.setMaxClauseCount(2);
+                var exc = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 10));
+                assertThat(exc.getMessage(), containsString("too many clauses"));
+                IndexSearcher.setMaxClauseCount(3);
+                var top = searcher.search(query, 10);
+                assertThat(top.totalHits.value(), equalTo(0L));
+                assertThat(top.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testQueriesWithManyLeavesMaxClause() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            Document d = new Document();
+            d.add(new LongField("foo", 0L, LongField.Store.NO));
+            writer.addDocument(d);
+            d = new Document();
+            d.add(new LongField("foo", Long.MAX_VALUE, LongField.Store.NO));
+            writer.addDocument(d);
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    -1,
+                    1
+                );
+                int maxClauseCount = IndexSearcher.getMaxClauseCount();
+                assertMaxClause(searcher, i -> LongPoint.newRangeQuery("foo", 0, i), maxClauseCount);
+                assertMaxClause(searcher, i -> LongField.newRangeQuery("foo", 0, i), maxClauseCount);
+                assertMaxClause(
+                    searcher,
+                    i -> new IndexOrDocValuesQuery(
+                        LongPoint.newRangeQuery("foo", 0, i),
+                        SortedNumericDocValuesField.newSlowRangeQuery("foo", 0, i)
+                    ),
+                    maxClauseCount
+                );
+            }
+        }
+    }
+
+    private void assertMaxClause(IndexSearcher searcher, IntFunction<Query> querySupplier, int maxClauseCount) throws IOException {
+        BooleanQuery.Builder qb1 = new BooleanQuery.Builder();
+        for (int i = 0; i < maxClauseCount; i++) {
+            qb1.add(querySupplier.apply(i), BooleanClause.Occur.SHOULD);
+        }
+        // should not throw an exception, because it is below the limit
+        searcher.rewrite(qb1.build());
+
+        BooleanQuery.Builder qb2 = new BooleanQuery.Builder();
+        for (int i = 0; i < maxClauseCount; i++) {
+            qb2.add(querySupplier.apply(i), BooleanClause.Occur.SHOULD);
+        }
+        // too many clauses
+        expectThrows(
+            IndexSearcher.TooManyClauses.class,
+            () -> qb2.add(querySupplier.apply(maxClauseCount + 1), BooleanClause.Occur.SHOULD)
+        );
     }
 
     private static class TestQuery extends Query {

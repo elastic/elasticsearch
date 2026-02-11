@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
@@ -29,9 +30,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
@@ -46,12 +52,14 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -375,15 +383,55 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             final MappedFieldType fieldType;
             if (name.startsWith("custom-keyword")) {
                 fieldType = new KeywordFieldMapper.KeywordFieldType(name);
+            } else if (name.startsWith("custom-date-nanos-skipper")) {
+                fieldType = new DateFieldMapper.DateFieldType(
+                    name,
+                    IndexType.skippers(),
+                    false,
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                    DateFieldMapper.Resolution.NANOSECONDS,
+                    null,
+                    null,
+                    Collections.emptyMap()
+                );
+            } else if (name.startsWith("custom-date-skipper")) {
+                fieldType = new DateFieldMapper.DateFieldType(
+                    name,
+                    IndexType.skippers(),
+                    false,
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                    DateFieldMapper.Resolution.MILLISECONDS,
+                    null,
+                    null,
+                    Collections.emptyMap()
+                );
             } else if (name.startsWith("custom-date")) {
                 fieldType = new DateFieldMapper.DateFieldType(name);
             } else {
-                String type = name.split("-")[1];
+                String[] parts = name.split("-");
+                String type = parts[1];
                 if (type.equals("INT")) {
                     type = "integer";
                 }
                 NumberFieldMapper.NumberType numberType = NumberFieldMapper.NumberType.valueOf(type.toUpperCase(Locale.ENGLISH));
-                fieldType = new NumberFieldMapper.NumberFieldType(name, numberType);
+                if (parts.length > 2 && parts[2].equals("skipper")) {
+                    fieldType = new NumberFieldMapper.NumberFieldType(
+                        name,
+                        numberType,
+                        IndexType.skippers(),
+                        false,
+                        true,
+                        null,
+                        Collections.emptyMap(),
+                        null,
+                        false,
+                        null,
+                        null,
+                        false
+                    );
+                } else {
+                    fieldType = new NumberFieldMapper.NumberFieldType(name, numberType);
+                }
             }
             return fieldType;
         } else {
@@ -569,6 +617,108 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
     }
 
+    public void testGetMaxNumericDateValueWithSkipper() throws IOException {
+        SearchExecutionContext context = createMockSearchExecutionContext();
+        String fieldName = "custom-date-skipper";
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+        try (Directory dir = newDirectory()) {
+            int numDocs = randomIntBetween(10, 30);
+            final long[] values = new long[numDocs];
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    values[i] = randomNonNegativeLong();
+                    doc.add(SortedNumericDocValuesField.indexedField(fieldName, values[i]));
+                    writer.addDocument(doc);
+                }
+                Arrays.sort(values);
+                try (DirectoryReader reader = writer.getReader()) {
+                    SearchExecutionContext newContext = createMockSearchExecutionContext(new AssertingIndexSearcher(random(), reader));
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                }
+            }
+        }
+    }
+
+    public void testGetMaxNumericDateNanosValueWithSkipper() throws IOException {
+        SearchExecutionContext context = createMockSearchExecutionContext();
+        String fieldName = "custom-date-nanos-skipper";
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+        try (Directory dir = newDirectory()) {
+            int numDocs = randomIntBetween(10, 30);
+            final long[] values = new long[numDocs];
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    values[i] = randomNonNegativeLong();
+                    doc.add(SortedNumericDocValuesField.indexedField(fieldName, values[i]));
+                    writer.addDocument(doc);
+                }
+                Arrays.sort(values);
+                try (DirectoryReader reader = writer.getReader()) {
+                    SearchExecutionContext newContext = createMockSearchExecutionContext(new AssertingIndexSearcher(random(), reader));
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                }
+            }
+        }
+    }
+
+    public void testGetMaxNumericSortValueWithSkipper() throws IOException {
+        SearchExecutionContext context = createMockSearchExecutionContext();
+        for (NumberFieldMapper.NumberType numberType : List.of(
+            NumberFieldMapper.NumberType.LONG,
+            NumberFieldMapper.NumberType.INTEGER,
+            NumberFieldMapper.NumberType.DOUBLE,
+            NumberFieldMapper.NumberType.FLOAT
+        )) {
+            String fieldName = "custom-" + numberType.numericType() + "-skipper";
+            assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+
+            try (Directory dir = newDirectory()) {
+                int numDocs = randomIntBetween(10, 30);
+                @SuppressWarnings("rawtypes")
+                final Comparable<?>[] values = new Comparable[numDocs];
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                    for (int i = 0; i < numDocs; i++) {
+                        Document doc = new Document();
+                        switch (numberType) {
+                            case LONG -> {
+                                long v = randomLong();
+                                values[i] = v;
+                                doc.add(SortedNumericDocValuesField.indexedField(fieldName, v));
+                            }
+                            case INTEGER -> {
+                                int v = randomInt();
+                                values[i] = v;
+                                doc.add(SortedNumericDocValuesField.indexedField(fieldName, v));
+                            }
+                            case DOUBLE -> {
+                                double v = randomDoubleBetween(-1e18, 1e18, true);
+                                values[i] = v;
+                                doc.add(SortedNumericDocValuesField.indexedField(fieldName, NumericUtils.doubleToSortableLong(v)));
+                            }
+                            case FLOAT -> {
+                                float v = (float) randomDoubleBetween(-1e6, 1e6, true);
+                                values[i] = v;
+                                doc.add(SortedNumericDocValuesField.indexedField(fieldName, NumericUtils.floatToSortableInt(v)));
+                            }
+                            default -> throw new AssertionError("unexpected type " + numberType);
+                        }
+                        writer.addDocument(doc);
+                    }
+                    Arrays.sort(values);
+                    try (DirectoryReader reader = writer.getReader()) {
+                        SearchExecutionContext newContext = createMockSearchExecutionContext(new AssertingIndexSearcher(random(), reader));
+                        assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                        assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
+                    }
+                }
+            }
+        }
+    }
+
     public void testGetMaxKeywordValue() throws IOException {
         SearchExecutionContext context = createMockSearchExecutionContext();
         String fieldName = "custom-keyword";
@@ -683,5 +833,41 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     @Override
     protected FieldSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
         return FieldSortBuilder.fromXContent(parser, fieldName);
+    }
+
+    public void testIntRewritesToLong() throws IOException {
+        assertIntegerSortRewrite(
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
+            SortField.Type.LONG
+        );
+        assertIntegerSortRewrite(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+            ),
+            SortField.Type.INT
+        );
+        assertIntegerSortRewrite(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            ),
+            SortField.Type.LONG
+        );
+        assertIntegerSortRewrite(
+            IndexVersionUtils.randomVersionBetween(IndexVersions.INDEX_INT_SORT_INT_TYPE, IndexVersion.current()),
+            SortField.Type.INT
+        );
+        assertIntegerSortRewrite(IndexVersion.current(), SortField.Type.INT);
+    }
+
+    private void assertIntegerSortRewrite(IndexVersion version, SortField.Type expectedType) throws IOException {
+        FieldSortBuilder builder = new FieldSortBuilder("custom-integer");
+        SortFieldAndFormat sff = builder.build(createMockSearchExecutionContext(version));
+        if (sff.field().getType() == SortField.Type.LONG) {
+            assertThat(sff.field(), instanceOf(SortedNumericSortField.class));
+        }
+        SortField sf = Lucene.rewriteMergeSortField(sff.field());
+        assertThat(sf.getType(), equalTo(expectedType));
     }
 }

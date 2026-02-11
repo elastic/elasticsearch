@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,7 +35,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     OrdinalBytesRefVector asOrdinals();
 
     @Override
-    BytesRefVector filter(int... positions);
+    BytesRefVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     BytesRefBlock keepMask(BooleanVector mask);

@@ -340,7 +340,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             return ClusterState.builder(state)
                 .putCompatibilityVersions(
                     node().getNodeEnvironment().nodeId(),
-                    TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible()),
+                    TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true),
                     Map.of()
                 )
                 .build();

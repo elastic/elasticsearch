@@ -1,0 +1,7 @@
+{
+  "geo_match": {
+    "indices": "airport_city_boundaries",
+    "match_field": "city_location",
+    "enrich_fields": ["abbrev", "airport", "region", "city", "city_boundary"]
+  }
+}

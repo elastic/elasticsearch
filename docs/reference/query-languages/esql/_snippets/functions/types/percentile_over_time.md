@@ -2,15 +2,21 @@
 
 **Supported types**
 
-| number | percentile | result |
+| field | percentile | result |
 | --- | --- | --- |
 | double | double | double |
 | double | integer | double |
 | double | long | double |
+| exponential_histogram | double | double |
+| exponential_histogram | integer | double |
+| exponential_histogram | long | double |
 | integer | double | double |
 | integer | integer | double |
 | integer | long | double |
 | long | double | double |
 | long | integer | double |
 | long | long | double |
+| tdigest | double | double |
+| tdigest | integer | double |
+| tdigest | long | double |
 

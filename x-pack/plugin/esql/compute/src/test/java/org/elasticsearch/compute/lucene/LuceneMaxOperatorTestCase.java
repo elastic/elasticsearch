@@ -12,19 +12,19 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -112,7 +112,7 @@ public abstract class LuceneMaxOperatorTestCase extends SourceOperatorTestCase {
         final ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         final Query query;
         if (enableShortcut && randomBoolean()) {
-            query = new MatchAllDocsQuery();
+            query = Queries.ALL_DOCS_INSTANCE;
         } else {
             query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD_NAME, Long.MIN_VALUE, Long.MAX_VALUE);
         }
@@ -177,7 +177,7 @@ public abstract class LuceneMaxOperatorTestCase extends SourceOperatorTestCase {
             DriverContext ctx = contexts.get();
             drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add)));
         }
-        OperatorTestCase.runDriver(drivers);
+        new TestDriverRunner().run(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
 
         try (AggregatorFunction aggregatorFunction = numberTypeTest.newAggregatorFunction(contexts.get())) {

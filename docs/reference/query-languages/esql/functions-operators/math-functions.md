@@ -21,6 +21,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/acos.md
 :::
 
+:::{include} ../_snippets/functions/layout/acosh.md
+:::
+
 :::{include} ../_snippets/functions/layout/asin.md
 :::
 

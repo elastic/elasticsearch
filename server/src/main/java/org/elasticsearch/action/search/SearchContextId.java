@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -83,26 +82,19 @@ public final class SearchContextId {
         TransportVersion version,
         ShardSearchFailure[] shardFailures
     ) {
-        assert shardFailures.length == 0 || version.onOrAfter(TransportVersions.V_8_16_0)
-            : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
-                + TransportVersions.V_8_16_0.toReleaseVersion()
-                + "] or higher.";
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            boolean allowNullContextId = out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
-            int shardSize = shards.size() + (allowNullContextId ? shardFailures.length : 0);
+            int shardSize = shards.size() + shardFailures.length;
             out.writeVInt(shardSize);
             for (ShardId shardId : shards.keySet()) {
                 shardId.writeTo(out);
                 SearchContextIdForNode searchContextIdForNode = shards.get(shardId);
                 searchContextIdForNode.writeTo(out);
             }
-            if (allowNullContextId) {
-                for (var failure : shardFailures) {
-                    failure.shard().getShardId().writeTo(out);
-                    new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
-                }
+            for (var failure : shardFailures) {
+                failure.shard().getShardId().writeTo(out);
+                new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
             }
             out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return out.bytes();
@@ -115,6 +107,9 @@ public final class SearchContextId {
     public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, BytesReference id) {
         try (var in = new NamedWriteableAwareStreamInput(id.streamInput(), namedWriteableRegistry)) {
             final TransportVersion version = TransportVersion.readVersion(in);
+            if (version.isKnown() == false) {
+                throw new IllegalArgumentException("unknown transport version [" + version + "] reading search context id");
+            }
             in.setTransportVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
                 in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)

@@ -8,21 +8,25 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.inference.InferenceString.DataType.IMAGE_BASE64;
+import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
 import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
 import static org.hamcrest.Matchers.is;
 
 public class EmbeddingsInputTests extends ESTestCase {
     public void testCallingGetInputs_invokesSupplier() {
         AtomicBoolean invoked = new AtomicBoolean();
-        final List<InferenceString> list = List.of(new InferenceString("input1", TEXT), new InferenceString("image_url", IMAGE_BASE64));
-        Supplier<List<InferenceString>> supplier = () -> {
+        final List<InferenceStringGroup> list = List.of(
+            new InferenceStringGroup(new InferenceString(TEXT, "input1")),
+            new InferenceStringGroup(new InferenceString(IMAGE, "image_url"))
+        );
+        Supplier<List<InferenceStringGroup>> supplier = () -> {
             invoked.set(true);
             return list;
         };
@@ -37,8 +41,8 @@ public class EmbeddingsInputTests extends ESTestCase {
     public void testCallingGetTextInputs_invokesSupplier() {
         AtomicBoolean invoked = new AtomicBoolean();
         var textInputs = List.of("input1", "input2");
-        final List<InferenceString> list = textInputs.stream().map(i -> new InferenceString(i, TEXT)).toList();
-        Supplier<List<InferenceString>> supplier = () -> {
+        final List<InferenceStringGroup> list = textInputs.stream().map(InferenceStringGroup::new).toList();
+        Supplier<List<InferenceStringGroup>> supplier = () -> {
             invoked.set(true);
             return list;
         };
@@ -51,17 +55,17 @@ public class EmbeddingsInputTests extends ESTestCase {
     }
 
     public void testCallingGetTextInputs_withNonTextInput_throws() {
-        Supplier<List<InferenceString>> supplier = () -> List.of(
-            new InferenceString("input1", TEXT),
-            new InferenceString("image_url", IMAGE_BASE64)
+        Supplier<List<InferenceStringGroup>> supplier = () -> List.of(
+            new InferenceStringGroup(new InferenceString(TEXT, "input1")),
+            new InferenceStringGroup(new InferenceString(IMAGE, "image_url"))
         );
         EmbeddingsInput input = new EmbeddingsInput(supplier, null);
         var exception = expectThrows(AssertionError.class, input::getTextInputs);
-        assertThat(exception.getMessage(), is("Non-text input passed to InferenceString.toStringList"));
+        assertThat(exception.getMessage(), is("Non-text input returned from InferenceString.textValue"));
     }
 
     public void testCallingGetInputsTwice_throws() {
-        Supplier<List<InferenceString>> supplier = () -> List.of(new InferenceString("input1", TEXT));
+        Supplier<List<InferenceStringGroup>> supplier = () -> List.of(new InferenceStringGroup("input1"));
         EmbeddingsInput input = new EmbeddingsInput(supplier, null);
         input.getInputs();
         var exception = expectThrows(AssertionError.class, input::getInputs);
@@ -69,7 +73,7 @@ public class EmbeddingsInputTests extends ESTestCase {
     }
 
     public void testCallingGetTextInputsTwice_throws() {
-        Supplier<List<InferenceString>> supplier = () -> List.of(new InferenceString("input1", TEXT));
+        Supplier<List<InferenceStringGroup>> supplier = () -> List.of(new InferenceStringGroup("input1"));
         EmbeddingsInput input = new EmbeddingsInput(supplier, null);
         input.getTextInputs();
         var exception = expectThrows(AssertionError.class, input::getTextInputs);
@@ -77,7 +81,7 @@ public class EmbeddingsInputTests extends ESTestCase {
     }
 
     public void testCallingEitherGetInputsMethodTwice_throws() {
-        Supplier<List<InferenceString>> supplier = () -> List.of(new InferenceString("input1", TEXT));
+        Supplier<List<InferenceStringGroup>> supplier = () -> List.of(new InferenceStringGroup("input1"));
         EmbeddingsInput input = new EmbeddingsInput(supplier, null);
         input.getInputs();
         var exception = expectThrows(AssertionError.class, input::getTextInputs);

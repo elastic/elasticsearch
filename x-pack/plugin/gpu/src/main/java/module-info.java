@@ -13,6 +13,7 @@ module org.elasticsearch.xpack.gpu {
     requires org.elasticsearch.server;
     requires org.elasticsearch.base;
     requires org.elasticsearch.gpu;
+    requires org.elasticsearch.xcore;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.gpu.GPUFeatures;
 }

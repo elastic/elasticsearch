@@ -363,112 +363,117 @@ class DatafeedJob {
 
         long recordCount = 0;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
-        while (dataExtractor.hasNext()) {
-            if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
-                dataExtractor.cancel();
-            }
-            if (isIsolated) {
-                return;
-            }
-
-            Optional<InputStream> extractedData;
-            try {
-                DataExtractor.Result result = dataExtractor.next();
-                extractedData = result.data();
-                searchInterval = result.searchInterval();
-            } catch (Exception e) {
-                LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
-                // When extraction problems are encountered, we do not want to advance time.
-                // Instead, it is preferable to retry the given interval next time an extraction
-                // is triggered.
-
-                // For aggregated datafeeds it is possible for our users to use fields without doc values.
-                // In that case, it is really useful to display an error message explaining exactly that.
-                // Unfortunately, there are no great ways to identify the issue but search for 'doc values'
-                // deep in the exception.
-                if (e.toString().contains("doc values")) {
-                    throw new ExtractionProblemException(
-                        nextRealtimeTimestamp(),
-                        new IllegalArgumentException(
-                            "One or more fields do not have doc values; please enable doc values for all analysis fields for datafeeds"
-                                + " using aggregations"
-                        )
-                    );
+        try {
+            while (dataExtractor.hasNext()) {
+                if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
+                    dataExtractor.cancel();
                 }
-                throw new ExtractionProblemException(nextRealtimeTimestamp(), e);
-            }
-            if (isIsolated) {
-                return;
-            }
-            if (extractedData.isPresent()) {
-                DataCounts counts;
-                try (InputStream in = extractedData.get()) {
-                    counts = postData(in, XContentType.JSON);
-                    LOGGER.trace(
-                        () -> format(
-                            "[%s] Processed another %s records with latest timestamp [%s]",
-                            jobId,
-                            counts.getProcessedRecordCount(),
-                            counts.getLatestRecordTimeStamp()
-                        )
-                    );
-                    timingStatsReporter.reportDataCounts(counts);
+                if (isIsolated) {
+                    return;
+                }
+
+                Optional<InputStream> extractedData;
+                try {
+                    DataExtractor.Result result = dataExtractor.next();
+                    extractedData = result.data();
+                    searchInterval = result.searchInterval();
                 } catch (Exception e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
-                    if (isIsolated) {
-                        return;
-                    }
-                    LOGGER.error(() -> "[" + jobId + "] error while posting data", e);
+                    LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
+                    // When extraction problems are encountered, we do not want to advance time.
+                    // Instead, it is preferable to retry the given interval next time an extraction
+                    // is triggered.
 
-                    // a conflict exception means the job state is not open any more.
-                    // we should therefore stop the datafeed.
-                    boolean shouldStop = isConflictException(e);
-
-                    // When an analysis problem occurs, it means something catastrophic has
-                    // happened to the c++ process. We sent a batch of data to the c++ process
-                    // yet we do not know how many of those were processed. It is better to
-                    // advance time in order to avoid importing duplicate data.
-                    error = new AnalysisProblemException(nextRealtimeTimestamp(), shouldStop, e);
-                    break;
+                    // For aggregated datafeeds it is possible for our users to use fields without doc values.
+                    // In that case, it is really useful to display an error message explaining exactly that.
+                    // Unfortunately, there are no great ways to identify the issue but search for 'doc values'
+                    // deep in the exception.
+                    if (e.toString().contains("doc values")) {
+                        throw new ExtractionProblemException(
+                            nextRealtimeTimestamp(),
+                            new IllegalArgumentException(
+                                "One or more fields do not have doc values; please enable doc values for all analysis fields for datafeeds"
+                                    + " using aggregations"
+                            )
+                        );
+                    }
+                    throw new ExtractionProblemException(nextRealtimeTimestamp(), e);
                 }
-                recordCount += counts.getProcessedRecordCount();
-                haveEverSeenData |= (recordCount > 0);
-                if (counts.getLatestRecordTimeStamp() != null) {
-                    lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
+                if (isIsolated) {
+                    return;
+                }
+                if (extractedData.isPresent()) {
+                    DataCounts counts;
+                    try (InputStream in = extractedData.get()) {
+                        counts = postData(in, XContentType.JSON);
+                        LOGGER.trace(
+                            () -> format(
+                                "[%s] Processed another %s records with latest timestamp [%s]",
+                                jobId,
+                                counts.getProcessedRecordCount(),
+                                counts.getLatestRecordTimeStamp()
+                            )
+                        );
+                        timingStatsReporter.reportDataCounts(counts);
+                    } catch (Exception e) {
+                        if (e instanceof InterruptedException) {
+                            Thread.currentThread().interrupt();
+                        }
+                        if (isIsolated) {
+                            return;
+                        }
+                        LOGGER.error(() -> "[" + jobId + "] error while posting data", e);
+
+                        // a conflict exception means the job state is not open any more.
+                        // we should therefore stop the datafeed.
+                        boolean shouldStop = isConflictException(e);
+
+                        // When an analysis problem occurs, it means something catastrophic has
+                        // happened to the c++ process. We sent a batch of data to the c++ process
+                        // yet we do not know how many of those were processed. It is better to
+                        // advance time in order to avoid importing duplicate data.
+                        error = new AnalysisProblemException(nextRealtimeTimestamp(), shouldStop, e);
+                        break;
+                    }
+                    recordCount += counts.getProcessedRecordCount();
+                    haveEverSeenData |= (recordCount > 0);
+                    if (counts.getLatestRecordTimeStamp() != null) {
+                        lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
+                    }
                 }
             }
-        }
 
-        lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
-        LOGGER.debug(
-            "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
-            jobId,
-            error,
-            recordCount,
-            lastEndTimeMs,
-            isRunning(),
-            dataExtractor.isCancelled()
-        );
+            lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            LOGGER.debug(
+                "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
+                jobId,
+                error,
+                recordCount,
+                lastEndTimeMs,
+                isRunning(),
+                dataExtractor.isCancelled()
+            );
 
-        // We can now throw any stored error as we have updated time.
-        if (error != null) {
-            throw error;
-        }
-
-        // If the datafeed was stopped, then it is possible that by the time
-        // we call flush the job is closed. Thus, we don't flush unless the
-        // datafeed is still running.
-        if (isRunning() && isIsolated == false) {
-            Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
-            if (lastFinalizedBucketEnd != null) {
-                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
+            // We can now throw any stored error as we have updated time.
+            if (error != null) {
+                throw error;
             }
-        }
 
-        if (recordCount == 0) {
-            throw new EmptyDataCountException(nextRealtimeTimestamp(), haveEverSeenData);
+            // If the datafeed was stopped, then it is possible that by the time
+            // we call flush the job is closed. Thus, we don't flush unless the
+            // datafeed is still running.
+            if (isRunning() && isIsolated == false) {
+                Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+                if (lastFinalizedBucketEnd != null) {
+                    this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
+                }
+            }
+
+            if (recordCount == 0) {
+                throw new EmptyDataCountException(nextRealtimeTimestamp(), haveEverSeenData);
+            }
+        } finally {
+            // Ensure the extractor is always destroyed to clean up scroll contexts
+            dataExtractor.destroy();
         }
     }
 

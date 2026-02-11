@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 142238
+summary: "[Inference API] Fix `ChunkingSettings` field missing from `ModelConfigurations` equals method"
+type: bug

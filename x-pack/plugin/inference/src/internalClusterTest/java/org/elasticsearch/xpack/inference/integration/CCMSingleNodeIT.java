@@ -53,6 +53,11 @@ public abstract class CCMSingleNodeIT extends ESSingleNodeTestCase {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
     public void testStoreAndGetCCMModel() {
         assertStoreCCMConfiguration();
     }

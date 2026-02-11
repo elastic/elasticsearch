@@ -32,6 +32,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -76,6 +77,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRe
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -469,6 +471,23 @@ public final class BlobStoreTestUtil {
 
     public static OperationPurpose randomPurpose() {
         return randomFrom(OperationPurpose.values());
+    }
+
+    /**
+     * Random {@link OperationPurpose} that will be retried by {@link RetryingInputStream}
+     */
+    public static OperationPurpose randomRetryingPurpose() {
+        return randomValueOtherThanMany(
+            purpose -> purpose != OperationPurpose.REPOSITORY_ANALYSIS == false,
+            BlobStoreTestUtil::randomPurpose
+        );
+    }
+
+    /**
+     * Random {@link OperationPurpose} that will be retried a finite number of times by {@link RetryingInputStream}
+     */
+    public static OperationPurpose randomFiniteRetryingPurpose() {
+        return randomValueOtherThanMany(purpose -> purpose == OperationPurpose.INDICES, BlobStoreTestUtil::randomRetryingPurpose);
     }
 
     public static OperationPurpose randomNonDataPurpose() {

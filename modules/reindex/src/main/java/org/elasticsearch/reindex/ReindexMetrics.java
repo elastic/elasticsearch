@@ -23,9 +23,9 @@ public class ReindexMetrics {
     public static final String REINDEX_COMPLETION_COUNTER = "es.reindex.completion.total";
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
-    public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error.type";
+    public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error_type";
 
-    public static final String ATTRIBUTE_NAME_SOURCE = "reindex.source";
+    public static final String ATTRIBUTE_NAME_SOURCE = "reindex_source";
     public static final String ATTRIBUTE_VALUE_SOURCE_LOCAL = "local";
     public static final String ATTRIBUTE_VALUE_SOURCE_REMOTE = "remote";
 

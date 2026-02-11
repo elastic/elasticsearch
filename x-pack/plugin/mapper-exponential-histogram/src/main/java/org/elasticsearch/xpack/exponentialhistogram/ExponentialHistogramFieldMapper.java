@@ -65,9 +65,9 @@ import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -288,7 +288,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not support scripts");
                         }
 
                         @Override
@@ -840,6 +840,30 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return 0.0;
             }
             return NumericUtils.sortableLongToDouble(valueSums.longValue());
+        }
+
+        @Override
+        public double minValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            if (valueMinima == null || valueMinima.advanceExact(currentDocId) == false) {
+                // empty histogram
+                return Double.POSITIVE_INFINITY;
+            }
+            return NumericUtils.sortableLongToDouble(valueMinima.longValue());
+        }
+
+        @Override
+        public double maxValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            if (valueMaxima == null || valueMaxima.advanceExact(currentDocId) == false) {
+                // empty histogram
+                return Double.NEGATIVE_INFINITY;
+            }
+            return NumericUtils.sortableLongToDouble(valueMaxima.longValue());
         }
     }
 

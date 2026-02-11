@@ -50,7 +50,7 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
 
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
-        return null;
+        return factory.tdigestBlockBuilder(expectedCount);
     }
 
     static class TDigestReader implements AllReader {
@@ -112,12 +112,12 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            ExponentialHistogramBuilder histogramBuilder = (ExponentialHistogramBuilder) builder;
+            TDigestBuilder histogramBuilder = (TDigestBuilder) builder;
             minimaReader.read(docId, storedFields, histogramBuilder.minima());
             maximaReader.read(docId, storedFields, histogramBuilder.maxima());
             sumsReader.read(docId, storedFields, histogramBuilder.sums());
             valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
-            encodedDigestReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
+            encodedDigestReader.read(docId, storedFields, histogramBuilder.encodedDigests());
         }
 
         @Override

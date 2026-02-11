@@ -24,6 +24,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -69,9 +70,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -472,6 +475,30 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
+    public void testChunkedInfer_noInputs() throws Exception {
+        var model = mockModelForChunking();
+
+        SageMakerSchema schema = mock();
+        when(schemas.schemaFor(model)).thenReturn(schema);
+        mockInvoke();
+
+        sageMakerService.chunkedInfer(
+            model,
+            QUERY,
+            List.of(),
+            null,
+            INPUT_TYPE,
+            THIRTY_SECONDS,
+            assertOnce(assertNoFailureListener(chunkedInferences -> {
+                verify(schemas, never()).schemaFor(any());
+                verify(schema, never()).request(any(), any());
+                verify(schema, never()).response(any(), any(), any());
+            }))
+        );
+        verify(client, never()).invoke(any(), any(), any(), any());
+        verifyNoMoreInteractions(client, schemas, schema);
+    }
+
     private SageMakerModel mockModelForChunking() {
         var model = mockModel();
         when(model.batchSize()).thenReturn(Optional.of(1));
@@ -540,5 +567,12 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             rerankingInferenceService.rerankerWindowSize("any model"),
             is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
         );
+    }
+
+    public void testBuildModelFromConfigAndSecrets() {
+        var modelConfigurations = mock(ModelConfigurations.class);
+        var modelSecrets = mock(ModelSecrets.class);
+        sageMakerService.buildModelFromConfigAndSecrets(modelConfigurations, modelSecrets);
+        verify(modelBuilder, only()).fromStorage(same(modelConfigurations), same(modelSecrets));
     }
 }

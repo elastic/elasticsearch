@@ -21,7 +21,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -29,6 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -91,7 +91,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         BucketCollector collector = getBucketCollector(THREADS * DOC_COUNTS);
 
-        indexSearcher.search(new MatchAllDocsQuery(), collector);
+        indexSearcher.search(Queries.ALL_DOCS_INSTANCE, collector);
         collector.postCollection();
 
         reader.close();
@@ -128,13 +128,13 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         {
             var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
-            var query = new BoostQuery(new MatchAllDocsQuery(), 2f);
+            var query = new BoostQuery(Queries.ALL_DOCS_INSTANCE, 2f);
             indexSearcher.search(query, collector);
             assertEquals(collector.count.get(), DOC_COUNTS);
         }
         {
             var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
-            var query = new BoostQuery(new MatchAllDocsQuery(), 1f);
+            var query = new BoostQuery(Queries.ALL_DOCS_INSTANCE, 1f);
             indexSearcher.search(query, collector);
             assertEquals(collector.count.get(), 0);
         }
@@ -214,8 +214,8 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     private RandomIndexWriter getIndexWriter(Directory dir) throws IOException {
 
         IndexWriterConfig iwc = newIndexWriterConfig();
-        boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
-        boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        boolean tsidReverse = TIME_SERIES_SORT.order().get(0).equals(SortOrder.DESC.toString());
+        boolean timestampReverse = TIME_SERIES_SORT.order().get(1).equals(SortOrder.DESC.toString());
         Sort sort = new Sort(
             new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, tsidReverse),
             new SortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG, timestampReverse)
@@ -227,8 +227,8 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     private BucketCollector getBucketCollector(long totalCount) {
         return new BucketCollector() {
 
-            final boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
-            final boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+            final boolean tsidReverse = TIME_SERIES_SORT.order().get(0).equals(SortOrder.DESC.toString());
+            final boolean timestampReverse = TIME_SERIES_SORT.order().get(1).equals(SortOrder.DESC.toString());
             BytesRef currentTSID = null;
             int currentTSIDord = -1;
             long currentTimestamp = 0;

@@ -18,6 +18,7 @@ import org.elasticsearch.entitlement.tools.publiccallersfinder.FindUsagesClassVi
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -116,7 +117,8 @@ public class Main {
         MethodDescriptor methodToFind,
         String methodToFindModule,
         EnumSet<ExternalAccess> methodToFindAccess,
-        boolean bubbleUpFromPublic
+        boolean bubbleUpFromPublic,
+        PrintStream out
     ) throws IOException {
 
         CallChain firstLevel = CallChain.firstLevel(methodToFind, methodToFindAccess, methodToFindModule, "", 0);
@@ -131,7 +133,11 @@ public class Main {
 
             originalCallers.stream().filter(CallChain::isPublic).forEach(c -> {
                 var originalCaller = c.next();
-                printRow(getEntryPointColumns(c.entryPoint().moduleName(), c.entryPoint()), getOriginalEntryPointColumns(originalCaller));
+                printRow(
+                    getEntryPointColumns(c.entryPoint().moduleName(), c.entryPoint()),
+                    getOriginalEntryPointColumns(originalCaller),
+                    out
+                );
             });
             var firstLevelCallers = bubbleUpFromPublic
                 ? originalCallers
@@ -144,20 +150,20 @@ public class Main {
                     bubbleUpFromPublic,
                     (originalEntryPoint, newMethod) -> printRow(
                         getEntryPointColumns(moduleName, newMethod.entryPoint()),
-                        getOriginalEntryPointColumns(originalEntryPoint)
+                        getOriginalEntryPointColumns(originalEntryPoint),
+                        out
                     )
                 );
             }
         });
     }
 
-    @SuppressForbidden(reason = "This tool prints the CSV to stdout")
-    private static void printRow(CharSequence[] entryPointColumns, CharSequence[] originalEntryPointColumns) {
+    private static void printRow(CharSequence[] entryPointColumns, CharSequence[] originalEntryPointColumns, PrintStream out) {
         String row = String.join(
             SEPARATOR,
             () -> Stream.concat(Arrays.stream(entryPointColumns), Arrays.stream(originalEntryPointColumns)).iterator()
         );
-        System.out.println(row);
+        out.println(row);
     }
 
     private static CharSequence[] getEntryPointColumns(String moduleName, EntryPoint e) {
@@ -240,6 +246,7 @@ public class Main {
         }
     }
 
+    @SuppressForbidden(reason = "This tool prints the CSV to stdout")
     public static void main(String[] args) throws IOException {
         validateArgs(args);
         var csvFilePath = Path.of(args[0]);
@@ -247,10 +254,19 @@ public class Main {
         boolean checkInstrumentation = optionalArgs(args).anyMatch(CHECK_INSTRUMENTATION::equals);
         boolean includeIncubator = optionalArgs(args).anyMatch(INCLUDE_INCUBATOR::equals);
 
+        run(csvFilePath, bubbleUpFromPublic, checkInstrumentation, includeIncubator, System.out);
+    }
+
+    static void run(Path csvFilePath, boolean bubbleUpFromPublic, boolean checkInstrumentation, boolean includeIncubator, PrintStream out)
+        throws IOException {
         AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
             .forEach(
                 t -> ACCESSIBLE_JDK_METHODS.add(
-                    new MethodDescriptor(t.v1().clazz(), t.v2().descriptor().method(), t.v2().descriptor().descriptor())
+                    new MethodDescriptor(
+                        t.moduleClass().clazz(),
+                        t.accessibleMethod().descriptor().method(),
+                        t.accessibleMethod().descriptor().descriptor()
+                    )
                 )
             );
 
@@ -260,7 +276,7 @@ public class Main {
         Predicate<String> modulePredicate = Utils.modulePredicate(includeIncubator);
         parseCsv(
             csvFilePath,
-            (method, module, access) -> identifyTopLevelEntryPoints(modulePredicate, method, module, access, bubbleUpFromPublic)
+            (method, module, access) -> identifyTopLevelEntryPoints(modulePredicate, method, module, access, bubbleUpFromPublic, out)
         );
     }
 }

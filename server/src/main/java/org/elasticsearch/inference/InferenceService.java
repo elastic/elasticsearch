@@ -66,6 +66,15 @@ public interface InferenceService extends Closeable {
     Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
 
     /**
+     * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects.
+     * This method is used for creating updated model instances.
+     * @param config The model configurations
+     * @param secrets The model secrets
+     * @return The created model
+     */
+    Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets);
+
+    /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
      *
@@ -137,6 +146,16 @@ public interface InferenceService extends Closeable {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    /**
+     * Perform multimodal embedding inference on the model using the embedding schema.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 
     /**
      * Chunk long text.

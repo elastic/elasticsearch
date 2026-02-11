@@ -2,5 +2,5 @@
 
 **Description**
 
-Clamps the values of all samples to have a lower limit of min and an upper limit of max.
+Limits (or clamps) the values of all samples to have a lower limit of min and an upper limit of max.
 

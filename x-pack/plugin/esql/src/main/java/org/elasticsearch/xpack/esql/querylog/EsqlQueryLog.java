@@ -12,10 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -35,43 +39,43 @@ public final class EsqlQueryLog {
     public static final String ELASTICSEARCH_QUERYLOG_ERROR_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".error.type";
     public static final String ELASTICSEARCH_QUERYLOG_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".took";
     public static final String ELASTICSEARCH_QUERYLOG_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".took_millis";
-    public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took";
-    public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took_millis";
+    public static final String ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX = ".took";
+    public static final String ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX = ".took_millis";
     public static final String ELASTICSEARCH_QUERYLOG_SUCCESS = ELASTICSEARCH_QUERYLOG_PREFIX + ".success";
     public static final String ELASTICSEARCH_QUERYLOG_SEARCH_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".search_type";
     public static final String ELASTICSEARCH_QUERYLOG_QUERY = ELASTICSEARCH_QUERYLOG_PREFIX + ".query";
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
-    private final SlowLogFields additionalFields;
+    private final ActionLoggingFields additionalFields;
 
     private volatile long queryWarnThreshold;
     private volatile long queryInfoThreshold;
     private volatile long queryDebugThreshold;
     private volatile long queryTraceThreshold;
 
-    private volatile boolean includeUser;
-
-    public EsqlQueryLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
+    public EsqlQueryLog(ClusterSettings settings, ActionLoggingFieldsProvider loggingFieldsProvider) {
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING, this::setQueryTraceThreshold);
-        settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, this::setIncludeUser);
 
-        this.additionalFields = slowLogFieldProvider.create();
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext();
+        settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
+
+        this.additionalFields = loggingFieldsProvider.create(logContext);
     }
 
-    public void onQueryPhase(Result esqlResult, String query) {
-        if (esqlResult == null) {
+    public void onQueryPhase(Versioned<Result> esqlResult, String query) {
+        if (esqlResult.inner() == null) {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
-        long tookInNanos = esqlResult.executionInfo().overallTook().nanos();
-        log(() -> Message.of(esqlResult, query, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
+        long tookInNanos = esqlResult.inner().executionInfo().overallTook().nanos();
+        log(() -> Message.of(esqlResult.inner(), query, additionalFields.logFields()), tookInNanos);
     }
 
     public void onQueryFailure(String query, Exception ex, long tookInNanos) {
-        log(() -> Message.of(query, tookInNanos, ex, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
+        log(() -> Message.of(query, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
     }
 
     private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
@@ -100,10 +104,6 @@ public final class EsqlQueryLog {
 
     public void setQueryTraceThreshold(TimeValue queryTraceThreshold) {
         this.queryTraceThreshold = queryTraceThreshold.nanos();
-    }
-
-    public void setIncludeUser(boolean includeUser) {
-        this.includeUser = includeUser;
     }
 
     static final class Message {
@@ -139,8 +139,13 @@ public final class EsqlQueryLog {
         private static void addResultFields(Map<String, Object> fieldMap, Result esqlResult) {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK, esqlResult.executionInfo().overallTook().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
-            fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK, esqlResult.executionInfo().planningTookTime().nanos());
-            fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS, esqlResult.executionInfo().planningTookTime().millis());
+            EsqlQueryProfile esqlQueryProfile = esqlResult.executionInfo().queryProfile();
+            for (TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
+                TimeValue timeTook = timeSpanMarker.timeTook();
+                String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();
+                fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX, timeTook.nanos());
+                fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX, timeTook.millis());
+            }
         }
 
         private static void addErrorFields(Map<String, Object> jsonFields, long took, Exception exception) {

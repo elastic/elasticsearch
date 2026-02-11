@@ -12,6 +12,8 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.index.FloatVectorValues;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Random;
 
 class FloatVectorValuesSlice extends FloatVectorValues {
 
@@ -48,5 +50,39 @@ class FloatVectorValuesSlice extends FloatVectorValues {
     @Override
     public FloatVectorValues copy() throws IOException {
         return new FloatVectorValuesSlice(this.allValues.copy(), this.slice);
+    }
+
+    static FloatVectorValues createRandomSlice(FloatVectorValues origin, int k, long seed) {
+        if (k >= origin.size()) {
+            return origin;
+        }
+        // TODO maybe use bigArrays?
+        int[] samples = reservoirSample(origin.size(), k, seed);
+        // sort to prevent random backwards access weirdness
+        Arrays.sort(samples);
+        return new FloatVectorValuesSlice(origin, samples);
+    }
+
+    /**
+     * Sample k elements from n elements according to reservoir sampling algorithm.
+     *
+     * @param n number of elements
+     * @param k number of samples
+     * @param seed random seed
+     * @return array of k samples
+     */
+    static int[] reservoirSample(int n, int k, long seed) {
+        Random rnd = new Random(seed);
+        int[] reservoir = new int[k];
+        for (int i = 0; i < k; i++) {
+            reservoir[i] = i;
+        }
+        for (int i = k; i < n; i++) {
+            int j = rnd.nextInt(i + 1);
+            if (j < k) {
+                reservoir[j] = i;
+            }
+        }
+        return reservoir;
     }
 }

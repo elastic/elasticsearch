@@ -22,7 +22,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
@@ -51,9 +52,10 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -71,13 +74,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Field Mapper for pre-aggregated histograms.
  */
 public class TDigestFieldMapper extends FieldMapper {
-    public static final FeatureFlag TDIGEST_FIELD_MAPPER = new FeatureFlag("tdigest_field_mapper");
 
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
-    public static final String SUM_FIELD_NAME = "sum";
-    public static final String MIN_FIELD_NAME = "min";
-    public static final String MAX_FIELD_NAME = "max";
+
     public static final String CONTENT_TYPE = "tdigest";
 
     private static TDigestFieldMapper toType(FieldMapper in) {
@@ -90,8 +90,13 @@ public class TDigestFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
-        private final Parameter<TDigestState.Type> digestType;
+        private final Parameter<TDigestExecutionHint> digestType;
         private final Parameter<Double> compression;
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * Only the metric type histogram is supported.
+         */
+        private final Parameter<TimeSeriesParams.MetricType> metric;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
@@ -105,8 +110,8 @@ public class TDigestFieldMapper extends FieldMapper {
                 "digest_type",
                 false,
                 m -> toType(m).digestType,
-                TDigestState.Type.HYBRID,
-                TDigestState.Type.class
+                TDigestExecutionHint.DEFAULT,
+                TDigestExecutionHint.class
             );
             this.compression = new Parameter<>(
                 "compression",
@@ -123,18 +128,24 @@ public class TDigestFieldMapper extends FieldMapper {
                     );
                 }
             });
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+        }
+
+        public Builder metric(TimeSeriesParams.MetricType metric) {
+            this.metric.setValue(metric);
+            return this;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { digestType, compression, ignoreMalformed, meta };
+            return new Parameter<?>[] { digestType, compression, ignoreMalformed, meta, metric };
         }
 
         @Override
         public TDigestFieldMapper build(MapperBuilderContext context) {
             return new TDigestFieldMapper(
                 leafName(),
-                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue()),
+                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue(), this.metric.getValue()),
                 builderParams(this, context),
                 this
             );
@@ -148,8 +159,9 @@ public class TDigestFieldMapper extends FieldMapper {
 
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
-    private final TDigestState.Type digestType;
+    private final TDigestExecutionHint digestType;
     private final double compression;
+    private final TimeSeriesParams.MetricType metricType;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -157,6 +169,7 @@ public class TDigestFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.digestType = builder.digestType.getValue();
         this.compression = builder.compression.getValue();
+        this.metricType = builder.metric.get();
     }
 
     @Override
@@ -164,7 +177,7 @@ public class TDigestFieldMapper extends FieldMapper {
         return ignoreMalformed.value();
     }
 
-    public TDigestState.Type digestType() {
+    public TDigestExecutionHint digestType() {
         return digestType;
     }
 
@@ -179,7 +192,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault).metric(metricType).init(this);
     }
 
     @Override
@@ -188,14 +201,21 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static class TDigestFieldType extends MappedFieldType {
+        private final TimeSeriesParams.MetricType metricType;
 
-        public TDigestFieldType(String name, Map<String, String> meta) {
+        public TDigestFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
             super(name, IndexType.docValuesOnly(), false, meta);
+            this.metricType = metricType;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
         }
 
         @Override
@@ -368,21 +388,14 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             subParser.nextToken();
             // TODO: Here we should build a t-digest out of the input, based on the settings on the field
-            TDigestParser.ParsedTDigest parsedTDigest = TDigestParser.parse(fullPath(), subParser);
+            TDigestParser.ParsedTDigest parsedTDigest = TDigestParser.parse(
+                fullPath(),
+                subParser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
 
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-
-            for (int i = 0; i < parsedTDigest.centroids().size(); i++) {
-                long count = parsedTDigest.counts().get(i);
-                assert count >= 0;
-                // we do not add elements with count == 0
-                if (count > 0) {
-                    streamOutput.writeVLong(count);
-                    streamOutput.writeDouble(parsedTDigest.centroids().get(i));
-                }
-            }
-
-            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            BytesRef docValue = encodeCentroidsAndCounts(parsedTDigest.centroids(), parsedTDigest.counts());
             Field digestField = new BinaryDocValuesField(fullPath(), docValue);
 
             // Add numeric doc values fields for the summary data
@@ -456,6 +469,23 @@ public class TDigestFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+
+        for (int i = 0; i < centroids.size(); i++) {
+            long count = counts.get(i);
+            assert count >= 0;
+            // we do not add elements with count == 0
+            if (count > 0) {
+                streamOutput.writeVLong(count);
+                streamOutput.writeDouble(centroids.get(i));
+            }
+        }
+
+        BytesRef docValue = streamOutput.bytes().toBytesRef();
+        return docValue;
     }
 
     private static String valuesCountSubFieldName(String fullPath) {
@@ -555,22 +585,19 @@ public class TDigestFieldMapper extends FieldMapper {
             return docId -> {
                 if (docValues.advanceExact(docId)) {
                     // we assume the summary sub-
-                    if (minValues != null) {
-                        minValues.advanceExact(docId);
+                    if (minValues != null && minValues.advanceExact(docId)) {
                         min = NumericUtils.sortableLongToDouble(minValues.longValue());
                     } else {
                         min = Double.NaN;
                     }
 
-                    if (maxValues != null) {
-                        maxValues.advanceExact(docId);
+                    if (maxValues != null && maxValues.advanceExact(docId)) {
                         max = NumericUtils.sortableLongToDouble(maxValues.longValue());
                     } else {
                         max = Double.NaN;
                     }
 
-                    if (sumValues != null) {
-                        sumValues.advanceExact(docId);
+                    if (sumValues != null && sumValues.advanceExact(docId)) {
                         sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                     } else {
                         sum = Double.NaN;

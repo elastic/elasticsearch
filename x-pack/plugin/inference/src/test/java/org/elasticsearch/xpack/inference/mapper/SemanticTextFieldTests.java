@@ -190,9 +190,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
                 case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
-                case BFLOAT16 -> throw new AssertionError();
             };
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
@@ -416,9 +415,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, entryChunk, matchedText);
                         double[] values = parseDenseVector(entryChunk.rawEmbeddings(), embeddingLength, field.contentType());
                         EmbeddingResults.Embedding<?> embedding = switch (elementType) {
-                            case FLOAT -> new DenseEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
+                            case FLOAT, BFLOAT16 -> new DenseEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
                             case BYTE, BIT -> new DenseEmbeddingByteResults.Embedding(byteArrayOf(values));
-                            case BFLOAT16 -> throw new AssertionError();
                         };
                         chunks.add(new EmbeddingResults.Chunk(embedding, offset));
                     }

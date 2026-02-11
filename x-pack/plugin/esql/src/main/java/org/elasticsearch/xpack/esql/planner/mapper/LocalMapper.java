@@ -41,6 +41,10 @@ import java.util.List;
  */
 public class LocalMapper {
 
+    public static LocalMapper INSTANCE = new LocalMapper();
+
+    private LocalMapper() {}
+
     public PhysicalPlan map(LogicalPlan p) {
 
         if (p instanceof LeafPlan leaf) {

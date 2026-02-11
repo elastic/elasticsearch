@@ -3,15 +3,21 @@
 **Example**
 
 ```esql
-FROM k8s
-| STATS first_bytes_in = FIRST(network.bytes_in, @timestamp) BY pod
-| SORT pod ASC
+        @timestamp        |  name   | number
+"2025-11-25T00:00:00.000Z | alpha   | 1"
+"2025-11-25T00:00:01.000Z | alpha   | 2"
+"2025-11-25T00:00:02.000Z | bravo   | null"
+"2025-11-25T00:00:03.000Z | alpha   | 4"
+"2025-11-25T00:00:04.000Z | bravo   | 5"
+"2025-11-25T00:00:05.000Z | charlie | [6, 7, 8]"
+"2025-11-25T00:00:06.000Z | delta   | null"
+
+From dataset
+| STATS first_val = FIRST(number, @timestamp)
 ```
 
-| first_bytes_in:long | pod:keyword |
-| --- | --- |
-| 278 | one |
-| 473 | three |
-| 699 | two |
+| first_val:long |
+| --- |
+| 1 |
 
 

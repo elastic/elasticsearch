@@ -33,7 +33,7 @@ public class Keep extends Project implements TelemetryAware, Streaming, SortAgno
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved();
+        return super.expressionsResolved(); // TODO: is this method needed?
     }
 
     @Override

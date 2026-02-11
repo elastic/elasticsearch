@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivIntAggregatorFunctionSupplier;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -26,7 +29,9 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -42,10 +47,26 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
         description = "Calculates the derivative over time of a numeric field using linear regression.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "deriv") }
     )
-    public Deriv(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+    public Deriv(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "long", "integer", "double" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the derivative over time",
+            optional = true
+        ) Expression window,
+        Expression timestamp
+    ) {
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
     public Deriv(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
@@ -53,7 +74,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
         this.timestamp = timestamp;
     }
 
-    private Deriv(org.elasticsearch.common.io.stream.StreamInput in) throws java.io.IOException {
+    private Deriv(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
@@ -112,10 +133,11 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
+        final boolean isDateNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return switch (type) {
-            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier();
-            case LONG -> new DerivLongAggregatorFunctionSupplier();
-            case INTEGER -> new DerivIntAggregatorFunctionSupplier();
+            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(isDateNanos);
+            case LONG -> new DerivLongAggregatorFunctionSupplier(isDateNanos);
+            case INTEGER -> new DerivIntAggregatorFunctionSupplier(isDateNanos);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

@@ -234,11 +234,11 @@ public class InferenceUtils {
     }
 
     public static String mustBeGreaterThanOrEqualNumberErrorMessage(String settingName, String scope, double value, double minValue) {
-        return format("[%s] Invalid value [%s]. [%s] must be a greater than or equal to [%s]", scope, value, settingName, minValue);
+        return format("[%s] Invalid value [%s]. [%s] must be greater than or equal to [%s]", scope, value, settingName, minValue);
     }
 
     public static String mustBeLessThanOrEqualNumberErrorMessage(String settingName, String scope, double value, double maxValue) {
-        return format("[%s] Invalid value [%s]. [%s] must be a less than or equal to [%s]", scope, value, settingName, maxValue);
+        return format("[%s] Invalid value [%s]. [%s] must be less than or equal to [%s]", scope, value, settingName, maxValue);
     }
 
     public static String mustBeAPositiveIntegerErrorMessage(String settingName, String scope, int value) {

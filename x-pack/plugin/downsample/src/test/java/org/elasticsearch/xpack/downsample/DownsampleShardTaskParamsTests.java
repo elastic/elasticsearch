@@ -16,6 +16,8 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
 
@@ -30,6 +32,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
         long startTime = randomLongBetween(100000, 200000);
         long endTime = startTime + randomLongBetween(1000, 10_000);
         String[] dimensions = randomBoolean() ? generateRandomStringArray(5, 5, false, true) : new String[] {};
+        String[] labels = generateRandomStringArray(5, 5, false, false);
         return new DownsampleShardTaskParams(
             new DownsampleConfig(randomFrom(DateHistogramInterval.HOUR, DateHistogramInterval.DAY), randomSamplingMethod()),
             randomAlphaOfLength(5),
@@ -37,14 +40,15 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
             endTime,
             new ShardId(new Index(randomAlphaOfLength(5), "n/a"), between(0, 5)),
             generateRandomStringArray(5, 5, false, false),
-            generateRandomStringArray(5, 5, false, false),
-            dimensions
+            labels,
+            dimensions,
+            generateRandomMap(labels, dimensions)
         );
     }
 
     @Override
     protected DownsampleShardTaskParams mutateInstance(DownsampleShardTaskParams in) throws IOException {
-        return switch (between(0, 7)) {
+        return switch (between(0, 8)) {
             case 0 -> new DownsampleShardTaskParams(
                 new DownsampleConfig(randomFrom(DateHistogramInterval.WEEK, DateHistogramInterval.MONTH), randomSamplingMethod()),
                 in.downsampleIndex(),
@@ -53,7 +57,8 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 in.metrics(),
                 in.labels(),
-                in.dimensions()
+                in.dimensions(),
+                in.multiFieldSources()
             );
             case 1 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -63,7 +68,8 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 in.metrics(),
                 in.labels(),
-                in.dimensions()
+                in.dimensions(),
+                in.multiFieldSources()
             );
             case 2 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -73,7 +79,8 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 in.metrics(),
                 in.labels(),
-                in.dimensions()
+                in.dimensions(),
+                in.multiFieldSources()
             );
             case 3 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -83,7 +90,8 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 new ShardId(new Index(randomAlphaOfLength(6), "n/a"), between(0, 5)),
                 in.metrics(),
                 in.labels(),
-                in.dimensions()
+                in.dimensions(),
+                in.multiFieldSources()
             );
             case 4 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -93,7 +101,8 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 in.metrics(),
                 in.labels(),
-                in.dimensions()
+                in.dimensions(),
+                in.multiFieldSources()
             );
             case 5 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -103,7 +112,8 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 generateRandomStringArray(6, 6, false, false),
                 in.labels(),
-                in.dimensions()
+                in.dimensions(),
+                in.multiFieldSources()
             );
             case 6 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -113,7 +123,8 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 in.metrics(),
                 generateRandomStringArray(6, 6, false, false),
-                in.dimensions()
+                in.dimensions(),
+                in.multiFieldSources()
             );
             case 7 -> new DownsampleShardTaskParams(
                 in.downsampleConfig(),
@@ -123,10 +134,35 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 in.metrics(),
                 in.labels(),
-                generateRandomStringArray(6, 6, false, false)
+                generateRandomStringArray(6, 6, false, false),
+                in.multiFieldSources()
+            );
+            case 8 -> new DownsampleShardTaskParams(
+                in.downsampleConfig(),
+                in.downsampleIndex(),
+                in.indexStartTimeMillis(),
+                in.indexEndTimeMillis(),
+                in.shardId(),
+                in.metrics(),
+                in.labels(),
+                in.dimensions(),
+                randomValueOtherThan(in.multiFieldSources(), () -> generateRandomMap(in.labels(), in.dimensions()))
             );
             default -> throw new AssertionError("unknown option");
         };
+    }
+
+    private Map<String, String> generateRandomMap(String[] labels, String[] dimensions) {
+        int labelSize = randomIntBetween(0, labels.length);
+        int dimensionSize = randomIntBetween(0, dimensions.length);
+        Map<String, String> map = new HashMap<>(labelSize + dimensionSize);
+        for (int i = 0; i < labelSize; i++) {
+            map.put(labels[i], labels[i] + "." + randomAlphaOfLength(10));
+        }
+        for (int i = 0; i < dimensionSize; i++) {
+            map.put(dimensions[i], dimensions[i] + "." + randomAlphaOfLength(10));
+        }
+        return map;
     }
 
     @Override

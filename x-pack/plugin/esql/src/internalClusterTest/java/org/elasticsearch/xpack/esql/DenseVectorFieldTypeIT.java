@@ -40,7 +40,6 @@ import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SET
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION;
 import static org.hamcrest.Matchers.hasKey;
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
@@ -61,6 +60,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         .collect(Collectors.toSet());
 
     public static final float DELTA = 1e-7F;
+    public static final float BFLOAT16_DELTA = 1e-2F;
 
     private final ElementType elementType;
     private final DenseVectorFieldMapper.VectorSimilarity similarity;
@@ -68,9 +68,9 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     private final boolean index;
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
+    public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
-        for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT)) {
+        for (ElementType elementType : ElementType.values()) {
             // Test all similarities
             for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
                 if (elementType == ElementType.BIT && similarity != DenseVectorFieldMapper.VectorSimilarity.L2_NORM) {
@@ -104,8 +104,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     private final Map<Integer, List<Number>> indexedVectors = new HashMap<>();
 
     public void testRetrieveFieldType() {
-        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
-
         var query = """
             FROM test
             """;
@@ -118,8 +116,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRetrieveTopNDenseVectorFieldData() {
-        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
-
         var query = """
                 FROM test
                 | KEEP id, vector
@@ -137,8 +133,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertNotNull(actualVector);
                     assertEquals(expectedVector.size(), actualVector.size());
+
+                    float delta = elementType == ElementType.BFLOAT16 ? BFLOAT16_DELTA : DELTA;
                     for (int i = 0; i < expectedVector.size(); i++) {
-                        assertEquals(expectedVector.get(i).floatValue(), actualVector.get(i).floatValue(), DELTA);
+                        assertEquals(expectedVector.get(i).floatValue(), actualVector.get(i).floatValue(), delta);
                     }
                 }
             });
@@ -147,8 +145,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRetrieveDenseVectorFieldData() {
-        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
-
         var query = """
             FROM test
             | KEEP id, vector
@@ -167,12 +163,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 } else {
                     assertNotNull(actualVector);
                     assertEquals(expectedVector.size(), actualVector.size());
+
+                    float delta = elementType == ElementType.BFLOAT16 ? BFLOAT16_DELTA : DELTA;
                     for (int i = 0; i < actualVector.size(); i++) {
                         assertEquals(
                             "Actual: " + actualVector + "; expected: " + expectedVector,
                             expectedVector.get(i).floatValue(),
                             actualVector.get(i).floatValue(),
-                            DELTA
+                            delta
                         );
                     }
                 }
@@ -253,12 +251,13 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             } else {
                 for (int j = 0; j < numDims; j++) {
                     switch (elementType) {
-                        case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                        case FLOAT, BFLOAT16 -> vector.add(randomFloatBetween(0F, 1F, true));
                         case BYTE, BIT -> vector.add((byte) randomIntBetween(-128, 127));
                         default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }
-                if ((elementType == ElementType.FLOAT) && (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT || rarely())) {
+                if ((elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16)
+                    && (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT || rarely())) {
                     // Normalize the vector
                     float magnitude = DenseVector.getMagnitude(vector);
                     vector.replaceAll(number -> number.floatValue() / magnitude);

@@ -29,7 +29,7 @@ public class DynamicRegionSupplier implements Supplier<String> {
     }
 
     private String generateAndGet() {
-        final var newRegion = "DynamicRegionSupplier-" + ESTestCase.randomIdentifier();
+        final var newRegion = ESTestCase.randomIdentifier("DynamicRegionSupplier-");
         return Objects.requireNonNullElse(generatedRegion.compareAndExchange(null, newRegion), newRegion);
     }
 }

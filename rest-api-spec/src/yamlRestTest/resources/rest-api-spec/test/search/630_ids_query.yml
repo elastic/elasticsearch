@@ -1,0 +1,42 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  test
+          body:
+            settings:
+              index.max_result_window: 2
+            mappings:
+              properties:
+                key:
+                  type: keyword
+
+  - do:
+      index:
+        index:  test
+        refresh: true
+        id:     "1"
+        body:   { "key" : "value" }
+
+---
+"id query works within max result window":
+  - do: { search: { body: { query: { ids: { values: [1, 2] } }, size: 2 } } }
+  - length: { hits.hits: 1  }
+
+---
+"id query returns error above max result window":
+  - requires:
+      cluster_features: ["ids_query_limit_max_ids"]
+      reason: "Ensure a limited number if ids can be supplied to ids query"
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            ids:
+              values: [1, 2, 3]
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: Too many ids specified, allowed max result window is [2]" }
+

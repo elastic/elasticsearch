@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -186,9 +185,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
             this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-            if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_15_0)) {
-                in.readStringArray(); // formerly nodeIds, now unused
-            }
         }
 
         NodeStatsRequest(NodesStatsRequest request) {
@@ -213,9 +209,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             nodesStatsRequestParameters.writeTo(out);
-            if (out.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_15_0)) {
-                out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
-            }
         }
 
         public NodesStatsRequestParameters getNodesStatsRequestParameters() {

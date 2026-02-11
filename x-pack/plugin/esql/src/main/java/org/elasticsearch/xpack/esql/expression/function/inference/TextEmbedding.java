@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -44,21 +43,12 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
             + "Use this function to generate query vectors for KNN searches against your vectorized data "
             + "or others dense vector based operations.",
-        appliesTo = { @FunctionAppliesTo(version = "9.3", lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(version = "9.4.0", lifeCycle = FunctionAppliesToLifecycle.GA),
+            @FunctionAppliesTo(version = "9.3.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(
-                description = "Basic text embedding generation from a text string using an inference endpoint.",
-                file = "text-embedding",
-                tag = "text-embedding-eval"
-            ),
-            @Example(
-                description = "Generate text embeddings and store them in a variable for reuse in KNN vector search queries.",
-                file = "text-embedding",
-                tag = "text-embedding-knn"
-            ),
-            @Example(
-                description = "Directly embed text within a KNN query for streamlined vector search without intermediate variables.",
+                description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
                 file = "text-embedding",
                 tag = "text-embedding-knn-inline"
             ) }
@@ -75,7 +65,11 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
             type = { "keyword" },
             description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
                 + "The inference endpoint must have the `text_embedding` task type and should use the same model "
-                + "that was used to embed your indexed data."
+                + "that was used to embed your indexed data.",
+            hint = @Param.Hint(
+                entityType = Param.Hint.ENTITY_TYPE.INFERENCE_ENDPOINT,
+                constraints = { @Param.Hint.Constraint(name = "task_type", value = "text_embedding") }
+            )
         ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));
@@ -159,18 +153,5 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     @Override
     public String toString() {
         return "TEXT_EMBEDDING(" + inputText + ", " + inferenceId + ")";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        TextEmbedding textEmbedding = (TextEmbedding) o;
-        return Objects.equals(inferenceId, textEmbedding.inferenceId) && Objects.equals(inputText, textEmbedding.inputText);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId, inputText);
     }
 }

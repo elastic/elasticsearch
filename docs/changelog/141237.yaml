@@ -1,0 +1,5 @@
+pr: 141237
+summary: Introduce adaptive block hash for long/int
+area: ES|QL
+type: enhancement
+issues: []

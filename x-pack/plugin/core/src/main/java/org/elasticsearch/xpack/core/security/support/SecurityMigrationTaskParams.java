@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.support;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -48,19 +47,13 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     public SecurityMigrationTaskParams(StreamInput in) throws IOException {
         this.migrationVersion = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.migrationNeeded = in.readBoolean();
-        } else {
-            this.migrationNeeded = true;
-        }
+        this.migrationNeeded = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(migrationVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(migrationNeeded);
-        }
+        out.writeBoolean(migrationNeeded);
     }
 
     @Override
@@ -70,7 +63,7 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

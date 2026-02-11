@@ -10,7 +10,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -89,13 +88,9 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
         runtimeFields = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            filters = in.readStringArray();
-            types = in.readStringArray();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            includeEmptyFields = in.readBoolean();
-        }
+        filters = in.readStringArray();
+        types = in.readStringArray();
+        includeEmptyFields = in.readBoolean();
         if (in.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             clusterAlias = in.readOptionalString();
         } else {
@@ -148,13 +143,9 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeStringArray(filters);
-            out.writeStringArray(types);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(includeEmptyFields);
-        }
+        out.writeStringArray(filters);
+        out.writeStringArray(types);
+        out.writeBoolean(includeEmptyFields);
         if (out.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             out.writeOptionalString(clusterAlias);
         }
@@ -280,7 +271,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return resolvedIndexExpressions;
     }
 
-    public void projectRouting(String projectRouting) {
+    public void projectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
         this.projectRouting = projectRouting;
     }
 
@@ -351,6 +345,13 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         ActionRequestValidationException validationException = null;
         if (fields == null || fields.length == 0) {
             validationException = ValidateActions.addValidationError("no fields specified", validationException);
+        }
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
+
         }
         return validationException;
     }

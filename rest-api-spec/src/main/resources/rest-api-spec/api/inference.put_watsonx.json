@@ -28,7 +28,8 @@
               "options": [
                 "text_embedding",
                 "chat_completion",
-                "completion"
+                "completion",
+                "rerank"
               ]
             },
             "watsonx_inference_id": {

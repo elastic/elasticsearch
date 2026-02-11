@@ -13,8 +13,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -25,8 +25,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
@@ -68,7 +68,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
             readers.add(loadIndex(dir, between(1, 100)));
         }
         try {
-            return simple(List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())));
+            return simple(List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())));
         } catch (Exception e) {
             throw new AssertionError(e);
         }
@@ -179,7 +179,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
             TimeValue.timeValueNanos(1),
             () -> {}
         );
-        OperatorTestCase.runDriver(driver);
+        new TestDriverRunner().run(driver);
         // assertThat(lastSliceIndex.get(), equalTo(numShards * 3 - 1));
     }
 }

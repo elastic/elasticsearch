@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
@@ -35,6 +38,8 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
+    protected Logger log = LogManager.getLogger(getClass());
+
     private static final List<Batch<PhysicalPlan>> RULES = rules(true);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
@@ -52,6 +57,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
+        log.debug("Local Physical plan:\n{}", optimizedPlan);
         return optimizedPlan;
     }
 
@@ -79,7 +85,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
         // done, and it should be executed only once.
-        var substitutionRules = new Batch<>("Substitute RoundTo with QueryAndTags", Limiter.ONCE, new ReplaceRoundToWithQueryAndTags());
+        var substitutionRules = new Batch<>(
+            "Substitute RoundTo with QueryAndTags",
+            Limiter.ONCE,
+            new ReplaceRoundToWithQueryAndTags(),
+            new PushCountQueryAndTagsToSource()
+        );
 
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran

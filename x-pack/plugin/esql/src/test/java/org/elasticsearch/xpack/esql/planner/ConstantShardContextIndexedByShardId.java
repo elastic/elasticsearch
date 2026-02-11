@@ -15,10 +15,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -82,6 +82,11 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         }
 
         @Override
+        public ShardSearchStats stats() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void close() {}
     };
 
@@ -91,8 +96,13 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
     }
 
     @Override
-    public Collection<? extends EsPhysicalOperationProviders.ShardContext> collection() {
+    public Iterable<? extends EsPhysicalOperationProviders.ShardContext> iterable() {
         return List.of(CONTEXT);
+    }
+
+    @Override
+    public int size() {
+        return 1;
     }
 
     @Override

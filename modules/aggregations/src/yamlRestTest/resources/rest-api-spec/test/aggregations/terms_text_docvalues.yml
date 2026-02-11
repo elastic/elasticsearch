@@ -1,0 +1,198 @@
+---
+"Terms aggregation on text field with doc_values":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_text_docvalues
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: text
+                index: false
+                doc_values: true
+
+  - do:
+      index:
+        index: test_text_docvalues
+        id: "1"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_text_docvalues
+        id: "2"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_text_docvalues
+        id: "3"
+        body: { "text_field": "baz qux" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            text_terms:
+              terms:
+                field: text_field
+
+  - match: { hits.total: 3 }
+  - length: { aggregations.text_terms.buckets: 2 }
+  - match: { aggregations.text_terms.buckets.0.key: "foo bar" }
+  - match: { aggregations.text_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.text_terms.buckets.1.key: "baz qux" }
+  - match: { aggregations.text_terms.buckets.1.doc_count: 1 }
+
+---
+"Terms aggregation on text field with doc_values - multi value":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_text_docvalues_multi
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: text
+                index: false
+                doc_values: true
+
+  - do:
+      index:
+        index: test_text_docvalues_multi
+        id: "1"
+        body:
+          text_field: [ "value one", "value two" ]
+
+  - do:
+      index:
+        index: test_text_docvalues_multi
+        id: "2"
+        body:
+          text_field: [ "value one", "value three", "value four" ]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            text_terms:
+              terms:
+                field: text_field
+
+  - match: { hits.total: 2 }
+  - length: { aggregations.text_terms.buckets: 4 }
+  - match: { aggregations.text_terms.buckets.0.key: "value one" }
+  - match: { aggregations.text_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.text_terms.buckets.1.key: "value four" }
+  - match: { aggregations.text_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.text_terms.buckets.2.key: "value three" }
+  - match: { aggregations.text_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.text_terms.buckets.3.key: "value two" }
+  - match: { aggregations.text_terms.buckets.3.doc_count: 1 }
+
+---
+"Indexing disabled":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_text_no_index_docvalues
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: text
+                index: false
+                doc_values: true
+
+  - do:
+      index:
+        index: test_text_no_index_docvalues
+        id: "1"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_text_no_index_docvalues
+        id: "2"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_text_no_index_docvalues
+        id: "3"
+        body: { "text_field": "baz qux" }
+
+  - do:
+      indices.refresh: {}
+
+  # Verify term query
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_text_no_index_docvalues
+        body:
+          query:
+            term:
+              text_field: "foo bar"
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+
+  # Verify terms query
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_text_no_index_docvalues
+        body:
+          query:
+            terms:
+              text_field: ["foo bar", "baz qux"]
+
+  - match: { hits.total: 3 }
+
+  # Verify terms aggregation
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_text_no_index_docvalues
+        body:
+          size: 0
+          aggs:
+            text_terms:
+              terms:
+                field: text_field
+
+  - match: { hits.total: 3 }
+  - length: { aggregations.text_terms.buckets: 2 }
+  - match: { aggregations.text_terms.buckets.0.key: "foo bar" }
+  - match: { aggregations.text_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.text_terms.buckets.1.key: "baz qux" }
+  - match: { aggregations.text_terms.buckets.1.doc_count: 1 }

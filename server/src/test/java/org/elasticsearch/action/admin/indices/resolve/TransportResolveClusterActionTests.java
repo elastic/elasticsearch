@@ -9,32 +9,16 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.support.ActionFilter;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransportResolveClusterActionTests extends ESTestCase {
 
@@ -44,57 +28,6 @@ public class TransportResolveClusterActionTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-    }
-
-    public void testCCSCompatibilityCheck() {
-        Settings settings = Settings.builder()
-            .put("node.name", TransportResolveClusterActionTests.class.getSimpleName())
-            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
-            .build();
-        ActionFilters actionFilters = mock(ActionFilters.class);
-        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        TransportVersion nextTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
-        try {
-            TransportService transportService = MockTransportService.createNewService(
-                Settings.EMPTY,
-                VersionInformation.CURRENT,
-                nextTransportVersion,
-                threadPool
-            );
-
-            ResolveClusterActionRequest request = new ResolveClusterActionRequest(new String[] { "test" }) {
-                @Override
-                public void writeTo(StreamOutput out) throws IOException {
-                    String versionErrorMessage = ResolveClusterActionRequest.createVersionErrorMessage(out.getTransportVersion());
-                    throw new UnsupportedOperationException(versionErrorMessage);
-                }
-            };
-            ClusterService clusterService = new ClusterService(
-                settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                null
-            );
-            TransportResolveClusterAction action = new TransportResolveClusterAction(
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                null
-            );
-
-            final var ex = safeAwaitFailure(
-                IllegalArgumentException.class,
-                ResolveClusterActionResponse.class,
-                listener -> action.doExecute(null, request, listener)
-            );
-
-            assertThat(ex.getMessage(), containsString("not compatible with version"));
-            assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertThat(ex.getCause().getMessage(), containsString("ResolveClusterAction requires at least version"));
-        } finally {
-            assertTrue(ESTestCase.terminate(threadPool));
-        }
     }
 
     public void testHasNonClosedMatchingIndex() {

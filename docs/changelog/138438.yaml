@@ -1,5 +1,0 @@
-pr: 138438
-summary: Change `DatabaseNodeService` error logs to warnings
-area: Ingest Node
-type: bug
-issues: []

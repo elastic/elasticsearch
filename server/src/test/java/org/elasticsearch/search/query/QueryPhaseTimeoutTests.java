@@ -29,7 +29,6 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
@@ -49,6 +48,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -456,7 +457,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 
@@ -476,7 +479,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     public void testSuggestAndQueryWithSuggestTimeout() throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().suggest(new SuggestBuilder()).query(new MatchAllQueryBuilder());
         try (SearchContext context = createSearchContextWithSuggestTimeout(searchSourceBuilder)) {
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            context.parsedQuery(new ParsedQuery(Queries.ALL_DOCS_INSTANCE));
             assertFalse(context.hasOnlySuggest());
             QueryPhase.execute(context);
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), Matchers.greaterThan(0L));
@@ -568,8 +571,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     private static final class TestSuggestionEntry extends Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> {
         @Override
         protected Option newOption(StreamInput in) {
-            return new Option(new Text("text"), 1f) {
-            };
+            return new Option(new Text("text"), 1f) {};
         }
     }
 
@@ -659,7 +661,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         };
 
         try (SearchContext context = createSearchContext(source, throwing, null, null, true)) {
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            context.parsedQuery(new ParsedQuery(Queries.ALL_DOCS_INSTANCE));
 
             QueryPhase.execute(context);
 
@@ -688,7 +690,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         );
 
         try (SearchContext context = createSearchContext(source, newContextSearcher(reader), suggestCtx, true)) {
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            context.parsedQuery(new ParsedQuery(Queries.ALL_DOCS_INSTANCE));
 
             QueryPhase.execute(context);
 
@@ -712,7 +714,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             .size(10);
 
         try (SearchContext context = createSearchContext(source, newContextSearcher(reader), null, false)) {
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            context.parsedQuery(new ParsedQuery(Queries.ALL_DOCS_INSTANCE));
 
             // expect QueryPhase to propagate a failure instead of marking timed_out=true
             QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.execute(context));
@@ -731,7 +733,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         try (AggregationTestHelper aggHelper = new AggregationTestHelper()) {
             aggHelper.initPlugins();
             SearchExecutionContext sec = createSearchExecutionContext();
-            AggregationContext aggCtx = aggHelper.createDefaultAggregationContext(sec.getIndexReader(), new MatchAllDocsQuery());
+            AggregationContext aggCtx = aggHelper.createDefaultAggregationContext(sec.getIndexReader(), Queries.ALL_DOCS_INSTANCE);
             factories = source.aggregations().build(aggCtx, null);
         } catch (Exception e) {
             throw new IOException(e);

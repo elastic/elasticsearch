@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -50,7 +50,6 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     public static final String NAME = "openai_service_settings";
 
-    public static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     // The rate limit for usage tier 1 is 3000 request per minute for the text embedding models
     // To find this information you need to access your account's limits https://platform.openai.com/account/limits
     // 3000 requests per minute
@@ -70,7 +69,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
 
         var commonFields = fromMap(map, validationException, ConfigurationParseContext.PERSISTENT);
 
-        Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
+        Boolean dimensionsSetByUser = removeAsType(map, ServiceFields.DIMENSIONS_SET_BY_USER, Boolean.class);
         if (dimensionsSetByUser == null) {
             // Setting added in 8.13, default to false for configs created prior
             dimensionsSetByUser = Boolean.FALSE;
@@ -260,7 +259,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         toXContentFragmentOfExposedFields(builder, params);
 
         if (dimensionsSetByUser != null) {
-            builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+            builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
 
         builder.endObject();
@@ -292,7 +291,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

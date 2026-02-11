@@ -33,12 +33,16 @@ public class PresentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            "argument of [dense_vector] must be [any type except counter types or dense_vector], found value [] type [dense_vector]"
+            "argument of ["
+                + signature.getFirst().esType()
+                + "] must be [any type except counter types or date_range], found value [] type ["
+                + signature.getFirst().esType()
+                + "]"
         );
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(1));
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
+        assertThat(invalidSignatureSamples, equalTo(Set.of()));
     }
 }

@@ -56,8 +56,9 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         // IndexResolver uses EsqlDataTypeRegistry directly
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
+            false,
             new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false),
-            indexPattern -> Map.of()
+            IndexResolver.DO_NOT_GROUP
         );
         EsField f = resolution.get().mapping().get(field);
         assertThat(f.getDataType(), equalTo(expected));

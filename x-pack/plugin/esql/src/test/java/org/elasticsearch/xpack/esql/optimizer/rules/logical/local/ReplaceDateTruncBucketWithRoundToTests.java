@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
-import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLocalLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOptimizerTests {
+public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogicalPlanOptimizerTests {
 
     // Key is the predicate,
     // Value is the number of items in the round_to function, if the number of item is 0, that means the min/max in predicates do not

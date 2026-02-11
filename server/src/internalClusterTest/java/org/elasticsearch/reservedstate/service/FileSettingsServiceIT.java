@@ -24,9 +24,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -63,6 +65,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private final AtomicLong versionCounter = new AtomicLong(1);
+
+    /**
+     * The test must wait this long for {@link LocalHealthMonitor} to do its thing. The shorter, the better.
+     * <p>
+     * If we could get our hands on the {@link LocalHealthMonitor} objects for the relevant nodes,
+     * we could forcibly make these tests even faster by using {@code LocalHealthMonitor.setMonitorInterval}.
+     */
+    private static final TimeValue HEALTH_POLL_INTERVAL = LocalHealthMonitor.MIN_POLL_INTERVAL; // Make it as snappy as possible
 
     @Before
     public void resetVersionCounter() {
@@ -138,9 +148,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     }
 
     public static void writeJSONFile(String node, String json, Logger logger, Long version, Path targetPath) throws Exception {
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
+        Files.createDirectories(targetPath.getParent());
         Path tempFilePath = createTempFile();
 
         String jsonWithVersion = Strings.format(json, version);
@@ -519,11 +527,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         assertHasErrors(metadataVersion, "not_cluster_settings");
 
-        // write json with new error without version increment to simulate ES failing to process settings after a restart for a new reason
-        // (usually, this would be due to a code change)
-        writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get());
-        assertHasErrors(metadataVersion, "not_cluster_settings");
-        internalCluster().restartNode(masterNode);
+        // capture the watched file settings file before shutting down the master node
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        Path fileSettingsFile = fileSettingsService.watchedFile();
+
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                // write json with new error without version increment to simulate ES failing to process settings after a restart for
+                // a new reason (usually, this would be due to a code change)
+                writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get(), fileSettingsFile);
+                return Settings.EMPTY;
+            }
+        });
         ensureGreen();
 
         assertBusy(() -> assertHasErrors(metadataVersion, "bad_cluster_settings"));
@@ -604,6 +620,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         }
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), HEALTH_POLL_INTERVAL)
+            .build();
+    }
+
     public void testHealthIndicatorWithSingleNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start the node");
@@ -677,7 +701,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                     getHealthResponse.findIndicator(FileSettingsService.FileSettingsHealthIndicatorService.NAME).status()
                 );
             }
-        });
+        }, 2 * HEALTH_POLL_INTERVAL.duration(), HEALTH_POLL_INTERVAL.timeUnit());
     }
 
     private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {

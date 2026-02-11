@@ -17,11 +17,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.reindex.BulkBySearchParallelizationHelper.sliceIntoSubRequests;
+import static org.elasticsearch.reindex.BulkByPaginatedSearchParallelizationHelper.sliceIntoSubRequests;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 
-public class BulkBySearchParallelizationHelperTests extends ESTestCase {
+public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase {
     public void testSliceIntoSubRequests() throws IOException {
         SearchRequest searchRequest = randomSearchRequest(
             () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, Collections::emptyList, () -> null, () -> null)

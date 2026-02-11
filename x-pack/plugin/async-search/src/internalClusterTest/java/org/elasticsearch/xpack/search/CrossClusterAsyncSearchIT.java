@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -14,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -1209,24 +1212,38 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    @Repeat(iterations = 50)
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
-
+        System.out.println(testClusterInfo);
         SearchListenerPlugin.blockLocalQueryPhase();
         SearchListenerPlugin.blockRemoteQueryPhase();
-        SearchListenerPlugin.blockQueryPhaseCompletion(localNumShards);
+        SearchListenerPlugin.blockLocalFetchPhase();
+        SearchListenerPlugin.blockRemoteFetchPhase();
+        SearchListenerPlugin.blockLocalQueryPhaseCompletion(localNumShards);
+        //SearchListenerPlugin.blockRemoteQueryPhaseCompletion(1);
 
-        AggregationBuilder agg = AggregationBuilders.max("max").field("@timestamp");
+        AggregationBuilder agg = AggregationBuilders.histogram("histogram").field("@timestamp").interval(1000);
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         request.setCcsMinimizeRoundtrips(false);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         request.setKeepOnCompletion(true);
         request.setBatchedReduceSize(2);
-        request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10).aggregation(agg));
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().query(
+                    new RangeQueryBuilder("@timestamp").gte(EARLIEST_TIMESTAMP).lte(LATEST_TIMESTAMP)
+                )
+                    .size(10)
+                    .fetchField("@timestamp")
+                    .fetchField("f")
+                    .aggregation(agg)
+            )
+            .setBatchedReduceSize(2);
 
         final String responseId;
         final AsyncSearchResponse response = submitAsyncSearch(request);
@@ -1260,7 +1277,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
 
         SearchListenerPlugin.allowLocalQueryPhase();
-        SearchListenerPlugin.waitForQueryPhaseCompletion();
+        SearchListenerPlugin.allowRemoteQueryPhase();
+        SearchListenerPlugin.waitForLocalQueryPhaseCompletion();
         final AsyncSearchResponse localQueryDoneNoPartialResponse = getAsyncSearch(responseId, false);
         try {
             // Test that a response object is not fleshed out with aggs when intermediate results are disabled
@@ -1277,14 +1295,19 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertTrue(localQueryDoneWithIntermediateResponse.isRunning());
             assertTrue(localQueryDoneWithIntermediateResponse.isPartial());
             // With CCS minimize roundtrips=false, we might not have done a partial reduce yet, so we might not have any aggregations
-            if (localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations() != null) {
+            //if (localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations() != null) {
+            //    System.out.println("had aggregations");
                 assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
-            }
+            /*} else {
+                System.out.println("did not have aggregations");
+            }*/
         } finally {
             localQueryDoneWithIntermediateResponse.decRef();
         }
 
-        SearchListenerPlugin.allowRemoteQueryPhase();
+        SearchListenerPlugin.allowLocalFetchPhase();
+        SearchListenerPlugin.allowRemoteFetchPhase();
+        //SearchListenerPlugin.waitForRemoteQueryPhaseCompletion();
         waitForSearchTasksToFinish();
         final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId, randomBoolean());
         try {
@@ -2236,7 +2259,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     private Map<String, Object> setupTwoClusters(int numShardsLocal, int numShardsRemote) {
         String localIndex = "local";
-        Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
+        Settings localSettings = indexSettings(numShardsLocal, 0).build(); //randomIntBetween(0, 1)).build();
         assertAcked(
             client(LOCAL_CLUSTER).admin()
                 .indices()
@@ -2296,6 +2319,14 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             client.prepareIndex(index).setSource("f", "v", "@timestamp", ts).get();
         }
         client.admin().indices().prepareRefresh(index).get();
+        IndicesStatsResponse statsResponse = client.admin().indices().prepareStats(index).clear().setDocs(true).get();
+        Map<Integer, Long> docsPerShard = new HashMap<>();
+        for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : statsResponse.getShards()) {
+            int shardId = shardStats.getShardRouting().id();
+            long docCount = shardStats.getStats().getDocs().getCount();
+            docsPerShard.put(shardId, docCount);
+        }
+        System.out.println("docs per shard: " + docsPerShard);
         return numDocs;
     }
 
@@ -2310,7 +2341,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         private static final AtomicReference<CountDownLatch> localQueryLatch = new AtomicReference<>();
         private static final AtomicReference<CountDownLatch> remoteQueryLatch = new AtomicReference<>();
         private static final AtomicReference<CountDownLatch> failedQueryLatch = new AtomicReference<>();
-        private static final AtomicReference<CountDownLatch> queryPhaseCompleteLatch = new AtomicReference<>();
+        private static final AtomicReference<CountDownLatch> localQueryPhaseCompleteLatch = new AtomicReference<>();
+        private static final AtomicReference<CountDownLatch> remoteQueryPhaseCompleteLatch = new AtomicReference<>();
+        private static final AtomicReference<CountDownLatch> localFetchLatch = new AtomicReference<>();
+        private static final AtomicReference<CountDownLatch> remoteFetchLatch = new AtomicReference<>();
 
         /**
          * For tests that cannot use SearchListenerPlugin, ensure all latches are unset to
@@ -2331,6 +2365,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             }
             if (failedQueryLatch.get() != null) {
                 failedQueryLatch.get().countDown();
+            }
+            if (localFetchLatch.get() != null) {
+                localFetchLatch.get().countDown();
+            }
+            if (remoteFetchLatch.get() != null) {
+                remoteFetchLatch.get().countDown();
             }
         }
 
@@ -2362,12 +2402,23 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             }
         }
 
-        static void blockQueryPhaseCompletion(int numCompletions) {
-            queryPhaseCompleteLatch.set(new CountDownLatch(numCompletions));
+        static void blockLocalQueryPhaseCompletion(int numCompletions) {
+            localQueryPhaseCompleteLatch.set(new CountDownLatch(numCompletions));
         }
 
-        static void waitForQueryPhaseCompletion() throws InterruptedException {
-            final CountDownLatch latch = queryPhaseCompleteLatch.get();
+        static void waitForLocalQueryPhaseCompletion() throws InterruptedException {
+            final CountDownLatch latch = localQueryPhaseCompleteLatch.get();
+            if (latch != null) {
+                latch.await(60, TimeUnit.SECONDS);
+            }
+        }
+
+        static void blockRemoteQueryPhaseCompletion(int numCompletions) {
+            remoteQueryPhaseCompleteLatch.set(new CountDownLatch(numCompletions));
+        }
+
+        static void waitForRemoteQueryPhaseCompletion() throws InterruptedException {
+            final CountDownLatch latch = remoteQueryPhaseCompleteLatch.get();
             if (latch != null) {
                 latch.await(60, TimeUnit.SECONDS);
             }
@@ -2383,6 +2434,28 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         static void waitQueryFailure() throws Exception {
             assertTrue(failedQueryLatch.get().await(60, TimeUnit.SECONDS));
+        }
+
+        static void blockLocalFetchPhase() {
+            localFetchLatch.set(new CountDownLatch(1));
+        }
+
+        static void allowLocalFetchPhase() {
+            final CountDownLatch latch = localFetchLatch.get();
+            if (latch != null) {
+                latch.countDown();
+            }
+        }
+
+        static void blockRemoteFetchPhase() {
+            remoteFetchLatch.set(new CountDownLatch(1));
+        }
+
+        static void allowRemoteFetchPhase() {
+            final CountDownLatch latch = remoteFetchLatch.get();
+            if (latch != null) {
+                latch.countDown();
+            }
         }
 
         @Override
@@ -2416,8 +2489,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
                 @Override
                 public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-                    if (queryPhaseCompleteLatch.get() != null && searchContext.indexShard().shardId().getIndexName().equals("local")) {
-                        queryPhaseCompleteLatch.get().countDown();
+                    System.out.println("on query phase " + searchContext.indexShard().shardId().getIndexName() + " " + searchContext.id());
+                    if (localQueryPhaseCompleteLatch.get() != null && searchContext.indexShard().shardId().getIndexName().equals("local")) {
+                        localQueryPhaseCompleteLatch.get().countDown();
+                    } else if (remoteQueryPhaseCompleteLatch.get() != null && searchContext.indexShard().shardId().getIndexName().equals("remote")) {
+                        remoteQueryPhaseCompleteLatch.get().countDown();
                     }
                 }
 
@@ -2427,6 +2503,26 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                     if (searchContext.timeout().millis() > -1) {
                         if (failedQueryLatch.get().getCount() > 0) {
                             failedQueryLatch.get().countDown();
+                        }
+                    }
+                }
+
+                @Override
+                public void onPreFetchPhase(SearchContext searchContext) {
+                    System.out.println("on pre-fetch phase " + searchContext.indexShard().shardId().getIndexName() + " " + searchContext.id());
+                    final CountDownLatch latch;
+                    if (searchContext.indexShard().shardId().getIndexName().equals("remote")) {
+                        latch = remoteFetchLatch.get();
+                    } else if (searchContext.indexShard().shardId().getIndexName().equals("local")) {
+                        latch = localFetchLatch.get();
+                    } else {
+                        throw new AssertionError("unexpected index name: " + searchContext.indexShard().shardId().getIndexName());
+                    }
+                    if (latch != null) {
+                        try {
+                            assertTrue(latch.await(60, TimeUnit.SECONDS));
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
                         }
                     }
                 }

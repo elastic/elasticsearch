@@ -109,15 +109,6 @@ import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFiel
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
 
-    // LuceneTopNSourceOperator auto strategy
-    private static final DataPartitioning.AutoStrategy TOP_N_AUTO_STRATEGY = unusedLimit -> {
-        if (EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled()) {
-            // Use high speed independently of the limit
-            return LuceneSourceOperator::highSpeedAutoStrategy;
-        }
-        return query -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-    };
-
     /**
      * Context of each shard we're operating against. Note these objects are shared across multiple operators as
      * {@link RefCounted}.
@@ -351,7 +342,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 shardContexts,
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                TOP_N_AUTO_STRATEGY,
+                topNAutoStrategy(),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
@@ -384,6 +375,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
+        return unusedLimit -> {
+            if (EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled()) {
+                // Use high speed strategy for TopN - we want to parallelize searches as much as possible given the query structure
+                return LuceneSourceOperator::highSpeedAutoStrategy;
+            }
+            return query -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+        };
     }
 
     List<ValuesSourceReaderOperator.FieldInfo> extractFields(FieldExtractExec fieldExtractExec) {

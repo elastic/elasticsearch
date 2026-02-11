@@ -30,10 +30,13 @@ import java.util.List;
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
 class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocValues> {
+
+    private final MappedFieldType fieldType;
     Object lastValue = null;
 
     LastValueFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        super(name, new FormattedDocValueFetcher(name, fieldType, fieldData));
+        super(name, fieldData);
+        this.fieldType = fieldType;
     }
 
     /**
@@ -58,6 +61,12 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     public void reset() {
         isEmpty = true;
         lastValue = null;
+    }
+
+    @Override
+    public FormattedDocValues getLeaf(LeafReaderContext context) {
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        return fieldData.load(context).getFormattedValues(format);
     }
 
     /**
@@ -141,18 +150,4 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
             }
         }
     }
-
-    static class FormattedDocValueFetcher extends AbstractFieldDownsampler.FieldValueFetcher<FormattedDocValues> {
-
-        FormattedDocValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
-        }
-
-        @Override
-        FormattedDocValues getLeaf(LeafReaderContext context) {
-            DocValueFormat format = fieldType.docValueFormat(null, null);
-            return fieldData.load(context).getFormattedValues(format);
-        }
-    }
-
 }

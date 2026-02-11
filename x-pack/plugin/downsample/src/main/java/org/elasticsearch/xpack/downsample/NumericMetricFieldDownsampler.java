@@ -12,7 +12,6 @@ import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,8 +25,14 @@ import java.io.IOException;
 abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsampler<SortedNumericDoubleValues> permits
     AggregateMetricDoubleFieldDownsampler, NumericMetricFieldDownsampler.AggregateGauge, NumericMetricFieldDownsampler.LastValue {
 
-    NumericMetricFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        super(name, new NumericFieldFetcher(name, fieldType, fieldData));
+    NumericMetricFieldDownsampler(String name, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
+    }
+
+    @Override
+    public SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
+        LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
+        return numericFieldData.getDoubleValues();
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
@@ -43,8 +48,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregateGauge(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
+        AggregateGauge(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -96,8 +101,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         double lastValue = Double.NaN;
 
-        LastValue(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
+        LastValue(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -134,19 +139,6 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             if (isEmpty() == false) {
                 builder.field(name(), lastValue);
             }
-        }
-    }
-
-    static class NumericFieldFetcher extends AbstractFieldDownsampler.FieldValueFetcher<SortedNumericDoubleValues> {
-
-        NumericFieldFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
-        }
-
-        @Override
-        SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
-            LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
-            return numericFieldData.getDoubleValues();
         }
     }
 }

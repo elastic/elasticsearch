@@ -31,13 +31,8 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
 
     protected final AggregateMetricDoubleFieldMapper.Metric metric;
 
-    AggregateMetricDoubleFieldDownsampler(
-        String name,
-        AggregateMetricDoubleFieldMapper.Metric metric,
-        MappedFieldType fieldType,
-        IndexFieldData<?> fieldData
-    ) {
-        super(name, fieldType, fieldData);
+    AggregateMetricDoubleFieldDownsampler(String name, AggregateMetricDoubleFieldMapper.Metric metric, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
         this.metric = metric;
     }
 
@@ -48,8 +43,8 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
         private final CompensatedSum sum = new CompensatedSum();
         private long count;
 
-        Aggregate(String name, AggregateMetricDoubleFieldMapper.Metric metric, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, metric, fieldType, fieldData);
+        Aggregate(String name, AggregateMetricDoubleFieldMapper.Metric metric, IndexFieldData<?> fieldData) {
+            super(name, metric, fieldData);
         }
 
         @Override
@@ -105,14 +100,8 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
         private final boolean supportsMultiValue;
         private Object lastValue = null;
 
-        LastValue(
-            String name,
-            AggregateMetricDoubleFieldMapper.Metric metric,
-            MappedFieldType fieldType,
-            IndexFieldData<?> fieldData,
-            boolean supportsMultiValue
-        ) {
-            super(name, metric, fieldType, fieldData);
+        LastValue(String name, AggregateMetricDoubleFieldMapper.Metric metric, IndexFieldData<?> fieldData, boolean supportsMultiValue) {
+            super(name, metric, fieldData);
             this.supportsMultiValue = supportsMultiValue;
         }
 
@@ -227,35 +216,16 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
                     if (samplingMethod != DownsampleConfig.SamplingMethod.LAST_VALUE) {
                         // If the field is an aggregate_metric_double field, we should use the correct subfields
                         // for each aggregation. This is a downsample-of-downsample case
-                        downsamplers.add(
-                            new AggregateMetricDoubleFieldDownsampler.Aggregate(
-                                aggMetricFieldType.name(),
-                                metric,
-                                metricSubField,
-                                fieldData
-                            )
-                        );
+                        downsamplers.add(new AggregateMetricDoubleFieldDownsampler.Aggregate(aggMetricFieldType.name(), metric, fieldData));
                     } else {
                         downsamplers.add(
-                            new AggregateMetricDoubleFieldDownsampler.LastValue(
-                                aggMetricFieldType.name(),
-                                metric,
-                                metricSubField,
-                                fieldData,
-                                false
-                            )
+                            new AggregateMetricDoubleFieldDownsampler.LastValue(aggMetricFieldType.name(), metric, fieldData, false)
                         );
                     }
                 } else {
                     // If a field is not a metric, we downsample it as a label
                     downsamplers.add(
-                        new AggregateMetricDoubleFieldDownsampler.LastValue(
-                            aggMetricFieldType.name(),
-                            metric,
-                            metricSubField,
-                            fieldData,
-                            true
-                        )
+                        new AggregateMetricDoubleFieldDownsampler.LastValue(aggMetricFieldType.name(), metric, fieldData, true)
                     );
                 }
             }

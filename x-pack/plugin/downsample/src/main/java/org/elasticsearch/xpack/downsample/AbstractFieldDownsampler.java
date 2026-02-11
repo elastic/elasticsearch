@@ -34,12 +34,12 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
 
     private final String name;
     protected boolean isEmpty;
-    private final FieldValueFetcher<T> fieldValueFetcher;
+    protected final IndexFieldData<?> fieldData;
 
-    AbstractFieldDownsampler(String name, FieldValueFetcher<T> fieldValueFetcher) {
+    AbstractFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         this.name = name;
         this.isEmpty = true;
-        this.fieldValueFetcher = fieldValueFetcher;
+        this.fieldData = fieldData;
     }
 
     /**
@@ -50,7 +50,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     }
 
     /**
-     * Resets the downsampler to an empty value.
+     * Resets the downsampler to an empty value. The downsampler should be reset before downsampling a field for a new bucket.
      */
     public abstract void reset();
 
@@ -62,37 +62,17 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     }
 
     /**
-     * @return the leaf reader that will retrieve the values per doc for this field.
+     * @return the leaf reader that will retrieve the doc values for this field.
      */
-    public T getLeaf(LeafReaderContext context) throws IOException {
-        return fieldValueFetcher.getLeaf(context);
-    }
-
-    public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
+    public abstract T getLeaf(LeafReaderContext context) throws IOException;
 
     /**
-     * Utility class used for fetching field values by reading field data.
-     * For fields whose type is multivalued the 'name' matches the parent field
-     * name (normally used for indexing data), while the actual multiField
-     * name is accessible by means of {@link MappedFieldType#name()}.
+     * Collects the values for this field of the doc ids requested.
+     * @param docValues the doc values for this field
+     * @param docIdBuffer the doc ids for which we need to retrieve the field values
+     * @throws IOException
      */
-    abstract static class FieldValueFetcher<T> {
-        protected final String name;
-        protected final MappedFieldType fieldType;
-        protected final IndexFieldData<?> fieldData;
-
-        FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            this.name = name;
-            this.fieldType = fieldType;
-            this.fieldData = fieldData;
-        }
-
-        String name() {
-            return name;
-        }
-
-        abstract T getLeaf(LeafReaderContext context) throws IOException;
-    }
+    public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
 
     /**
      * Retrieve field value fetchers for a list of fields.
@@ -140,7 +120,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         if (ExponentialHistogramFieldDownsampler.TYPE.equals(fieldType.typeName())) {
-            return ExponentialHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
+            return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
         if (fieldType.getMetricType() != null) {
             // TODO: Support POSITION in downsampling
@@ -152,9 +132,9 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
                 : "only gauges and counters accepted, other metrics should have been handled earlier";
             if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE
                 && fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
-                return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldType, fieldData);
+                return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
             }
-            return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldType, fieldData);
+            return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldData);
         } else {
             // If a field is not a metric, we downsample it as a label
             return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData);

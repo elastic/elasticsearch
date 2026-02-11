@@ -15,7 +15,6 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
@@ -28,22 +27,17 @@ import java.io.IOException;
 abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsampler<ExponentialHistogramValuesReader> {
     static final String TYPE = "exponential_histogram";
 
-    ExponentialHistogramFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        super(name, new ExponentialHistogramFieldFetcher(name, fieldType, fieldData));
+    ExponentialHistogramFieldDownsampler(String name, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
     }
 
     /**
      * @return the requested producer based on the sampling method for an exponential histogram field
      */
-    static AbstractFieldDownsampler<?> create(
-        String name,
-        MappedFieldType fieldType,
-        IndexFieldData<?> fieldData,
-        DownsampleConfig.SamplingMethod samplingMethod
-    ) {
+    static AbstractFieldDownsampler<?> create(String name, IndexFieldData<?> fieldData, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new ExponentialHistogramFieldDownsampler.MergeProducer(name, fieldType, fieldData);
-            case LAST_VALUE -> new ExponentialHistogramFieldDownsampler.LastValueProducer(name, fieldType, fieldData);
+            case AGGREGATE -> new ExponentialHistogramFieldDownsampler.MergeProducer(name, fieldData);
+            case LAST_VALUE -> new ExponentialHistogramFieldDownsampler.LastValueProducer(name, fieldData);
         };
     }
 
@@ -57,14 +51,20 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         }
     }
 
+    @Override
+    public ExponentialHistogramValuesReader getLeaf(LeafReaderContext context) throws IOException {
+        LeafExponentialHistogramFieldData exponentialHistogramFieldData = (LeafExponentialHistogramFieldData) fieldData.load(context);
+        return exponentialHistogramFieldData.getHistogramValues();
+    }
+
     /**
      * Downsamples an exponential histogram by merging all values.
      */
     static class MergeProducer extends ExponentialHistogramFieldDownsampler {
         private ExponentialHistogramMerger merger = null;
 
-        MergeProducer(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
+        MergeProducer(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -107,8 +107,8 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
     static class LastValueProducer extends ExponentialHistogramFieldDownsampler {
         private ExponentialHistogram lastValue = null;
 
-        LastValueProducer(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
+        LastValueProducer(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -137,19 +137,6 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         @Override
         protected ExponentialHistogram downsampledValue() {
             return lastValue;
-        }
-    }
-
-    static class ExponentialHistogramFieldFetcher extends AbstractFieldDownsampler.FieldValueFetcher<ExponentialHistogramValuesReader> {
-
-        ExponentialHistogramFieldFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
-        }
-
-        @Override
-        ExponentialHistogramValuesReader getLeaf(LeafReaderContext context) throws IOException {
-            LeafExponentialHistogramFieldData exponentialHistogramFieldData = (LeafExponentialHistogramFieldData) fieldData.load(context);
-            return exponentialHistogramFieldData.getHistogramValues();
         }
     }
 }

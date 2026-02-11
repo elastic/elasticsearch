@@ -35,21 +35,19 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
     static final double DEFAULT_COMPRESSION = 100;
     // MergingDigest is the best fit because we have pre-constructed histograms
     static final TDigestState.Type DEFAULT_TYPE = TDigestState.Type.MERGING;
-    static final String VALUES_FIELD = "values";
-    static final String CENTROIDS_FIELD = "centroids";
+    private static final String VALUES_FIELD = "values";
+    private static final String CENTROIDS_FIELD = "centroids";
     protected final String valueLabel;
 
     TDigestHistogramFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        super(name, new TDigestHistogramFieldFetcher(name, fieldType, fieldData));
-        valueLabel = getValueLabel(fieldType);
+        super(name, fieldData);
+        valueLabel = TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) ? CENTROIDS_FIELD : VALUES_FIELD;
     }
 
-    private static String getValueLabel(MappedFieldType fieldType) {
-        if (TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
-            return CENTROIDS_FIELD;
-        } else {
-            return VALUES_FIELD;
-        }
+    @Override
+    public HistogramValues getLeaf(LeafReaderContext context) throws IOException {
+        LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
+        return histogramFieldData.getHistogramValues();
     }
 
     /**
@@ -161,19 +159,6 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
                 }
                 builder.startObject(name()).field("counts", counts).field(valueLabel, values).endObject();
             }
-        }
-    }
-
-    static class TDigestHistogramFieldFetcher extends AbstractFieldDownsampler.FieldValueFetcher<HistogramValues> {
-
-        TDigestHistogramFieldFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
-        }
-
-        @Override
-        HistogramValues getLeaf(LeafReaderContext context) throws IOException {
-            LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
-            return histogramFieldData.getHistogramValues();
         }
     }
 }

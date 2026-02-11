@@ -123,9 +123,9 @@ public class WriteLoadConstraintMonitor {
         logger.trace("processing new cluster info");
 
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
-        final Set<NodeIdName> writeNodesExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        final Set<NodeIdName> writeNodesHotspotting = Sets.newHashSetWithExpectedSize(numberOfNodes);
         final Map<String, NodeUsageStatsForThreadPools> nodeUsageStats = clusterInfo.getNodeUsageStatsForThreadPools();
-        var haveWriteNodesBelowQueueLatencyThreshold = false;
+        var haveWriteNodesNotHotspotting = false;
         var totalIngestNodes = 0;
         for (var node : state.nodes()) {
             final var nodeRoles = node.getRoles();
@@ -145,23 +145,23 @@ public class WriteLoadConstraintMonitor {
                 usageStats,
                 writeLoadConstraintSettings.getQueueLatencyThreshold()
             )) {
-                writeNodesExceedingQueueLatencyThreshold.add(NodeIdName.nodeIdName(node));
+                writeNodesHotspotting.add(NodeIdName.nodeIdName(node));
             } else {
-                haveWriteNodesBelowQueueLatencyThreshold = true;
+                haveWriteNodesNotHotspotting = true;
             }
         }
 
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        Set<NodeIdName> lastHotspotNodes = recordHotspotDurations(state, writeNodesExceedingQueueLatencyThreshold, currentTimeMillis);
+        Set<NodeIdName> lastHotspotNodes = recordHotspotDurations(state, writeNodesHotspotting, currentTimeMillis);
 
-        if (writeNodesExceedingQueueLatencyThreshold.isEmpty()) {
+        if (writeNodesHotspotting.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
             return;
         }
-        if (haveWriteNodesBelowQueueLatencyThreshold == false) {
+        if (haveWriteNodesNotHotspotting == false) {
             logger.debug("""
-                Nodes [{}] are above the queue latency threshold, but there are no write nodes below the threshold. \
-                Cannot rebalance shards.""", nodeSummary(writeNodesExceedingQueueLatencyThreshold));
+                Nodes [{}] are hotspotting, but there are no write nodes below the threshold. \
+                Cannot rebalance shards.""", nodeSummary(writeNodesHotspotting));
             return;
         }
 
@@ -171,7 +171,7 @@ public class WriteLoadConstraintMonitor {
 
         // We know that there is at least one hot-spotting node if we've reached this code. Now check whether there are any new hot-spots
         // or hot-spots that are persisting and need further balancing work.
-        Set<NodeIdName> newHotspotNodes = Sets.difference(writeNodesExceedingQueueLatencyThreshold, lastHotspotNodes);
+        Set<NodeIdName> newHotspotNodes = Sets.difference(writeNodesHotspotting, lastHotspotNodes);
         if (haveCalledRerouteRecently == false || newHotspotNodes.isEmpty() == false) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
@@ -179,7 +179,7 @@ public class WriteLoadConstraintMonitor {
                         Nodes [{}] are hot-spotting, of {} total ingest nodes. Reroute for hot-spotting {}. \
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
-                    nodeSummary(writeNodesExceedingQueueLatencyThreshold),
+                    nodeSummary(writeNodesHotspotting),
                     totalIngestNodes,
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"

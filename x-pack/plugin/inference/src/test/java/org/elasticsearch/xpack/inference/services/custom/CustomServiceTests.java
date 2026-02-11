@@ -20,7 +20,10 @@ import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -38,6 +41,7 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
@@ -71,8 +75,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class CustomServiceTests extends AbstractInferenceServiceTests {
+
+    private static final String INFERENCE_ID_VALUE = "inference_id";
 
     public CustomServiceTests() {
         super(createTestConfiguration());
@@ -93,6 +100,41 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 @Override
                 protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
                     return CustomServiceTests.createServiceSettingsMap(taskType);
+                }
+
+                @Override
+                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
+                    switch (taskType) {
+                        case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, COMPLETION -> {
+                            return new ModelConfigurations(
+                                "some_inference_id",
+                                taskType,
+                                CustomService.NAME,
+                                CustomServiceSettings.fromMap(
+                                    createServiceSettingsMap(taskType),
+                                    ConfigurationParseContext.PERSISTENT,
+                                    taskType
+                                ),
+                                CustomTaskSettings.fromMap(createTaskSettingsMap())
+                            );
+                        }
+                        // Chat completion is not supported, but in order to test unsupported task types it is included here
+                        case CHAT_COMPLETION -> {
+                            return new ModelConfigurations(
+                                "some_inference_id",
+                                taskType,
+                                CustomService.NAME,
+                                mock(CustomServiceSettings.class),
+                                mock(CustomTaskSettings.class)
+                            );
+                        }
+                        default -> throw new IllegalArgumentException("unexpected task type [" + taskType + "]");
+                    }
+                }
+
+                @Override
+                protected ModelSecrets createModelSecrets() {
+                    return new ModelSecrets(CustomSecretSettings.fromMap(createSecretSettingsMap()));
                 }
 
                 @Override
@@ -134,7 +176,9 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         switch (taskType) {
             case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
+            case SPARSE_EMBEDDING -> assertSparseEmbeddingModel(model, modelIncludesSecrets);
             case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
+            case RERANK -> assertRerankModel(model, modelIncludesSecrets);
             default -> fail("unexpected task type [" + taskType + "]");
         }
     }
@@ -144,6 +188,13 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
         assertThat(customModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(DenseEmbeddingResponseParser.class));
+    }
+
+    private static void assertSparseEmbeddingModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
+
+        assertThat(customModel.getTaskType(), is(TaskType.SPARSE_EMBEDDING));
+        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(SparseEmbeddingResponseParser.class));
     }
 
     private static CustomModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
@@ -167,6 +218,12 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         var customModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(customModel.getTaskType(), is(TaskType.COMPLETION));
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
+    }
+
+    private static void assertRerankModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
+        assertThat(customModel.getTaskType(), is(TaskType.RERANK));
+        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(RerankResponseParser.class));
     }
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
@@ -1128,6 +1185,73 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
             assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_SparseEmbedding() throws IOException {
+        var model = createTestModel(TaskType.SPARSE_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ID_VALUE,
+            TaskType.CHAT_COMPLETION,
+            CustomService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                CoreMatchers.is(
+                    org.elasticsearch.core.Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ID_VALUE,
+                        CustomService.NAME,
+                        CustomService.NAME,
+                        TaskType.CHAT_COMPLETION
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return CustomModelTests.createModel(
+            INFERENCE_ID_VALUE,
+            taskType,
+            CustomServiceSettingsTests.createRandom(),
+            CustomTaskSettingsTests.createRandom(),
+            CustomSecretSettingsTests.createRandom()
+        );
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, CoreMatchers.is(model));
         }
     }
 }

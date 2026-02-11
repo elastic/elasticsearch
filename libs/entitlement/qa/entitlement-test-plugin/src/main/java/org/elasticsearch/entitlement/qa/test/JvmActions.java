@@ -88,8 +88,7 @@ class JvmActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void createLogManager() {
-        new java.util.logging.LogManager() {
-        };
+        new java.util.logging.LogManager() {};
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

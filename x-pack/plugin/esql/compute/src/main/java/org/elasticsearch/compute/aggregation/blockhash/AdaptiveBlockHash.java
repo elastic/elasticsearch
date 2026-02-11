@@ -72,6 +72,11 @@ abstract class AdaptiveBlockHash extends BlockHash {
     }
 
     @Override
+    public final int numKeys() {
+        return current.numKeys();
+    }
+
+    @Override
     public final BitArray seenGroupIds(BigArrays bigArrays) {
         return current.seenGroupIds(bigArrays);
     }

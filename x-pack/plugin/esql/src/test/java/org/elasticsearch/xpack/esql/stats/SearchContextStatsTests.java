@@ -48,8 +48,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         maxMillis = minMillis = dateTimeToLong("2025-01-01T00:00:01");
         maxNanos = minNanos = dateNanosToLong("2025-01-01T00:00:01");
 
-        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-        };
+        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
         // create one or more index, so that there is one or more SearchExecutionContext in SearchStats
         for (int i = 0; i < indexCount; i++) {
             // Start with millis/nanos, numeric and keyword types in the index mapping, more data types can be covered later if needed.

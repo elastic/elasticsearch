@@ -58,6 +58,20 @@ avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender
 268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null |null
 ;
 
+keepFieldStarEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| KEEP emp_no, *
+| EVAL foo = does_not_exist_field + 1
+| SORT emp_no
+| LIMIT 1
+;
+
+emp_no:integer|avg_worked_seconds:long|birth_date:date         |first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date          |is_rehired:boolean|job_positions:keyword                |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
+10001         |268728049              |1953-09-02T00:00:00.000Z|Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z|[false, true]     |[Accountant, Senior Python Developer]|2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null                     |null
+;
 
 dropPatternSimpleKeep
 required_capability: optional_fields_nullify_tech_preview
@@ -226,7 +240,7 @@ foo:null
 null
 ;
 
-statsAggs
+statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
 required_capability: fix_agg_on_null_by_replacing_with_eval
 

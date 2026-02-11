@@ -785,27 +785,34 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            BytesRef originalValue = BytesRef.deepCopyOf(value);
             BytesRefBlock block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
+            // modify the value after creating the constant block
+            for (int b = 0; b < value.length; b++) {
+                if (randomBoolean()) {
+                    value.bytes[b] = randomByte();
+                }
+            }
             assertThat(block.getPositionCount(), is(positionCount));
 
             BytesRef bytes = new BytesRef();
             bytes = block.getBytesRef(0, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(positionCount - 1, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(randomPosition(positionCount), bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             assertSingleValueDenseBlock(block);
             if (positionCount > 2) {
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(value), List.of(value), List.of(value, value))
+                    List.of(List.of(originalValue), List.of(originalValue), List.of(originalValue, originalValue))
                 );
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2),
-                    List.of(List.of(value), List.of(value)),
+                    List.of(List.of(originalValue), List.of(originalValue)),
                     b -> assertThat(b.asVector(), instanceOf(ConstantBytesRefVector.class))
                 );
             }
@@ -1163,30 +1170,30 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(s, containsString("positions=2"));
             }
             for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                try (var filter = block.filter(0)) {
+                try (var filter = block.filter(false, 0)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
                 }
-                try (var filter = block.filter(1)) {
+                try (var filter = block.filter(false, 1)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
                 }
-                try (var filter = block.filter(0, 1)) {
+                try (var filter = block.filter(false, 0, 1)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
                 }
-                try (var filter = block.filter()) {
+                try (var filter = block.filter(false)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
                 }
             }
             for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                try (var filter = vector.filter(0)) {
+                try (var filter = vector.filter(false, 0)) {
                     assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=1]"));
                 }
-                try (IntVector filter = vector.filter(1)) {
+                try (IntVector filter = vector.filter(false, 1)) {
                     assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=2]"));
                 }
-                try (IntVector filter = vector.filter(0, 1)) {
+                try (IntVector filter = vector.filter(false, 0, 1)) {
                     assertThat(filter.toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
                 }
-                try (IntVector filter = vector.filter()) {
+                try (IntVector filter = vector.filter(false)) {
                     assertThat(filter.toString(), containsString("IntArrayVector[positions=0, values=[]]"));
                 }
             }
@@ -1470,7 +1477,7 @@ public class BasicBlockTests extends ESTestCase {
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         ).asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
@@ -1512,7 +1519,7 @@ public class BasicBlockTests extends ESTestCase {
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         );
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(vector);
@@ -1548,7 +1555,7 @@ public class BasicBlockTests extends ESTestCase {
                 for (int i = 0; i < masks.length; i++) {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
-                try (var filtered = block.filter(masks)) {
+                try (var filtered = block.filter(true, masks)) {
                     assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
                 }
             }
@@ -1573,7 +1580,7 @@ public class BasicBlockTests extends ESTestCase {
                 for (int i = 0; i < masks.length; i++) {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
-                try (var filtered = vector.filter(masks)) {
+                try (var filtered = vector.filter(true, masks)) {
                     assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
                 }
             }

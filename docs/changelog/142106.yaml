@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 142106
+summary: Track bloom filter disk usage in `IndexDiskUsageAnalyzer`
+type: enhancement

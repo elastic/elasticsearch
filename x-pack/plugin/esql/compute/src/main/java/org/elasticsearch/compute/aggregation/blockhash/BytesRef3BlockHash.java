@@ -204,6 +204,11 @@ final class BytesRef3BlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
+    }
+
+    @Override
     public String toString() {
         return String.format(
             Locale.ROOT,

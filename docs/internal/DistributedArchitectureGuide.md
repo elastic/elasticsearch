@@ -476,11 +476,51 @@ works in parallel with the storage engine.)
 
 # Recovery
 
-(All shards go through a 'recovery' process. Describe high level. createShard goes through this code.)
+When a shard is created on a node, it starts out empty. *Recovery* is the process of loading the shard's data from
+some data source into the newly created `IndexShard` in order to make it available for index or search requests.
+When the shard allocation process has chosen a node for a shard, it records its choice by writing an updated [ShardRouting][]
+record into the cluster state's [IndexRoutingTable][]. The [ShardRouting][] entry includes [RecoverySource][] metadata that
+describes where the shard's data can be found based on the shard's previous allocation. For example, a shard for a newly created
+index will have its `recoverySource` set to `EMPTY_STORE` to indicate that recovery should bring up the shard without loading
+any existing data, while a `recoverySource` of `EXISTING_STORE` would tell recovery to load the shard from files already
+present on disk, likely because the node was restarted and had hosted the shard until it shut down.
 
-(How is the translog involved in recovery?)
+The `IndicesClusterStateService` on each node listens for updates to the `IndexRoutingTable` and when it finds that a
+shard in state `INITIALIZING` has been assigned to its node, it creates a fresh `IndexShard` for the assigned shard and kicks off a recovery process
+for that node, using the [RecoverySource][] in the [ShardRouting][] entry to determine the parameters of the recovery process.
+The full list of recovery types is defined in [RecoverySource.Type][]. The various modes are discussed below, roughly in
+order of complexity. Some modes build on others; for example, snapshot recovery sets up a local data store by copying
+files from a snapshot source and then uses `EXISTING_STORE` recovery. Similarly, if there is any local data, then
+peer recovery starts by using  `EXISTING_STORE` recovery to bring the local shard as close to up to date as it can, and then
+finishes synchronizing the shard through RPCs (Remote Procedure Calls) to an active source shard.
 
-### Create a Shard
+At the end of the recovery process, recovery finalization marks the shard as `STARTED` in cluster state, which makes it
+available to handle index and search requests.
+
+### Create a New Shard
+
+The simplest form of recovery is `EMPTY_STORE`, which is just what it sounds like. This recovery type causes the recovery
+process to invoke [StoreRecovery] for the recovery. `StoreRecovery` will create an empty shard directory on disk (deleting
+any existing files that may be present) and bootstrap an empty translog and then tell the Engine to use that directory.
+That's pretty much the whole process.
+
+### Restore from an Existing Directory
+
+Only slightly more complex is `EXISTING_STORE` recovery, which is used when the node is expected to have an up-to-date
+copy of the shard's data already present on disk. Once again `StoreRecovery` manages the recovery process, but in this
+case it expects to find Lucene files and a translog already present. It validates the Lucene files, potentially dropping
+any incomplete commits that may not have been fsynced to disk before shutdown, tells the engine to open the directory
+as its backing store, and then replays the transaction log to replay any operations that may have been acknowledged to
+the client but not written into a durable Lucene commit. At that point the shard is ready to serve requests.
+
+### Snapshot Recovery
+
+In snapshot recovery, the data source is a snapshot of the index shard stored on a remote repository. Snapshot recovery,
+also managed in `StoreRecovery` but invoked through the `recoverFromRepository` method, downloads and unpacks the snapshot
+from the remote repository into the local shard directory and then invokes the same logic as `EXISTING_STORE` to bring
+the shard on line, with some small differences. The key one is that the snapshot is taken from a Lucene commit, and
+so it does not need to store the shard translog when the snapshot is taken, or restore it during recovery. Instead
+it creates a new empty translog before bringing the shard on line.
 
 ### Local Shards Recovery
 Local shards recovery is a type of recovery that reuses existing data from other shard(s) allocated on the current node (hence local shards). It is used exclusively to implement index [Shrink/Split/Clone APIs](#shrinksplitclone-index-apis).
@@ -489,13 +529,50 @@ This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data
 
 ### Peer Recovery
 
-### Snapshot Recovery
+Whereas the other recovery modes are used to bring up a *primary* shard, peer recovery is used to add replicas of an
+already active primary shard. Peer recovery is also used for primary shard relocation, but relocation goes through
+the standard peer recovery process to bring a replica in sync, before handing off the primary role to the recovered
+replica during finalization.
 
-### Recovery Across Server Restart
+Unlike `StoreRecovery`, peer recovery is managed through a separate service on the node recovering the shard, the
+[PeerRecoveryTargetService][]. When the IndexShard sees that its recovery source is of type `PEER`, it hands over the
+recovery process to `PeerRecoveryTargetService` by invoking its `startRecovery` method. This service begins by creating
+an in-memory record of the recovery process to track its progress, and then runs `EXISTING_STORE` recovery in case the
+recovering replica held a copy of the shard before that has gone out of sync (e.g., because the node holding the
+replica restarted). Because the shard is a replica, it only recovers up to the latest known global checkpoint for the shard
+and discards any operations in the local store that are ahead of that point (see [Translog][#Translog] for details).
+Once the local shard has been brought close to current, the service then sends a request to a corresponding service on the source node, `PeerRecoverySourceService`,
+to complete synchronization.
 
-(partial shard recoveries survive server restart? `reestablishRecovery`? How does that work.)
+Synchronization begins by discovering any differences between the source and target shards and transmitting any missing files
+to the target shard. The source for the files can be the source shard itself, but if a snapshot of the shard is available
+that has some subset of the files to be transmitted, then recovery will fetch them from the snapshot in order to reduce
+load on the source shard.
 
-### How a Recovery Method is Chosen
+The next step is to transfer any operations from the source translog. Since the source shard is active,
+it may be receiving index operations while recovery is in process. So, to ensure that the target shard doesn't miss any
+new operations, the source shard adds the target to the shard's replication group (see the [replication][#Replication] docs)
+*before* completing the operation transfer phase. Because of this ordering, any operations accepted on the shard between the
+time it reads and sends the latest operation in the translog and the time the replica completes recovery are sent through the
+request replication process and will not be lost. Once the target has been added to the recovery group, the source reads the
+latest sequence number from its transaction log knowing that any updates past that will be handled by recovery, and replays
+the translog to the target up to that point.
+
+At this point the target is ready to be started as an in sync replica. However, peer recovery is also used to perform
+primary relocation. If the target shard is being recovered in order to take over as primary, then the finalization
+stage will call `IndexShard.relocate` to complete the handoff of primary responsibilities. This method blocks operations
+on the source shard and sends an RPC to the target shard with the [ReplicationTracker.PrimaryContext][] needed
+to promote the target to primary. Once the target acknowledges the handoff, the source shard moves itself into
+replica mode.
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/1d4a20ae194ce71fd5819786ba6dfb154ceb123f/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+[IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/473c4da497681c889728c05cebb27030ae97fc13/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
+[RecoverySource]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java
+[RecoverySource.Type]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java#L79
+[IndicesClusterStateService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java
+[StoreRecovery]:https://github.com/elastic/elasticsearch/blob/d70878f488dfa2e2ba4d02e335c15be7cd4d5af2/server/src/main/java/org/elasticsearch/index/shard/StoreRecovery.java
+[PeerRecoveryTargetService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/recovery/PeerRecoveryTargetService.java
+[ReplicationTracker.PrimaryContext]:https://github.com/elastic/elasticsearch/blob/1352df3f0b5157ca1d730428ea5aba2a7644e79b/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1573
 
 # Data Tiers
 
@@ -1244,3 +1321,84 @@ Relevant classes:
 [StableMasterHealthIndicatorService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/StableMasterHealthIndicatorService.java
 [HealthMetadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
 [HealthMetadataService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadataService.java
+
+# Watcher
+
+[Watcher]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/Watcher.java
+[WatcherLifeCycleService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/WatcherLifeCycleService.java
+[ExecutionService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/execution/ExecutionService.java
+[WatcherService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/WatcherService.java
+[TickerScheduleTriggerEngine]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/trigger/schedule/engine/TickerScheduleTriggerEngine.java
+[EmailAction]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions/email/EmailAction.java
+[EmailService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/email/EmailService.java
+[WebhookAction]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions/webhook/WebhookAction.java
+[WebhookService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/WebhookService.java
+[Actions Package]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions
+[ReportingAttachment]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/email/attachment/ReportingAttachment.java
+
+Watcher lets you set a schedule to run a query, and if a condition is met it executes an action.
+As an example, the following performs a search every 10 minutes. If the number of hits found is greater than 0 then it logs an error message.
+```console
+PUT _watcher/watch/log_error_watch
+{
+  "trigger" : { "schedule" : { "interval" : "10m" }},
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : [ "logs" ],
+        "body" : {
+          "query" : {
+            "match" : { "message": "error" }
+          }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+  },
+  "actions" : {
+    "log_error" : {
+      "logging" : {
+        "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
+      }
+    }
+  }
+}
+
+```
+
+## How Watcher Works
+
+- We have an API to define a “watch”, which includes the schedule, the query, the condition, and the action
+- Watch definitions are kept in the `.watches` index
+- Information about currently running watches is in the `.triggered_watches` index
+- History is written to the `.watcher_history` index
+- Watcher ([WatcherLifeCycleService]) runs on all nodes, but only executes watches on a node that has a copy of the `.watches` shard that the particular watch is in (see [WatcherService])
+  -  Uses a hash to choose the node if there is more than one shard
+- Example common use cases:
+  - Periodically send data to a 3rd party system
+  - Email users with alerts if certain conditions appear in log files
+  - Periodically generate a report using Kibana, and email that report as an attachment. This is supported by declaring a [ReportingAttachment] [ReportingAttachment] to the [EmailAction] [EmailAction] in the watch definition.
+
+## Relevant classes:
+
+- [Watcher] [Watcher] – the plugin class
+- [WatcherLifeCycleService] [WatcherLifeCycleService]  – created by the Watch plugin on each node
+- [WatcherService] [WatcherService] – decides which watches this node ought to run
+- [ExecutionService] [ExecutionService] – executes watches
+- [TickerScheduleTriggerEngine] [TickerScheduleTriggerEngine] – handles the periodic (non-cron) schedules that we see the most
+- [EmailAction] [EmailAction] / [EmailService] [EmailService] – emails to third-party email server
+- [WebhookAction] [WebhookAction] / [WebhookService] [WebhookService] – sends requests to external endpoints
+- [Various other actions] [Actions Package] (for example posting to Slack, Jira, etc.)
+
+## Debugging
+
+- The most useful debugging information is in the Elasticsearch logs and the `.watcher_history` index
+- It is often useful to get the contents of the `.watches` index
+- Frequent sources of problems:
+  - There is no guarantee that an interval schedule watch will run at exactly the requested interval after the last run
+  - In older versions (before 8.17), the counter for the interval schedule restarts if the shard moves. For example, if the interval is once every 12 hours, and the shard moves 10 hours into that interval, it will be at least 12 more hours until it runs.
+  - Calls to remote systems ([EmailAction] and [WebhookAction]) are a frequent source of failures. Watcher sends the request but doesn't know what happens after that. If you see that the call was successful in `.watcher_history`, the best way to continue the investigation is in the logs of the remote system.
+  - Even if watcher fails during a call to a remote system, the error is likely to be outside of watcher (e.g. network problems). Check the error message in `.watcher_history`.
+

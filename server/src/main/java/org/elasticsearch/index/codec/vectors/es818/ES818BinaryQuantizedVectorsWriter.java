@@ -180,7 +180,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
         writeBinarizedVectors(fieldData, clusterCenter, quantizer);
         long vectorDataLength = binarizedVectorData.getFilePointer() - vectorDataOffset;
-        float centroidDp = fieldData.getVectors().size() > 0 ? VectorUtil.dotProduct(clusterCenter, clusterCenter) : 0;
+        float centroidDp = fieldData.getVectors().size() > 0 ? ESVectorUtil.dotProduct(clusterCenter, clusterCenter) : 0;
 
         writeMeta(
             fieldData.fieldInfo,
@@ -235,7 +235,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         writeSortedBinarizedVectors(fieldData, clusterCenter, ordMap, scalarQuantizer);
         long quantizedVectorLength = binarizedVectorData.getFilePointer() - vectorDataOffset;
 
-        float centroidDp = VectorUtil.dotProduct(clusterCenter, clusterCenter);
+        float centroidDp = ESVectorUtil.dotProduct(clusterCenter, clusterCenter);
         writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, quantizedVectorLength, clusterCenter, centroidDp, newDocsWithField);
     }
 
@@ -342,7 +342,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
             DocsWithFieldSet docsWithField = writeBinarizedVectorData(binarizedVectorData, binarizedVectorValues);
             long vectorDataLength = binarizedVectorData.getFilePointer() - vectorDataOffset;
-            float centroidDp = docsWithField.cardinality() > 0 ? VectorUtil.dotProduct(centroid, centroid) : 0;
+            float centroidDp = docsWithField.cardinality() > 0 ? ESVectorUtil.dotProduct(centroid, centroid) : 0;
             writeMeta(
                 fieldInfo,
                 segmentWriteState.segmentInfo.maxDoc(),
@@ -432,7 +432,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             // Don't need access to the random vectors, we can just use the merged
             rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
             centroid = mergedCentroid;
-            cDotC = vectorCount > 0 ? VectorUtil.dotProduct(centroid, centroid) : 0;
+            cDotC = vectorCount > 0 ? ESVectorUtil.dotProduct(centroid, centroid) : 0;
             if (segmentWriteState.infoStream.isEnabled(BINARIZED_VECTOR_COMPONENT)) {
                 segmentWriteState.infoStream.message(BINARIZED_VECTOR_COMPONENT, "Vectors' count:" + vectorCount);
             }
@@ -699,7 +699,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         public void addValue(int docID, float[] vectorValue) throws IOException {
             flatFieldVectorsWriter.addValue(docID, vectorValue);
             if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
-                float dp = VectorUtil.dotProduct(vectorValue, vectorValue);
+                float dp = ESVectorUtil.dotProduct(vectorValue, vectorValue);
                 float divisor = (float) Math.sqrt(dp);
                 magnitudes.add(divisor);
                 for (int i = 0; i < vectorValue.length; i++) {

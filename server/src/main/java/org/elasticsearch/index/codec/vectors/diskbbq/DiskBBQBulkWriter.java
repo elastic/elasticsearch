@@ -45,7 +45,7 @@ public abstract sealed class DiskBBQBulkWriter {
      * @return a DiskBBQBulkWriter instance
      */
     public static DiskBBQBulkWriter fromBitSize(int bitSize, int bulkSize, IndexOutput out) {
-        return fromBitSize(bitSize, bulkSize, out, false);
+        return fromBitSize(bitSize, bulkSize, out, false, false);
     }
 
     /**
@@ -56,11 +56,17 @@ public abstract sealed class DiskBBQBulkWriter {
      * @param blockEncodeTailVectors whether to block encode tail vectors
      * @return a DiskBBQBulkWriter instance
      */
-    public static DiskBBQBulkWriter fromBitSize(int bitSize, int bulkSize, IndexOutput out, boolean blockEncodeTailVectors) {
+    public static DiskBBQBulkWriter fromBitSize(
+        int bitSize,
+        int bulkSize,
+        IndexOutput out,
+        boolean blockEncodeTailVectors,
+        boolean writeComponentSumAsInt
+    ) {
         return switch (bitSize) {
             case 1, 2, 4 -> blockEncodeTailVectors
-                ? new SmallBitEncodedDiskBBQBulkWriter(bulkSize, out)
-                : new SmallBitDiskBBQBulkWriter(bulkSize, out);
+                ? new SmallBitEncodedDiskBBQBulkWriter(bulkSize, out, writeComponentSumAsInt)
+                : new SmallBitDiskBBQBulkWriter(bulkSize, out, writeComponentSumAsInt);
             case 7 -> blockEncodeTailVectors
                 ? new LargeBitEncodedDiskBBQBulkWriter(bulkSize, out)
                 : new LargeBitDiskBBQBulkWriter(bulkSize, out);
@@ -70,10 +76,12 @@ public abstract sealed class DiskBBQBulkWriter {
 
     private static non-sealed class SmallBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         protected final OptimizedScalarQuantizer.QuantizationResult[] corrections;
+        private final boolean writeComponentSumAsInt;
 
-        private SmallBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+        private SmallBitDiskBBQBulkWriter(int bulkSize, IndexOutput out, boolean writeComponentSumAsInt) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
+            this.writeComponentSumAsInt = writeComponentSumAsInt;
         }
 
         @Override
@@ -113,8 +121,12 @@ public abstract sealed class DiskBBQBulkWriter {
             }
             for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
                 int targetComponentSum = correction.quantizedComponentSum();
-                assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
-                out.writeShort((short) targetComponentSum);
+                if (writeComponentSumAsInt) {
+                    out.writeInt(targetComponentSum);
+                } else {
+                    assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
+                    out.writeShort((short) targetComponentSum);
+                }
             }
             for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
                 out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
@@ -126,8 +138,12 @@ public abstract sealed class DiskBBQBulkWriter {
             out.writeInt(Float.floatToIntBits(correction.upperInterval()));
             out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
             int targetComponentSum = correction.quantizedComponentSum();
-            assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
-            out.writeShort((short) targetComponentSum);
+            if (writeComponentSumAsInt) {
+                out.writeInt(targetComponentSum);
+            } else {
+                assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
+                out.writeShort((short) targetComponentSum);
+            }
         }
     }
 
@@ -218,8 +234,8 @@ public abstract sealed class DiskBBQBulkWriter {
 
     private static class SmallBitEncodedDiskBBQBulkWriter extends SmallBitDiskBBQBulkWriter {
 
-        private SmallBitEncodedDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
-            super(bulkSize, out);
+        private SmallBitEncodedDiskBBQBulkWriter(int bulkSize, IndexOutput out, boolean writeComponentSumAsInt) {
+            super(bulkSize, out, writeComponentSumAsInt);
         }
 
         @Override

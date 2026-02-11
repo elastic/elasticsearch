@@ -9,13 +9,18 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
+import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.List;
 import java.util.function.ToIntBiFunction;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
@@ -29,6 +34,14 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     public JDKVectorLibraryInt7uTests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        // cosine is not used on float vectors, and quantization is only used on floats
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        return baseParams;
     }
 
     @BeforeClass
@@ -225,7 +238,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         try {
             return (int) getVectorDistance().getHandle(
                 function,
-                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.DataType.INT7U,
                 VectorSimilarityFunctions.Operation.SINGLE
             ).invokeExact(a, b, length);
         } catch (Throwable t) {
@@ -235,7 +248,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
         try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT7, VectorSimilarityFunctions.Operation.BULK)
+            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.BULK)
                 .invokeExact(a, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
@@ -254,7 +267,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         try {
             getVectorDistance().getHandle(
                 function,
-                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.DataType.INT7U,
                 VectorSimilarityFunctions.Operation.BULK_OFFSETS
             ).invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {
@@ -266,6 +279,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         return switch (function) {
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceScalar(a, b);
+            case COSINE -> throw new AssumptionViolatedException("cosine not supported");
         };
     }
 

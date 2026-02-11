@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -181,7 +180,7 @@ abstract class KMeansLocal {
         final int limit = neighborhood.neighbors().length - 3;
         int bestCentroidOffset = centroidIdx;
         assert centroidIdx >= 0 && centroidIdx < centroids.length;
-        float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
+        float minDsq = ESVectorUtil.squareDistance(vector, centroids[centroidIdx]);
         int i = 0;
         for (; i < limit; i += 4) {
             if (minDsq < neighborhood.maxIntraDistance()) {
@@ -215,7 +214,7 @@ abstract class KMeansLocal {
             // float score = neighborhood.scores[i];
             assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
             // compute the distance to the centroid
-            float dsq = VectorUtil.squareDistance(vector, centroids[offset]);
+            float dsq = ESVectorUtil.squareDistance(vector, centroids[offset]);
             if (dsq < minDsq) {
                 minDsq = dsq;
                 bestCentroidOffset = offset;
@@ -240,7 +239,7 @@ abstract class KMeansLocal {
             }
         }
         for (; i < centroids.length; i++) {
-            float dsq = VectorUtil.squareDistance(vector, centroids[i]);
+            float dsq = ESVectorUtil.squareDistance(vector, centroids[i]);
             if (dsq < minDsq) {
                 minDsq = dsq;
                 bestCentroidOffset = i;
@@ -281,7 +280,7 @@ abstract class KMeansLocal {
             int currAssignment = assignments[i];
             float[] currentCentroid = centroids[currAssignment];
             // TODO: cache these?
-            float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
+            float vectorCentroidDist = ESVectorUtil.squareDistance(vector, currentCentroid);
             if (vectorCentroidDist <= SOAR_MIN_DISTANCE) {
                 spilledAssignments[i] = NO_SOAR_ASSIGNMENT; // no SOAR assignment
                 continue;

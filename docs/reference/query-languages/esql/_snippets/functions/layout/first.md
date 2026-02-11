@@ -2,7 +2,8 @@
 
 ## `FIRST` [esql-first]
 ```{applies_to}
-stack: ga 9.3.0
+stack: preview
+serverless: preview
 ```
 
 **Syntax**
@@ -23,4 +24,7 @@ stack: ga 9.3.0
 :::
 
 :::{include} ../examples/first.md
+:::
+
+:::{include} ../appendix/first.md
 :::

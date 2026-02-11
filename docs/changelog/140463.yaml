@@ -1,5 +1,0 @@
-pr: 140463
-summary: "Introduce support for mapping-unavailable fields (Fork from #139417)"
-area: ES|QL
-type: feature
-issues: []

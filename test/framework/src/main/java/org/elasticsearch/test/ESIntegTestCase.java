@@ -1374,7 +1374,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 assert false : "test";
                 var leafLoader = storedFieldLoader.getLoader(leaf, null);
                 leafLoader.advanceTo(segmentDocID);
-                return sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID }).source(leafLoader, segmentDocID).internalSourceRef();
+                var sourceRef = sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID })
+                    .source(leafLoader, segmentDocID)
+                    .internalSourceRef();
+                assert sourceRef != null;
+                assert sourceRef.length() > 0;
+                return sourceRef;
             } catch (IOException ioe) {
                 throw new AssertionError(ioe);
             }

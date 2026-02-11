@@ -38,6 +38,10 @@ public class SumTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        return testParameters(true);
+    }
+
+    static Iterable<Object[]> testParameters(boolean includeDenseVector) {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         Stream.of(
@@ -80,24 +84,27 @@ public class SumTests extends AbstractAggregationTestCase {
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
-                ),
-                new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
-                    var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomNonNegativeInt()
-                    );
-                    return new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
-                        standardAggregatorName("Sum", DataType.AGGREGATE_METRIC_DOUBLE),
-                        DataType.DOUBLE,
-                        equalTo(value.sum())
-                    );
-
-                })
+                )
             )
         );
+
+        if (includeDenseVector) {
+            suppliers.add(new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
+                var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                    randomDouble(),
+                    randomDouble(),
+                    randomDouble(),
+                    randomNonNegativeInt()
+                );
+                return new TestCaseSupplier.TestCase(
+                    List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
+                    standardAggregatorName("Sum", DataType.AGGREGATE_METRIC_DOUBLE),
+                    DataType.DOUBLE,
+                    equalTo(value.sum())
+                );
+
+            }));
+        }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }

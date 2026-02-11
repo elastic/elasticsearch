@@ -36,6 +36,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -98,7 +99,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final ParentTaskAssigningClient bulkClient;
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
-    private final PaginatedHitSource PaginatedHitSource;
+    private final PaginatedHitSource paginatedHitSource;
 
     /**
      * This BiFunction is used to apply various changes depending of the Reindex action and  the search hit,
@@ -320,7 +321,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
-     * Start the action by firing the initial search request.
+     * Start the worker action by firing the initial search request or resume search from the resumeInfo state
      */
     public void start() {
         logger.debug("[{}]: starting", task.getId());
@@ -330,8 +331,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         try {
-            startTime.set(System.nanoTime());
-            PaginatedHitSource.start();
+            if (mainRequest.getResumeInfo().isPresent()) {
+                var resumeInfo = mainRequest.getResumeInfo().get();
+                // At this point only worker task can be started, leader task would have split slices into worker tasks
+                assert resumeInfo.getWorker().isPresent() : "Resume info for worker task must have worker resume info";
+                WorkerResumeInfo workerResumeInfo = resumeInfo.getWorker().get();
+                startTime.set(workerResumeInfo.startTime());
+                worker.restoreState(workerResumeInfo.status());
+                PaginatedHitSource.resume(workerResumeInfo);
+            } else {
+                startTime.set(System.nanoTime());
+                PaginatedHitSource.start();
+            }
         } catch (Exception e) {
             finishHim(e);
         }

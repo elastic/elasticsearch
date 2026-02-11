@@ -33,6 +33,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -92,6 +94,15 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
                 RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r))
             );
         }));
+    }
+
+    @Override
+    public void restoreState(WorkerResumeInfo resumeInfo) {
+        assert resumeInfo instanceof ScrollWorkerResumeInfo;
+        var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
+        remoteVersion = scrollResumeInfo.remoteVersion();
+        assert remoteVersion != null : "remote cluster version must be set to resume remote reindex";
+        setScroll(scrollResumeInfo.scrollId());
     }
 
     void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {

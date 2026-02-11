@@ -15,8 +15,7 @@
  * limitations under the License.
  *
  * =============================================================================
- * Notice of fdlibm package this program is partially derived from:
- *
+ * @notice
  * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
  *
  * Developed at SunSoft, a Sun Microsystems, Inc. business.
@@ -27,6 +26,7 @@
  *
  * This code sourced from:
  * https://github.com/yannrichet/jmathplot/blob/f25426e0ab0e68647ad2b75f577c7be050ecac86/src/main/java/org/math/plot/utils/FastMath.java
+ * https://github.com/freebsd/freebsd-src/blob/6a0ab05eb5eeb701ce71630154f903668d750786/lib/msun/src/e_acosh.c
  */
 
 package org.elasticsearch.core;
@@ -91,6 +91,16 @@ final class FastMath {
     private static final double ATAN_AT8 = Double.longBitsToDouble(0x3fa97b4b24760debL); // 4.97687799461593236017e-02
     private static final double ATAN_AT9 = Double.longBitsToDouble(0xbfa2b4442c6a6c2fL); // -3.65315727442169155270e-02
     private static final double ATAN_AT10 = Double.longBitsToDouble(0x3f90ad3ae322da11L); // 1.62858201153657823623e-02
+
+    // --------------------------------------------------------------------------
+    // CONSTANTS AND TABLES FOR ACOSH
+    // --------------------------------------------------------------------------
+
+    // For values >= 2^28, we use a simplified formula: acosh(x) ~= log(x) + ln(2).
+    // At this magnitude, sqrt(x^2 - 1) ~= x, so the full formula reduces to log(2x).
+    // Using this threshold avoids potential overflow when computing x^2.
+    // https://github.com/golang/go/blob/master/src/math/acosh.go
+    private static final double ACOSH_LARGE = (double) (1L << 28);
 
     // --------------------------------------------------------------------------
     // CONSTANTS AND TABLES FOR LOG AND LOG1P
@@ -280,5 +290,41 @@ final class FastMath {
         } else { // value < 0.0, or value is NaN
             return Double.NaN;
         }
+    }
+
+    /**
+     * @param value A double value.
+     * @return Inverse hyperbolic cosine of value.
+     */
+    public static double acosh(double value) {
+        // This algorithm is a java version of golang math package implementation:
+        // https://github.com/golang/go/blob/master/src/math/acosh.go
+
+        // For values NOT CLOSE to the acosh domain boundaries, use:
+        // acosh(x):
+        // (1) := log(2x-1/(sqrt(x*x-1)+x)) if 2 < x < ACOSH_LARGE (stable formula that does not suffer from precision loss)
+        // (2) := log(x)+ln2 if x >= ACOSH_LARGE (in this range acosh reduces to a faster simplified function)
+        //
+        // For values CLOSE to 1.0, use:
+        // acosh(x)
+        // (3) := log1p(t+sqrt(2.0*t+t*t)); where t=x-1 & 1.0 <= x <= 2.0 (same as (1) but for values close to 1.0).
+
+        if (Double.isNaN(value) || value < 1.0) {
+            return Double.NaN;
+        }
+        if (value == 1.0) {
+            return 0.0;
+        }
+        if (value >= ACOSH_LARGE) {
+            return StrictMath.log(value) + LOG_2;
+        }
+        if (value > 2.0) {
+            final double xx = value * value;
+            final double s = StrictMath.sqrt(xx - 1.0);
+            return StrictMath.log(2.0 * value - 1.0 / (value + s));
+        }
+
+        final double t = value - 1.0;
+        return StrictMath.log1p(t + StrictMath.sqrt(2.0 * t + t * t));
     }
 }

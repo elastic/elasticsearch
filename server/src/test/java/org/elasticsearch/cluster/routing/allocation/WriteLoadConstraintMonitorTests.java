@@ -208,8 +208,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     "don't reroute when all nodes are hot-spotting",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "Nodes * are hotspotting, but there are no write nodes below the threshold. "
-                        + "Cannot rebalance shards."
+                    "Nodes * are hotspotting, but there are no write nodes below the threshold. " + "Cannot rebalance shards."
                 )
             );
 

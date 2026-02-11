@@ -17,9 +17,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -317,8 +320,9 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     }
 
     private ClusterState getClusterStateWithMappingsWithMetadata(Map<String, Object> namesAndVersions, Map<String, Object> metaData) {
-        Metadata.Builder metadataBuilder = Metadata.builder();
-
+        @FixForMultiProject(description = "ML is not project aware yet")
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId);
         for (Map.Entry<String, Object> entry : namesAndVersions.entrySet()) {
 
             String indexName = entry.getKey();
@@ -345,12 +349,11 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
             indexMetadata.putMapping(new MappingMetadata("_doc", mapping));
 
-            metadataBuilder.put(indexMetadata);
+            projectMetadataBuilder.put(indexMetadata);
         }
-        Metadata metadata = metadataBuilder.build();
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.metadata(metadata);
+        csBuilder.metadata(Metadata.builder().put(projectMetadataBuilder));
         return csBuilder.build();
     }
 

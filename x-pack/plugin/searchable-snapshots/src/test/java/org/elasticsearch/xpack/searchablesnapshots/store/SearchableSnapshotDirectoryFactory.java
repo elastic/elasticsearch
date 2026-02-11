@@ -70,6 +70,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.TaskManager;
@@ -275,7 +276,7 @@ public class SearchableSnapshotDirectoryFactory {
                 snapshotId,
                 indexId,
                 shardId,
-                Settings.EMPTY,
+                buildIndexSettings(),
                 () -> 0L,
                 cacheService,
                 cacheDir,
@@ -400,6 +401,11 @@ public class SearchableSnapshotDirectoryFactory {
             .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(sizeInBytes).getStringRep())
             .build();
+    }
+
+    // Specifically, enable SEARCHABLE_SNAPSHOT_PARTIAL_SETTING mimic stateless caching behavior
+    private static Settings buildIndexSettings() {
+        return Settings.builder().put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, true).build();
     }
 
     public static long roundUpTo16MB(long value) {

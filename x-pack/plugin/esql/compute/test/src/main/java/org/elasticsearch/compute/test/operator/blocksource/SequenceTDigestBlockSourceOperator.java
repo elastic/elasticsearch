@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.test.operator.blocksource;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,26 +19,26 @@ import java.util.stream.Stream;
  * A source operator whose output is the given {@link org.elasticsearch.compute.data.TDigestHolder} values. This operator produces pages
  * containing a single Block. The Block contains the histogram values from the given list, in order.
  */
-public class SequenceTDigestSourceOperator extends AbstractBlockSourceOperator {
+public class SequenceTDigestBlockSourceOperator extends AbstractBlockSourceOperator {
 
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final List<TDigestHolder> values;
 
-    public SequenceTDigestSourceOperator(BlockFactory blockFactory, Stream<? extends TDigestHolder> values) {
+    public SequenceTDigestBlockSourceOperator(BlockFactory blockFactory, Stream<? extends TDigestHolder> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceTDigestSourceOperator(BlockFactory blockFactory, Stream<? extends TDigestHolder> values, int maxPagePositions) {
+    public SequenceTDigestBlockSourceOperator(BlockFactory blockFactory, Stream<? extends TDigestHolder> values, int maxPagePositions) {
         super(blockFactory, maxPagePositions);
         this.values = values.map(value -> (TDigestHolder) value).toList();
     }
 
-    public SequenceTDigestSourceOperator(BlockFactory blockFactory, List<? extends TDigestHolder> values) {
+    public SequenceTDigestBlockSourceOperator(BlockFactory blockFactory, List<? extends TDigestHolder> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceTDigestSourceOperator(BlockFactory blockFactory, List<? extends TDigestHolder> values, int maxPagePositions) {
+    public SequenceTDigestBlockSourceOperator(BlockFactory blockFactory, List<? extends TDigestHolder> values, int maxPagePositions) {
         super(blockFactory, maxPagePositions);
         this.values = new ArrayList<>(values);
     }

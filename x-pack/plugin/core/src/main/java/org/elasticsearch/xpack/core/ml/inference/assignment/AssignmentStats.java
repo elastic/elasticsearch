@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +28,8 @@ import java.util.Optional;
 
 public class AssignmentStats implements ToXContentObject, Writeable {
 
+    private static final TransportVersion MEMORY_STAT_TRANSPORT_VERSION = TransportVersion.fromName("assignment_stats_memory_stat");
+
     public static class NodeStats implements ToXContentObject, Writeable {
         private final DiscoveryNode node;
         private final Long inferenceCount;
@@ -46,6 +49,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final long throughputLastPeriod;
         private final Double avgInferenceTimeLastPeriod;
         private final Long cacheHitCountLastPeriod;
+        private final Long inferenceProcessRssMemory;
 
         public static AssignmentStats.NodeStats forStartedState(
             DiscoveryNode node,
@@ -64,7 +68,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long peakThroughput,
             long throughputLastPeriod,
             Double avgInferenceTimeLastPeriod,
-            long cacheHitCountLastPeriod
+            long cacheHitCountLastPeriod,
+            Long inferenceProcessRssMemory
         ) {
             return new AssignmentStats.NodeStats(
                 node,
@@ -84,7 +89,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 peakThroughput,
                 throughputLastPeriod,
                 avgInferenceTimeLastPeriod,
-                cacheHitCountLastPeriod
+                cacheHitCountLastPeriod,
+                inferenceProcessRssMemory
             );
         }
 
@@ -106,6 +112,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 null,
                 0L,
                 0L,
+                null,
                 null,
                 null
             );
@@ -129,7 +136,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long peakThroughput,
             long throughputLastPeriod,
             Double avgInferenceTimeLastPeriod,
-            Long cacheHitCountLastPeriod
+            Long cacheHitCountLastPeriod,
+            Long inferenceProcessRssMemory
         ) {
             this.node = node;
             this.inferenceCount = inferenceCount;
@@ -149,6 +157,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.throughputLastPeriod = throughputLastPeriod;
             this.avgInferenceTimeLastPeriod = avgInferenceTimeLastPeriod;
             this.cacheHitCountLastPeriod = cacheHitCountLastPeriod;
+            this.inferenceProcessRssMemory = inferenceProcessRssMemory;
 
             // if lastAccess time is null there have been no inferences
             assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
@@ -173,6 +182,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.cacheHitCount = in.readOptionalVLong();
             this.cacheHitCountLastPeriod = in.readOptionalVLong();
             this.avgInferenceTimeExcludingCacheHit = in.readOptionalDouble();
+            if (in.getTransportVersion().supports(MEMORY_STAT_TRANSPORT_VERSION)) {
+                this.inferenceProcessRssMemory = in.readOptionalVLong();
+            } else {
+                this.inferenceProcessRssMemory = null;
+            }
 
         }
 
@@ -304,6 +318,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             if (cacheHitCountLastPeriod != null) {
                 builder.field("inference_cache_hit_count_last_minute", cacheHitCountLastPeriod);
             }
+            if (inferenceProcessRssMemory != null) {
+                builder.field("inference_process_rss_memory", inferenceProcessRssMemory);
+            }
 
             builder.endObject();
             return builder;
@@ -329,6 +346,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             out.writeOptionalVLong(cacheHitCount);
             out.writeOptionalVLong(cacheHitCountLastPeriod);
             out.writeOptionalDouble(avgInferenceTimeExcludingCacheHit);
+            if (out.getTransportVersion().supports(MEMORY_STAT_TRANSPORT_VERSION)) {
+                out.writeOptionalVLong(inferenceProcessRssMemory);
+            }
         }
 
         @Override
@@ -353,7 +373,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 && Objects.equals(peakThroughput, that.peakThroughput)
                 && Objects.equals(throughputLastPeriod, that.throughputLastPeriod)
                 && Objects.equals(avgInferenceTimeLastPeriod, that.avgInferenceTimeLastPeriod)
-                && Objects.equals(cacheHitCountLastPeriod, that.cacheHitCountLastPeriod);
+                && Objects.equals(cacheHitCountLastPeriod, that.cacheHitCountLastPeriod)
+                && Objects.equals(inferenceProcessRssMemory, that.inferenceProcessRssMemory);
         }
 
         @Override
@@ -376,7 +397,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 peakThroughput,
                 throughputLastPeriod,
                 avgInferenceTimeLastPeriod,
-                cacheHitCountLastPeriod
+                cacheHitCountLastPeriod,
+                inferenceProcessRssMemory
             );
         }
     }

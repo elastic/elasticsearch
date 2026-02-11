@@ -28,6 +28,7 @@ import java.util.Map;
 
 public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
 
+    public static final String SPARSE_EMBEDDING_PATH = "/api/v1/embed/text/sparse";
     private final URI uri;
 
     public ElasticInferenceServiceSparseEmbeddingsModel(
@@ -71,10 +72,22 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ChunkingSettings chunkingSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
-            serviceSettings,
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceSparseEmbeddingsModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (ElasticInferenceServiceSparseEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
             elasticInferenceServiceComponents
         );
         this.uri = createUri();
@@ -92,7 +105,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse");
+            return getBaseURIBuilder().setPath(SPARSE_EMBEDDING_PATH).build();
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

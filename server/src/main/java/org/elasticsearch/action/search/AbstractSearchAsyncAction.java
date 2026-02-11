@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -75,6 +76,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
+    protected final BigArrays bigArrays;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     protected final SearchRequest request;
@@ -116,6 +118,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
+        BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
@@ -159,6 +162,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
+        this.bigArrays = bigArrays;
         this.executor = executor;
         this.request = request;
         this.task = task;
@@ -623,7 +627,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 buildSearchResponse(
                     internalSearchResponse,
                     failures,
-                    request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null,
+                    request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()) : null,
                     buildSearchContextId(failures)
                 )
             );

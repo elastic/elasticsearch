@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
-import static org.elasticsearch.index.IndexSettings.USE_SYNTHETIC_ID;
+import static org.elasticsearch.index.IndexSettings.SYNTHETIC_ID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -225,17 +225,17 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             idMode = switch (randomInt(2)) {
                 case 0 -> null;
                 case 1 -> """
-                    "use_synthetic_id": "false"
+                    "synthetic_id": "false"
                     """;
                 case 2 -> """
-                    "use_synthetic_id": "true"
+                    "synthetic_id": "true"
                     """;
                 default -> throw new AssertionError("Unknown mode");
             };
         } else {
             assertFalse(
                 "Setting is enabled by default and must now be tested on non-snapshot build too ",
-                USE_SYNTHETIC_ID.getDefault(Settings.EMPTY)
+                SYNTHETIC_ID.getDefault(Settings.EMPTY)
             );
         }
         if (sourceMode == null && idMode == null) {

@@ -2052,6 +2052,23 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
             assertThat(partialAgg.emitCount(), greaterThan(1L));
         }
+        // the final should emit once
+        pragma = Settings.builder().put(pragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.1).build();
+        request.query("FROM " + index + " | STATS BY host, t");
+        request.pragmas(new QueryPragmas(pragma));
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("final")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), equalTo(1L));
+        }
     }
 
     private void clearPersistentSettings(Setting<?>... settings) {

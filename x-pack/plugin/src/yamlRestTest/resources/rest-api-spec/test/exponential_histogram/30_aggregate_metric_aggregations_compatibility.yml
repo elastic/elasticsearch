@@ -110,6 +110,9 @@ setup:
 
 ---
 "Min aggregation over aggregate_metric_double and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
   - do:
       search:
         index: test-data-stream
@@ -125,6 +128,9 @@ setup:
 
 ---
 "Max aggregation over aggregate_metric_double and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
   - do:
       search:
         index: test-data-stream
@@ -137,3 +143,16 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { aggregations.max_agg.value: 10.0 }
+
+---
+"Exists query over aggregate_metric_double and exponential_histogram":
+  - do:
+      search:
+        index: test-data-stream
+        body:
+          query:
+            exists:
+              field: histo_or_aggregate_metric
+
+  - match: { hits.total.value: 2 }
+

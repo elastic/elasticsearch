@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
@@ -382,7 +383,9 @@ public class EsqlFunctionRegistry {
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
-                def(Absent.class, uni(Absent::new), "absent") },
+                def(Absent.class, uni(Absent::new), "absent"),
+                def(First.class, bi(First::new), "first"),
+                def(Last.class, bi(Last::new), "last"), },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -394,6 +397,7 @@ public class EsqlFunctionRegistry {
                 def(Ceil.class, Ceil::new, "ceil"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
+                def(Acosh.class, Acosh::new, "acosh"),
                 def(E.class, E::new, "e"),
                 def(Exp.class, Exp::new, "exp"),
                 def(Floor.class, Floor::new, "floor"),
@@ -587,8 +591,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(First.class, bi(First::new), "first"),
-                def(Last.class, bi(Last::new), "last"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };

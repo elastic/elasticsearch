@@ -1321,3 +1321,84 @@ Relevant classes:
 [StableMasterHealthIndicatorService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/StableMasterHealthIndicatorService.java
 [HealthMetadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
 [HealthMetadataService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadataService.java
+
+# Watcher
+
+[Watcher]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/Watcher.java
+[WatcherLifeCycleService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/WatcherLifeCycleService.java
+[ExecutionService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/execution/ExecutionService.java
+[WatcherService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/WatcherService.java
+[TickerScheduleTriggerEngine]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/trigger/schedule/engine/TickerScheduleTriggerEngine.java
+[EmailAction]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions/email/EmailAction.java
+[EmailService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/email/EmailService.java
+[WebhookAction]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions/webhook/WebhookAction.java
+[WebhookService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/WebhookService.java
+[Actions Package]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions
+[ReportingAttachment]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/email/attachment/ReportingAttachment.java
+
+Watcher lets you set a schedule to run a query, and if a condition is met it executes an action.
+As an example, the following performs a search every 10 minutes. If the number of hits found is greater than 0 then it logs an error message.
+```console
+PUT _watcher/watch/log_error_watch
+{
+  "trigger" : { "schedule" : { "interval" : "10m" }},
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : [ "logs" ],
+        "body" : {
+          "query" : {
+            "match" : { "message": "error" }
+          }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+  },
+  "actions" : {
+    "log_error" : {
+      "logging" : {
+        "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
+      }
+    }
+  }
+}
+
+```
+
+## How Watcher Works
+
+- We have an API to define a “watch”, which includes the schedule, the query, the condition, and the action
+- Watch definitions are kept in the `.watches` index
+- Information about currently running watches is in the `.triggered_watches` index
+- History is written to the `.watcher_history` index
+- Watcher ([WatcherLifeCycleService]) runs on all nodes, but only executes watches on a node that has a copy of the `.watches` shard that the particular watch is in (see [WatcherService])
+  -  Uses a hash to choose the node if there is more than one shard
+- Example common use cases:
+  - Periodically send data to a 3rd party system
+  - Email users with alerts if certain conditions appear in log files
+  - Periodically generate a report using Kibana, and email that report as an attachment. This is supported by declaring a [ReportingAttachment] [ReportingAttachment] to the [EmailAction] [EmailAction] in the watch definition.
+
+## Relevant classes:
+
+- [Watcher] [Watcher] – the plugin class
+- [WatcherLifeCycleService] [WatcherLifeCycleService]  – created by the Watch plugin on each node
+- [WatcherService] [WatcherService] – decides which watches this node ought to run
+- [ExecutionService] [ExecutionService] – executes watches
+- [TickerScheduleTriggerEngine] [TickerScheduleTriggerEngine] – handles the periodic (non-cron) schedules that we see the most
+- [EmailAction] [EmailAction] / [EmailService] [EmailService] – emails to third-party email server
+- [WebhookAction] [WebhookAction] / [WebhookService] [WebhookService] – sends requests to external endpoints
+- [Various other actions] [Actions Package] (for example posting to Slack, Jira, etc.)
+
+## Debugging
+
+- The most useful debugging information is in the Elasticsearch logs and the `.watcher_history` index
+- It is often useful to get the contents of the `.watches` index
+- Frequent sources of problems:
+  - There is no guarantee that an interval schedule watch will run at exactly the requested interval after the last run
+  - In older versions (before 8.17), the counter for the interval schedule restarts if the shard moves. For example, if the interval is once every 12 hours, and the shard moves 10 hours into that interval, it will be at least 12 more hours until it runs.
+  - Calls to remote systems ([EmailAction] and [WebhookAction]) are a frequent source of failures. Watcher sends the request but doesn't know what happens after that. If you see that the call was successful in `.watcher_history`, the best way to continue the investigation is in the logs of the remote system.
+  - Even if watcher fails during a call to a remote system, the error is likely to be outside of watcher (e.g. network problems). Check the error message in `.watcher_history`.
+

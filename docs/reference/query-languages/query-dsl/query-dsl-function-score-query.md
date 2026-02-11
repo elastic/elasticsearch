@@ -44,6 +44,7 @@ GET /_search
         {
           "filter": { "match": { "test": "bar" } },
           "random_score": {}, <2>
+          "_name": "bar_function", <3>
           "weight": 23
         },
         {
@@ -63,6 +64,7 @@ GET /_search
 
 1. Boost for the whole query.
 2. See [Function score](#score-functions) for a list of supported functions.
+3. Name for the function's filter query {applies_to}`stack: ga 9.4` {applies_to}`serverless: all`. Will appear in `matched_queries` if the function matched and show the score if the flag `include_named_queries_score` is provided in the search request.
 
 
 ::::{note}

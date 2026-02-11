@@ -11,12 +11,13 @@ package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 
 public interface FileSettingsServiceProvider {
     FileSettingsService construct(
         ClusterService clusterService,
         ReservedClusterStateService stateService,
         Environment environment,
-        FileSettingsService.FileSettingsHealthTracker healthTracker
+        FileSettingsHealthTracker healthTracker
     );
 }

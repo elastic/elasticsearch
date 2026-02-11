@@ -32,57 +32,39 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RestReindexActionTests extends RestActionTestCase {
 
     private RestReindexAction action;
+    private boolean relocateOnShutdownFeatureEnabled = true;
 
     @Before
     public void setUpAction() {
-        action = new RestReindexAction(nf -> false);
+        action = new RestReindexAction(
+            nf -> nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled
+        );
         controller().registerHandler(action);
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {
-        FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
-        try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {
-            body.startObject();
-            {
-                body.startObject("source");
-                {
-                    body.field("index", "source");
-                }
-                body.endObject();
-                body.startObject("dest");
-                {
-                    body.field("index", "dest");
-                }
-                body.endObject();
-            }
-            body.endObject();
-            request.withContent(BytesReference.bytes(body), body.contentType());
-        }
-        request.withParams(singletonMap("pipeline", "doesn't matter"));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));
+        FakeRestRequest restRequest = buildSimpleRequest().withParams(singletonMap("pipeline", "doesn't matter")).build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(restRequest));
 
         assertEquals("_reindex doesn't support [pipeline] as a query parameter. Specify it in the [dest] object instead.", e.getMessage());
     }
 
-    public void testSetScrollTimeout() throws IOException {
-        {
-            FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
-            requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
-            ReindexRequest request = action.buildRequest(requestBuilder.build());
-            assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
-        }
-        {
-            FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
-            requestBuilder.withParams(singletonMap("scroll", "10m"));
-            requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
-            ReindexRequest request = action.buildRequest(requestBuilder.build());
-            assertEquals("10m", request.getScrollTime().toString());
-        }
+    public void testSetScrollTimeout_default() throws IOException {
+        FakeRestRequest restRequest = buildSimpleRequest().build();
+        ReindexRequest request = action.buildRequest(restRequest);
+        assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
+    }
+
+    public void testSetScrollTimeout_fromParameter() throws IOException {
+        FakeRestRequest requestBuilder = buildSimpleRequest().withParams(singletonMap("scroll", "10m")).build();
+        ReindexRequest request = action.buildRequest(requestBuilder);
+        assertEquals("10m", request.getScrollTime().toString());
     }
 
     public void testFilterSource() throws IOException {
@@ -229,5 +211,46 @@ public class RestReindexActionTests extends RestActionTestCase {
             assertThat(filteredMap, hasKey("source"));
             assertThat(filteredMap, hasKey("dest"));
         }
+    }
+
+    public void testAsynchronousRequest_eligibleForRelocationOnShutdown() throws IOException {
+        FakeRestRequest restRequest = buildSimpleRequest().withParams(singletonMap("wait_for_completion", "false")).build();
+        ReindexRequest reindexRequest = action.buildRequest(restRequest);
+        assertThat(reindexRequest.isEligibleForRelocationOnShutdown(), is(true));
+    }
+
+    public void testSynchronousRequest_notEligibleForRelocationOnShutdown() throws IOException {
+        FakeRestRequest restRequest = buildSimpleRequest().build(); // wait_for_completion defaults to true
+        ReindexRequest reindexRequest = action.buildRequest(restRequest);
+        assertThat(reindexRequest.isEligibleForRelocationOnShutdown(), is(false));
+    }
+
+    public void testRelocationOnShutdownFeatureDisabled() throws IOException {
+        relocateOnShutdownFeatureEnabled = false;
+        FakeRestRequest restRequest = buildSimpleRequest().withParams(singletonMap("wait_for_completion", "false")).build();
+        ReindexRequest reindexRequest = action.buildRequest(restRequest);
+        assertThat(reindexRequest.isEligibleForRelocationOnShutdown(), is(false));
+    }
+
+    private FakeRestRequest.Builder buildSimpleRequest() throws IOException {
+        FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
+        try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {
+            body.startObject();
+            {
+                body.startObject("source");
+                {
+                    body.field("index", "source");
+                }
+                body.endObject();
+                body.startObject("dest");
+                {
+                    body.field("index", "dest");
+                }
+                body.endObject();
+            }
+            body.endObject();
+            request.withContent(BytesReference.bytes(body), body.contentType());
+        }
+        return request;
     }
 }

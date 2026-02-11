@@ -90,8 +90,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
 
         // Ts-command errors awaiting fixes
-        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
-        "Invalid call to dataType on an unresolved object \\?@timestamp" // https://github.com/elastic/elasticsearch/issues/140606
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -296,7 +295,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false, false)
+            .stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

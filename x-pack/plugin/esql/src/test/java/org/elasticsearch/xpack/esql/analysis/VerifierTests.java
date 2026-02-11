@@ -1197,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -2921,6 +2921,24 @@ public class VerifierTests extends ESTestCase {
             error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
+
+        assertThat(
+            error("FROM test | LIMIT 10 | FUSE"),
+            equalTo(
+                "1:24: FUSE requires a score column, default [_score] column not found.\n"
+                    + "line 1:24: FUSE requires a column to group by, default [_fork] column not found.\n"
+                    + "line 1:24: FUSE requires a key column, default [_id] column not found\n"
+                    + "line 1:24: FUSE requires a key column, default [_index] column not found"
+            )
+        );
+
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            assertThat(error("""
+                FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
+                     (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
+                | FUSE GROUP BY label
+                """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
+        }
     }
 
     public void testNoMetricInStatsByClause() {
@@ -3525,10 +3543,10 @@ public class VerifierTests extends ESTestCase {
     public void testMMRDiversifyFieldIsValid() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10");
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
-            error("row dense_embedding=\"hello\" | mmr dense_embedding limit 10", defaultAnalyzer, VerificationException.class),
+            error("row dense_embedding=\"hello\" | mmr on dense_embedding limit 10", defaultAnalyzer, VerificationException.class),
             equalTo("1:31: MMR diversify field must be a dense vector field")
         );
     }
@@ -3536,15 +3554,15 @@ public class VerifierTests extends ESTestCase {
     public void testMMRLimitIsValid() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10");
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit -5",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
                 defaultAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:58: MMR limit must be an positive integer")
+            equalTo("1:58: MMR limit must be a positive integer")
         );
     }
 
@@ -3568,11 +3586,11 @@ public class VerifierTests extends ESTestCase {
     public void testMMRLambdaValueIsValid() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"unknown\": true }",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
                 defaultAnalyzer,
                 VerificationException.class
             ),
@@ -3581,7 +3599,7 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with "
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
                     + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
                 defaultAnalyzer,
                 VerificationException.class
@@ -3591,7 +3609,7 @@ public class VerifierTests extends ESTestCase {
 
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": 2.5 }",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
                 defaultAnalyzer,
                 VerificationException.class
             ),
@@ -3599,12 +3617,28 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error(
-                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": -2.5 }",
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
                 defaultAnalyzer,
                 VerificationException.class
             ),
             equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
         );
+    }
+
+    public void testMMRLimitedInput() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        assertThat(error("""
+            FROM test
+            | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | MMR ON dense_embedding LIMIT 10
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+
+        assertThat(error("""
+            FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
+                 (FROM test METADATA _index, _id, _score | LIMIT 10)
+            | MMR ON dense_embedding LIMIT 10
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
     }
 
     private void query(String query) {

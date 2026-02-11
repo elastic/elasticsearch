@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -110,7 +112,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
@@ -2301,7 +2302,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     private LocalPhysicalPlanOptimizer getCustomRulesLocalPhysicalPlanOptimizer(List<RuleExecutor.Batch<PhysicalPlan>> batches) {
         var flags = new EsqlFlags(true);
         LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             flags,
             config,
             FoldContext.small(),
@@ -2434,6 +2435,36 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in")
         );
         as(readMetrics.child(), EsQueryExec.class);
+    }
+
+    /**
+     * ProjectExec[[first_name{f}#6]]
+     * \_TopNExec[[Order[last_name{f}#9,ASC,LAST]],1000[INTEGER],100]
+     *   \_ExchangeExec[[first_name{f}#6, last_name{f}#9],false]
+     *     \_ProjectExec[[first_name{f}#6, last_name{f}#9]]
+     *       \_FieldExtractExec[first_name{f}#6, last_name{f}#9][],[]
+     *         \_EsQueryExec[test], indexMode[standard], [_doc{f}#16], limit[1000],
+     *              sort[[FieldSort[field=last_name{f}#9, direction=ASC, nulls=LAST]]] estimatedRowSize[116]
+     *              queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     */
+    public void testTopNUsesSortedInputFromDataNodes() {
+        String query = """
+              from test
+            | sort last_name
+            | keep first_name
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var projectExec = as(plan, ProjectExec.class);
+        var topNExec = as(projectExec.child(), TopNExec.class);
+        assertThat(topNExec.inputOrdering(), equalTo(TopNOperator.InputOrdering.SORTED));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var projectDataNode = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtract = as(projectDataNode.child(), FieldExtractExec.class);
+        var esQueryExec = as(fieldExtract.child(), EsQueryExec.class);
+        var sorts = esQueryExec.sorts();
+        assertThat(sorts.size(), equalTo(1));
+        assertThat(sorts.getFirst().field().name(), equalTo("last_name"));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

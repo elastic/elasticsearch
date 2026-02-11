@@ -26,7 +26,9 @@ GPU vector indexing requires the following:
   >= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and
   [cuVS runtime libraries](https://docs.rapids.ai/api/cuvs/stable/build/)
-  installed on the node
+  installed on the node. Refer to the
+  [Elastic support matrix](https://www.elastic.co/support/matrix) for
+  supported CUDA and cuVS versions.
 * `LD_LIBRARY_PATH` environment variable configured to include the cuVS
   libraries path and its dependencies (CUDA, rmm, etc.)
 * Supported platform: Linux x86_64 only, Java 22 or higher
@@ -39,6 +41,48 @@ GPU vector indexing requires the following:
 GPU vector indexing is controlled by the
 [`vectors.indexing.use_gpu`](/reference/elasticsearch/configuration-reference/node-settings.md#gpu-vector-indexing-settings)
 node-level setting.
+
+## Elasticsearch Docker image with GPU support
+
+An example Dockerfile is provided that extends the official {{es}} Docker image
+to add the dependencies required for GPU support.
+
+::::{warning}
+This Dockerfile serves as an example implementation, and is not fully supported
+like our official Docker images.
+::::
+
+::::{dropdown} Example Dockerfile
+:::{include} _snippets/docker-gpu-indexing.md
+:::
+::::
+
+### Requirements
+
+The host machine running the Docker container needs
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+installed and configured.
+
+### Build it
+
+```sh
+docker build -t es-gpu .
+```
+
+### Run it
+
+```sh
+docker run \
+  -p 9200:9200 \
+  -p 9300:9300 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  -e "xpack.license.self_generated.type=trial" \
+  -e "vectors.indexing.use_gpu=true" \
+  --user elasticsearch \
+  --gpus all \
+  --rm -it es-gpu
+```
 
 ## Troubleshooting
 By default, {{es}} uses GPU indexing for supported vector types if a

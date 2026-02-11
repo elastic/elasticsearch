@@ -3,22 +3,16 @@
 **Example**
 
 ```esql
-ROW row = [
-  #       @timestamp        |  name   | number
-  "2025-11-25T00:00:00.000Z | alpha   | ",
-  "2025-11-25T00:00:01.000Z | alpha   | 2",
-  "2025-11-25T00:00:02.000Z | bravo   | ",
-  "2025-11-25T00:00:03.000Z | alpha   | 4",
-  "2025-11-25T00:00:04.000Z | bravo   | 5",
-  "2025-11-25T00:00:05.000Z | charlie | 6",
-  "2025-11-25T00:00:06.000Z | delta   | "
-]
-| MV_EXPAND row
-| DISSECT row """%{@timestamp} | %{name} | %{number}"""
-| KEEP @timestamp, name, number
-| EVAL @timestamp = TO_DATETIME(@timestamp),
-       name = TRIM(name),
-       number = TO_LONG(number)
+        @timestamp        |  name   | number
+"2025-11-25T00:00:00.000Z | alpha   | 1"
+"2025-11-25T00:00:01.000Z | alpha   | 2"
+"2025-11-25T00:00:02.000Z | bravo   | null"
+"2025-11-25T00:00:03.000Z | alpha   | 4"
+"2025-11-25T00:00:04.000Z | bravo   | 5"
+"2025-11-25T00:00:05.000Z | charlie | [6, 7, 8]"
+"2025-11-25T00:00:06.000Z | delta   | null"
+
+From dataset
 | STATS last_val = LAST(number, @timestamp) BY name
 ```
 
@@ -26,7 +20,7 @@ ROW row = [
 | --- | --- |
 | 4 | alpha |
 | 5 | bravo |
-| 6 | charlie |
+| [6, 7, 8] | charlie |
 | null | delta |
 
 

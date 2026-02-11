@@ -18,6 +18,12 @@ public interface ESVectorUtilSupport {
      */
     short B_QUERY = 4;
 
+    /** Calculates the dot product of the given float arrays. */
+    float dotProduct(float[] a, float[] b);
+
+    /** Returns the sum of squared differences of the two vectors. */
+    float squareDistance(float[] a, float[] b);
+
     /**
      * Compute dot product between {@code q} and {@code d}
      * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})

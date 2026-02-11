@@ -492,7 +492,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(loader, instanceOf(BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader.class));
 
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
                 assertThat(columnAtATimeLoader, instanceOf(BooleanScriptBlockDocValuesReader.class));
 
                 var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());

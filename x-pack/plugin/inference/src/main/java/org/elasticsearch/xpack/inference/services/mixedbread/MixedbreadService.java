@@ -60,8 +60,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 /**
- * Mixedbread inference service for reranking tasks.
- * This service uses the Mixedbread REST API to perform document reranking.
+ * Mixedbread inference service for reranking and text embeddings tasks.
+ * This service uses the Mixedbread REST API to perform document reranking and text embeddings.
  */
 public class MixedbreadService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "mixedbread";
@@ -69,15 +69,21 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
-    private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
-        // Windows size.
-        // The v1 models: 512
-        // The v2 models: at least 8k
-        // https://www.mixedbread.com/docs/models/reranking/mxbai-rerank-large-v1
+    /**
+     * The context windows size for the models can be found here:
+     * <a href="https://www.mixedbread.com/docs/models/embedding/mxbai-embed-large-v1">embeddings</a>
+     * <a href="https://www.mixedbread.com/docs/models/reranking/mxbai-rerank-large-v1">rerank</a>
 
-        // rerankerWindowSize() method returns the size in words, not in tokens, so we'll need to translate
-        // tokens to words by multiplying by 0.75 and rounding down
-        // https://github.com/elastic/elasticsearch/pull/132169
+     * rerankerWindowSize() method returns the size in words, not in tokens, so we'll need to translate
+     * tokens to words by multiplying by 0.75 and rounding down
+
+     * The context windows size for v1 models is 512 tokens / 300 words
+     * For v2 models it is from 8k / 5500 words to 32k / 22000 words
+     * <a href="https://github.com/elastic/elasticsearch/pull/132169">tokens to words conversion reference</a>
+     */
+    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 22000;
+
+    private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
         "mixedbread-ai/mxbai-rerank-xsmall-v1",
         300,
         "mixedbread-ai/mxbai-rerank-base-v1",
@@ -85,11 +91,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         "mixedbread-ai/mxbai-rerank-large-v1",
         300
     );
-
-    /**
-     * Apart from v1 all other models have a context length of at least 8k / 22000 words.
-     */
-    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 22000;
 
     private static final MixedbreadEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new MixedbreadEmbeddingsModelCreator();
     private static final MixedbreadRerankModelCreator RERANK_MODEL_CREATOR = new MixedbreadRerankModelCreator();

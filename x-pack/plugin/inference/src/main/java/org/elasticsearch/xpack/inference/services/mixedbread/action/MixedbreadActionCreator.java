@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 /**
- * Creates executable actions for Mixedbread inference requests, handling embeddings, completions and reranking.
+ * Creates executable actions for Mixedbread inference requests, handling embeddings and reranking.
  * This class implements the {@link MixedbreadActionVisitor} interface to provide specific action creation methods.
  */
 public class MixedbreadActionCreator implements MixedbreadActionVisitor {

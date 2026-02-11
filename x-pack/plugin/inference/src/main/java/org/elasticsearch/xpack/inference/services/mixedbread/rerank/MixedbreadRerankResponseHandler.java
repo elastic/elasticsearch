@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 
 public class MixedbreadRerankResponseHandler extends MixedbreadResponseHandler {
     /**
-     * Constructs a new MixedbreadRerankResponseHandler with the specified request type and response parser.
+     * Constructs a new {@link MixedbreadRerankResponseHandler} with the specified request type and response parser.
      *
      * @param requestType the type of request this handler will process
      * @param parseFunction the function to parse the response

@@ -60,7 +60,7 @@ public class MixedbreadRerankRequest implements Request {
     }
 
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(model.getServiceSettings().uri());
+        HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(

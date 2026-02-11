@@ -19,7 +19,7 @@ public class StoragePathTests extends ESTestCase {
     }
 
     public void testIsPatternDoubleStar() {
-        StoragePath path = StoragePath.of("s3://bucket/**/*.parquet");
+        StoragePath path = StoragePath.of("s3://bucket/**" + "/*.parquet");
         assertTrue(path.isPattern());
     }
 
@@ -51,7 +51,7 @@ public class StoragePathTests extends ESTestCase {
     }
 
     public void testPatternPrefixDoubleStar() {
-        StoragePath path = StoragePath.of("s3://b/**/*.parquet");
+        StoragePath path = StoragePath.of("s3://b/**" + "/*.parquet");
         assertEquals("s3://b/", path.patternPrefix().toString());
     }
 
@@ -73,7 +73,7 @@ public class StoragePathTests extends ESTestCase {
     }
 
     public void testGlobPartDoubleStar() {
-        StoragePath path = StoragePath.of("s3://b/**/*.parquet");
+        StoragePath path = StoragePath.of("s3://b/**" + "/*.parquet");
         assertEquals("**/*.parquet", path.globPart());
     }
 

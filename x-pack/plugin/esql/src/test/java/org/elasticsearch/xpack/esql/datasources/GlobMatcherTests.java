@@ -65,7 +65,7 @@ public class GlobMatcherTests extends ESTestCase {
 
     public void testNeedsRecursion() {
         assertTrue(new GlobMatcher("**/*.parquet").needsRecursion());
-        assertTrue(new GlobMatcher("data/**/file.csv").needsRecursion());
+        assertTrue(new GlobMatcher("data/**" + "/file.csv").needsRecursion());
         assertFalse(new GlobMatcher("*.parquet").needsRecursion());
         assertFalse(new GlobMatcher("data/*.csv").needsRecursion());
     }

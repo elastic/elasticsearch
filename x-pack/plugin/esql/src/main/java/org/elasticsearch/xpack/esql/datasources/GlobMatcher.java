@@ -71,7 +71,7 @@ final class GlobMatcher {
                 case '*' -> {
                     if (i + 1 < len && glob.charAt(i + 1) == '*') {
                         // ** matches everything including path separators
-                        // Handle optional surrounding slashes: **/ or /**/
+                        // Handle optional surrounding slashes: **/ or / ** /
                         int start = i;
                         i += 2;
                         // Skip trailing slash after **

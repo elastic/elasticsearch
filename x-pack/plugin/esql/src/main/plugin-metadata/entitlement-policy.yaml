@@ -2,8 +2,3 @@ ALL-UNNAMED:
   - manage_threads
   - outbound_network
   - set_https_connection_properties
-  - files:
-      - path: "/dev/null/aws/"
-        mode: read
-      - path: "/tmp/"
-        mode: read

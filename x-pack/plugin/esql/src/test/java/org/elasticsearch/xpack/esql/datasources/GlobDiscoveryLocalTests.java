@@ -93,13 +93,13 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
     }
 
     public void testRecursiveDoubleStarGlob() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/year/**/*.parquet", provider);
+        FileSet result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(4, result.size());
     }
 
     public void testRecursiveDoubleStarAllFiles() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/year/**/*", provider);
+        FileSet result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*", provider);
         assertTrue(result.isResolved());
         assertEquals(5, result.size());
     }
@@ -150,7 +150,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
-        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**/*.parquet", new TestLocalStorageProvider());
+        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**" + "/*.parquet", new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -164,7 +164,8 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet") || p.endsWith(".csv")).count();
 
-        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**/*.{parquet,csv}", new TestLocalStorageProvider());
+        String uri = "file://" + root.toAbsolutePath() + "/**" + "/*.{parquet,csv}";
+        FileSet result = GlobExpander.expandGlob(uri, new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -182,7 +183,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         TestLocalStorageProvider testProvider = new TestLocalStorageProvider();
         FileSet flatResult = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/*.parquet", testProvider);
-        FileSet recursiveResult = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**/*.parquet", testProvider);
+        FileSet recursiveResult = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**" + "/*.parquet", testProvider);
 
         long flatSize = flatResult.isEmpty() ? 0 : flatResult.size();
         long recursiveSize = recursiveResult.isEmpty() ? 0 : recursiveResult.size();

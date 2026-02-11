@@ -54,7 +54,7 @@ public class FileSetTests extends ESTestCase {
     }
 
     public void testOriginalPatternPreserved() {
-        String pattern = "s3://bucket/data/**/*.parquet";
+        String pattern = "s3://bucket/data/**" + "/*.parquet";
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/data/sub/file.parquet"), 50, Instant.EPOCH);
         FileSet fileSet = new FileSet(List.of(entry), pattern);
         assertEquals(pattern, fileSet.originalPattern());

@@ -176,7 +176,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
-        PaginatedHitSource = buildScrollableResultSource(
+        paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
             prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors)
         );
@@ -338,10 +338,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 WorkerResumeInfo workerResumeInfo = resumeInfo.getWorker().get();
                 startTime.set(workerResumeInfo.startTime());
                 worker.restoreState(workerResumeInfo.status());
-                PaginatedHitSource.resume(workerResumeInfo);
+                paginatedHitSource.resume(workerResumeInfo);
             } else {
                 startTime.set(System.nanoTime());
-                PaginatedHitSource.start();
+                paginatedHitSource.start();
             }
         } catch (Exception e) {
             finishHim(e);
@@ -528,7 +528,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return;
             }
 
-            if (PaginatedHitSource.hasScroll() == false) {
+            if (paginatedHitSource.hasScroll() == false) {
                 // Index contains fewer matching docs than max_docs (found < max_docs <= scroll size)
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;
@@ -611,7 +611,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        PaginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
+        paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueNanos(System.nanoTime() - startTime.get()),
@@ -645,7 +645,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Set the last returned scrollId. Exists entirely for testing.
      */
     void setScroll(String scroll) {
-        PaginatedHitSource.setScroll(scroll);
+        paginatedHitSource.setScroll(scroll);
     }
 
     /**

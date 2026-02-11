@@ -257,6 +257,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                         MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
                     }
                 }
+                return true;
             } else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
                 if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     quantizeScore256Bulk(q, count, scores);
@@ -494,6 +495,34 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         return Float.NEGATIVE_INFINITY;
     }
 
+    private float nativeApplyCorrectionsBulk(
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        MemorySegment scoresSegment,
+        int bulkSize
+    ) throws IOException {
+        MemorySegment seg = getMemorySegment(16L * bulkSize);
+        final float maxScore = ScoreCorrections.nativeApplyCorrectionsBulk(
+            similarityFunction,
+            seg,
+            bulkSize,
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            FOUR_BIT_SCALE,
+            ONE_BIT_SCALE,
+            centroidDp,
+            scoresSegment
+        );
+        return maxScore;
+    }
+
     private float applyCorrections128Bulk(
         float queryLowerInterval,
         float queryUpperInterval,
@@ -664,33 +693,5 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             );
         }
         return maxScore;
-    }
-
-    private float nativeApplyCorrectionsBulk(
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        MemorySegment scoresSegment,
-        int bulkSize
-    ) throws IOException {
-        var correctionsSegment = getMemorySegment(16L * bulkSize);
-
-        return ScoreCorrections.nativeApplyCorrectionsBulk(
-            similarityFunction,
-            correctionsSegment,
-            bulkSize,
-            dimensions,
-            queryLowerInterval,
-            queryUpperInterval,
-            queryComponentSum,
-            queryAdditionalCorrection,
-            FOUR_BIT_SCALE,
-            ONE_BIT_SCALE,
-            centroidDp,
-            scoresSegment
-        );
     }
 }

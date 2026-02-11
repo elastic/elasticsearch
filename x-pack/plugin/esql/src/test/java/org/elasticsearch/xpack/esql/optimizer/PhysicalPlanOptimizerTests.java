@@ -184,7 +184,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -395,7 +394,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             enrichResolution
         );
         this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", functionRegistry, enrichResolution);
-        this.plannerSettings = TEST_PLANNER_SETTINGS;
+        this.plannerSettings = PlannerSettings.DEFAULTS;
         this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", functionRegistry, enrichResolution);
     }
 
@@ -8888,7 +8887,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         var flags = new EsqlFlags(true);
-        plan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
+        plan = PlannerUtils.localPlan(PlannerSettings.DEFAULTS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -8903,7 +8902,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, TEST_PLANNER_SETTINGS)
+            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS)
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
@@ -9267,7 +9266,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
             var flags = new EsqlFlags(true);
-            var localPlan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), fragment, stats, null);
+            var localPlan = PlannerUtils.localPlan(PlannerSettings.DEFAULTS, flags, config, FoldContext.small(), fragment, stats, null);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 

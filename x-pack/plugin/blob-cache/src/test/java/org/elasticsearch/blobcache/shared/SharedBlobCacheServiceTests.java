@@ -203,7 +203,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             Path tempFile = createTempFile("test", "other");
             String resourceDescription = tempFile.toAbsolutePath().toString();
             final var cacheKey = generateCacheKey();
-            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, 1L);
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                1L,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
 
             ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
 
@@ -228,7 +232,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             Path tempFile2 = createTempFile("test", "cfs");
             resourceDescription = tempFile2.toAbsolutePath().toString();
-            cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L);
+            cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L, SharedBlobCacheService.CacheMissHandler.NOOP);
 
             ByteBuffer writeBuffer2 = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
 
@@ -2004,7 +2008,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             )
         ) {
             final var cacheKey = generateCacheKey();
-            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, fileLength);
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
 
             // before populating, tryGetByteBufferSlice should return null (data not available)
             assertThat(cacheFile.tryGetByteBufferSlice(0, 100), nullValue());
@@ -2070,7 +2078,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             )
         ) {
             final var cacheKey = generateCacheKey();
-            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, fileLength);
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
 
             // request a slice that spans the region boundary (region 0 -> region 1)
             // region 0 covers [0, regionSize), region 1 covers [regionSize, 2*regionSize)
@@ -2104,7 +2116,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             )
         ) {
             final var cacheKey = generateCacheKey();
-            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, fileLength);
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
 
             // populate the cache
             byte[] testData = randomByteArrayOfLength((int) fileLength);

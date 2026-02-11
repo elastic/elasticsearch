@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -83,7 +82,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
                     case InlineJoin inj -> pruneColumnsInInlineJoinRight(inj, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
-                    case Row row -> pruneColumnsInRow(row, used);
                     case Project project -> inlineJoin ? pruneColumnsInProject(project, used, recheck) : p;
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case Fork fork -> {
@@ -198,14 +196,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         return p;
-    }
-
-    private static LogicalPlan pruneColumnsInRow(Row row, AttributeSet.Builder used) {
-        var remaining = pruneUnusedAndAddReferences(row.fields(), used);
-        if (remaining != null) {
-            return new Row(row.source(), remaining);
-        }
-        return row;
     }
 
     // Note: only run when the Project is a descendent of an InlineJoin.

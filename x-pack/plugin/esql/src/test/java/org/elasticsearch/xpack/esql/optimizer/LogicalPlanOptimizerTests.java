@@ -6241,9 +6241,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Project[[emp_no{r}#4]]
+     * Project[[emp_no{r}#6]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_LocalRelation[[emp_no{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=5]]]}]
+     *   \_LocalRelation[[salary{r}#4, emp_no{r}#6, gender{r}#8],
+     *   Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=12300]],
+     *   IntVectorBlock[vector=ConstantIntVector[positions=1, value=5]],
+     *   BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[46]]]]}]
      */
     public void testInlineStatsWithRow() {
         var query = """
@@ -6261,8 +6264,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
         var limit = asLimit(project.child(), 1000, false);
         var localRelation = as(limit.child(), LocalRelation.class);
-        assertThat(localRelation.output(), hasSize(1));
-        assertEquals(ignoreIds(new ReferenceAttribute(EMPTY, "emp_no", INTEGER)), ignoreIds(localRelation.output().getFirst()));
+        assertThat(localRelation.output(), hasSize(3));
+        assertThat(
+            localRelation.output(),
+            containsIgnoringIds(
+                new ReferenceAttribute(EMPTY, null, "salary", INTEGER, Nullability.FALSE, null, false),
+                new ReferenceAttribute(EMPTY, null, "emp_no", INTEGER, Nullability.FALSE, null, false),
+                new ReferenceAttribute(EMPTY, null, "gender", KEYWORD, Nullability.FALSE, null, false)
+
+            )
+        );
     }
 
     /*

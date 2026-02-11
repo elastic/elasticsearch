@@ -11,6 +11,8 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.tasks.Task;
 
+import java.util.function.LongSupplier;
+
 /**
  * Builder class for a logger context.
  * The builder is created at the beginning of a logging operation and will produce a context when the operation is completed,
@@ -24,15 +26,21 @@ public abstract class ActivityLoggerContextBuilder<Context extends ActivityLogge
     private final long start;
     protected final Request request;
     protected final Task task;
+    protected final LongSupplier nanoTimeSupplier;
 
     protected ActivityLoggerContextBuilder(Task task, Request request) {
-        start = System.nanoTime();
+        this(task, request, System::nanoTime);
+    }
+
+    protected ActivityLoggerContextBuilder(Task task, Request request, LongSupplier nanoTimeSupplier) {
+        start = nanoTimeSupplier.getAsLong();
+        this.nanoTimeSupplier = nanoTimeSupplier;
         this.task = task;
         this.request = request;
     }
 
     protected long elapsed() {
-        return System.nanoTime() - start;
+        return nanoTimeSupplier.getAsLong() - start;
     }
 
     /**

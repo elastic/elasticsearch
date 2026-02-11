@@ -23,9 +23,10 @@ import java.util.concurrent.TimeUnit;
  */
 public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
 
+    String ES_FIELDS_PREFIX = "elasticsearch.activitylog.";
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";
-    String ES_FIELDS_PREFIX = "elasticsearch.activitylog.";
+    String EVENT_DURATION_FIELD = "event.duration";
 
     ESLogMessage produce(Context context, ActionLoggingFields additionalFields);
 
@@ -39,6 +40,7 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         fields.withFields(additionalFields.logFields());
         fields.field(X_OPAQUE_ID_FIELD, context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();
+        fields.field(EVENT_DURATION_FIELD, tookInNanos);
         fields.field(ES_FIELDS_PREFIX + "took", tookInNanos);
         fields.field(ES_FIELDS_PREFIX + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         fields.field(EVENT_OUTCOME_FIELD, context.isSuccess() ? "success" : "failure");

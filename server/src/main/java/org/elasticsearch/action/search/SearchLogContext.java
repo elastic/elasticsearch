@@ -15,8 +15,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.Predicate;
 
 public class SearchLogContext extends ActivityLoggerContext {
@@ -28,6 +30,8 @@ public class SearchLogContext extends ActivityLoggerContext {
     private String[] indexNames = null;
     // Cached "isSystem" flag
     private Boolean isSystemSearch = null;
+
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     private SearchLogContext(
         Task task,

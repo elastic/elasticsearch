@@ -11,11 +11,6 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.json.JsonStringEncoder;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 
 /**
  * Context for {@link ActivityLogger}.
@@ -27,13 +22,6 @@ public abstract class ActivityLoggerContext {
     private final String type;
     private final @Nullable Exception error;
     private final Task task;
-
-    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
-
-    public static String escapeJson(String text) {
-        byte[] sourceEscaped = JsonStringEncoder.getInstance().quoteAsUTF8(text);
-        return new String(sourceEscaped, StandardCharsets.UTF_8);
-    }
 
     public ActivityLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         this.type = type;

@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.X_OPAQUE_ID_FIELD;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,6 +75,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task"));
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
+        assertThat(message.get(EVENT_DURATION_FIELD), equalTo("1000000"));
         assertThat(message.get(ES_FIELDS_PREFIX + "took"), equalTo("1000000"));
         assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("testType"));
@@ -87,6 +89,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task2"));
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
+        assertThat(message.get(EVENT_DURATION_FIELD), equalTo("1000"));
         assertThat(message.get(ES_FIELDS_PREFIX + "took"), equalTo("1000"));
         assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("failType"));

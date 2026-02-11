@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.lookup.BulkKeywordQueryList;
+import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -63,7 +63,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final List<QueryBuilder> lucenePushableFilterBuilders = new ArrayList<>();
     private final AliasFilter aliasFilter;
     private final ClusterService clusterService;
-    private BulkKeywordQueryList bulkKeywordQueryList = null;
+    private BulkKeywordLookup bulkKeywordLookup = null;
 
     private ExpressionQueryList(
         List<QueryList> queryLists,
@@ -147,8 +147,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     }
 
     @Override
-    public BulkKeywordQueryList getBulkQueryList() {
-        return bulkKeywordQueryList;
+    public BulkKeywordLookup getBulkKeywordLookup() {
+        return bulkKeywordLookup;
     };
 
     private void buildJoinOnForExpressionJoin(
@@ -202,10 +202,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                     MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
                     if (rightFieldType != null) {
                         // special handle Equals operator on keyword fields
-                        // we can apply as a BulkKeywordQueryList for better performance
+                        // we can apply as a BulkKeywordLookup for better performance
                         if (binaryComparison instanceof Equals) {
                             ElementType leftElementType = PlannerUtils.toElementType(dataType);
-                            bulkKeywordQueryList = new BulkKeywordQueryList(
+                            bulkKeywordLookup = new BulkKeywordLookup(
                                 rightFieldType,
                                 leftElementType,
                                 context,
@@ -376,8 +376,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public int getPositionCount(Page inputPage) {
-        if (bulkKeywordQueryList != null) {
-            return bulkKeywordQueryList.getPositionCount(inputPage);
+        if (bulkKeywordLookup != null) {
+            return bulkKeywordLookup.getPositionCount(inputPage);
         }
         int positionCount = queryLists.get(0).getPositionCount(inputPage);
         for (QueryList queryList : queryLists) {

@@ -28,7 +28,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import java.io.IOException;
 import java.util.function.BiFunction;
 
-public class BulkKeywordQueryList {
+public class BulkKeywordLookup {
     private final MappedFieldType rightFieldType;
     private final int channelOffset;
     private final SearchExecutionContext context;
@@ -42,7 +42,7 @@ public class BulkKeywordQueryList {
     private PostingsEnum[] postingsCache = null;
     private final BytesRef scratch = new BytesRef();
 
-    public BulkKeywordQueryList(
+    public BulkKeywordLookup(
         MappedFieldType rightFieldType,
         ElementType leftElementType,
         SearchExecutionContext context,

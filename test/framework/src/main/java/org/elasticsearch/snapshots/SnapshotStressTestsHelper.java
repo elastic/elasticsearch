@@ -104,6 +104,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class SnapshotStressTestsHelper {
+
+    private static final Runnable NO_OP_RUNNABLE = () -> {};
+
     public static Set<String> nodeNames(Map<String, DiscoveryNode> nodesMap) {
         return nodesMap.values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
     }
@@ -738,8 +741,7 @@ public class SnapshotStressTestsHelper {
                             indexNames
                         );
 
-                        final boolean abortSnapshot = randomBoolean();
-                        final Runnable abortRunnable = createAbortRunnable(abortSnapshot, trackedRepository, cloneName);
+                        final Runnable abortRunnable = maybeCreateAbortRunnable(trackedRepository, cloneName);
 
                         client.admin()
                             .cluster()
@@ -762,7 +764,7 @@ public class SnapshotStressTestsHelper {
                                             trackedRepository.repositoryName,
                                             cloneName
                                         );
-                                        if (abortSnapshot == false) {
+                                        if (abortRunnable != NO_OP_RUNNABLE) {
                                             snapshots.put(cloneName, new TrackedSnapshot(trackedRepository, cloneName));
                                             completedSnapshotLatch.countDown();
                                         }
@@ -1107,14 +1109,13 @@ public class SnapshotStressTestsHelper {
                         createSnapshotRequestBuilder.setIndices(targetIndexNames.toArray(new String[0]));
                     }
 
-                    final boolean abortSnapshot = randomBoolean();
-                    final Runnable abortRunnable = createAbortRunnable(abortSnapshot, trackedRepository, snapshotName);
+                    final Runnable abortRunnable = maybeCreateAbortRunnable(trackedRepository, snapshotName);
 
                     createSnapshotRequestBuilder.execute(mustSucceed(createSnapshotResponse -> {
                         logger.info("--> started partial snapshot [{}:{}]", trackedRepository.repositoryName, snapshotName);
                         Releasables.close(releasableAfterStart.transfer());
                         pollForSnapshotCompletion(client, trackedRepository.repositoryName, snapshotName, releaseAll, () -> {
-                            if (abortSnapshot == false) {
+                            if (abortRunnable != NO_OP_RUNNABLE) {
                                 snapshots.put(snapshotName, new TrackedSnapshot(trackedRepository, snapshotName));
                                 completedSnapshotLatch.countDown();
                             }
@@ -1133,9 +1134,9 @@ public class SnapshotStressTestsHelper {
             });
         }
 
-        private Runnable createAbortRunnable(boolean abortSnapshot, TrackedRepository trackedRepository, String snapshotName) {
+        private Runnable maybeCreateAbortRunnable(TrackedRepository trackedRepository, String snapshotName) {
             final Runnable abortRunnable;
-            if (abortSnapshot) {
+            if (randomBoolean()) {
                 try (TransferableReleasables abortReleasables = new TransferableReleasables()) {
 
                     assertNotNull(abortReleasables.add(blockFullClusterRestart()));
@@ -1177,7 +1178,7 @@ public class SnapshotStressTestsHelper {
                     });
                 }
             } else {
-                abortRunnable = () -> {};
+                abortRunnable = NO_OP_RUNNABLE;
             }
             return abortRunnable;
         }

@@ -486,7 +486,7 @@ public class CsvTests extends ESTestCase {
                 indexModes,
                 Map.of(),
                 Map.of(),
-                mergedMappings.partiallyUnmappedFields
+                mergedMappings.fieldToUnmappedIndices
             )
         );
     }
@@ -524,10 +524,11 @@ public class CsvTests extends ESTestCase {
 
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {}
+    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
         int numberOfIndices = mappingsPerIndex.size();
+        Set<String> allIndexNames = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(Collectors.toSet());
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
@@ -537,15 +538,20 @@ public class CsvTests extends ESTestCase {
             }
         }
 
-        var partiallyUnmappedFields = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .filter(e -> e.getValue().size() < numberOfIndices)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        for (var e : columnNamesToFieldByIndices.entrySet()) {
+            if (e.getValue().size() < numberOfIndices) {
+                String fieldName = e.getKey();
+                Set<String> mappedIndices = e.getValue().keySet();
+                Set<String> unmappedIndices = new HashSet<>(allIndexNames);
+                unmappedIndices.removeAll(mappedIndices);
+                fieldToUnmappedIndices.put(fieldName, unmappedIndices);
+            }
+        }
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
-        return new MergedResult(mappings, partiallyUnmappedFields);
+        return new MergedResult(mappings, fieldToUnmappedIndices);
     }
 
     private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {

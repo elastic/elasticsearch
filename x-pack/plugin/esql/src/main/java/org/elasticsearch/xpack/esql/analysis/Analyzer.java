@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1157,7 +1158,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (fa.field() instanceof InvalidMappedField imf) {
                 typesToIndices.putAll(imf.getTypesToIndices());
             } else {
-                typesToIndices.put(fa.dataType().typeName(), new TreeSet<>(esIndex.concreteQualifiedIndices()));
+                TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
+                indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
+                typesToIndices.put(fa.dataType().typeName(), indicesWithField);
             }
             EsField field = InvalidMappedField.potentiallyUnmapped(name, typesToIndices);
             return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
@@ -2248,13 +2251,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
-                if (imf.isPotentiallyUnmapped()) {
-                    typeResolutions(fa, convert, KEYWORD, imf, typeResolutions);
-                }
+                Expression potentiallyUnmappedConversion = imf.isPotentiallyUnmapped()
+                    ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, imf)
+                    : null;
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
-                int extra = imf.isPotentiallyUnmapped() ? 1 : 0;
-                if (typeResolutions.size() == imf.getTypesToIndices().size() + extra) {
-                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
+                if (typeResolutions.size() == imf.getTypesToIndices().size()) {
+                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions, potentiallyUnmappedConversion);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
@@ -2288,7 +2290,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions,
-                            fa.field().getTimeSeriesFieldType()
+                            fa.field().getTimeSeriesFieldType(),
+                            null
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
@@ -2331,7 +2334,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static MultiTypeEsField resolvedMultiTypeEsField(
             FieldAttribute fa,
-            HashMap<TypeResolutionKey, Expression> typeResolutions
+            HashMap<TypeResolutionKey, Expression> typeResolutions,
+            @Nullable Expression potentiallyUnmappedConversion
         ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
             InvalidMappedField imf = (InvalidMappedField) fa.field();
@@ -2342,14 +2346,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     typesToConversionExpressions.put(typeName, typeResolutions.get(key));
                 }
             });
-            // FIXME(gal, NOCOMMIT) more temp hacks
-            var result = MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
-            result.potentiallyUnmappedExpression = typeResolutions.values()
-                .stream()
-                .filter(e -> ((ToDouble) e).field().dataType() == KEYWORD)
-                .findFirst()
-                .get();
-            return result;
+            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
+                .withPotentiallyUnmappedExpression(potentiallyUnmappedConversion);
         }
 
         private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
@@ -2459,7 +2457,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null);
                         return new FieldAttribute(
                             f.source(),
                             f.parentName(),

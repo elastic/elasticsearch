@@ -229,7 +229,7 @@ public final class AnalyzerTestUtils {
         }
 
         var indexResolution = IndexResolution.valid(
-            new EsIndex(indexName, MAPPING_BASIC_RESOLUTION, Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of(), Set.of())
+            new EsIndex(indexName, MAPPING_BASIC_RESOLUTION, Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of(), Map.of())
         );
         return Map.of(new IndexPattern(Source.EMPTY, indexName), indexResolution);
     }
@@ -270,7 +270,7 @@ public final class AnalyzerTestUtils {
 
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Map.of())
         );
     }
 
@@ -388,7 +388,7 @@ public final class AnalyzerTestUtils {
             Map.of(NO_FIELDS_INDEX, IndexMode.STANDARD),
             Map.of("", List.of(NO_FIELDS_INDEX)),
             Map.of("", List.of(NO_FIELDS_INDEX)),
-            Set.of()
+            Map.of()
         );
         return Map.of(
             new IndexPattern(Source.EMPTY, "languages"),
@@ -495,7 +495,7 @@ public final class AnalyzerTestUtils {
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         return IndexResolution.valid(index);
     }

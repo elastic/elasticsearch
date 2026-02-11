@@ -207,7 +207,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of("partial_type_keyword")
+            Map.of("partial_type_keyword", Set.of("test2"))
         );
         multiIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
@@ -232,7 +232,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         unionIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
@@ -253,7 +253,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("sample_data", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         sampleDataIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
@@ -286,7 +286,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("base_conversion", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         baseConversionAnalyzer = new Analyzer(
             testAnalyzerContext(

@@ -89,7 +89,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public static void initTest() {
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(
-            new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of())
+            new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Map.of())
         );
         tsAnalyzer = new Analyzer(
             new AnalyzerContext(

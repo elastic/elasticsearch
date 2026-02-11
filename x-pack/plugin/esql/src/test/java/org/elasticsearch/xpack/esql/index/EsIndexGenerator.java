@@ -26,19 +26,19 @@ import static org.elasticsearch.test.ESTestCase.randomMap;
 public class EsIndexGenerator {
 
     public static EsIndex esIndex(String name) {
-        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
+        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping) {
-        return new EsIndex(name, mapping, Map.of(), Map.of(), Map.of(), Set.of());
+        return new EsIndex(name, mapping, Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of(), Set.of());
+        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of(), Map.of());
     }
 
     public static EsIndex randomEsIndex() {
-        return new EsIndex(randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Map.of(), Map.of(), Set.of());
+        return new EsIndex(randomIdentifier(), randomMapping(), randomIndexNameWithModes(), Map.of(), Map.of(), Map.of());
     }
 
     public static Map<String, EsField> randomMapping() {

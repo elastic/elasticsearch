@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -300,13 +301,18 @@ public class IndexResolver {
         var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps);
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
         Map<String, Integer> indexMappingHashDuplicates = collectedFieldCaps.indexMappingHashDuplicates;
+        Map<String, Set<String>> fieldToMappedIndices = collectedFieldCaps.fieldToMappedIndices;
+        Set<String> allIndexNames = fieldsInfo.caps.getIndexResponses()
+            .stream()
+            .map(FieldCapabilitiesIndexResponse::getIndexName)
+            .collect(Collectors.toSet());
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
-        Set<String> partiallyUnmappedFields = new HashSet<>();
+        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
         for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
@@ -343,10 +349,9 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
-            var isPartiallyUnmapped = fcs.size() + indexMappingHashDuplicates.getOrDefault(fieldCap.indexMappingHash, 0) < numberOfIndices;
-            if (isPartiallyUnmapped) {
-                partiallyUnmappedFields.add(fullName);
-            }
+            Set<String> unmappedIndices = new TreeSet<>(allIndexNames);
+            unmappedIndices.removeAll(fieldToMappedIndices.getOrDefault(fullName, Set.of()));
+            fieldToUnmappedIndices.put(fullName, unmappedIndices);
         }
 
         boolean allEmpty = true;
@@ -375,7 +380,7 @@ public class IndexResolver {
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
             concreteIndices,
-            partiallyUnmappedFields
+            fieldToUnmappedIndices
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
@@ -386,17 +391,20 @@ public class IndexResolver {
     private record CollectedFieldCaps(
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps,
         // The map won't contain entries without duplicates, i.e., it's number of occurrences - 1.
-        Map<String, Integer> indexMappingHashDuplicates
+        Map<String, Integer> indexMappingHashDuplicates,
+        Map<String, Set<String>> fieldToMappedIndices
     ) {}
 
     private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
+        Map<String, Set<String>> fieldToMappedIndices = new HashMap<>();
 
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
             if (indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) > 1) {
                 continue;
             }
+            String indexName = response.getIndexName();
             for (IndexFieldCapabilities fc : response.get().values()) {
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
@@ -407,6 +415,7 @@ public class IndexResolver {
                     (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
                 ).fieldCapabilities;
                 all.add(fc);
+                fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
             }
         }
 
@@ -420,7 +429,7 @@ public class IndexResolver {
             }
         }
 
-        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount);
+        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount, fieldToMappedIndices);
     }
 
     private static EsField createField(

@@ -65,7 +65,7 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         DataType toType = toString ? DataType.KEYWORD : dataType;
         Map<String, Expression> indexToConvertExpressions = randomConvertExpressions(name, toString, dataType);
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType);
+        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType, null);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
             case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             default -> throw new IllegalArgumentException();
         }
-        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType);
+        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType, null);
     }
 
     @Override

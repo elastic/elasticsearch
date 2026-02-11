@@ -32,19 +32,20 @@ import java.util.Set;
 public class MultiTypeEsField extends EsField {
 
     private final Map<String, Expression> indexToConversionExpressions;
-    // FIXME(gal, NOCOMMIT) temp
     @Nullable
-    public Expression potentiallyUnmappedExpression = null;
+    private final Expression potentiallyUnmappedExpression;
 
     public MultiTypeEsField(
         String name,
         DataType dataType,
         boolean aggregatable,
         Map<String, Expression> indexToConversionExpressions,
-        TimeSeriesFieldType timeSeriesFieldType
+        TimeSeriesFieldType timeSeriesFieldType,
+        @Nullable Expression potentiallyUnmappedExpression
     ) {
         super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType);
         this.indexToConversionExpressions = indexToConversionExpressions;
+        this.potentiallyUnmappedExpression = potentiallyUnmappedExpression;
     }
 
     protected MultiTypeEsField(StreamInput in) throws IOException {
@@ -53,7 +54,9 @@ public class MultiTypeEsField extends EsField {
             DataType.readFrom(in),
             in.readBoolean(),
             in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
-            readTimeSeriesFieldType(in)
+            readTimeSeriesFieldType(in),
+            // FIXME(gal, NOCOMMIT) Does this need to be protected by a version check?
+            in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -64,18 +67,34 @@ public class MultiTypeEsField extends EsField {
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);
+        out.writeNamedWriteable(potentiallyUnmappedExpression);
     }
 
     public String getWriteableName() {
         return "MultiTypeEsField";
     }
 
+    public @Nullable Expression getPotentiallyUnmappedExpression() {
+        return potentiallyUnmappedExpression;
+    }
+
     public Map<String, Expression> getIndexToConversionExpressions() {
         return indexToConversionExpressions;
     }
 
-    public Expression getConversionExpressionForIndex(String indexName) {
+    public @Nullable Expression getConversionExpressionForIndex(String indexName) {
         return indexToConversionExpressions.get(indexName);
+    }
+
+    public MultiTypeEsField withPotentiallyUnmappedExpression(@Nullable Expression potentiallyUnmappedExpression) {
+        return new MultiTypeEsField(
+            getName(),
+            getDataType(),
+            isAggregatable(),
+            indexToConversionExpressions,
+            getTimeSeriesFieldType(),
+            potentiallyUnmappedExpression
+        );
     }
 
     public static MultiTypeEsField resolveFrom(
@@ -102,7 +121,8 @@ public class MultiTypeEsField extends EsField {
             resolvedDataType,
             false,
             indexToConversionExpressions,
-            invalidMappedField.getTimeSeriesFieldType()
+            invalidMappedField.getTimeSeriesFieldType(),
+            null
         );
     }
 
@@ -112,14 +132,16 @@ public class MultiTypeEsField extends EsField {
             return false;
         }
         if (obj instanceof MultiTypeEsField other) {
-            return super.equals(other) && indexToConversionExpressions.equals(other.indexToConversionExpressions);
+            return super.equals(other)
+                && indexToConversionExpressions.equals(other.indexToConversionExpressions)
+                && Objects.equals(potentiallyUnmappedExpression, other.potentiallyUnmappedExpression);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), indexToConversionExpressions);
+        return Objects.hash(super.hashCode(), indexToConversionExpressions, potentiallyUnmappedExpression);
     }
 
     @Override

@@ -200,40 +200,27 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
-        DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
+        MultiTypeEsField unionTypes = findUnionTypes(attr);
+        DefaultShardContext shardContext = getShardContext(shardId, attr, unionTypes);
+        // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
         String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
-            shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
-        }
 
-        // Apply any block loader function if present
-        BlockLoaderFunctionConfig functionConfig = null;
-        if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
-            functionConfig = functionEsField.functionConfig();
-        }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
-        MultiTypeEsField unionTypes = findUnionTypes(attr);
-        // FIXME(gal, NOCOMMIT) More temp hacks
-        if (unionTypes != null && indexName.equals("no_mapping_sample_data")) {
-            shardContext = new DefaultShardContextForUnmappedField2(
-                shardContext,
-                new PotentiallyUnmappedKeywordEsField(fieldName),
-                unionTypes.potentiallyUnmappedExpression
-            );
-        }
+        // Apply any block loader function if present
+        BlockLoaderFunctionConfig functionConfig = attr instanceof FieldAttribute fieldAttr
+            && fieldAttr.field() instanceof FunctionEsField functionEsField ? functionEsField.functionConfig() : null;
         BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, functionConfig);
+        // Happy path: No union types, no extra loaders, just load the values directly.
         if (unionTypes == null) {
             return ValuesSourceReaderOperator.load(blockLoader);
         }
-        // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-        // FIXME(gal, NOCOMMIT) For unmapped indices, use the keyword conversion stored in the shard context hack
-        Expression conversion = shardContext instanceof DefaultShardContextForUnmappedField2 dsc
-            ? dsc.converted
-            : unionTypes.getConversionExpressionForIndex(indexName);
+        Expression conversion = getConversion(indexName, unionTypes);
+        // Type-conflicted without a conversion function: return nulls for this field
         if (conversion == null) {
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }
+        // Special case for expressions that aren't plain type conversions.
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
             if (e != null) {
@@ -243,6 +230,27 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
         }
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
+    }
+
+    private DefaultShardContext getShardContext(int shardId, Attribute attr, MultiTypeEsField unionTypes) {
+        DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
+        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+        Expression conversion = unionTypes != null ? unionTypes.getConversionExpressionForIndex(indexName) : null;
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
+            return new DefaultShardContextForUnmappedField(shardContext, kf);
+        }
+        if (unionTypes != null && conversion == null && unionTypes.getPotentiallyUnmappedExpression() != null) {
+            return new DefaultShardContextForUnmappedField(shardContext, new PotentiallyUnmappedKeywordEsField(getFieldName(attr)));
+        }
+        return shardContext;
+    }
+
+    @Nullable
+    private Expression getConversion(String indexName, MultiTypeEsField unionTypes) {
+        Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
+        return conversion == null && unionTypes.getPotentiallyUnmappedExpression() != null
+            ? unionTypes.getPotentiallyUnmappedExpression()
+            : conversion;
     }
 
     /** A hack to pretend an unmapped field still exists. */
@@ -259,49 +267,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
             super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
-        }
-
-        @Override
-        public @Nullable MappedFieldType fieldType(String name) {
-            var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
-        }
-
-        static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
-            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
-            builder.docValues(false);
-            builder.indexed(false);
-            return new KeywordFieldMapper.KeywordFieldType(
-                name,
-                IndexType.terms(false, false),
-                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                Lucene.KEYWORD_ANALYZER,
-                builder,
-                context.ctx.isSourceSynthetic()
-            );
-        }
-    }
-
-    // FIXME(gal, NOCOMMIT) document, rename, whatever
-    private static class DefaultShardContextForUnmappedField2 extends DefaultShardContext {
-        private static final FieldType UNMAPPED_FIELD_TYPE = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        static {
-            UNMAPPED_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
-            UNMAPPED_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            UNMAPPED_FIELD_TYPE.setStored(false);
-            UNMAPPED_FIELD_TYPE.freeze();
-        }
-        private final KeywordEsField unmappedEsField;
-        private final Expression converted;
-
-        DefaultShardContextForUnmappedField2(
-            DefaultShardContext ctx,
-            PotentiallyUnmappedKeywordEsField unmappedEsField,
-            Expression converted
-        ) {
-            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
-            this.unmappedEsField = unmappedEsField;
-            this.converted = converted;
         }
 
         @Override

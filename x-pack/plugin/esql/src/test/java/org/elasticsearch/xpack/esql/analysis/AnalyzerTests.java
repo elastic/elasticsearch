@@ -4469,7 +4469,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
         Analyzer analyzer = analyzer(resolution);
@@ -4513,7 +4513,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
         Analyzer analyzer = analyzer(resolution);
@@ -4764,7 +4764,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         var analyzer = new Analyzer(
             testAnalyzerContext(

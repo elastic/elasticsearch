@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -194,7 +195,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 if (stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)) {
                     Configuration conf = analyzer.context().configuration();
                     var localPhysicalPlan = PlannerUtils.localPlan(
-                        EsqlTestUtils.TEST_PLANNER_SETTINGS,
+                        PlannerSettings.DEFAULTS,
                         new EsqlFlags(false),
                         conf,
                         conf.newFoldContext(),

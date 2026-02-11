@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.repositories.SnapshotStatsWireSerializationTests.randomSnapshotStats;
@@ -25,11 +26,20 @@ public class RepositoryStatsWireSerializationTests extends AbstractWireSerializi
 
     @Override
     protected RepositoriesStats createTestInstance() {
-        return new RepositoriesStats(randomMap(1, 5, () -> tuple(randomAlphaOfLength(10), randomSnapshotStats())));
+        return new RepositoriesStats(generateRepositorySnapshotStatsMap());
+    }
+
+    private Map<String, RepositoriesStats.SnapshotStats> generateRepositorySnapshotStatsMap() {
+        return randomMap(0, 5, () -> tuple(randomAlphaOfLength(10), randomSnapshotStats()));
     }
 
     @Override
     protected RepositoriesStats mutateInstance(RepositoriesStats instance) throws IOException {
-        return createTestInstance();
+        Map<String, RepositoriesStats.SnapshotStats> original = instance.getRepositorySnapshotStats();
+        Map<String, RepositoriesStats.SnapshotStats> mutated;
+        do {
+            mutated = generateRepositorySnapshotStatsMap();
+        } while (mutated.equals(original));
+        return new RepositoriesStats(mutated);
     }
 }

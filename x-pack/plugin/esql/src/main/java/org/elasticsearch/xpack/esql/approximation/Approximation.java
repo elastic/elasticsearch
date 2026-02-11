@@ -77,6 +77,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
@@ -441,11 +443,32 @@ public class Approximation {
         return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get(), canIncreaseRowCount.get());
     }
 
-    private int sampleRowCount() {
+    public static LogicalPlan firstSubPlan(LogicalPlan logicalPlan, Configuration configuration, Set<LocalRelation> subPlansResults) {
+        LogicalPlan sourceCountPlan = sourceCountPlan(logicalPlan);
+        if (subPlansResults.stream().anyMatch(result -> result.output().getFirst().name().equals(sourceCountPlan.output().getFirst().name())) == false) {
+            return sourceCountPlan;
+        }
+        return null;
+    }
+
+    public static LogicalPlan newMainPlan(LogicalPlan logicalPlan, Configuration configuration, Set<LocalRelation> subPlansResults) {
+        System.out.println("@@newMainPlan: " + subPlansResults);
+        long rowCount = ((LongBlock) subPlansResults.iterator().next().supplier().get().getBlock(0)).getLong(0);
+        double sampleProbability = 1.0 * sampleRowCount(configuration.approximationSettings()) / rowCount;
+        logicalPlan = logicalPlan.transformExpressionsDown(
+            Approximation.SampleProbability.class,
+            prob -> Literal.fromDouble(Source.EMPTY, sampleProbability)
+        );
+        logicalPlan.setOptimized();
+        return logicalPlan;
+    }
+
+    private static int sampleRowCount(ApproximationSettings settings) {
         if (settings.rows() != null) {
             return settings.rows();
-        } else if (queryProperties.hasGrouping) {
-            return DEFAULT_ROW_COUNT_WITH_GROUPING;
+            // TODO!
+//        } else if (queryProperties.hasGrouping) {
+//            return DEFAULT_ROW_COUNT_WITH_GROUPING;
         } else {
             return DEFAULT_ROW_COUNT_WITHOUT_GROUPING;
         }
@@ -462,13 +485,13 @@ public class Approximation {
      * {@code FROM index | STATS COUNT(*)}
      * </pre>
      */
-    private LogicalPlan sourceCountPlan() {
+    private static LogicalPlan sourceCountPlan(LogicalPlan logicalPlan) {
         LogicalPlan leaf = logicalPlan.collectLeaves().getFirst();
         LogicalPlan sourceCountPlan = new Aggregate(
             Source.EMPTY,
             leaf,
             List.of(),
-            List.of(new Alias(Source.EMPTY, "$count", COUNT_ALL_ROWS))
+            List.of(new Alias(Source.EMPTY, "$source_count", COUNT_ALL_ROWS))
         );
         sourceCountPlan.setOptimized();
         return sourceCountPlan;
@@ -647,7 +670,7 @@ public class Approximation {
     /**
      * Returns the row count in the result and closes the result.
      */
-    private long rowCount(Result countResult) {
+    private static long rowCount(Result countResult) {
         assert countResult.pages().size() == 1;
         assert countResult.pages().getFirst().getBlockCount() == 1;
         assert countResult.pages().getFirst().getPositionCount() == 1;

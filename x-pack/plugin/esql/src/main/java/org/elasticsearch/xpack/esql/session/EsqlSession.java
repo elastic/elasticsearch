@@ -460,14 +460,6 @@ public class EsqlSession {
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
         } else {
-            if (configuration.approximationSettings() != null) {
-                optimizedPlan = optimizedPlan.transformExpressionsDown(
-                    Approximation.SampleProbability.class,
-                    prob -> Literal.fromDouble(Source.EMPTY, 0.01)
-                );
-                optimizedPlan.setOptimized();
-            }
-
             System.out.println("*** Final optimized logical plan:\n" + optimizedPlan);
 
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
@@ -479,6 +471,19 @@ public class EsqlSession {
     record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
 
     private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Configuration configuration, Set<LocalRelation> subPlansResults) {
+        if (configuration.approximationSettings() != null) {
+            LogicalPlan subPlan = Approximation.firstSubPlan(optimizedPlan, configuration, subPlansResults);
+            if (subPlan != null) {
+                AtomicReference<Page> localRelationPage = new AtomicReference<>();
+                return new SubPlanAndCallback(subPlan, result -> {
+                    LocalRelation resultWrapper = resultToPlan(EMPTY, result);
+                    localRelationPage.set(resultWrapper.supplier().get());
+                    subPlansResults.add(resultWrapper);
+                    return Approximation.newMainPlan(optimizedPlan, configuration, subPlansResults);
+                }, () -> releaseLocalRelationBlocks(localRelationPage));
+            }
+        }
+
         InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(optimizedPlan, subPlansResults);
         if (subPlans == null) {
             return null;
@@ -571,6 +576,7 @@ public class EsqlSession {
         }));
     }
 
+    // TODO: move this to InlineJoin?
     public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
         LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
             InlineJoin.class,

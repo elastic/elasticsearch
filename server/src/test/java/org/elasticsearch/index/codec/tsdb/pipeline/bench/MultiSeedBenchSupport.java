@@ -268,7 +268,9 @@ final class MultiSeedBenchSupport {
                     }
                 }
                 // NOTE: skip group if only references remain (no competing pipelines).
-                final long competitorCount = gPipeMetas.stream().filter(m -> !m.isReference() && !m.isPipelineReference()).count();
+                final long competitorCount = gPipeMetas.stream()
+                    .filter(m -> m.isReference() == false && m.isPipelineReference() == false)
+                    .count();
                 if (competitorCount == 0) {
                     continue;
                 }

@@ -92,8 +92,10 @@ public final class PipelineConfig {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof PipelineConfig that)) return false;
-        return dataType == that.dataType && blockSize == that.blockSize && specs.equals(that.specs);
+        if (o instanceof PipelineConfig that) {
+            return dataType == that.dataType && blockSize == that.blockSize && specs.equals(that.specs);
+        }
+        return false;
     }
 
     @Override

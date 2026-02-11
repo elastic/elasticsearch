@@ -36,6 +36,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -53,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 /**
@@ -75,6 +77,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
     protected volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     protected volatile long currentDataSetSizeInBytes = 0L;
+    private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         this(cacheService, shardId, new LongAdder(), new LongAdder(), null);
@@ -92,6 +95,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         this.shardId = shardId;
         this.totalBytesReadFromObjectStore = totalBytesRead;
         this.totalBytesWarmedFromObjectStore = totalBytesWarmed;
+        this.metricsHolder = cacheService.metricsHolder();
         if (blobContainerFunction != null) {
             setBlobContainer(blobContainerFunction);
         }
@@ -314,7 +318,9 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             // StatelessSharedBlobCacheService to fully utilize each region
             // it is also used for bounding the reads we do against indexing shard to ensure that we never read beyond the
             // blob length (with padding added).
-            blobFileRanges.fileOffset() + blobFileRanges.fileLength()
+            blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
+            // todo: time-source
+            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime)
         );
     }
 
@@ -403,5 +409,29 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         var e = new IllegalStateException(directory.getClass() + " cannot be unwrapped as " + BlobStoreCacheDirectory.class);
         assert false : e;
         throw e;
+    }
+
+    private static class CacheMissHandler implements SharedBlobCacheService.CacheMissHandler {
+        private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> blobCacheMetrics;
+        private final LongSupplier nanosSource;
+
+        private CacheMissHandler(
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> blobCacheMetrics,
+            LongSupplier nanosSource
+        ) {
+            this.blobCacheMetrics = blobCacheMetrics;
+            this.nanosSource = nanosSource;
+        }
+
+        @Override
+        public Releasable record(long bytes) {
+            long now = nanosSource.getAsLong();
+            return () -> { blobCacheMetrics.instance().add(nanosSource.getAsLong() - now, bytes); };
+        }
+
+        @Override
+        public SharedBlobCacheService.CacheMissHandler copy() {
+            return new CacheMissHandler(blobCacheMetrics.singleThreaded(), nanosSource);
+        }
     }
 }

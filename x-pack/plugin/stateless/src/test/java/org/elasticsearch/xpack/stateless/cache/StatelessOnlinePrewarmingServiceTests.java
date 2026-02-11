@@ -30,6 +30,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTr
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
@@ -167,9 +169,13 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             FileCacheKey cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, blobRange.blobName());
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile;
             if (twoRegionsToWarm) {
-                cacheFile = fakeNode.sharedCacheService.getCacheFile(cacheKey, regionSize + secondWarmedRegionLength);
+                cacheFile = fakeNode.sharedCacheService.getCacheFile(
+                    cacheKey,
+                    regionSize + secondWarmedRegionLength,
+                    SharedBlobCacheService.CacheMissHandler.NOOP
+                );
             } else {
-                cacheFile = fakeNode.sharedCacheService.getCacheFile(cacheKey, regionSize);
+                cacheFile = fakeNode.sharedCacheService.getCacheFile(cacheKey, regionSize, SharedBlobCacheService.CacheMissHandler.NOOP);
             }
 
             long length = Math.min(regionSize, blobRange.fileLength() + blobRange.fileOffset());
@@ -310,7 +316,13 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                 MeterRegistry meterRegistry
             ) {
                 if (failingCacheService) {
-                    return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, BlobCacheMetrics.NOOP) {
+                    return new StatelessSharedBlobCacheService(
+                        nodeEnvironment,
+                        settings,
+                        threadPool,
+                        BlobCacheMetrics.NOOP,
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    ) {
                         @Override
                         public void maybeFetchRange(
                             FileCacheKey cacheKey,

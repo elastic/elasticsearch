@@ -49,6 +49,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -87,6 +89,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexDirectoryTests extends ESTestCase {
 
@@ -106,7 +109,12 @@ public class IndexDirectoryTests extends ESTestCase {
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         final Path path = PathUtils.get(createTempDir().toString());
         try (
-            Directory directory = new IndexDirectory(FSDirectory.open(path), new IndexBlobStoreCacheDirectory(null, null), null, true);
+            Directory directory = new IndexDirectory(
+                FSDirectory.open(path),
+                new IndexBlobStoreCacheDirectory(mockedCacheService(), null),
+                null,
+                true
+            );
             IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())
         ) {
             indexWriter.commit();
@@ -390,7 +398,7 @@ public class IndexDirectoryTests extends ESTestCase {
         final Path path = PathUtils.get(createTempDir().toString());
         final ShardId shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 10));
         final List<Tuple<ShardId, String>> capturedOnDeletions = new ArrayList<>();
-        final IndexBlobStoreCacheDirectory indexBlobStoreCacheDirectory = new IndexBlobStoreCacheDirectory(null, shardId);
+        final IndexBlobStoreCacheDirectory indexBlobStoreCacheDirectory = new IndexBlobStoreCacheDirectory(mockedCacheService(), shardId);
         indexBlobStoreCacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
         try (
             IndexDirectory directory = new IndexDirectory(
@@ -438,7 +446,7 @@ public class IndexDirectoryTests extends ESTestCase {
     public void testUpdateRecoveryCommit() throws IOException {
         final Path path = PathUtils.get(createTempDir().toString());
         final ShardId shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 10));
-        final IndexBlobStoreCacheDirectory indexBlobStoreCacheDirectory = new IndexBlobStoreCacheDirectory(null, shardId);
+        final IndexBlobStoreCacheDirectory indexBlobStoreCacheDirectory = new IndexBlobStoreCacheDirectory(mockedCacheService(), shardId);
         indexBlobStoreCacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
         try (IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), indexBlobStoreCacheDirectory, null, true)) {
             Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(10));
@@ -466,7 +474,7 @@ public class IndexDirectoryTests extends ESTestCase {
         try (
             IndexDirectory directory = new IndexDirectory(
                 FSDirectory.open(indexDataPath),
-                new IndexBlobStoreCacheDirectory(null, null),
+                new IndexBlobStoreCacheDirectory(mockedCacheService(), null),
                 null,
                 false
             )
@@ -525,5 +533,14 @@ public class IndexDirectoryTests extends ESTestCase {
             Map.of(),
             null
         );
+    }
+
+    private StatelessSharedBlobCacheService mockedCacheService() {
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> holder = new ThreadLocalDirectoryMetricHolder<>(
+            BlobStoreCacheDirectoryMetrics::new
+        );
+        StatelessSharedBlobCacheService mock = mock(StatelessSharedBlobCacheService.class);
+        when(mock.metricsHolder()).thenReturn(holder);
+        return mock;
     }
 }

@@ -143,7 +143,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(projectId));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Create the index
-        securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState()));
+        securityIndex.clusterChanged(
+            new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(projectId), getEmptyClusterState())
+        );
 
         return new NativeRolesStore(
             settings,

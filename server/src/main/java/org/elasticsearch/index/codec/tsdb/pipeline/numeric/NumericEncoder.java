@@ -12,15 +12,12 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
-import java.io.Closeable;
-import java.io.IOException;
-
 /**
  * Write-path coordinator: owns a {@link NumericEncodePipeline} and produces
  * {@link NumericBlockEncoder} instances for encoding blocks of values.
  * Created from a pipeline configuration; the consumer never constructs a decoder.
  */
-public final class NumericEncoder implements Closeable {
+public final class NumericEncoder {
 
     private final NumericEncodePipeline pipeline;
 
@@ -48,8 +45,4 @@ public final class NumericEncoder implements Closeable {
         return pipeline.blockSize();
     }
 
-    @Override
-    public void close() throws IOException {
-        pipeline.close();
-    }
 }

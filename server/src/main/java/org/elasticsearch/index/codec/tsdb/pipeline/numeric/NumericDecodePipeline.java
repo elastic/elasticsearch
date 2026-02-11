@@ -31,14 +31,13 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.QuantizeDouble
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.RleDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.XorCodecStage;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public final class NumericDecodePipeline implements Closeable {
+public final class NumericDecodePipeline {
 
     private static final Logger logger = LogManager.getLogger(NumericDecodePipeline.class);
 
@@ -153,11 +152,6 @@ public final class NumericDecodePipeline implements Closeable {
 
     public int size() {
         return stages.length + 1;
-    }
-
-    @Override
-    public void close() throws IOException {
-        payloadStage.close();
     }
 
     private int readBlock(final DataInput in, final long[] values, final DecodingContext context) throws IOException {

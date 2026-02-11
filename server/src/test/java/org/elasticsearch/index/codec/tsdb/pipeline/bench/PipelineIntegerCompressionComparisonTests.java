@@ -84,11 +84,6 @@ public class PipelineIntegerCompressionComparisonTests extends NumericPipelineTe
                 }
             }
 
-            for (final Pipeline pipeline : pipelines) {
-                if (pipeline.numericEncoder != null) {
-                    pipeline.numericEncoder.close();
-                }
-            }
         }
 
         final String output = MultiSeedBenchSupport.formatGroupedResultTable(

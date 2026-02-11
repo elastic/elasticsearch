@@ -32,14 +32,14 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.QuantizeDouble
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.RleEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.XorCodecStage;
 
-import java.io.Closeable;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public final class NumericEncodePipeline implements Closeable {
+public final class NumericEncodePipeline {
 
     private final TransformEncoder[] stages;
     private final StageId[] stageIds;
@@ -230,11 +230,6 @@ public final class NumericEncodePipeline implements Closeable {
 
     public int size() {
         return stages.length + 1;
-    }
-
-    @Override
-    public void close() throws IOException {
-        payloadStage.close();
     }
 
     private static boolean isDoubleOnly(final StageSpec s) {

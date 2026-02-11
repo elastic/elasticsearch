@@ -95,14 +95,13 @@ public class PipelineBlockSizeSweepTests extends NumericPipelineTestCase {
                 final PipelineTestUtils.PipelineDef baselineDef = PipelineTestUtils.es87PipelineBaselineForDoubles();
                 final int[] perSeedSize = new int[seeds.length];
                 for (int s = 0; s < seeds.length; s++) {
-                    try (NumericEncoder encoder = baselineDef.factory().apply(bs)) {
-                        final var enc = encoder.newBlockEncoder();
-                        final long[] values = Arrays.copyOf(fullValuesPerSeed[d][s], bs);
-                        final byte[] buffer = new byte[bs * Long.BYTES * 4];
-                        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-                        enc.encode(values.clone(), values.length, out);
-                        perSeedSize[s] = out.getPosition();
-                    }
+                    final NumericEncoder encoder = baselineDef.factory().apply(bs);
+                    final var enc = encoder.newBlockEncoder();
+                    final long[] values = Arrays.copyOf(fullValuesPerSeed[d][s], bs);
+                    final byte[] buffer = new byte[bs * Long.BYTES * 4];
+                    final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+                    enc.encode(values.clone(), values.length, out);
+                    perSeedSize[s] = out.getPosition();
                 }
                 es87PipelineBpv[b][d] = (double) MultiSeedBenchSupport.aggregate(perSeedSize).median() / bs;
             }
@@ -166,34 +165,33 @@ public class PipelineBlockSizeSweepTests extends NumericPipelineTestCase {
                     // NOTE: multi-seed encode per (pipeline, dataset, blockSize).
                     final int[] perSeedSize = new int[seeds.length];
                     for (int s = 0; s < seeds.length; s++) {
-                        try (NumericEncoder encoder = pf.factory().apply(bs)) {
-                            final var enc = encoder.newBlockEncoder();
-                            final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
-                            final var dec = decoder.newBlockDecoder();
+                        final NumericEncoder encoder = pf.factory().apply(bs);
+                        final var enc = encoder.newBlockEncoder();
+                        final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+                        final var dec = decoder.newBlockDecoder();
 
-                            final long[] values = Arrays.copyOf(fullValuesPerSeed[d][s], bs);
-                            final byte[] buffer = new byte[bs * Long.BYTES * 4];
-                            final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-                            enc.encode(values.clone(), values.length, out);
-                            perSeedSize[s] = out.getPosition();
+                        final long[] values = Arrays.copyOf(fullValuesPerSeed[d][s], bs);
+                        final byte[] buffer = new byte[bs * Long.BYTES * 4];
+                        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+                        enc.encode(values.clone(), values.length, out);
+                        perSeedSize[s] = out.getPosition();
 
-                            final long[] decoded = new long[bs];
-                            dec.decode(decoded, new ByteArrayDataInput(buffer, 0, out.getPosition()));
-                            if (pf.maxError() > 0) {
-                                PipelineTestUtils.assertArrayEqualsWithTolerance(
-                                    pipelineName + " bs=" + bs + " seed=" + seeds[s] + " round-trip failed for " + dsName,
-                                    values,
-                                    decoded,
-                                    pf.maxError(),
-                                    dsType
-                                );
-                            } else {
-                                assertArrayEquals(
-                                    pipelineName + " bs=" + bs + " seed=" + seeds[s] + " round-trip failed for " + dsName,
-                                    values,
-                                    decoded
-                                );
-                            }
+                        final long[] decoded = new long[bs];
+                        dec.decode(decoded, new ByteArrayDataInput(buffer, 0, out.getPosition()));
+                        if (pf.maxError() > 0) {
+                            PipelineTestUtils.assertArrayEqualsWithTolerance(
+                                pipelineName + " bs=" + bs + " seed=" + seeds[s] + " round-trip failed for " + dsName,
+                                values,
+                                decoded,
+                                pf.maxError(),
+                                dsType
+                            );
+                        } else {
+                            assertArrayEquals(
+                                pipelineName + " bs=" + bs + " seed=" + seeds[s] + " round-trip failed for " + dsName,
+                                values,
+                                decoded
+                            );
                         }
                     }
                     bytesPerValue[b] = (double) MultiSeedBenchSupport.aggregate(perSeedSize).median() / bs;

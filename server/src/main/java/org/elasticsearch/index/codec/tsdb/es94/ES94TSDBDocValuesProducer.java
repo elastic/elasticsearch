@@ -61,9 +61,9 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 
 import java.io.IOException;
-import java.util.ArrayList;
+
 import java.util.Arrays;
-import java.util.List;
+
 
 import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -85,12 +85,6 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
     private final int numericBlockSize;
     private final int numericBlockMask;
     private final NumericCodecFactory numericCodecFactory;
-    // NOTE: Track all decoders created for this segment. Decoders own native resources (e.g., ZstdDecodeStage buffers)
-    // that must be released when the producer is closed.
-    // IMPORTANT TODO: Native buffers (ZstdDecodeStage srcBuffer/destBuffer) are allocated when the
-    // decoder is created and only released when this producer is closed, which happens when the segment
-    // reader is closed. A segment reader can stay open for the entire shard lifetime (large segments may
-    private final List<NumericDecoder> perFieldDecoders = new ArrayList<>();
 
     ES94TSDBDocValuesProducer(
         SegmentReadState state,
@@ -234,7 +228,6 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 .descriptor();
             decoder = numericCodecFactory.createDecoder(defaultDescriptor);
         }
-        perFieldDecoders.add(decoder);
         return decoder.newBlockDecoder();
     }
 
@@ -1589,8 +1582,6 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public void close() throws IOException {
         IOUtils.close(data);
-        IOUtils.close(perFieldDecoders);
-        perFieldDecoders.clear();
     }
 
     /**

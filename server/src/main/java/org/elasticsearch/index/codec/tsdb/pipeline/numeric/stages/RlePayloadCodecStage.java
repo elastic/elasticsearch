@@ -88,9 +88,6 @@ public final class RlePayloadCodecStage implements PayloadEncoder, PayloadDecode
     }
 
     @Override
-    public void close() {}
-
-    @Override
     public String toString() {
         return "RlePayloadCodecStage";
     }

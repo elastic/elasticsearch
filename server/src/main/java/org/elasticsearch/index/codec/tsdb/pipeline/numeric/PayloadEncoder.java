@@ -12,20 +12,16 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
  * Serializes values to bytes as the terminal stage of the encode pipeline.
  */
-public interface PayloadEncoder extends Closeable {
+public interface PayloadEncoder {
 
     /** Returns the unique stage identifier. */
     byte id();
 
     /** Serializes values to the output stream. */
     void encode(long[] values, int valueCount, DataOutput out, EncodingContext context) throws IOException;
-
-    @Override
-    default void close() throws IOException {}
 }

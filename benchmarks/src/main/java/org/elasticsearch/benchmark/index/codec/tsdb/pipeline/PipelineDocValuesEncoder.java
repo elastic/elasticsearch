@@ -51,8 +51,5 @@ public final class PipelineDocValuesEncoder implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
-        numericEncoder.close();
-        numericDecoder.close();
-    }
+    public void close() {}
 }

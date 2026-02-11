@@ -43,10 +43,8 @@ public abstract class NumericPipelineTestCase extends ESTestCase {
     }
 
     protected void assertRoundTripWithAllDataTypes(final NumericEncoder encoder) throws IOException {
-        try (encoder) {
-            for (final var ds : NumericDataGenerators.longDataSources()) {
-                assertRoundTrip(encoder, ds.generator().apply(encoder.blockSize()), ds.name());
-            }
+        for (final var ds : NumericDataGenerators.longDataSources()) {
+            assertRoundTrip(encoder, ds.generator().apply(encoder.blockSize()), ds.name());
         }
     }
 
@@ -65,24 +63,22 @@ public abstract class NumericPipelineTestCase extends ESTestCase {
     }
 
     protected void assertMultipleBlocks(final NumericEncoder encoder) throws IOException {
-        try (encoder) {
-            final int bs = encoder.blockSize();
-            final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
-            final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
-            final NumericBlockDecoder blockDecoder = decoder.newBlockDecoder();
+        final int bs = encoder.blockSize();
+        final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
+        final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+        final NumericBlockDecoder blockDecoder = decoder.newBlockDecoder();
 
-            for (int block = 0; block < randomIntBetween(5, 10); block++) {
-                final long[] original = randomFuzzLongs(bs);
-                final byte[] buffer = new byte[bs * Long.BYTES * 2 + 4096];
-                final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        for (int block = 0; block < randomIntBetween(5, 10); block++) {
+            final long[] original = randomFuzzLongs(bs);
+            final byte[] buffer = new byte[bs * Long.BYTES * 2 + 4096];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
 
-                blockEncoder.encode(original.clone(), original.length, out);
+            blockEncoder.encode(original.clone(), original.length, out);
 
-                final long[] decoded = new long[bs];
-                blockDecoder.decode(decoded, new ByteArrayDataInput(buffer, 0, out.getPosition()));
+            final long[] decoded = new long[bs];
+            blockDecoder.decode(decoded, new ByteArrayDataInput(buffer, 0, out.getPosition()));
 
-                assertArrayEquals("Block " + block + " failed", original, decoded);
-            }
+            assertArrayEquals("Block " + block + " failed", original, decoded);
         }
     }
 
@@ -104,28 +100,24 @@ public abstract class NumericPipelineTestCase extends ESTestCase {
     protected record EncodeResult(long[] decoded, int encodedSize) {}
 
     protected void assertRoundTripWithDoubleDataTypes(final NumericEncoder encoder) throws IOException {
-        try (encoder) {
-            for (final var ds : NumericDataGenerators.doubleDataSources()) {
-                final double[] doubles = ds.generator().apply(encoder.blockSize());
-                final long[] sortable = new long[doubles.length];
-                for (int i = 0; i < doubles.length; i++) {
-                    sortable[i] = NumericUtils.doubleToSortableLong(doubles[i]);
-                }
-                assertRoundTrip(encoder, sortable, ds.name());
+        for (final var ds : NumericDataGenerators.doubleDataSources()) {
+            final double[] doubles = ds.generator().apply(encoder.blockSize());
+            final long[] sortable = new long[doubles.length];
+            for (int i = 0; i < doubles.length; i++) {
+                sortable[i] = NumericUtils.doubleToSortableLong(doubles[i]);
             }
+            assertRoundTrip(encoder, sortable, ds.name());
         }
     }
 
     protected void assertRoundTripWithFloatDataTypes(final NumericEncoder encoder) throws IOException {
-        try (encoder) {
-            for (final var ds : NumericDataGenerators.doubleDataSources()) {
-                final double[] doubles = ds.generator().apply(encoder.blockSize());
-                final long[] sortable = new long[doubles.length];
-                for (int i = 0; i < doubles.length; i++) {
-                    sortable[i] = NumericUtils.floatToSortableInt((float) doubles[i]);
-                }
-                assertRoundTrip(encoder, sortable, ds.name());
+        for (final var ds : NumericDataGenerators.doubleDataSources()) {
+            final double[] doubles = ds.generator().apply(encoder.blockSize());
+            final long[] sortable = new long[doubles.length];
+            for (int i = 0; i < doubles.length; i++) {
+                sortable[i] = NumericUtils.floatToSortableInt((float) doubles[i]);
             }
+            assertRoundTrip(encoder, sortable, ds.name());
         }
     }
 

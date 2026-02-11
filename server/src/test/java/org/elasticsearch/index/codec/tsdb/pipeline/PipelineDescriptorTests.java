@@ -178,24 +178,21 @@ public class PipelineDescriptorTests extends ESTestCase {
             PipelineConfig.forFloats(blockSize).alpRdFloatStage().offset().gcd().bitPack() };
 
         for (PipelineConfig config : configs) {
-            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-                final PipelineDescriptor originalDesc = encoder.descriptor();
+            final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+            final PipelineDescriptor originalDesc = encoder.descriptor();
 
-                final long[] original = generateTestData(config, blockSize);
-                final byte[] buffer = new byte[blockSize * Long.BYTES + 4096];
-                final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-                encoder.newBlockEncoder().encode(original.clone(), original.length, out);
+            final long[] original = generateTestData(config, blockSize);
+            final byte[] buffer = new byte[blockSize * Long.BYTES + 4096];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+            encoder.newBlockEncoder().encode(original.clone(), original.length, out);
 
-                try (NumericDecoder decoder = NumericDecoder.fromDescriptor(originalDesc)) {
-                    final long[] decoded = new long[blockSize];
-                    decoder.newBlockDecoder().decode(decoded, new ByteArrayDataInput(buffer, 0, out.getPosition()));
-                    assertArrayEquals("Data round-trip failed for config: " + config, original, decoded);
-                }
+            final NumericDecoder decoder = NumericDecoder.fromDescriptor(originalDesc);
+            final long[] decoded = new long[blockSize];
+            decoder.newBlockDecoder().decode(decoded, new ByteArrayDataInput(buffer, 0, out.getPosition()));
+            assertArrayEquals("Data round-trip failed for config: " + config, original, decoded);
 
-                try (NumericEncoder reconstructed = NumericEncoder.fromConfig(config)) {
-                    assertEquals("Descriptor round-trip failed for config: " + config, originalDesc, reconstructed.descriptor());
-                }
-            }
+            final NumericEncoder reconstructed = NumericEncoder.fromConfig(config);
+            assertEquals("Descriptor round-trip failed for config: " + config, originalDesc, reconstructed.descriptor());
         }
     }
 
@@ -207,13 +204,12 @@ public class PipelineDescriptorTests extends ESTestCase {
             PipelineConfig.forDoubles(blockSize).alpRdDoubleStage().offset().gcd().bitPack(),
             PipelineConfig.forDoubles(blockSize).alpRdDoubleStage().gcd().bitPack() };
         for (PipelineConfig config : configs) {
-            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-                assertEquals(
-                    "Config " + config + " should produce DOUBLE DataType",
-                    PipelineDescriptor.DataType.DOUBLE,
-                    encoder.descriptor().dataType()
-                );
-            }
+            final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+            assertEquals(
+                "Config " + config + " should produce DOUBLE DataType",
+                PipelineDescriptor.DataType.DOUBLE,
+                encoder.descriptor().dataType()
+            );
         }
     }
 
@@ -226,13 +222,12 @@ public class PipelineDescriptorTests extends ESTestCase {
             PipelineConfig.forLongs(blockSize).rle().bitPack(),
             PipelineConfig.forLongs(blockSize).xor().bitPack() };
         for (PipelineConfig config : configs) {
-            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-                assertEquals(
-                    "Config " + config + " should produce LONG DataType",
-                    PipelineDescriptor.DataType.LONG,
-                    encoder.descriptor().dataType()
-                );
-            }
+            final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+            assertEquals(
+                "Config " + config + " should produce LONG DataType",
+                PipelineDescriptor.DataType.LONG,
+                encoder.descriptor().dataType()
+            );
         }
     }
 

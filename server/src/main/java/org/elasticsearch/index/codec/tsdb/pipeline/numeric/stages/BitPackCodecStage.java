@@ -75,9 +75,6 @@ public final class BitPackCodecStage implements PayloadEncoder, PayloadDecoder {
     }
 
     @Override
-    public void close() {}
-
-    @Override
     public boolean equals(Object o) {
         return this == o || (o instanceof BitPackCodecStage that && blockSize == that.blockSize);
     }

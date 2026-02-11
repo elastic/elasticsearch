@@ -49,6 +49,4 @@ public final class TestPayloadCodecStage implements PayloadEncoder, PayloadDecod
         return valueCount;
     }
 
-    @Override
-    public void close() {}
 }

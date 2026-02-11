@@ -160,9 +160,6 @@ public final class AlpDoubleEncodeStage implements PayloadEncoder {
     }
 
     @Override
-    public void close() {}
-
-    @Override
     public boolean equals(Object o) {
         return this == o
             || (o instanceof AlpDoubleEncodeStage that

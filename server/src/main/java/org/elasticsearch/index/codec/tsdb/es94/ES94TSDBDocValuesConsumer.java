@@ -90,7 +90,6 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private final PipelineResolutionPolicy resolutionPolicy;
     private final NumericCodecFactory numericCodecFactory;
-    private final List<NumericEncoder> perFieldEncoders = new ArrayList<>();
 
     ES94TSDBDocValuesConsumer(
         BinaryDVCompressionMode binaryDVCompressionMode,
@@ -155,9 +154,7 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     private NumericEncoder newEncoder(final PipelineConfig pipelineConfig) {
-        final NumericEncoder encoder = numericCodecFactory.createEncoder(pipelineConfig);
-        perFieldEncoders.add(encoder);
-        return encoder;
+        return numericCodecFactory.createEncoder(pipelineConfig);
     }
 
     @Override
@@ -1255,12 +1252,9 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         } finally {
             if (success) {
                 IOUtils.close(data, meta);
-                IOUtils.close(perFieldEncoders);
             } else {
                 IOUtils.closeWhileHandlingException(data, meta);
-                IOUtils.closeWhileHandlingException(perFieldEncoders);
             }
-            perFieldEncoders.clear();
             meta = data = null;
         }
     }

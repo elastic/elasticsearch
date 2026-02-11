@@ -161,9 +161,6 @@ public final class AlpFloatEncodeStage implements PayloadEncoder {
     }
 
     @Override
-    public void close() {}
-
-    @Override
     public boolean equals(Object o) {
         return this == o
             || (o instanceof AlpFloatEncodeStage that

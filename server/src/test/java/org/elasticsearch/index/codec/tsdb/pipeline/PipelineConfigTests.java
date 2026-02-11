@@ -30,41 +30,37 @@ public class PipelineConfigTests extends ESTestCase {
 
     public void testLongPipelineBuilds() throws IOException {
         final PipelineConfig config = PipelineConfig.forLongs(128).delta().offset().gcd().bitPack();
-        try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-            assertNotNull(encoder);
-            assertNotNull(encoder.newBlockEncoder());
-            final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
-            assertNotNull(decoder.newBlockDecoder());
-        }
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        assertNotNull(encoder);
+        assertNotNull(encoder.newBlockEncoder());
+        final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+        assertNotNull(decoder.newBlockDecoder());
     }
 
     public void testDoublePipelineBuilds() throws IOException {
         final PipelineConfig config = PipelineConfig.forDoubles(128).alpDoubleStage().alpDouble();
-        try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-            assertNotNull(encoder);
-            assertNotNull(encoder.newBlockEncoder());
-            final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
-            assertNotNull(decoder.newBlockDecoder());
-        }
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        assertNotNull(encoder);
+        assertNotNull(encoder.newBlockEncoder());
+        final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+        assertNotNull(decoder.newBlockDecoder());
     }
 
     public void testBlockSizePreserved() throws IOException {
         for (int blockSize : new int[] { 128, 256, 512 }) {
             final PipelineConfig config = PipelineConfig.forLongs(blockSize).delta().bitPack();
-            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-                assertEquals(blockSize, encoder.blockSize());
-                assertEquals(blockSize, encoder.descriptor().blockSize());
-            }
+            final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+            assertEquals(blockSize, encoder.blockSize());
+            assertEquals(blockSize, encoder.descriptor().blockSize());
         }
     }
 
     public void testBuiltCodecHasDescriptor() throws IOException {
         final PipelineConfig config = PipelineConfig.forLongs(128).delta().offset().gcd().bitPack();
-        try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-            final PipelineDescriptor desc = encoder.descriptor();
-            assertNotNull(desc);
-            assertTrue(desc.pipelineLength() > 0);
-        }
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        final PipelineDescriptor desc = encoder.descriptor();
+        assertNotNull(desc);
+        assertTrue(desc.pipelineLength() > 0);
     }
 
     public void testEquality() {
@@ -108,12 +104,11 @@ public class PipelineConfigTests extends ESTestCase {
             PipelineConfig.forLongs(256).delta().offset().gcd().zstd() };
 
         for (final PipelineConfig config : configs) {
-            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-                assertNotNull(encoder);
-                assertNotNull(encoder.newBlockEncoder());
-                final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
-                assertNotNull(decoder.newBlockDecoder());
-            }
+            final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+            assertNotNull(encoder);
+            assertNotNull(encoder.newBlockEncoder());
+            final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+            assertNotNull(decoder.newBlockDecoder());
         }
     }
 
@@ -124,24 +119,22 @@ public class PipelineConfigTests extends ESTestCase {
             PipelineConfig.forDoubles(128).gorilla() };
 
         for (final PipelineConfig config : configs) {
-            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-                assertNotNull(encoder);
-                assertNotNull(encoder.newBlockEncoder());
-                final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
-                assertNotNull(decoder.newBlockDecoder());
-            }
+            final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+            assertNotNull(encoder);
+            assertNotNull(encoder.newBlockEncoder());
+            final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+            assertNotNull(decoder.newBlockDecoder());
         }
     }
 
     public void testDescriptorMatchesBuiltPipeline() throws IOException {
         final PipelineConfig config = PipelineConfig.forLongs(128).delta().offset().gcd().bitPack();
-        try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
-            final PipelineDescriptor desc = encoder.descriptor();
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        final PipelineDescriptor desc = encoder.descriptor();
 
-            assertEquals(config.specs().size(), desc.pipelineLength());
-            for (int i = 0; i < config.specs().size(); i++) {
-                assertEquals(config.specs().get(i).stageId().id, desc.stageIdAt(i));
-            }
+        assertEquals(config.specs().size(), desc.pipelineLength());
+        for (int i = 0; i < config.specs().size(); i++) {
+            assertEquals(config.specs().get(i).stageId().id, desc.stageIdAt(i));
         }
     }
 }

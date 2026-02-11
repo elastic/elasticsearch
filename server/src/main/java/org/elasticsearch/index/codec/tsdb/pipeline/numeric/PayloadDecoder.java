@@ -12,13 +12,12 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 import org.apache.lucene.store.DataInput;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
  * Deserializes bytes back to values as the terminal stage of the decode pipeline.
  */
-public interface PayloadDecoder extends Closeable {
+public interface PayloadDecoder {
 
     /** Returns the unique stage identifier. */
     byte id();
@@ -29,7 +28,4 @@ public interface PayloadDecoder extends Closeable {
      * @return the value count
      */
     int decode(long[] values, DataInput in, DecodingContext context) throws IOException;
-
-    @Override
-    default void close() throws IOException {}
 }

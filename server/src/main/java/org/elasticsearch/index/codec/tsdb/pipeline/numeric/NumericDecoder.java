@@ -11,16 +11,13 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
-import java.io.Closeable;
-import java.io.IOException;
-
 /**
  * Read-path coordinator: owns a {@link NumericDecodePipeline} and produces
  * {@link NumericBlockDecoder} instances for decoding blocks of values.
  * Created from a {@link PipelineDescriptor};
  * the producer never constructs an encoder.
  */
-public final class NumericDecoder implements Closeable {
+public final class NumericDecoder {
 
     private final NumericDecodePipeline pipeline;
 
@@ -40,8 +37,4 @@ public final class NumericDecoder implements Closeable {
         return pipeline.blockSize();
     }
 
-    @Override
-    public void close() throws IOException {
-        pipeline.close();
-    }
 }

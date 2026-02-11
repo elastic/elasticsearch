@@ -13,7 +13,6 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 
 import java.io.IOException;

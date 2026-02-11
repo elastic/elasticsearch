@@ -125,7 +125,7 @@ public class VectorBuilderTests extends ESTestCase {
                 throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
             case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);
-            case FLOAT, DENSE_VECTOR -> blockFactory.newFloatVectorBuilder(estimatedSize);
+            case FLOAT -> blockFactory.newFloatVectorBuilder(estimatedSize);
             case DOUBLE -> blockFactory.newDoubleVectorBuilder(estimatedSize);
             case INT -> blockFactory.newIntVectorBuilder(estimatedSize);
             case LONG -> blockFactory.newLongVectorBuilder(estimatedSize);

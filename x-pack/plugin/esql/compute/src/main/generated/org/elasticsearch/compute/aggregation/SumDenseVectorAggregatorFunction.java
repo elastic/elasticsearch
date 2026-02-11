@@ -22,7 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SumDenseVectorAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("sum", ElementType.DENSE_VECTOR)  );
+      new IntermediateStateDesc("sum", ElementType.FLOAT)  );
 
   private final DriverContext driverContext;
 

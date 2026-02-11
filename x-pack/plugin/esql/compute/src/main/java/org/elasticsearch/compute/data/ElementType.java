@@ -78,13 +78,7 @@ public enum ElementType {
     ),
     TDIGEST(12, "TDigest", BlockFactory::newTDigestBlockBuilder, TDigestArrayBlock::readFrom),
 
-    LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom),
-
-    /**
-     * Dense vectors stored as multi-valued FloatBlocks.
-     * Each position contains the vector's elements as multiple float values.
-     */
-    DENSE_VECTOR(14, "DenseVector", BlockFactory::newFloatBlockBuilder, FloatBlock::readFrom);
+    LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 

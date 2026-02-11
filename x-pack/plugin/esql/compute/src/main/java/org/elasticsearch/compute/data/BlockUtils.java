@@ -344,8 +344,6 @@ public final class BlockUtils {
                 LongBlock toBlock = b.getToBlock();
                 yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
             }
-            // DENSE_VECTOR uses FloatBlock internally, so we get floats at the offset
-            case DENSE_VECTOR -> ((FloatBlock) block).getFloat(offset);
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

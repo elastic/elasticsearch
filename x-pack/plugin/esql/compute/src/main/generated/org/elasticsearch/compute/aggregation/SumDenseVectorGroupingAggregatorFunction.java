@@ -24,7 +24,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SumDenseVectorGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("sum", ElementType.DENSE_VECTOR)  );
+      new IntermediateStateDesc("sum", ElementType.FLOAT)  );
 
   private final SumDenseVectorGroupingState state;
 

@@ -101,7 +101,6 @@ public class BlockTestUtils {
             case TDIGEST -> randomTDigest();
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
-            case DENSE_VECTOR -> throw new IllegalArgumentException("can't make random values for dense vectora");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }

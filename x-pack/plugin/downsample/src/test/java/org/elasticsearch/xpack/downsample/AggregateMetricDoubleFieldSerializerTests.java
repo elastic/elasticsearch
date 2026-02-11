@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
 
     public void testAggregatedGaugeFieldSerialization() throws IOException {
-        NumericMetricFieldDownsampler producer = new NumericMetricFieldDownsampler.AggregateGauge("my-gauge", null, null);
+        NumericMetricFieldDownsampler producer = new NumericMetricFieldDownsampler.AggregateGauge("my-gauge", null);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
         producer.collect(valuesInstance, docIdBuffer);
@@ -43,7 +43,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
     }
 
     public void testInvalidCounterFieldSerialization() throws IOException {
-        NumericMetricFieldDownsampler downsampler = new NumericMetricFieldDownsampler.LastValue("my-counter", null, null);
+        NumericMetricFieldDownsampler downsampler = new NumericMetricFieldDownsampler.LastValue("my-counter", null);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55, 12, 5);
         downsampler.collect(valuesInstance, docIdBuffer);
@@ -61,7 +61,6 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         AggregateMetricDoubleFieldDownsampler minProducer = new AggregateMetricDoubleFieldDownsampler.Aggregate(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.min,
-            null,
             null
         );
         var docIdBuffer = IntArrayList.from(0, 1);
@@ -70,7 +69,6 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         AggregateMetricDoubleFieldDownsampler maxProducer = new AggregateMetricDoubleFieldDownsampler.Aggregate(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.max,
-            null,
             null
         );
         docIdBuffer = IntArrayList.from(0, 1);
@@ -79,7 +77,6 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         AggregateMetricDoubleFieldDownsampler sumProducer = new AggregateMetricDoubleFieldDownsampler.Aggregate(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.sum,
-            null,
             null
         );
         docIdBuffer = IntArrayList.from(0, 1);
@@ -88,7 +85,6 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         AggregateMetricDoubleFieldDownsampler countProducer = new AggregateMetricDoubleFieldDownsampler.Aggregate(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.value_count,
-            null,
             null
         );
         docIdBuffer = IntArrayList.from(0, 1);
@@ -154,6 +150,6 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         String name,
         AggregateMetricDoubleFieldMapper.Metric metric
     ) {
-        return new AggregateMetricDoubleFieldDownsampler.LastValue(name, metric, null, null, randomBoolean());
+        return new AggregateMetricDoubleFieldDownsampler.LastValue(name, metric, null, randomBoolean());
     }
 }

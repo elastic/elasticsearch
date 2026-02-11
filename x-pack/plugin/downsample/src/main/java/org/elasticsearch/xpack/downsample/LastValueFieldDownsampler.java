@@ -16,10 +16,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
-import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,24 +26,23 @@ import java.util.List;
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
 class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocValues> {
+
+    private final MappedFieldType fieldType;
     Object lastValue = null;
 
     LastValueFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        super(name, new FormattedDocValueFetcher(name, fieldType, fieldData));
+        super(name, fieldData);
+        this.fieldType = fieldType;
     }
 
     /**
      * Creates a producer that can be used for downsampling labels.
      */
     static LastValueFieldDownsampler create(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
-            : "field type cannot be aggregate metric double: " + fieldType.typeName() + " for field " + name;
-        assert ExponentialHistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
-            : "field type cannot be exponential histogram: " + fieldType.typeName() + " for field " + name;
-        assert HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
-            : "field type cannot be histogram: " + fieldType.typeName() + " for field " + name;
-        assert TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
-            : "field type cannot be histogram: " + fieldType.typeName() + " for field " + name;
+        assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType) == false
+            && ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType) == false
+            && TDigestHistogramFieldDownsampler.supportsFieldType(fieldType) == false
+            : "field '" + name + "' of type '" + fieldType.typeName() + "' should be processed by a dedicated downsampler";
         if ("flattened".equals(fieldType.typeName())) {
             return new LastValueFieldDownsampler.FlattenedFieldProducer(name, fieldType, fieldData);
         }
@@ -58,6 +53,12 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     public void reset() {
         isEmpty = true;
         lastValue = null;
+    }
+
+    @Override
+    public FormattedDocValues getLeaf(LeafReaderContext context) {
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        return fieldData.load(context).getFormattedValues(format);
     }
 
     /**
@@ -141,18 +142,4 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
             }
         }
     }
-
-    static class FormattedDocValueFetcher extends AbstractFieldDownsampler.FieldValueFetcher<FormattedDocValues> {
-
-        FormattedDocValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
-        }
-
-        @Override
-        FormattedDocValues getLeaf(LeafReaderContext context) {
-            DocValueFormat format = fieldType.docValueFormat(null, null);
-            return fieldData.load(context).getFormattedValues(format);
-        }
-    }
-
 }

@@ -8,19 +8,23 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-public class TimestampValueFetcher extends AbstractFieldDownsampler.FieldValueFetcher<SortedNumericLongValues> {
+/**
+ * This class loads the timestamp values for the provided field.
+ */
+public class TimestampValueFetcher {
+    private final IndexFieldData<?> fieldData;
 
     TimestampValueFetcher(DateFieldMapper.DateFieldType fieldType, SearchExecutionContext context) {
-        super(fieldType.name(), fieldType, context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH));
+        fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
     }
 
-    @Override
     SortedNumericLongValues getLeaf(LeafReaderContext context) {
         LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
         return numericFieldData.getLongValues();

@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,8 +30,37 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     AggregateMetricDoubleFieldDownsampler, NumericMetricFieldDownsampler.AggregateGauge, NumericMetricFieldDownsampler.LastValue,
     NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler {
 
-    NumericMetricFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-        super(name, new NumericFieldFetcher(name, fieldType, fieldData));
+    NumericMetricFieldDownsampler(String name, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
+    }
+
+    @Override
+    public SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
+        LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
+        return numericFieldData.getDoubleValues();
+    }
+
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        TimeSeriesParams.MetricType metricType = fieldType.getMetricType();
+        return metricType == TimeSeriesParams.MetricType.GAUGE || metricType == TimeSeriesParams.MetricType.COUNTER;
+    }
+
+    static NumericMetricFieldDownsampler create(
+        String fieldName,
+        TimeSeriesParams.MetricType metricType,
+        IndexFieldData<?> fieldData,
+        DownsampleConfig.SamplingMethod samplingMethod,
+        CounterResetDataPoints extraDataPoints
+    ) {
+        assert metricType == TimeSeriesParams.MetricType.GAUGE || metricType == TimeSeriesParams.MetricType.COUNTER
+            : "only gauges and counters accepted, other metrics should have been handled by dedicated downsamplers";
+        if (samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+            return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldData);
+        }
+        if (metricType == TimeSeriesParams.MetricType.GAUGE) {
+            return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
+        }
+        return new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler(fieldName, fieldData, extraDataPoints);
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
@@ -45,8 +76,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregateGauge(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
+        AggregateGauge(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -98,8 +129,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         double lastValue = Double.NaN;
 
-        LastValue(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
+        LastValue(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -147,7 +178,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
      */
     static final class AggregateCounterFieldDownsampler extends NumericMetricFieldDownsampler {
 
-        private CounterResetDataPoints extraDataPoints;
+        private final CounterResetDataPoints extraDataPoints;
         double downsampledValue = Double.NaN;
         long lastTimestamp = -1;
         boolean isEmpty = true;
@@ -155,13 +186,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         // Cross bucket value
         double previousValue = Double.NaN;
 
-        AggregateCounterFieldDownsampler(
-            String name,
-            MappedFieldType fieldType,
-            IndexFieldData<?> fieldData,
-            CounterResetDataPoints resetDataPoints
-        ) {
-            super(name, fieldType, fieldData);
+        AggregateCounterFieldDownsampler(String name, IndexFieldData<?> fieldData, CounterResetDataPoints resetDataPoints) {
+            super(name, fieldData);
             this.extraDataPoints = resetDataPoints;
             assert extraDataPoints != null;
         }
@@ -227,19 +253,6 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         @Override
         public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
             throw new UnsupportedOperationException("This producer should never be called without timestamps");
-        }
-    }
-
-    static class NumericFieldFetcher extends AbstractFieldDownsampler.FieldValueFetcher<SortedNumericDoubleValues> {
-
-        NumericFieldFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
-            super(name, fieldType, fieldData);
-        }
-
-        @Override
-        SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
-            LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
-            return numericFieldData.getDoubleValues();
         }
     }
 }

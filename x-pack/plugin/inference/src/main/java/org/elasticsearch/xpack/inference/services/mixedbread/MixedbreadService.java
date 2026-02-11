@@ -70,14 +70,13 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     /**
-     * The context windows size for the models can be found here:
-     * <a href="https://www.mixedbread.com/docs/models/embedding/mxbai-embed-large-v1">embeddings</a>
+     * The context window size for the models can be found here:
      * <a href="https://www.mixedbread.com/docs/models/reranking/mxbai-rerank-large-v1">rerank</a>
 
-     * rerankerWindowSize() method returns the size in words, not in tokens, so we'll need to translate
+     * {@link #rerankerWindowSize(String modelId)} method returns the size in words, not in tokens, so we'll need to translate
      * tokens to words by multiplying by 0.75 and rounding down
 
-     * The context windows size for v1 models is 512 tokens / 300 words
+     * The context window size for v1 models is 512 tokens / 300 words
      * For v2 models it is from 8k / 5500 words to 32k / 22000 words
      * <a href="https://github.com/elastic/elasticsearch/pull/132169">tokens to words conversion reference</a>
      */

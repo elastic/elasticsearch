@@ -28,7 +28,9 @@ PUT semantic-embeddings
         "type": "semantic_text", 
         "inference_id": "my-inference-endpoint", <1>
         "index_options": { <2>
-          "type": "bbq_disk"
+          "dense_vector": {
+            "type": "bbq_disk"
+          }
         }
       }
     }

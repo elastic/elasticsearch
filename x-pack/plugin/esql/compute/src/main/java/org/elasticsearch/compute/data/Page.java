@@ -128,12 +128,7 @@ public final class Page implements Writeable, Releasable {
         this.positionCount = positionCount;
         this.blocks = blocks;
         // Read optional batch metadata at the end (added in BATCH_METADATA_VERSION)
-        if (in.getTransportVersion().supports(BATCH_METADATA_VERSION)) {
-            boolean hasBatchMetadata = in.readBoolean();
-            this.batchMetadata = hasBatchMetadata ? new BatchMetadata(in) : null;
-        } else {
-            this.batchMetadata = null;
-        }
+        this.batchMetadata = in.getTransportVersion().supports(BATCH_METADATA_VERSION) ? in.readOptional(BatchMetadata::readFrom) : null;
     }
 
     @Override
@@ -144,10 +139,7 @@ public final class Page implements Writeable, Releasable {
             Block.writeTypedBlock(block, out);
         }
         if (out.getTransportVersion().supports(BATCH_METADATA_VERSION)) {
-            out.writeBoolean(batchMetadata != null);
-            if (batchMetadata != null) {
-                batchMetadata.writeTo(out);
-            }
+            out.writeOptionalWriteable(batchMetadata);
         }
     }
 

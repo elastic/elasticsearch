@@ -39,14 +39,14 @@ public record BatchMetadata(long batchId, int pageIndexInBatch, boolean isLastPa
     /**
      * Read BatchMetadata from a stream.
      */
-    public BatchMetadata(StreamInput in) throws IOException {
-        this(in.readLong(), in.readInt(), in.readBoolean());
+    public static BatchMetadata readFrom(StreamInput in) throws IOException {
+        return new BatchMetadata(in.readVLong(), in.readVInt(), in.readBoolean());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(batchId);
-        out.writeInt(pageIndexInBatch);
+        out.writeVLong(batchId);
+        out.writeVInt(pageIndexInBatch);
         out.writeBoolean(isLastPageInBatch);
     }
 }

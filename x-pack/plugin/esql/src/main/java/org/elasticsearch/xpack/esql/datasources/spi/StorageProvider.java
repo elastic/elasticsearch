@@ -31,10 +31,13 @@ public interface StorageProvider extends Closeable {
     StorageObject newObject(StoragePath path, long length, Instant lastModified);
 
     /**
-     * Lists objects in a directory. For blob storage, lists all objects with the given prefix.
+     * Lists objects under a prefix. For blob storage, lists all objects with the given prefix.
      * Returns an iterator to support lazy loading of large directories.
+     *
+     * @param prefix the prefix path to list under
+     * @param recursive if true, recurse into subdirectories; if false, list only immediate children
      */
-    StorageIterator listObjects(StoragePath directory) throws IOException;
+    StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException;
 
     /** Checks if an object exists at the given path. */
     boolean exists(StoragePath path) throws IOException;

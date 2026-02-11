@@ -96,16 +96,18 @@ public final class S3StorageProvider implements StorageProvider {
     }
 
     @Override
-    public StorageIterator listObjects(StoragePath directory) throws IOException {
-        validateS3Scheme(directory);
-        String bucket = directory.host();
-        String prefix = extractKey(directory);
+    public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        validateS3Scheme(prefix);
+        String bucket = prefix.host();
+        String keyPrefix = extractKey(prefix);
 
-        if (prefix.isEmpty() == false && prefix.endsWith("/") == false) {
-            prefix += "/";
+        if (keyPrefix.isEmpty() == false && keyPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+            keyPrefix += StoragePath.PATH_SEPARATOR;
         }
 
-        return new S3StorageIterator(s3Client, bucket, prefix, directory);
+        // S3 is a flat namespace — ListObjectsV2 is inherently prefix-based and recursive.
+        // The recursive flag is effectively ignored.
+        return new S3StorageIterator(s3Client, bucket, keyPrefix, prefix);
     }
 
     @Override
@@ -144,7 +146,7 @@ public final class S3StorageProvider implements StorageProvider {
 
     private String extractKey(StoragePath path) {
         String key = path.path();
-        if (key.startsWith("/")) {
+        if (key.startsWith(StoragePath.PATH_SEPARATOR)) {
             key = key.substring(1);
         }
         return key;
@@ -212,7 +214,7 @@ public final class S3StorageProvider implements StorageProvider {
             }
 
             S3Object s3Object = currentBatch.next();
-            String fullPath = baseDirectory.scheme() + "://" + bucket + "/" + s3Object.key();
+            String fullPath = baseDirectory.scheme() + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR + s3Object.key();
             StoragePath objectPath = StoragePath.of(fullPath);
 
             return new StorageEntry(objectPath, s3Object.size(), s3Object.lastModified());

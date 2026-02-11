@@ -31,6 +31,22 @@ import java.util.concurrent.Executor;
  */
 public interface FormatReader extends Closeable {
 
+    /**
+     * Strategy for resolving schemas across multiple files in a glob/multi-file query.
+     */
+    enum SchemaResolution {
+        /** Use the schema from the first file; ignore differences in subsequent files. */
+        FIRST_FILE_WINS,
+        /** All files must have exactly the same schema; fail if any differ. */
+        STRICT,
+        /** Merge schemas by column name, filling missing columns with nulls. */
+        UNION_BY_NAME
+    }
+
+    default SchemaResolution defaultSchemaResolution() {
+        return SchemaResolution.FIRST_FILE_WINS;
+    }
+
     // === SYNC API (required - implement this for simple formats) ===
 
     SourceMetadata metadata(StorageObject object) throws IOException;

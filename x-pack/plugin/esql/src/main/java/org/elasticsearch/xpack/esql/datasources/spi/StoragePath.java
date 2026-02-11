@@ -17,6 +17,13 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  * - Provides convenient methods for path manipulation
  */
 public final class StoragePath {
+
+    public static final String SCHEME_SEPARATOR = "://";
+    public static final String PATH_SEPARATOR = "/";
+    public static final String PORT_SEPARATOR = ":";
+
+    public static final char[] GLOB_METACHARACTERS = { '*', '?', '{', '[' };
+
     private final String location;
     private final String scheme;      // "s3", "https", "file", etc.
     private final String host;        // bucket name, hostname
@@ -37,22 +44,23 @@ public final class StoragePath {
         }
 
         // Find scheme
-        int schemeEnd = location.indexOf("://");
+        int schemeEnd = location.indexOf(SCHEME_SEPARATOR);
         if (schemeEnd < 0) {
             throw new IllegalArgumentException("Invalid location format, missing scheme: " + location);
         }
         String scheme = location.substring(0, schemeEnd);
 
         // Parse authority and path
-        int pathStart = location.indexOf('/', schemeEnd + 3);
+        int authorityStart = schemeEnd + SCHEME_SEPARATOR.length();
+        int pathStart = location.indexOf('/', authorityStart);
         String authority;
         String path;
 
         if (pathStart < 0) {
-            authority = location.substring(schemeEnd + 3);
+            authority = location.substring(authorityStart);
             path = "";
         } else {
-            authority = location.substring(schemeEnd + 3, pathStart);
+            authority = location.substring(authorityStart, pathStart);
             path = location.substring(pathStart);
         }
 
@@ -98,7 +106,7 @@ public final class StoragePath {
     }
 
     public String objectName() {
-        if (path.isEmpty() || path.equals("/")) {
+        if (path.isEmpty() || path.equals(PATH_SEPARATOR)) {
             return "";
         }
         int lastSlash = path.lastIndexOf('/');
@@ -106,27 +114,16 @@ public final class StoragePath {
     }
 
     public StoragePath parentDirectory() {
-        if (path.isEmpty() || path.equals("/")) {
+        if (path.isEmpty() || path.equals(PATH_SEPARATOR)) {
             return null;
         }
         int lastSlash = path.lastIndexOf('/');
         if (lastSlash <= 0) {
-            // Root level
-            String parentLocation = scheme + "://" + host;
-            if (port > 0) {
-                parentLocation += ":" + port;
-            }
-            parentLocation += "/";
-            return StoragePath.of(parentLocation);
+            return StoragePath.of(authorityPrefix() + PATH_SEPARATOR);
         }
 
         String parentPath = path.substring(0, lastSlash);
-        String parentLocation = scheme + "://" + host;
-        if (port > 0) {
-            parentLocation += ":" + port;
-        }
-        parentLocation += parentPath;
-        return StoragePath.of(parentLocation);
+        return StoragePath.of(authorityPrefix() + parentPath);
     }
 
     public StoragePath appendPath(String element) {
@@ -138,20 +135,83 @@ public final class StoragePath {
         }
 
         String newPath = path;
-        boolean pathEndsWithSlash = path.endsWith("/");
-        boolean elementStartsWithSlash = element.startsWith("/");
+        boolean pathEndsWithSlash = path.endsWith(PATH_SEPARATOR);
+        boolean elementStartsWithSlash = element.startsWith(PATH_SEPARATOR);
         if (pathEndsWithSlash == false && elementStartsWithSlash == false) {
-            newPath += "/";
+            newPath += PATH_SEPARATOR;
         }
         newPath += element;
 
-        String newLocation = scheme + "://" + host;
-        if (port > 0) {
-            newLocation += ":" + port;
-        }
-        newLocation += newPath;
+        return StoragePath.of(authorityPrefix() + newPath);
+    }
 
-        return StoragePath.of(newLocation);
+    /**
+     * Returns true if the path contains glob metacharacters: *, ?, {, [
+     */
+    public boolean isPattern() {
+        for (char c : GLOB_METACHARACTERS) {
+            if (path.indexOf(c) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns a new StoragePath truncated to the longest non-pattern prefix directory.
+     * e.g. "s3://b/data/2024/*.parquet" -> "s3://b/data/2024/"
+     */
+    public StoragePath patternPrefix() {
+        if (isPattern() == false) {
+            return this;
+        }
+        int firstMeta = firstGlobMetacharacter();
+        // Truncate to the last '/' before the first metacharacter
+        int lastSlash = path.lastIndexOf('/', firstMeta);
+        String prefixPath;
+        if (lastSlash < 0) {
+            prefixPath = PATH_SEPARATOR;
+        } else {
+            prefixPath = path.substring(0, lastSlash + 1);
+        }
+
+        return StoragePath.of(authorityPrefix() + prefixPath);
+    }
+
+    /**
+     * Returns the glob portion of the path (everything after the prefix directory).
+     * e.g. "s3://b/data/2024/*.parquet" -> "*.parquet"
+     */
+    public String globPart() {
+        if (isPattern() == false) {
+            return "";
+        }
+        int firstMeta = firstGlobMetacharacter();
+        // The glob part starts after the last '/' before the first metacharacter
+        int lastSlash = path.lastIndexOf('/', firstMeta);
+        if (lastSlash < 0) {
+            return path;
+        }
+        return path.substring(lastSlash + 1);
+    }
+
+    private String authorityPrefix() {
+        String prefix = scheme + SCHEME_SEPARATOR + host;
+        if (port > 0) {
+            prefix += PORT_SEPARATOR + port;
+        }
+        return prefix;
+    }
+
+    private int firstGlobMetacharacter() {
+        int firstMeta = path.length();
+        for (char c : GLOB_METACHARACTERS) {
+            int idx = path.indexOf(c);
+            if (idx >= 0 && idx < firstMeta) {
+                firstMeta = idx;
+            }
+        }
+        return firstMeta;
     }
 
     @Override

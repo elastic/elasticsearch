@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 
@@ -47,8 +48,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     private final String sourcePath;
     private final List<Attribute> output;
     private final SourceMetadata metadata;
+    private final FileSet fileSet;
 
-    public ExternalRelation(Source source, String sourcePath, SourceMetadata metadata, List<Attribute> output) {
+    public ExternalRelation(Source source, String sourcePath, SourceMetadata metadata, List<Attribute> output, FileSet fileSet) {
         super(source);
         if (sourcePath == null) {
             throw new IllegalArgumentException("sourcePath must not be null");
@@ -62,6 +64,11 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         this.sourcePath = sourcePath;
         this.metadata = metadata;
         this.output = output;
+        this.fileSet = fileSet;
+    }
+
+    public ExternalRelation(Source source, String sourcePath, SourceMetadata metadata, List<Attribute> output) {
+        this(source, sourcePath, metadata, output, FileSet.UNRESOLVED);
     }
 
     @Override
@@ -76,7 +83,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     protected NodeInfo<ExternalRelation> info() {
-        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output);
+        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output, fileSet);
     }
 
     public String sourcePath() {
@@ -85,6 +92,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     public SourceMetadata metadata() {
         return metadata;
+    }
+
+    public FileSet fileSet() {
+        return fileSet;
     }
 
     @Override
@@ -107,15 +118,17 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             sourcePath,
             metadata.sourceType(),
             output,
-            metadata.config(),          // Generic config map
-            metadata.sourceMetadata(),  // Opaque source metadata
-            null                        // No pushed filter initially (set by optimizer)
+            metadata.config(),
+            metadata.sourceMetadata(),
+            null,
+            null,
+            fileSet
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, metadata, output);
+        return Objects.hash(sourcePath, metadata, output, fileSet);
     }
 
     @Override
@@ -131,7 +144,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         ExternalRelation other = (ExternalRelation) obj;
         return Objects.equals(sourcePath, other.sourcePath)
             && Objects.equals(metadata, other.metadata)
-            && Objects.equals(output, other.output);
+            && Objects.equals(output, other.output)
+            && Objects.equals(fileSet, other.fileSet);
     }
 
     @Override
@@ -140,6 +154,6 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {
-        return new ExternalRelation(source(), sourcePath, metadata, newAttributes);
+        return new ExternalRelation(source(), sourcePath, metadata, newAttributes, fileSet);
     }
 }

@@ -23,6 +23,9 @@ dependencies {
   // S3 fixture infrastructure for mocking S3 operations
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
   javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+
+  // S3 datasource provider for discovery tests
+  javaRestTestImplementation project(xpackModule('esql-datasource-s3'))
   
   // Parquet support - needed for reading test fixtures
   javaRestTestImplementation('org.apache.parquet:parquet-hadoop-bundle:1.16.0')

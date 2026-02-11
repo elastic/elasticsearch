@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
@@ -57,6 +58,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
     private final Map<String, Object> sourceMetadata;
     private final Object pushedFilter; // Opaque filter - NOT serialized (coordinator only)
     private final Integer estimatedRowSize;
+    private final FileSet fileSet; // NOT serialized - coordinator only
 
     public ExternalSourceExec(
         Source source,
@@ -66,7 +68,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
-        Integer estimatedRowSize
+        Integer estimatedRowSize,
+        FileSet fileSet
     ) {
         super(source);
         if (sourcePath == null) {
@@ -85,6 +88,20 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         this.sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         this.pushedFilter = pushedFilter;
         this.estimatedRowSize = estimatedRowSize;
+        this.fileSet = fileSet;
+    }
+
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        Integer estimatedRowSize
+    ) {
+        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, null);
     }
 
     public ExternalSourceExec(
@@ -96,7 +113,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Map<String, Object> sourceMetadata,
         Integer estimatedRowSize
     ) {
-        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize);
+        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize, null);
     }
 
     private static ExternalSourceExec readFrom(StreamInput in) throws IOException {
@@ -160,8 +177,22 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         return estimatedRowSize;
     }
 
+    public FileSet fileSet() {
+        return fileSet;
+    }
+
     public ExternalSourceExec withPushedFilter(Object newFilter) {
-        return new ExternalSourceExec(source(), sourcePath, sourceType, attributes, config, sourceMetadata, newFilter, estimatedRowSize);
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            newFilter,
+            estimatedRowSize,
+            fileSet
+        );
     }
 
     @Override
@@ -180,7 +211,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             config,
             sourceMetadata,
             pushedFilter,
-            newEstimatedRowSize
+            newEstimatedRowSize,
+            fileSet
         );
     }
 
@@ -195,13 +227,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             config,
             sourceMetadata,
             pushedFilter,
-            estimatedRowSize
+            estimatedRowSize,
+            fileSet
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize);
+        return Objects.hash(sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, fileSet);
     }
 
     @Override
@@ -221,7 +254,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             && Objects.equals(config, other.config)
             && Objects.equals(sourceMetadata, other.sourceMetadata)
             && Objects.equals(pushedFilter, other.pushedFilter)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+            && Objects.equals(fileSet, other.fileSet);
     }
 
     @Override

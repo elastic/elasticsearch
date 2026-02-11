@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -94,5 +95,16 @@ public class HttpStorageProviderTests extends ESTestCase {
         assertEquals("example.com", path.host());
         assertEquals(-1, path.port());
         assertEquals("/data/file.csv", path.path());
+    }
+
+    public void testListObjectsThrowsUnsupportedOperation() {
+        HttpStorageProvider provider = new HttpStorageProvider(HttpConfiguration.defaults(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try {
+            StoragePath prefix = StoragePath.of("https://example.com/data/");
+            expectThrows(UnsupportedOperationException.class, () -> provider.listObjects(prefix, false));
+            expectThrows(UnsupportedOperationException.class, () -> provider.listObjects(prefix, true));
+        } finally {
+            provider.close();
+        }
     }
 }

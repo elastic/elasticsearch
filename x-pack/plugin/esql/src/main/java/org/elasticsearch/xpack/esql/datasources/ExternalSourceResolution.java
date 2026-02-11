@@ -11,10 +11,13 @@ import java.util.Map;
 /**
  * Holds the result of external source resolution (Iceberg/Parquet metadata).
  * This is carried in AnalyzerContext alongside IndexResolution, following the same pattern.
+ * Each resolved source pairs its metadata with a {@link FileSet} describing the files to read.
  */
-public record ExternalSourceResolution(Map<String, ExternalSourceMetadata> resolved) {
+public record ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
 
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
+
+    public record ResolvedSource(ExternalSourceMetadata metadata, FileSet fileSet) {}
 
     public ExternalSourceResolution {
         if (resolved == null) {
@@ -22,21 +25,10 @@ public record ExternalSourceResolution(Map<String, ExternalSourceMetadata> resol
         }
     }
 
-    /**
-     * Get the metadata for a specific table path.
-     *
-     * @param path the table path or identifier
-     * @return the resolved metadata, or null if not found
-     */
-    public ExternalSourceMetadata get(String path) {
+    public ResolvedSource get(String path) {
         return resolved.get(path);
     }
 
-    /**
-     * Check if any external sources were resolved.
-     *
-     * @return true if there are resolved external sources
-     */
     public boolean isEmpty() {
         return resolved.isEmpty();
     }

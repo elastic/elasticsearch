@@ -214,6 +214,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
+        // HTTP does not support directory listing, so skip multi-file glob tests
+        if (storageBackend == StorageBackend.HTTP && query.contains(MULTIFILE_SUFFIX)) {
+            assumeTrue("HTTP backend does not support multi-file glob patterns", false);
+        }
+
         // Transform templates like {{employees}} to actual paths
         query = transformTemplates(query);
 
@@ -247,18 +252,25 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return result.toString();
     }
 
+    /** Suffix that triggers multi-file glob resolution */
+    private static final String MULTIFILE_SUFFIX = "_multifile";
+
     /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
-     * @param templateName the template name (e.g., "employees")
+     * @param templateName the template name (e.g., "employees" or "employees_multifile")
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
-        // Build the filename with extension
-        String filename = templateName + "." + format;
-
-        // Build the relative path within the fixtures
-        String relativePath = FIXTURES_BASE + "/" + filename;
+        String relativePath;
+        if (templateName.endsWith(MULTIFILE_SUFFIX)) {
+            // Multi-file template: employees_multifile -> multifile/*.parquet
+            relativePath = "multifile/*." + format;
+        } else {
+            // Single-file template: employees -> standalone/employees.parquet
+            String filename = templateName + "." + format;
+            relativePath = FIXTURES_BASE + "/" + filename;
+        }
 
         switch (storageBackend) {
             case S3:

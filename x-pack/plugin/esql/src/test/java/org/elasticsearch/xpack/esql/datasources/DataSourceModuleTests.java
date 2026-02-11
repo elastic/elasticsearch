@@ -88,7 +88,7 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         @Override
-        public StorageIterator listObjects(StoragePath directory) {
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             throw new UnsupportedOperationException("Mock provider");
         }
 
@@ -369,7 +369,7 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         @Override
-        public StorageIterator listObjects(StoragePath directory) {
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             throw new UnsupportedOperationException("Mock provider");
         }
 

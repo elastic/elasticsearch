@@ -55,6 +55,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int batchSize;
     private final int maxBufferSize;
     private final Executor executor;
+    private final FileSet fileSet;
 
     public AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -63,7 +64,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<Attribute> attributes,
         int batchSize,
         int maxBufferSize,
-        Executor executor
+        Executor executor,
+        FileSet fileSet
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -94,28 +96,68 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.executor = executor;
         this.batchSize = batchSize;
         this.maxBufferSize = maxBufferSize;
+        this.fileSet = fileSet;
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        Executor executor
+    ) {
+        this(storageProvider, formatReader, path, attributes, batchSize, maxBufferSize, executor, null);
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        StorageObject storageObject = storageProvider.newObject(path);
-
         List<String> projectedColumns = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
             projectedColumns.add(attr.name());
         }
 
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferSize);
-
         driverContext.addAsyncAction();
 
-        if (formatReader.supportsNativeAsync()) {
-            startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext);
+        if (fileSet != null && fileSet.isResolved()) {
+            startMultiFileRead(projectedColumns, buffer, driverContext);
         } else {
-            startSyncWrapperRead(storageObject, projectedColumns, buffer, driverContext);
+            StorageObject storageObject = storageProvider.newObject(path);
+            if (formatReader.supportsNativeAsync()) {
+                startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext);
+            } else {
+                startSyncWrapperRead(storageObject, projectedColumns, buffer, driverContext);
+            }
         }
 
         return new AsyncExternalSourceOperator(buffer);
+    }
+
+    private void startMultiFileRead(
+        List<String> projectedColumns,
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext
+    ) {
+        executor.execute(() -> {
+            try {
+                for (StorageEntry entry : fileSet.files()) {
+                    if (buffer.noMoreInputs()) {
+                        break;
+                    }
+                    StorageObject obj = storageProvider.newObject(entry.path(), entry.length(), entry.lastModified());
+                    try (CloseableIterator<Page> pages = formatReader.read(obj, projectedColumns, batchSize)) {
+                        drainPages(pages, buffer);
+                    }
+                }
+                buffer.finish(false);
+            } catch (Exception e) {
+                buffer.onFailure(e);
+            } finally {
+                driverContext.removeAsyncAction();
+            }
+        });
     }
 
     private void startNativeAsyncRead(
@@ -166,6 +208,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void consumePages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
+        drainPages(pages, buffer);
+        buffer.finish(false);
+    }
+
+    private void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
         while (pages.hasNext() && buffer.noMoreInputs() == false) {
             var spaceListener = buffer.waitForSpace();
             if (spaceListener.isDone() == false) {
@@ -182,7 +229,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             page.allowPassingToDifferentDriver();
             buffer.addPage(page);
         }
-        buffer.finish(false);
     }
 
     /**
@@ -243,5 +289,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     public Executor executor() {
         return executor;
+    }
+
+    public FileSet fileSet() {
+        return fileSet;
     }
 }

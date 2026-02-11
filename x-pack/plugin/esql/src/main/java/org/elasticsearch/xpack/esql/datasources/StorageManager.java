@@ -62,6 +62,11 @@ public class StorageManager implements Closeable {
         return registry.provider(path);
     }
 
+    public StorageProvider provider(StoragePath path, Object config) {
+        String scheme = path.scheme().toLowerCase(Locale.ROOT);
+        return createProviderWithConfig(path, scheme, config);
+    }
+
     public StorageObject newStorageObject(String path, Object config) {
         if (path == null) {
             throw new IllegalArgumentException("path cannot be null");

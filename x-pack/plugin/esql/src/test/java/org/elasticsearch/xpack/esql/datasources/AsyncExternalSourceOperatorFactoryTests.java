@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -24,11 +27,18 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -213,7 +223,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         // Create mock components
         StorageProvider storageProvider = mock(StorageProvider.class);
         StorageObject storageObject = mock(StorageObject.class);
-        when(storageProvider.newObject(org.mockito.ArgumentMatchers.any())).thenReturn(storageObject);
+        when(storageProvider.newObject(any())).thenReturn(storageObject);
 
         // Create a sync format reader (supportsNativeAsync = false)
         FormatReader formatReader = new TestSyncFormatReader();
@@ -273,7 +283,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         // Create mock components
         StorageProvider storageProvider = mock(StorageProvider.class);
         StorageObject storageObject = mock(StorageObject.class);
-        when(storageProvider.newObject(org.mockito.ArgumentMatchers.any())).thenReturn(storageObject);
+        when(storageProvider.newObject(any())).thenReturn(storageObject);
 
         // Create an async format reader (supportsNativeAsync = true)
         FormatReader formatReader = new TestAsyncFormatReader();
@@ -329,6 +339,413 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
+    // ===== Multi-file iteration tests =====
+
+    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.getInstance(
+        new NoopCircuitBreaker("test"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
+
+    public void testMultiFileReadIteratesAllFiles() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/f3.parquet"), 300, Instant.EPOCH)
+        );
+        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            fileSet
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(3, readCount.get());
+        assertEquals(3, pages.size());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testMultiFileReadUnresolvedFileSetFallsBackToSingleFile() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data/single.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, readCount.get());
+        assertEquals(1, pages.size());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testMultiFileReadPropagatesReadError() throws Exception {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/ok.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/bad.parquet"), 200, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/never.parquet"), 300, Instant.EPOCH)
+        );
+        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+
+        FormatReader formatReader = new FailOnSecondFileFormatReader();
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data/ok.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            fileSet
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        AsyncExternalSourceOperator.Status status = (AsyncExternalSourceOperator.Status) operator.status();
+        assertNotNull(status.failure());
+        assertTrue(status.failure().getMessage().contains("Simulated read error"));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testMultiFileReadFileSetAccessor() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/a.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/b.parquet"), 20, Instant.EPOCH)
+        );
+        FileSet fileSet = new FileSet(entries, "s3://bucket/*.parquet");
+
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.formatName()).thenReturn("parquet");
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            StoragePath.of("s3://bucket/a.parquet"),
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "x",
+                    new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            100,
+            10,
+            Runnable::run,
+            fileSet
+        );
+
+        assertSame(fileSet, factory.fileSet());
+        assertTrue(factory.fileSet().isResolved());
+        assertEquals(2, factory.fileSet().size());
+    }
+
+    // ===== Helpers =====
+
+    private static CloseableIterator<Page> emptyIterator() {
+        return new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    private static Page createTestPage() {
+        IntBlock block = TEST_BLOCK_FACTORY.newIntBlockBuilder(1).appendInt(42).build();
+        return new Page(block);
+    }
+
+    private static class PageCountingFormatReader implements FormatReader {
+        private final AtomicInteger readCount;
+
+        PageCountingFormatReader(AtomicInteger readCount) {
+            this.readCount = readCount;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+            readCount.incrementAndGet();
+            Page page = createTestPage();
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-counting";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class FailOnSecondFileFormatReader implements FormatReader {
+        private final AtomicInteger callCount = new AtomicInteger(0);
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+            int call = callCount.incrementAndGet();
+            if (call >= 2) {
+                throw new IOException("Simulated read error on file: " + object.path());
+            }
+            Page page = createTestPage();
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-fail";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class StubMultiFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new StubMultiFileStorageObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return new StubMultiFileStorageObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return new StubMultiFileStorageObject(path);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return true;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class StubMultiFileStorageObject implements StorageObject {
+        private final StoragePath path;
+
+        StubMultiFileStorageObject(StoragePath path) {
+            this.path = path;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public long length() {
+            return 0;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+    }
+
     /**
      * Test sync format reader that returns empty pages.
      */
@@ -340,23 +757,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
-            // Return empty iterator
-            return new CloseableIterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
-
-                @Override
-                public Page next() {
-                    throw new java.util.NoSuchElementException();
-                }
-
-                @Override
-                public void close() {
-                    // Nothing to close
-                }
-            };
+            return emptyIterator();
         }
 
         @Override
@@ -375,9 +776,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public void close() {
-            // Nothing to close
-        }
+        public void close() {}
     }
 
     /**
@@ -391,23 +790,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
-            // Return empty iterator
-            return new CloseableIterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
-
-                @Override
-                public Page next() {
-                    throw new java.util.NoSuchElementException();
-                }
-
-                @Override
-                public void close() {
-                    // Nothing to close
-                }
-            };
+            return emptyIterator();
         }
 
         @Override
@@ -418,24 +801,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             Executor executor,
             ActionListener<CloseableIterator<Page>> listener
         ) {
-            // Native async implementation - execute on provided executor
             executor.execute(() -> {
-                listener.onResponse(new CloseableIterator<>() {
-                    @Override
-                    public boolean hasNext() {
-                        return false;
-                    }
-
-                    @Override
-                    public Page next() {
-                        throw new java.util.NoSuchElementException();
-                    }
-
-                    @Override
-                    public void close() {
-                        // Nothing to close
-                    }
-                });
+                listener.onResponse(emptyIterator());
             });
         }
 
@@ -455,8 +822,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public void close() {
-            // Nothing to close
-        }
+        public void close() {}
     }
 }

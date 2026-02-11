@@ -900,9 +900,10 @@ public class LocalExecutionPlanner {
                 .batchSize(pageSize)
                 .maxBufferSize(10)
                 .executor(operatorFactoryRegistry.executor())
-                .config(externalSource.config())           // Generic config (replaces S3Configuration)
-                .sourceMetadata(externalSource.sourceMetadata()) // Opaque source metadata (native schema, etc.)
-                .pushedFilter(externalSource.pushedFilter())     // Opaque pushed filter
+                .config(externalSource.config())
+                .sourceMetadata(externalSource.sourceMetadata())
+                .pushedFilter(externalSource.pushedFilter())
+                .fileSet(externalSource.fileSet())
                 .build();
 
             factory = operatorFactoryRegistry.factory(operatorContext);

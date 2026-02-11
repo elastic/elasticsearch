@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 
 import java.io.IOException;
@@ -88,7 +89,7 @@ public class ExternalSourceResolver {
                 StorageManager storageManager = new StorageManager(registry, settings);
 
                 try {
-                    Map<String, ExternalSourceMetadata> resolved = new HashMap<>();
+                    Map<String, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>();
 
                     for (String path : paths) {
                         Map<String, Expression> params = pathParams.get(path);
@@ -97,16 +98,11 @@ public class ExternalSourceResolver {
                         Map<String, Object> config = paramsToConfigMap(params);
 
                         try {
-                            SourceMetadata metadata = resolveSingleSource(path, config, storageManager);
-                            // Wrap SourceMetadata as ExternalSourceMetadata, preserving the query-level
-                            // config (from WITH clause) so it flows to the execution phase
-                            ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
-                            resolved.put(path, extMetadata);
+                            ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, storageManager);
+                            resolved.put(path, resolvedSource);
                             LOGGER.info("Successfully resolved external source: {}", path);
                         } catch (Exception e) {
                             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                            // For now, fail fast to surface errors during development/testing
-                            // In production, we may want to allow partial resolution or return error info
                             String exceptionMessage = e.getMessage();
                             String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
                             String errorMessage = String.format("Failed to resolve external source [%s]: %s", path, errorDetail);
@@ -125,9 +121,51 @@ public class ExternalSourceResolver {
         });
     }
 
-    private SourceMetadata resolveSingleSource(String path, Map<String, Object> config, StorageManager storageManager) throws Exception {
+    private ExternalSourceResolution.ResolvedSource resolveSource(String path, Map<String, Object> config, StorageManager storageManager)
+        throws Exception {
         LOGGER.info("Resolving external source: path=[{}]", path);
 
+        if (GlobExpander.isMultiFile(path)) {
+            return resolveMultiFileSource(path, config, storageManager);
+        }
+
+        SourceMetadata metadata = resolveSingleSource(path, config, storageManager);
+        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, FileSet.UNRESOLVED);
+    }
+
+    private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
+        String path,
+        Map<String, Object> config,
+        StorageManager storageManager
+    ) throws Exception {
+        StoragePath storagePath = StoragePath.of(path);
+        StorageProvider provider = storageManager.provider(storagePath, config);
+
+        FileSet fileSet;
+        if (path.indexOf(',') >= 0) {
+            fileSet = GlobExpander.expandCommaSeparated(path, provider);
+        } else {
+            fileSet = GlobExpander.expandGlob(path, provider);
+        }
+
+        if (fileSet.isEmpty()) {
+            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+        }
+
+        // Use the first file to infer format and read metadata
+        StoragePath firstFile = fileSet.files().get(0).path();
+        FormatReaderRegistry formatRegistry = dataSourceModule.formatReaderRegistry();
+        FormatReader reader = formatRegistry.byExtension(firstFile.objectName());
+
+        StorageObject storageObject = storageManager.newStorageObject(firstFile.toString(), config);
+        SourceMetadata metadata = reader.metadata(storageObject);
+
+        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, fileSet);
+    }
+
+    private SourceMetadata resolveSingleSource(String path, Map<String, Object> config, StorageManager storageManager) throws Exception {
         // Strategy 1: Try registered TableCatalogs
         SourceMetadata metadata = tryTableCatalogs(path, config);
         if (metadata != null) {

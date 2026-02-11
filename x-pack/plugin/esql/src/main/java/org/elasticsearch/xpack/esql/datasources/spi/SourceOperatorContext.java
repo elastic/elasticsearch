@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,8 @@ public record SourceOperatorContext(
     Executor executor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
-    Object pushedFilter
+    Object pushedFilter,
+    FileSet fileSet
 ) {
     public SourceOperatorContext {
         if (path == null) {
@@ -54,7 +56,6 @@ public record SourceOperatorContext(
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
-        // pushedFilter is opaque and nullable - no validation needed
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -64,9 +65,21 @@ public record SourceOperatorContext(
         }
     }
 
-    /**
-     * Backward-compatible constructor without sourceMetadata and pushedFilter.
-     */
+    public SourceOperatorContext(
+        String sourceType,
+        StoragePath path,
+        List<String> projectedColumns,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        Executor executor,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter
+    ) {
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter, null);
+    }
+
     public SourceOperatorContext(
         String sourceType,
         StoragePath path,
@@ -77,7 +90,7 @@ public record SourceOperatorContext(
         Executor executor,
         Map<String, Object> config
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null);
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null);
     }
 
     public static Builder builder() {
@@ -95,6 +108,7 @@ public record SourceOperatorContext(
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
+        private FileSet fileSet;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -146,6 +160,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder fileSet(FileSet fileSet) {
+            this.fileSet = fileSet;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -157,7 +176,8 @@ public record SourceOperatorContext(
                 executor,
                 config,
                 sourceMetadata,
-                pushedFilter
+                pushedFilter,
+                fileSet
             );
         }
     }

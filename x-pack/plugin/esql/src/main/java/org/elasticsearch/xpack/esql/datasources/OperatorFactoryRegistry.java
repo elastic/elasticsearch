@@ -115,7 +115,8 @@ public class OperatorFactoryRegistry {
             context.attributes(),
             context.batchSize(),
             context.maxBufferSize(),
-            executor
+            executor,
+            context.fileSet()
         );
     }
 

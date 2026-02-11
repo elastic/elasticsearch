@@ -102,7 +102,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // List directory
         List<StorageEntry> entries = new ArrayList<>();
-        try (StorageIterator iterator = provider.listObjects(dirPath)) {
+        try (StorageIterator iterator = provider.listObjects(dirPath, false)) {
             while (iterator.hasNext()) {
                 entries.add(iterator.next());
             }
@@ -142,5 +142,124 @@ public class LocalStorageProviderTests extends ESTestCase {
         StoragePath path = StoragePath.of("http://example.com/file.txt");
 
         expectThrows(IllegalArgumentException.class, () -> provider.newObject(path));
+    }
+
+    // -- directory listing: non-recursive vs recursive --
+
+    public void testListDirectoryNonRecursive() throws IOException {
+        Path tempDir = createTempDir();
+        Files.createFile(tempDir.resolve("a.parquet"));
+        Files.createFile(tempDir.resolve("b.parquet"));
+        Path sub = Files.createDirectories(tempDir.resolve("sub"));
+        Files.createFile(sub.resolve("c.parquet"));
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+
+        List<String> names = collectObjectNames(provider.listObjects(prefix, false));
+        assertEquals(List.of("a.parquet", "b.parquet"), sorted(names));
+    }
+
+    public void testListDirectoryRecursive() throws IOException {
+        Path tempDir = createTempDir();
+        Files.createFile(tempDir.resolve("a.parquet"));
+        Path sub = Files.createDirectories(tempDir.resolve("sub"));
+        Files.createFile(sub.resolve("c.parquet"));
+        Path deep = Files.createDirectories(sub.resolve("deep"));
+        Files.createFile(deep.resolve("d.parquet"));
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+
+        List<String> names = collectObjectNames(provider.listObjects(prefix, true));
+        assertEquals(List.of("a.parquet", "c.parquet", "d.parquet"), sorted(names));
+    }
+
+    public void testListDirectoryRecursiveMultipleSubdirs() throws IOException {
+        Path tempDir = createTempDir();
+        for (String dir : List.of("dept_a", "dept_b", "dept_c")) {
+            Path sub = Files.createDirectories(tempDir.resolve(dir));
+            Files.createFile(sub.resolve("data.parquet"));
+        }
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+
+        List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
+        assertEquals(3, entries.size());
+    }
+
+    public void testListEmptyDirectoryReturnsNothing() throws IOException {
+        Path tempDir = createTempDir();
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+
+        List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
+        assertEquals(0, entries.size());
+    }
+
+    public void testListDirectoryRecursiveRandomTree() throws IOException {
+        Path tempDir = createTempDir();
+        String[] extensions = { ".parquet", ".csv", ".txt" };
+        int totalFiles = 0;
+
+        int dirCount = between(2, 5);
+        for (int d = 0; d < dirCount; d++) {
+            Path sub = Files.createDirectories(tempDir.resolve("dir_" + d));
+            int fileCount = between(1, 4);
+            for (int f = 0; f < fileCount; f++) {
+                String ext = extensions[random().nextInt(extensions.length)];
+                Files.createFile(sub.resolve("file_" + f + ext));
+                totalFiles++;
+            }
+            if (randomBoolean()) {
+                Path deep = Files.createDirectories(sub.resolve("nested"));
+                int deepCount = between(1, 3);
+                for (int f = 0; f < deepCount; f++) {
+                    String ext = extensions[random().nextInt(extensions.length)];
+                    Files.createFile(deep.resolve("deep_" + f + ext));
+                    totalFiles++;
+                }
+            }
+        }
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+
+        List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
+        assertEquals(totalFiles, entries.size());
+
+        // Non-recursive should find zero files since all files are in subdirs
+        List<StorageEntry> flatEntries = collectAll(provider.listObjects(prefix, false));
+        assertEquals(0, flatEntries.size());
+    }
+
+    // -- helpers --
+
+    private static List<String> collectObjectNames(StorageIterator iterator) throws IOException {
+        List<String> names = new ArrayList<>();
+        try (iterator) {
+            while (iterator.hasNext()) {
+                names.add(iterator.next().path().objectName());
+            }
+        }
+        return names;
+    }
+
+    private static List<StorageEntry> collectAll(StorageIterator iterator) throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        try (iterator) {
+            while (iterator.hasNext()) {
+                entries.add(iterator.next());
+            }
+        }
+        return entries;
+    }
+
+    private static List<String> sorted(List<String> list) {
+        List<String> copy = new ArrayList<>(list);
+        copy.sort(String::compareTo);
+        return copy;
     }
 }

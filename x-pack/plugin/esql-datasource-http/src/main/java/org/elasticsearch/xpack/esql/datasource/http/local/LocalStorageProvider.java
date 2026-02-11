@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,6 +41,8 @@ import java.util.NoSuchElementException;
  * This implementation is primarily for testing and development purposes.
  */
 public final class LocalStorageProvider implements StorageProvider {
+
+    private static final String FILE_SCHEME_PREFIX = "file" + StoragePath.SCHEME_SEPARATOR;
 
     /**
      * Creates a LocalStorageProvider.
@@ -66,9 +70,9 @@ public final class LocalStorageProvider implements StorageProvider {
     }
 
     @Override
-    public StorageIterator listObjects(StoragePath directory) throws IOException {
-        validateFileScheme(directory);
-        Path dirPath = toFilePath(directory);
+    public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        validateFileScheme(prefix);
+        Path dirPath = toFilePath(prefix);
 
         if (Files.exists(dirPath) == false) {
             throw new IOException("Directory does not exist: " + dirPath);
@@ -78,7 +82,7 @@ public final class LocalStorageProvider implements StorageProvider {
             throw new IOException("Path is not a directory: " + dirPath);
         }
 
-        return new LocalStorageIterator(dirPath);
+        return new LocalStorageIterator(dirPath, recursive);
     }
 
     @Override
@@ -132,36 +136,49 @@ public final class LocalStorageProvider implements StorageProvider {
         return "LocalStorageProvider{}";
     }
 
+    private static StoragePath toStoragePath(Path filePath) {
+        return StoragePath.of(FILE_SCHEME_PREFIX + filePath.toAbsolutePath());
+    }
+
     /**
      * Iterator implementation for listing local directory contents.
      */
     private static final class LocalStorageIterator implements StorageIterator {
-        private final Path directory;
         private final List<StorageEntry> entries;
         private final Iterator<StorageEntry> iterator;
 
-        LocalStorageIterator(Path directory) throws IOException {
-            this.directory = directory;
+        LocalStorageIterator(Path directory, boolean recursive) throws IOException {
             this.entries = new ArrayList<>();
 
-            // Read all entries into memory
-            // For very large directories, this could be optimized to stream entries
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
-                for (Path entry : stream) {
-                    try {
-                        BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
-
-                        // Skip directories, only include files
+            if (recursive) {
+                Files.walkFileTree(directory, new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                         if (attrs.isRegularFile()) {
-                            StoragePath storagePath = StoragePath.of("file://" + entry.toAbsolutePath());
-                            long length = attrs.size();
-                            Instant lastModified = attrs.lastModifiedTime().toInstant();
-
-                            entries.add(new StorageEntry(storagePath, length, lastModified));
+                            StoragePath storagePath = toStoragePath(file);
+                            entries.add(new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant()));
                         }
-                    } catch (IOException e) {
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
                         // Skip entries that can't be read
-                        // In production, consider logging this
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            } else {
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+                    for (Path entry : stream) {
+                        try {
+                            BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
+                            if (attrs.isRegularFile()) {
+                                StoragePath storagePath = toStoragePath(entry);
+                                entries.add(new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant()));
+                            }
+                        } catch (IOException e) {
+                            // Skip entries that can't be read
+                        }
                     }
                 }
             }

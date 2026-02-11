@@ -465,16 +465,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // Get pre-resolved metadata from context
-            var externalMetadata = context.externalSourceResolution().get(tablePath);
-            if (externalMetadata == null) {
+            // Get pre-resolved source (metadata + file set) from context
+            var resolvedSource = context.externalSourceResolution().get(tablePath);
+            if (resolvedSource == null) {
                 // Still unresolved - return as-is to keep the error message
                 return plan;
             }
 
-            // Create ExternalRelation with resolved metadata
-            // This works for any SourceMetadata implementation (Iceberg, Parquet, CSV, etc.)
-            return new ExternalRelation(plan.source(), tablePath, externalMetadata, externalMetadata.schema());
+            var metadata = resolvedSource.metadata();
+            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileSet());
         }
 
         private String extractTablePath(Expression tablePath) {

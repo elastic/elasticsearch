@@ -75,10 +75,8 @@ public final class HttpStorageProvider implements StorageProvider {
     }
 
     @Override
-    public StorageIterator listObjects(StoragePath directory) throws IOException {
-        // HTTP/HTTPS does not support directory listing
-        // Return null to indicate this operation is not available
-        return null;
+    public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        throw new UnsupportedOperationException("HTTP does not support directory listing");
     }
 
     @Override

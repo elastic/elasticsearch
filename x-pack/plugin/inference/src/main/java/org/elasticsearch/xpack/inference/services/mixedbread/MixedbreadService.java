@@ -92,14 +92,11 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         300
     );
 
-    private static final MixedbreadEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new MixedbreadEmbeddingsModelCreator();
-    private static final MixedbreadRerankModelCreator RERANK_MODEL_CREATOR = new MixedbreadRerankModelCreator();
-
     private static final Map<TaskType, ModelCreator<? extends MixedbreadModel>> MODEL_CREATORS = Map.of(
         TaskType.TEXT_EMBEDDING,
-        EMBEDDINGS_MODEL_CREATOR,
+        new MixedbreadEmbeddingsModelCreator(),
         TaskType.RERANK,
-        RERANK_MODEL_CREATOR
+        new MixedbreadRerankModelCreator()
     );
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,

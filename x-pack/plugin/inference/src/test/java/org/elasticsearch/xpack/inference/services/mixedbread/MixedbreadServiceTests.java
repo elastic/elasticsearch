@@ -442,7 +442,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
             assertRerankModelSettings(
                 modelListener.actionGet(),
                 modelName,
-                MixedbreadRerankServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
+                MixedbreadServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
                 apiKey,
                 MixedbreadRerankTaskSettings.EMPTY_SETTINGS
             );
@@ -504,7 +504,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
             assertRerankModelSettings(
                 model,
                 modelName,
-                MixedbreadRerankServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
+                MixedbreadServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
                 apiKey,
                 MixedbreadRerankTaskSettings.EMPTY_SETTINGS
             );

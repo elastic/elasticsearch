@@ -40,7 +40,7 @@ public abstract class MixedbreadServiceSettings extends FilteredXContentObject i
      * Free tier is 100 req / min
      * <a href="https://www.mixedbread.com/pricing">Rate Limiting</a>.
      */
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(100);
+    static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(100);
 
     protected final String modelId;
     protected final URI uri;

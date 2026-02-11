@@ -294,4 +294,3 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         assertThat(customMetadata.get("other_key"), equalTo("other_value"));
     }
 }
-

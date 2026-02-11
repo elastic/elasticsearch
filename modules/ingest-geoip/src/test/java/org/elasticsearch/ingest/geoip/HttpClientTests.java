@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import com.sun.net.httpserver.BasicAuthenticator;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
@@ -117,11 +118,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private static String url(final String path) {
-        String hostname = server.getAddress().getHostString();
-        if (hostname.contains(":")) {
-            // ipv6 format
-            hostname = "[" + hostname + "]";
-        }
+        String hostname = InetAddresses.toUriString(server.getAddress().getAddress());
         int port = server.getAddress().getPort();
         return "http://" + hostname + ":" + port + path;
     }

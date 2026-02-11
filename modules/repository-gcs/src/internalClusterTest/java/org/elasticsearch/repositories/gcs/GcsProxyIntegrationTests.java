@@ -14,6 +14,7 @@ import fixture.gcs.TestUtils;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -97,11 +98,7 @@ public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase
             CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(),
             TestUtils.createServiceAccount(random())
         );
-        String host = upstreamServer.getAddress().getHostString();
-        if (host.contains(":") && false == host.startsWith("[")) {
-            // ipv6 format
-            host = "[" + host + "]";
-        }
+        String host = InetAddresses.toUriString(upstreamServer.getAddress().getAddress());
         String upstreamServerUrl = "http://" + host + ":" + upstreamServer.getAddress().getPort();
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))

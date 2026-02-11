@@ -78,11 +78,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     public void checkIntegrity() throws IOException {}
 
     @Override
-    public FieldsProducer getMergeInstance() {
-        return new TSDBSyntheticIdFieldsProducer(fieldInfos, docValuesProducer, maxDocs);
-    }
-
-    @Override
     public Terms terms(String field) throws IOException {
         assert FIELDS_NAMES.contains(field) : field;
         return new Terms() {
@@ -93,7 +88,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             @Override
             public int getDocCount() {
-                return maxDocs - 1; // All docs have a synthetic id
+                return maxDocs; // All docs have a synthetic id
             }
 
             @Override
@@ -474,7 +469,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
     private static UnsupportedOperationException unsupportedException() {
         var error = "This method should not be called on this enum";
-        assert false : error;
         return new UnsupportedOperationException(error);
     }
 }

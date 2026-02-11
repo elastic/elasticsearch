@@ -87,7 +87,7 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         final var scratch = new BytesRef();
         try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
             for (int pos : positions) {

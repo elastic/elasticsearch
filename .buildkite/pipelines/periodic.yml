@@ -457,8 +457,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.1.11 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.1.11#bwcTest
+      - label: 9.1.10 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.1.10#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -467,7 +467,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.1.11
+          BWC_VERSION: 9.1.10
         retry:
           automatic:
             - exit_status: "-1"

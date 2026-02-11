@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -324,10 +326,10 @@ public class Approximation {
     private final EsqlExecutionInfo executionInfo;
     private final QueryProperties queryProperties;
     private final EsqlSession.PlanRunner runner;
-    private final LogicalPlanOptimizer logicalPlanOptimizer;
     private final Function<LogicalPlan, PhysicalPlan> toPhysicalPlan;
     private final Configuration configuration;
     private final FoldContext foldContext;
+    private final TransportVersion minimumVersion;
     private final PlanTimeProfile planTimeProfile;
 
     private final SetOnce<Long> sourceRowCount;
@@ -337,22 +339,22 @@ public class Approximation {
         LogicalPlan logicalPlan,
         ApproximationSettings settings,
         EsqlExecutionInfo executionInfo,
-        LogicalPlanOptimizer logicalPlanOptimizer,
         Function<LogicalPlan, PhysicalPlan> toPhysicalPlan,
         EsqlSession.PlanRunner runner,
         Configuration configuration,
         FoldContext foldContext,
+        TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile
     ) {
         this.logicalPlan = logicalPlan;
         this.settings = settings;
         this.executionInfo = executionInfo;
         this.queryProperties = verifyPlan(logicalPlan);
-        this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.toPhysicalPlan = toPhysicalPlan;
         this.runner = runner;
         this.configuration = configuration;
         this.foldContext = foldContext;
+        this.minimumVersion = minimumVersion;
         this.planTimeProfile = planTimeProfile;
 
         sourceRowCount = new SetOnce<>();
@@ -503,8 +505,8 @@ public class Approximation {
             List.of(),
             List.of(new Alias(Source.EMPTY, "$count", COUNT_ALL_ROWS))
         );
-        sourceCountPlan.setPreOptimized();
-        return logicalPlanOptimizer.optimize(sourceCountPlan);
+        sourceCountPlan.setOptimized();
+        return sourceCountPlan;
     }
 
     /**
@@ -587,8 +589,8 @@ public class Approximation {
             return plan;
         });
 
-        countPlan.setPreOptimized();
-        return logicalPlanOptimizer.optimize(countPlan);
+        countPlan.setOptimized();
+        return countPlan;
     }
 
     /**
@@ -748,7 +750,7 @@ public class Approximation {
             return exactPlanWithConfidenceIntervals();
         }
 
-        logger.debug("generating approximate plan (p=[{}])", sampleProbability);
+        logger.debug("generating approximation plan (p=[{}])", sampleProbability);
 
         // Whether of not the first STATS command has been encountered yet.
         Holder<Boolean> encounteredStats = new Holder<>(false);
@@ -766,7 +768,7 @@ public class Approximation {
         // is rewritten to AVG::double = SUM::double / COUNT::long.
         Map<NameId, NamedExpression> uncorrectedExpressions = new HashMap<>();
 
-        LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
+        LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
                 // The leaf plan should be appended by a SAMPLE.
                 return new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
@@ -789,7 +791,7 @@ public class Approximation {
         });
 
         // Add the confidence intervals for all fields with buckets.
-        approximatePlan = new Eval(Source.EMPTY, approximatePlan, getConfidenceIntervals(fieldBuckets));
+        approximationPlan = new Eval(Source.EMPTY, approximationPlan, getConfidenceIntervals(fieldBuckets));
 
         // Drop all bucket fields and uncorrected fields from the output.
         Set<Attribute> dropAttributes = Stream.concat(
@@ -797,14 +799,41 @@ public class Approximation {
             uncorrectedExpressions.values().stream()
         ).map(NamedExpression::toAttribute).collect(Collectors.toSet());
 
-        List<Attribute> keepAttributes = new ArrayList<>(approximatePlan.output());
+        List<Attribute> keepAttributes = new ArrayList<>(approximationPlan.output());
         keepAttributes.removeAll(dropAttributes);
-        approximatePlan = new Project(Source.EMPTY, approximatePlan, keepAttributes);
+        approximationPlan = new Project(Source.EMPTY, approximationPlan, keepAttributes);
+        approximationPlan = optimize(approximationPlan);
+        logger.debug("approximation plan (after:\n{}", approximationPlan);
+        return approximationPlan;
+    }
 
-        approximatePlan.setPreOptimized();
-        approximatePlan = logicalPlanOptimizer.optimize(approximatePlan);
-        logger.debug("approximate plan:\n{}", approximatePlan);
-        return approximatePlan;
+    /**
+     * Optimizes the plan by running just the operator batch. This is primarily
+     * to prune unnecessary columns generated in the approximation plan.
+     * <p>
+     * These unnecessary columns are generated in various ways, for example:
+     * - STATS AVG(x): the AVG is rewritten via a surrogate to SUM and COUNT.
+     *   Both the corrected and uncorrected sum and count column are generated,
+     *   but the corrected ones aren't needed for AVG(x) = SUM(x)/COUNT().
+     * - STATS x=COUNT() | EVAL x=TO_STRING(x): bucket columns are generated
+     *   for the numeric count, but are not needed after the string conversion.
+     * <p>
+     * Note this is running the operator batch on top of a plan that it normally
+     * doesn't run on (namely a cleaned-up plan, which can contain a TopN). It
+     * seems like that works (at least for everything we've tested), but this
+     * process has poor test coverage.
+     * TODO: refactor so that approximation ideally happens halfway-through
+     * optimization, before cleanup step. Possibly make approximation an
+     * optimization rule itself in the substitutions batch.
+     */
+    private LogicalPlan optimize(LogicalPlan plan) {
+        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext, minimumVersion)) {
+            @Override
+            protected List<Batch<LogicalPlan>> batches() {
+                return List.of(operators());
+            }
+        };
+        return optimizer.optimize(plan);
     }
 
     /**
@@ -819,12 +848,13 @@ public class Approximation {
      * <pre>
      *     {@code
      *          STATS sampleSize = COUNT(*),
-     *                s = SUM(x) / prob,
-     *                `s$0` = SUM(x) / (prob/B)) WHERE MV_SLICE(bucketId, 0, 0) == 0
+     *                s = SUM(x),
+     *                `s$0` = SUM(x) WHERE MV_SLICE(bucketId, 0, 0) == 0
      *                ...,
      *                `s$T*B-1` = SUM(x) / (prob/B) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
      *          BY group
      *          | WHERE sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION
+     *          | EVAL s = s / prob, `s$0` = `s$0` / (prob/B), `s$T*B-1` = `s$T*B-1` / (prob/B)
      *          | DROP sampleSize
      *      }
      * </pre>
@@ -843,9 +873,15 @@ public class Approximation {
         // TODO: use theoretically non-conflicting names.
         Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
 
+        // The aggregate functions in the approximation plan.
         List<NamedExpression> aggregates = new ArrayList<>();
-        Alias sampleSize = new Alias(Source.EMPTY, "$sample_size", COUNT_ALL_ROWS);
-        aggregates.add(sampleSize);
+
+        // List of expressions that must be evaluated after the sampled aggregation.
+        // These consist of:
+        // - sample corrections (to correct counts/sums for sampling)
+        // - replace zero counts by NULLs (for confidence interval computation)
+        // - exact total row count if COUNT(*) is used (to avoid sampling errors there)
+        List<Alias> evals = new ArrayList<>();
 
         for (NamedExpression aggOrKey : aggregate.aggregates()) {
             if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
@@ -859,15 +895,11 @@ public class Approximation {
 
             // If the query is preserving all rows, and the aggregation function is
             // counting all rows, we know the exact result without sampling.
-            // TODO: COUNT("foobar"), which counts all rows, should also be detected.
-            // Note that this inserts a constant as an aggregation function. This
-            // works fine (empirically) even though it isn't an aggregation function.
-            // TODO: refactor into EVAL+PROJECT, instead of a constant aggregation.
             if (aggFn.equals(COUNT_ALL_ROWS)
                 && aggregate.groupings().isEmpty()
                 && queryProperties.canDecreaseRowCount == false
                 && queryProperties.canIncreaseRowCount == false) {
-                aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount.get())));
+                evals.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount.get())));
                 continue;
             }
 
@@ -875,11 +907,12 @@ public class Approximation {
             if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
                 aggregates.add(aggAlias);
             } else {
-                Expression correctedAgg = correctForSampling(aggFn, sampleProbability);
-                aggregates.add(aggAlias.replaceChild(correctedAgg));
                 Alias uncorrectedAggAlias = new Alias(aggAlias.source(), aggAlias.name() + "$uncorrected", aggFn);
                 aggregates.add(uncorrectedAggAlias);
                 uncorrectedExpressions.put(aggAlias.id(), uncorrectedAggAlias);
+
+                Expression correctedAgg = correctForSampling(uncorrectedAggAlias.toAttribute(), sampleProbability);
+                evals.add(aggAlias.replaceChild(correctedAgg));
             }
 
             if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
@@ -901,33 +934,40 @@ public class Approximation {
                                 Literal.integer(Source.EMPTY, bucketId)
                             )
                         );
-                        if (aggFn.equals(COUNT_ALL_ROWS)) {
-                            // For COUNT, no data should result in NULL, like in other aggregations.
-                            // Otherwise, the confidence interval computation breaks.
-                            bucket = new Case(
-                                Source.EMPTY,
-                                new Equals(Source.EMPTY, bucket, Literal.fromLong(Source.EMPTY, 0L)),
-                                List.of(Literal.NULL, bucket)
-                            );
-                        }
                         Alias bucketAlias = new Alias(Source.EMPTY, aggOrKey.name() + "$" + (trialId * BUCKET_COUNT + bucketId), bucket);
                         if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
                             buckets.add(bucketAlias);
                             aggregates.add(bucketAlias);
                         } else {
-                            Expression correctedBucket = correctForSampling(bucket, sampleProbability / BUCKET_COUNT);
-                            bucketAlias = bucketAlias.replaceChild(correctedBucket);
-                            buckets.add(bucketAlias);
-                            aggregates.add(bucketAlias);
                             Alias uncorrectedBucketAlias = new Alias(Source.EMPTY, bucketAlias.name() + "$uncorrected", bucket);
-                            uncorrectedExpressions.put(bucketAlias.id(), uncorrectedBucketAlias);
                             aggregates.add(uncorrectedBucketAlias);
+                            uncorrectedExpressions.put(bucketAlias.id(), uncorrectedBucketAlias);
+
+                            Expression uncorrectedBucket = uncorrectedBucketAlias.toAttribute();
+                            if (aggFn.equals(COUNT_ALL_ROWS)) {
+                                // For COUNT, no data should result in NULL, like in other aggregations.
+                                // Otherwise, the confidence interval computation breaks.
+                                uncorrectedBucket = new Case(
+                                    Source.EMPTY,
+                                    new Equals(Source.EMPTY, uncorrectedBucket, Literal.fromLong(Source.EMPTY, 0L)),
+                                    List.of(Literal.NULL, uncorrectedBucket)
+                                );
+                            }
+
+                            Expression correctedBucket = correctForSampling(uncorrectedBucket, sampleProbability / BUCKET_COUNT);
+                            Alias correctedBucketAlias = bucketAlias.replaceChild(correctedBucket);
+                            evals.add(correctedBucketAlias);
+                            buckets.add(correctedBucketAlias);
                         }
                     }
                 }
                 fieldBuckets.put(aggOrKey.id(), buckets);
             }
         }
+
+        // Add the sample size per grouping to filter out groups with too few sampled rows.
+        Alias sampleSize = new Alias(Source.EMPTY, "$sample_size", COUNT_ALL_ROWS);
+        aggregates.add(sampleSize);
 
         // Add the bucket ID, do the aggregations (sampled corrected, including the buckets),
         // and filter out rows with too few sampled values.
@@ -942,6 +982,8 @@ public class Approximation {
                 Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
             )
         );
+        plan = new Eval(Source.EMPTY, plan, evals);
+
         List<Attribute> keepAttributes = new ArrayList<>(plan.output());
         keepAttributes.remove(sampleSize.toAttribute());
         return new Project(Source.EMPTY, plan, keepAttributes);

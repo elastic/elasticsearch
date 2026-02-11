@@ -557,11 +557,11 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         var nodeReduceString = nodeLevelReduction
             ? """
                 \\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], \
-                sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]]]
+                sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]], inputOrdering=SORTED]
                 \\_ProjectOperator[projection = [1]]
                 """
             : "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n";
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=SORTED]\n";
         ActionFuture<EsqlQueryResponse> response = startEsql("from test | sort pause_me | keep pause_me");
         try {
             getTasksStarting();
@@ -588,7 +588,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             assertThat(coordinatorTasks(tasks).getFirst().description(), equalTo("""
                 \\_ExchangeSourceOperator[]
                 \\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], \
-                sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]
+                sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=SORTED]
                 \\_ProjectOperator[projection = [0]]
                 \\_OutputOperator[columns = [pause_me]]"""));
         } finally {

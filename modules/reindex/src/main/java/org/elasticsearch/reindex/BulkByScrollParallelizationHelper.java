@@ -91,6 +91,9 @@ class BulkByScrollParallelizationHelper {
         DiscoveryNode node,
         Runnable workerAction
     ) {
+        // TODO: make this a utils method to decide because we MUST make PIT IFF we also use a PIT hit source (and vice versa)
+        //  If feature flag:
+        //    If valid PIT reasons -> open PIT
         if (task.isLeader()) {
             sendSubRequests(client, action, node.getId(), task, request, listener);
         } else if (task.isWorker()) {

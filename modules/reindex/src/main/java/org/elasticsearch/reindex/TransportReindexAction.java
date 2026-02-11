@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -39,6 +40,12 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         "reindex.remote.whitelist",
         Property.NodeScope
     );
+
+    /**
+     * A feature flag to guard the work to make use point-in-time searching during reindexing rather than scroll
+     * while it is under development.
+     */
+    static boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search_enabled").isEnabled();
 
     protected final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
@@ -108,10 +115,16 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+
+        // TODO - Get remote version using async callback functions
+        int remoteVersion = 5;
+
         reindexer.initTask(
             bulkByScrollTask,
             request,
-            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
+            listener.delegateFailure((l, v) -> {
+                reindexer.execute(bulkByScrollTask, request, remoteVersion, getBulkClient(), l);
+            })
         );
     }
 

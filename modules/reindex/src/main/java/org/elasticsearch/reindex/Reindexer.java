@@ -113,9 +113,12 @@ public class Reindexer {
         BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
     }
 
-    public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
+    public void execute(BulkByScrollTask task, ReindexRequest request, int remoteVersion, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
 
+        // TODO - We need to decide inside executeSlicedAction whether we're using PIT or not and open the PIT if so
+        // Since the request (and request.getRemoteINfo()) and the remoteVersion can be passed in, then we just need an IF statement.
+        // TODO - Do we need to make this decision in a utils class somewhere since it will be mirrored when the hitsourceis created
         BulkByScrollParallelizationHelper.executeSlicedAction(
             task,
             request,
@@ -136,6 +139,7 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
+                    remoteVersion,
                     wrapWithMetrics(listener, reindexMetrics, startTime, request.getRemoteInfo() != null)
                 );
                 searchAction.start();
@@ -263,6 +267,8 @@ public class Reindexer {
          */
         private List<Thread> createdThreads = emptyList();
 
+        private int remoteVersion;
+
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
             Logger logger,
@@ -273,6 +279,7 @@ public class Reindexer {
             ProjectState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
+            int remoteVersion,
             ActionListener<BulkByScrollResponse> listener
         ) {
             super(
@@ -294,6 +301,7 @@ public class Reindexer {
                 sslConfig
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
+            this.remoteVersion = remoteVersion;
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -313,6 +321,30 @@ public class Reindexer {
 
         @Override
         protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+
+            // TODO:
+            /*
+                // We're enabling PIT so make the right decisions
+                // Done similarly to clusterService.state().clusterFeatures().clusterHasFeature(...)
+                If feature flag set:
+                    If local request:
+                        Use ClientPittableHitSource
+                    else:
+                        If remote node is PIT compatible:
+                            Use RemotePittableHitSouce
+                        else:
+                            Use RemoteScrollableHitSource
+                // PIT is not enabled because the cluster is old
+                else:
+                    // Old logic
+             */
+
+            /*
+                NOTE: By making the PIT decision here we need to refactor very little ... However, we need to open the PIT
+                in parallisation helper ... so we need to know then ...
+             */
+
+
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());

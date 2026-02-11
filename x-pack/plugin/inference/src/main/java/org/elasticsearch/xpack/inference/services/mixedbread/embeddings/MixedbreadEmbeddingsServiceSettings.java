@@ -74,9 +74,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new MixedbreadEmbeddingsServiceSettings(
             commonServiceSettings.model(),

@@ -19,8 +19,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
@@ -51,8 +49,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     public static final String NAME = "indices:data/write/otlp/metrics";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
-
-    private static final BytesArray EMPTY_RESPONSE = new BytesArray(ExportMetricsServiceResponse.getDefaultInstance().toByteArray());
 
     // visible for testing
     volatile MappingHints defaultMappingHints;
@@ -85,11 +81,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
         context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
         return context;
-    }
-
-    @Override
-    protected BytesReference emptyResponse() {
-        return EMPTY_RESPONSE;
     }
 
     @Override

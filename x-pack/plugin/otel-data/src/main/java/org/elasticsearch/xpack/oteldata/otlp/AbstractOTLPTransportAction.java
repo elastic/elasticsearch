@@ -19,7 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -139,7 +139,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         throws IOException;
 
     public void handleSuccess(ActionListener<OTLPActionResponse> listener) {
-        listener.onResponse(new OTLPActionResponse(RestStatus.OK, emptyResponse()));
+        listener.onResponse(new OTLPActionResponse(RestStatus.OK, BytesArray.EMPTY));
     }
 
     public void handleEmptyRequest(ActionListener<OTLPActionResponse> listener) {
@@ -229,16 +229,6 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             new OTLPActionResponse(ExceptionsHelper.status(e), responseWithRejectedDataPoints(context.totalDataPoints(), e.getMessage()))
         );
     }
-
-    /**
-     * Returns the response for a successful request with no data points to reject.
-     * This is used for both full success and empty request scenarios.
-     * As the empty response is the same for all OTLP signal types,
-     * implementations should return a shared BytesReference containing the appropriate default response message for the signal type.
-     *
-     * @return a BytesReference containing the serialized response message
-     */
-    abstract BytesReference emptyResponse();
 
     /**
      * Builds the response for a request that had some rejected data points.

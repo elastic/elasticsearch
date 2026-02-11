@@ -168,28 +168,31 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
             );
 
-            planExecutor.esql(
-                request,
-                randomAlphaOfLength(10),
-                TransportVersion.current(),
-                queryClusterSettings(),
-                enrichResolver,
-                createEsqlExecutionInfo(randomBoolean()),
-                groupIndicesByCluster,
-                runPhase,
-                EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Versioned<Result> result) {
-                        fail("this shouldn't happen");
-                    }
+            try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
+                planExecutor.esql(
+                    request,
+                    randomAlphaOfLength(10),
+                    TransportVersion.current(),
+                    queryClusterSettings(),
+                    enrichResolver,
+                    viewService.getViewResolver(),
+                    createEsqlExecutionInfo(randomBoolean()),
+                    groupIndicesByCluster,
+                    runPhase,
+                    EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Versioned<Result> result) {
+                            fail("this shouldn't happen");
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        assertThat(e, instanceOf(VerificationException.class));
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(e, instanceOf(VerificationException.class));
+                        }
                     }
-                }
-            );
+                );
+            }
 
             // check we recorded the failure and that the query actually came
             assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));
@@ -199,26 +202,29 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // fix the failing query: foo field does exist
             request.query("from test | stats m = max(foo)");
             runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(null);
-            planExecutor.esql(
-                request,
-                randomAlphaOfLength(10),
-                TransportVersion.current(),
-                queryClusterSettings(),
-                enrichResolver,
-                createEsqlExecutionInfo(randomBoolean()),
-                groupIndicesByCluster,
-                runPhase,
-                EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Versioned<Result> result) {}
+            try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
+                planExecutor.esql(
+                    request,
+                    randomAlphaOfLength(10),
+                    TransportVersion.current(),
+                    queryClusterSettings(),
+                    enrichResolver,
+                    viewService.getViewResolver(),
+                    createEsqlExecutionInfo(randomBoolean()),
+                    groupIndicesByCluster,
+                    runPhase,
+                    EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Versioned<Result> result) {}
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("this shouldn't happen");
+                        @Override
+                        public void onFailure(Exception e) {
+                            fail("this shouldn't happen");
+                        }
                     }
-                }
-            );
+                );
+            }
 
             // check the new metrics
             assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));

@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.health;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -53,6 +54,8 @@ import java.util.function.Predicate;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING;
 
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
+
+    public static TransportVersion INDEX_COUNT_LEVEL_VERSION = TransportVersion.fromName("index_count_level_version");
 
     public static final String NAME = "cluster:monitor/health";
     public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);

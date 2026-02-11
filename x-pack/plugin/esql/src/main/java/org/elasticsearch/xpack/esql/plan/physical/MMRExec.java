@@ -132,7 +132,7 @@ public class MMRExec extends UnaryExec {
 
         if (queryVectorExpression instanceof Literal literalExpression && queryVectorExpression.dataType() == DataType.DENSE_VECTOR) {
             ArrayList<?> litValues = (ArrayList<?>) literalExpression.value();
-            if (litValues.isEmpty()) {
+            if (litValues == null || litValues.isEmpty()) {
                 return null;
             }
 

@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Nullable;
@@ -155,11 +156,7 @@ public class AzureHttpFixture extends ExternalResource {
         if (addr.getAddress().isLoopbackAddress()) {
             host = "localhost";
         } else {
-            host = addr.getHostString();
-            if (host.contains(":") && false == host.startsWith("[")) {
-                // ipv6 formatting
-                host = "[" + host + "]";
-            }
+            host = InetAddresses.toUriString(addr.getAddress());
         }
 
         return scheme() + "://" + host + ":" + addr.getPort() + "/" + account;

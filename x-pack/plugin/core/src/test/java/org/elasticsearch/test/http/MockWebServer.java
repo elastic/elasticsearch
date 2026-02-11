@@ -262,7 +262,7 @@ public class MockWebServer implements Closeable {
     public String getHttpAddress() {
         String host = getHostName();
         if (host.contains(":")) {
-            // ipv6 format
+            // ixpv6 format
             host = "[" + host + "]";
         }
 

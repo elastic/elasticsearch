@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.root.MainResponse;
 import org.elasticsearch.test.BuildUtils;

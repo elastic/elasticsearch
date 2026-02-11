@@ -10,6 +10,7 @@ package fixture.aws.imds;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -39,12 +40,7 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        String host = server.getAddress().getHostString();
-        if (host.contains(":") && false == host.startsWith("[")) {
-            // ipv6 formatting
-            host = "[" + host + "]";
-        }
-
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
         return "http://" + host + ":" + server.getAddress().getPort();
     }
 

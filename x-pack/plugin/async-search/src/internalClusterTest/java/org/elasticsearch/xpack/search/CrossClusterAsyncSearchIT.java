@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -100,8 +98,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     private static final long EARLIEST_TIMESTAMP = 1691348810000L;
     private static final long LATEST_TIMESTAMP = 1691348820000L;
 
-    private boolean isRandomSkipUnavailable = false;
-
     @Override
     protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
@@ -109,7 +105,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return isRandomSkipUnavailable ? Map.of(REMOTE_CLUSTER, randomBoolean()) : Map.of(REMOTE_CLUSTER, false);
+        return Map.of(REMOTE_CLUSTER, randomBoolean());
     }
 
     @Override
@@ -1214,7 +1210,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
-        Map<String, Object> testClusterInfo = setupTwoClusters(); // randomIntBetween(20, 120), randomIntBetween(20, 120));
+        Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");

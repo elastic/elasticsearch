@@ -84,7 +84,7 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     FloatVector asVector();
 
     @Override
-    FloatBlock filter(int... positions);
+    FloatBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

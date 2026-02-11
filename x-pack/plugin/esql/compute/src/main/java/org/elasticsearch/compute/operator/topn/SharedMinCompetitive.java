@@ -1,0 +1,86 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.operator.topn;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Releasables;
+
+import java.util.List;
+
+public class SharedMinCompetitive {
+    private final BreakingBytesRefBuilder value;
+    private final List<ElementType> elementTypes;
+    private final List<TopNEncoder> encoders;
+    private final List<TopNOperator.SortOrder> sortOrders;
+
+    SharedMinCompetitive(
+        CircuitBreaker breaker,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<TopNOperator.SortOrder> sortOrders
+    ) {
+        this.value = new BreakingBytesRefBuilder(breaker, "min_competitive");
+        this.elementTypes = elementTypes;
+        this.encoders = encoders;
+        this.sortOrders = sortOrders;
+    }
+
+    /**
+     * Offer an update to the min competitive value.
+     */
+    public void offer(BytesRef minCompetitive) {
+        if (value.bytesRefView().compareTo(minCompetitive) <= 0) {
+            return;
+        }
+        synchronized (value) {
+            if (value.bytesRefView().compareTo(minCompetitive) <= 0) {
+                return;
+            }
+            value.clear();
+            value.append(minCompetitive);
+        }
+    }
+
+    public Page get(BlockFactory blockFactory) {
+        try (BreakingBytesRefBuilder copy = new BreakingBytesRefBuilder(blockFactory.breaker(), "min_competitive_copy")) {
+            synchronized (value) {
+                copy.append(value.bytesRefView());
+            }
+            ResultBuilder[] builders = new ResultBuilder[sortOrders.size()];
+            BytesRef shallow = copy.bytesRefView();
+            try {
+                for (int i = 0; i < builders.length; i++) {
+                    TopNOperator.SortOrder sortOrder = sortOrders.get(i);
+                    TopNEncoder encoder = encoders.get(i);
+                    ElementType elementType = elementTypes.get(i);
+                    builders[i] = ResultBuilder.resultBuilderFor(blockFactory, elementType, encoder, true, 1);
+                    try (ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, elementType, encoder, true, 1);) {
+                        if (shallow.bytes[shallow.offset] == sortOrder.nul()) {
+                            builder.decodeValue(new BytesRef(new byte[] {0}));
+                            shallow.offset += 1;
+                            shallow.length -= 1;
+                            continue;
+                        }
+                        shallow.offset += 1;
+                        shallow.length -= 1;
+                        builder.decodeKey(shallow);
+                        builder.decodeValue(new BytesRef(new byte[]{1}));
+                    }
+                }
+                return new Page(ResultBuilder.buildAll(builders));
+            } finally {
+                Releasables.close(builders);
+            }
+        }
+    }
+}

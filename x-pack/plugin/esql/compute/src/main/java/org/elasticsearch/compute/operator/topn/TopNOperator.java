@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -258,7 +257,8 @@ public class TopNOperator implements Operator, Accountable {
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
         int maxPageSize,
-        InputOrdering inputOrdering
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive minCompetitive
     ) implements OperatorFactory {
         public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -278,7 +278,8 @@ public class TopNOperator implements Operator, Accountable {
                 encoders,
                 sortOrders,
                 maxPageSize,
-                inputOrdering
+                inputOrdering,
+                minCompetitive
             );
         }
 
@@ -306,6 +307,9 @@ public class TopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
+
+    @Nullable
+    private final SharedMinCompetitive minCompetitive;
 
     private Queue inputQueue;
     private Row spare;
@@ -347,7 +351,8 @@ public class TopNOperator implements Operator, Accountable {
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
         int maxPageSize,
-        InputOrdering inputOrdering
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive minCompetitive
     ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
@@ -357,6 +362,7 @@ public class TopNOperator implements Operator, Accountable {
         this.sortOrders = sortOrders;
         this.inputQueue = Queue.build(breaker, topCount);
         this.inputOrdering = inputOrdering;
+        this.minCompetitive = minCompetitive;
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -401,6 +407,7 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public void addInput(Page page) {
         long start = System.nanoTime();
+        boolean modified = false;
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -439,6 +446,7 @@ public class TopNOperator implements Operator, Accountable {
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.add(spare);
                     spare = null;
+                    modified = true;
                 } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
                     // Heap full AND this node fit in it.
                     Row nextSpare = inputQueue.top();
@@ -446,6 +454,7 @@ public class TopNOperator implements Operator, Accountable {
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
+                    modified = true;
                 } else if (inputOrdering == InputOrdering.SORTED) {
                     /*
                      The queue (min-heap) is full and we have sorted input for the input page. Any other element that comes after the one
@@ -458,12 +467,27 @@ public class TopNOperator implements Operator, Accountable {
                     break;
                 }
             }
+
+            if (modified) {
+                updateMinCompetitive();
+            }
+
         } finally {
             page.releaseBlocks();
             pagesReceived++;
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
         }
+    }
+
+    /**
+     * Offer an update to {@link #minCompetitive} if it is non-null.
+     */
+    private void updateMinCompetitive() {
+        if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
+            return;
+        }
+        minCompetitive.offer(inputQueue.top().keys.bytesRefView());
     }
 
     @Override
@@ -649,20 +673,6 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /**
-     * Returns the current minimum competitive row, or {@code null} if the
-     * queue is not yet full (meaning all rows are still competitive).
-     */
-    MinCompetitive minCompetitive() {
-        if (inputQueue == null || inputQueue.size() < inputQueue.topCount) {
-            return null;
-        }
-        if (encoders.get(sortOrders.getFirst().channel()).decodeMutatesBytes()) {
-            return null;
-        }
-        return new MinCompetitive(blockFactory, elementTypes, encoders, sortOrders, inputQueue.top());
-    }
-
-    /**
      * Build the result iterator. Moves all rows from the {@link #inputQueue} and
      * {@link #close}s it.
      */
@@ -725,19 +735,7 @@ public class TopNOperator implements Operator, Accountable {
                         readValues(builders, row.values.bytesRefView());
                     }
                 }
-
-                Block[] blocks = new Block[builders.length];
-                try {
-                    for (int b = 0; b < blocks.length; b++) {
-                        blocks[b] = builders[b].build();
-                    }
-                } finally {
-                    if (blocks[blocks.length - 1] == null) {
-                        Releasables.closeExpectNoException(blocks);
-                    }
-                }
-                Releasables.closeExpectNoException(builders);
-                return new Page(blocks);
+                return new Page(ResultBuilder.buildAll(builders));
             } finally {
                 Releasables.close(builders);
                 emitNanos += System.nanoTime() - start;

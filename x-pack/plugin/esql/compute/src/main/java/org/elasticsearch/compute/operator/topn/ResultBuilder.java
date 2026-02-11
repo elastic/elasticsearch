@@ -11,7 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Builds {@link Block}s from keys and values encoded into {@link BytesRef}s.
@@ -65,4 +67,18 @@ interface ResultBuilder extends Releasable {
         };
     }
 
+    static Block[] buildAll(ResultBuilder[] builders) {
+        Block[] blocks = new Block[builders.length];
+        try {
+            for (int b = 0; b < blocks.length; b++) {
+                blocks[b] = builders[b].build();
+            }
+        } finally {
+            if (blocks[blocks.length - 1] == null) {
+                Releasables.closeExpectNoException(blocks);
+            }
+        }
+        Releasables.closeExpectNoException(builders);
+        return blocks;
+    }
 }

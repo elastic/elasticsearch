@@ -231,8 +231,8 @@ Which returns:
 
 ### Setting the query timezone [esql-timezones]
 ```{applies_to}
-stack: preview 9.4
-serverless: preview
+stack: ga 9.4
+serverless: ga
 ```
 
 To set the default timezone for the query, use the `time_zone` parameter in the request body. If not specified, the default timezone is UTC.

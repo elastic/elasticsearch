@@ -24,9 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
  * </pre>
  */
 public class PromqlKibanaDefinitionGeneratorTests extends ESTestCase {
-
     public void testGenerateDefinitions() throws Exception {
         DocsV3Support.Callbacks callbacks = DocsV3Support.callbacksFromSystemProperty();
-        PromqlDocsSupport.generateAll(callbacks);
+        PromqlDocsSupport.entrypoint(callbacks);
     }
 }

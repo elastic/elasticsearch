@@ -57,6 +57,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
+    /** Cap for cluster-size weight to avoid one segment dominating (safety bound, not a recall tunable). */
+    private static final float CLUSTER_SIZE_WEIGHT_CAP = 2f;
+
     protected final String field;
     protected final float providedVisitRatio;
     protected final int k;
@@ -415,6 +418,22 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return new float[segmentMetadata.size()];
         }
 
+        int validSegments = 0;
+        int totalNumCentroids = 0;
+        for (SegmentMetadata m : segmentMetadata) {
+            if (m.isValid() && m.vectorCount() > 0) {
+                validSegments++;
+                totalNumCentroids += m.numCentroids();
+            }
+        }
+        if (validSegments == 0) {
+            return new float[segmentMetadata.size()];
+        }
+
+        float totalBudget = baseVisitRatio * totalVectors;
+        float minRatio = baseVisitRatio / validSegments;
+        float remainingBudget = totalBudget * (validSegments - 1) / validSegments;
+
         float maxAffinityScore = Float.NEGATIVE_INFINITY;
         for (SegmentMetadata m : segmentMetadata) {
             if (m.isValid()) {
@@ -428,10 +447,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             maxAffinityScore = 1f;
         }
 
+        float globalAvgClusterSize = totalNumCentroids > 0 ? (float) totalVectors / totalNumCentroids : 1f;
+
         float[] affinityScores = new float[segmentMetadata.size()];
         float totAffinity = 0f;
-        float reservedForFloor = 0f;
-        int positiveAffinityCount = 0;
 
         for (int i = 0; i < segmentMetadata.size(); i++) {
             SegmentMetadata metadata = segmentMetadata.get(i);
@@ -439,22 +458,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 float affinity = calculateSegmentAffinity(metadata, maxAffinityScore);
                 affinityScores[i] = Math.max(0f, affinity);
                 if (affinityScores[i] > 0f) {
+                    float clusterSizeWeight = globalAvgClusterSize > 0
+                        ? Math.min(CLUSTER_SIZE_WEIGHT_CAP, metadata.averageClusterSize() / globalAvgClusterSize)
+                        : 1f;
+                    affinityScores[i] *= clusterSizeWeight;
                     totAffinity += affinityScores[i];
-                    positiveAffinityCount++;
-                } else {
-                    reservedForFloor += 0.1f * baseVisitRatio * metadata.vectorCount();
                 }
             } else {
                 affinityScores[i] = 0f;
             }
         }
-
-        if (positiveAffinityCount == 0 || totAffinity == 0f) {
-            return new float[segmentMetadata.size()];
-        }
-
-        float totalBudget = baseVisitRatio * totalVectors;
-        float remainingBudget = Math.max(0f, totalBudget - reservedForFloor);
 
         float[] segmentVisitRatios = new float[segmentMetadata.size()];
         for (int i = 0; i < segmentMetadata.size(); i++) {
@@ -463,11 +476,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 segmentVisitRatios[i] = 0f;
                 continue;
             }
-            if (affinityScores[i] > 0f) {
-                segmentVisitRatios[i] = (affinityScores[i] / totAffinity) * remainingBudget / size;
+            segmentVisitRatios[i] = minRatio;
+            if (affinityScores[i] > 0f && totAffinity > 0f) {
+                segmentVisitRatios[i] += (affinityScores[i] / totAffinity) * remainingBudget / size;
                 segmentVisitRatios[i] = Math.min(1f, segmentVisitRatios[i]);
-            } else {
-                segmentVisitRatios[i] = 0.1f * baseVisitRatio;
             }
         }
 

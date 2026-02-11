@@ -8,15 +8,16 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettingsTests;
 
 public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCase<ModelConfigurations> {
@@ -99,7 +100,11 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
     }
 
     private static ServiceSettings randomServiceSettings() {
-        return ElserInternalServiceSettingsTests.createRandom();
+        // This used to be ElserInternalServiceSettings::createRandom but that would generate an invalid num allocations because it can
+        // generate null for the field. That fails the ElasticsearchInternalServiceSettings writeTo
+        // serialization (in 8.16 and previous the field is required). So I'm switching to a simpler implementation since this is mainly
+        // to test the serialization of ModelConfigurations and not the individual service settings implementations
+        return JinaAIRerankServiceSettingsTests.createRandom();
     }
 
     private static TaskSettings randomTaskSettings() {
@@ -128,6 +133,17 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
 
     @Override
     protected ModelConfigurations mutateInstanceForVersion(ModelConfigurations instance, TransportVersion version) {
-        return instance;
+        if (version.onOrAfter(TransportVersions.V_8_16_0)) {
+            return instance;
+        }
+
+        return new ModelConfigurations(
+            instance.getInferenceEntityId(),
+            instance.getTaskType(),
+            instance.getService(),
+            instance.getServiceSettings(),
+            instance.getTaskSettings(),
+            null  // chunkingSettings not serialized in pre-8.16
+        );
     }
 }

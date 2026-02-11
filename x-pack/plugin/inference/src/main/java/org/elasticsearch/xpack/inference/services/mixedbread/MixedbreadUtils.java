@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
@@ -24,7 +21,6 @@ public final class MixedbreadUtils {
     public static final String EMBEDDINGS_PATH = "embeddings";
 
     public static final String RERANK_PATH = "reranking";
-    public static URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https").setHost(MixedbreadUtils.HOST);
 
     // common service settings fields
     public static final String MODEL_FIELD = "model";
@@ -65,25 +61,6 @@ public final class MixedbreadUtils {
      */
     public static boolean supportsMixedbread(TransportVersion version) {
         return version.supports(INFERENCE_MIXEDBREAD_ADDED);
-    }
-
-    private static final String PASSAGE = "passage";
-    private static final String QUERY = "query";
-
-    /**
-     * Converts an {@link InputType} to its corresponding string representation for Mixedbread services.
-     *
-     * @param inputType the InputType to convert
-     * @return the string representation of the {@link InputType}
-     */
-    public static String inputTypeToString(InputType inputType) {
-        return switch (inputType) {
-            case INGEST, INTERNAL_INGEST -> PASSAGE;
-            case SEARCH, INTERNAL_SEARCH -> QUERY;
-            case null, default -> throw new IllegalArgumentException(
-                Strings.format("Unrecognized input_type [%s], must be one of %s", inputType, MixedbreadService.VALID_INPUT_TYPE_VALUES)
-            );
-        };
     }
 
     /**

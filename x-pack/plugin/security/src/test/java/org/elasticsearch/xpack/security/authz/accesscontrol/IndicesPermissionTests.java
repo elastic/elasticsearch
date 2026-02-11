@@ -154,7 +154,7 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index_1")
             .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
-        pmd = ProjectMetadata.builder(randomProjectIdOrDefault()).put(imbBuilder.build(), true).put(imbBuilder1.build(), true).build();
+        pmd = ProjectMetadata.builder(pmd).put(imbBuilder1.build(), true).build();
 
         // match all fields with more than one permission
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));

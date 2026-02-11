@@ -340,8 +340,8 @@ public class ReshardIndexService {
             "%s cannot transition target state [%s] because target primary term advanced [%s>%s]",
             shardId,
             splitStateRequest.getNewTargetShardState(),
-            startingTargetPrimaryTerm,
-            currentTargetPrimaryTerm
+            currentTargetPrimaryTerm,
+            startingTargetPrimaryTerm
         );
         logger.debug(message);
         assert currentTargetPrimaryTerm > startingTargetPrimaryTerm;

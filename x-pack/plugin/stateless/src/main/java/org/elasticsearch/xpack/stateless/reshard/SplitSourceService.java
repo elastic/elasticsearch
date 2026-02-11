@@ -21,11 +21,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,9 +52,12 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class SplitSourceService {
     private static final Logger logger = LogManager.getLogger(SplitSourceService.class);
@@ -350,9 +355,10 @@ public class SplitSourceService {
             return;
         }
 
-        // It is possible that the shard is already STARTED at this point, see IndicesClusterStateService#updateShard.
-        // As such it is possible that we are already accepting requests to start split from targets.
-        // If any of them already set up tracking of the split process we don't need to do anything here.
+        /// It is possible that the shard is already STARTED at this point,
+        /// see {@link IndicesClusterStateService#updateShard(ShardRouting, IndicesClusterStateService.Shard, ClusterState)}
+        /// As such it is possible that we are already accepting requests to start split from targets.
+        /// If any of them already set up tracking of the split process we don't need to do anything here.
         if (splitCleanup.putIfAbsent(indexShard, new Split(indexShard)) != null) {
             listener.onResponse(null);
             return;
@@ -378,50 +384,169 @@ public class SplitSourceService {
         cleanup.run();
     }
 
+    private final class HandoffConvergenceObserver {
+
+        private enum Outcome {
+            HANDOFF_SUCCESS,
+            SOURCE_PRIMARY_ADVANCED,
+            TARGET_PRIMARY_ADVANCED
+        }
+
+        private static final class Decision {
+            private Outcome outcome;
+            private long currentSourcePrimaryTerm;
+            private long currentTargetPrimaryTerm;
+        }
+
+        private final ShardId targetShardId;
+        private final ShardId sourceShardId;
+        private final long expectedTargetPrimaryTerm;
+        private final long expectedSourcePrimaryTerm;
+        private final AtomicBoolean shouldRetry;
+        private final Releasable permits;
+        private final ActionListener<ActionResponse> listener;
+        private final Decision decision = new Decision();
+
+        HandoffConvergenceObserver(
+            ShardId targetShardId,
+            ShardId sourceShardId,
+            long expectedTargetPrimaryTerm,
+            long expectedSourcePrimaryTerm,
+            AtomicBoolean shouldRetry,
+            Releasable permits,
+            ActionListener<ActionResponse> listener
+        ) {
+            this.targetShardId = targetShardId;
+            this.sourceShardId = sourceShardId;
+            this.expectedTargetPrimaryTerm = expectedTargetPrimaryTerm;
+            this.expectedSourcePrimaryTerm = expectedSourcePrimaryTerm;
+            this.shouldRetry = shouldRetry;
+            this.permits = permits;
+            this.listener = listener;
+        }
+
+        void start() {
+            ClusterStateObserver.waitForState(
+                clusterService,
+                clusterService.threadPool().getThreadContext(),
+                new ClusterStateObserver.Listener() {
+
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        assert decision.outcome != null : "Predicate returned true without setting outcome";
+
+                        shouldRetry.set(false);
+                        permits.close();
+
+                        switch (decision.outcome) {
+                            case HANDOFF_SUCCESS -> {
+                                logger.debug("Target observed in HANDOFF state by source shard {}", sourceShardId);
+                                listener.onResponse(null);
+                            }
+                            case SOURCE_PRIMARY_ADVANCED -> {
+                                String message = format(
+                                    "%s source primary term advanced [%s>%s], handoff failed",
+                                    sourceShardId,
+                                    decision.currentSourcePrimaryTerm,
+                                    expectedSourcePrimaryTerm
+                                );
+                                logger.debug(message);
+                                listener.onFailure(new StaleSplitRequestException(message));
+                            }
+                            case TARGET_PRIMARY_ADVANCED -> {
+                                String message = format(
+                                    "%s target primary term advanced [%s>%s], handoff failed",
+                                    targetShardId,
+                                    decision.currentTargetPrimaryTerm,
+                                    expectedTargetPrimaryTerm
+                                );
+                                logger.debug(message);
+                                listener.onFailure(new StaleSplitRequestException(message));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        logger.error("{} Ignoring timeout for HANDOFF wait", sourceShardId);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        // TODO: Should we release permits here ? Does it matter ?
+                        permits.close();
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+                },
+                this::hasConverged,
+                null,
+                logger
+            );
+        }
+
+        private boolean hasConverged(ClusterState clusterState) {
+            Index index = targetShardId.getIndex();
+            IndexMetadata indexMetadata = clusterState.metadata().projectFor(index).getIndexSafe(index);
+
+            IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+
+            long currentTargetPrimary = indexMetadata.primaryTerm(targetShardId.getId());
+            long currentSourcePrimary = indexMetadata.primaryTerm(sourceShardId.getId());
+
+            if (reshardingMetadata != null
+                && reshardingMetadata.getSplit()
+                    .targetStateAtLeast(targetShardId.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
+                decision.outcome = Outcome.HANDOFF_SUCCESS;
+                return true;
+            }
+
+            if (currentSourcePrimary > expectedSourcePrimaryTerm) {
+                decision.outcome = Outcome.SOURCE_PRIMARY_ADVANCED;
+                decision.currentSourcePrimaryTerm = currentSourcePrimary;
+                return true;
+            }
+
+            if (currentTargetPrimary > expectedTargetPrimaryTerm) {
+                decision.outcome = Outcome.TARGET_PRIMARY_ADVANCED;
+                decision.currentTargetPrimaryTerm = currentTargetPrimary;
+                return true;
+            }
+            return false;
+        }
+    }
+
     /**
-     * Wait to observe target shard state post HANDOFF. This is called on the source node before releasing permits
-     * during the HANDOFF dance.
-     * @param shardId       target shardId
-     * @param listener      completed once target HANDOFF is observed
-     *                      We do not expect this function to throw in {@code getIndexSafe()} because this is
-     *                      invoked after we got permits for this index.
+     * This cluster state observer waits for cluster state to converge to one of 3 states
+     * - target shard in HANDOFF state  (indicates a successful handoff)
+     * - source primary term advanced   (indicates handoff unsuccessful)
+     * - target primary term advanced   (indicates handoff unsuccessful)
+     * @param targetShardId       target shard id
+     * @param targetPrimaryTerm   target shard primary term
+     * @param sourcePrimaryTerm   source shard primary term
+     * @param shouldRetry         set to false once cluster state converges
+     * @param permits             indexing permits that were acquired before initiating handoff,
+     *                            should be release once cluster state has converged
+     * @param listener            listener to complete once cluster state has converged
      */
-    public void waitForTargetShardHandoff(ShardId shardId, ActionListener<Void> listener) {
-        Index index = shardId.getIndex();
+    public void waitForHandoffSuccessOrFailure(
+        ShardId targetShardId,
+        long targetPrimaryTerm,
+        long sourcePrimaryTerm,
+        AtomicBoolean shouldRetry,
+        Releasable permits,
+        ActionListener<ActionResponse> listener
+    ) {
+        Index index = targetShardId.getIndex();
+        IndexMetadata indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
+        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 
-        ClusterStateObserver.waitForState(
-            clusterService,
-            clusterService.threadPool().getThreadContext(),
-            new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    // Condition met, so we notify success
-                    listener.onResponse(null);
-                }
+        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
 
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    // This will NEVER be called because timeout is null but we still log an error just in case
-                    logger.error("Ignoring timeout for HANDOFF wait on {}", shardId);
-                }
+        int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
+        ShardId sourceShardId = new ShardId(index, sourceShardIndex);
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-            },
-            clusterState -> {
-                IndexReshardingMetadata reshardingMetadata = clusterState.metadata()
-                    .projectFor(index)
-                    .getIndexSafe(index)
-                    .getReshardingMetadata();
-
-                return reshardingMetadata != null
-                    && reshardingMetadata.getSplit().targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.HANDOFF);
-            },
-            null, // no timeout => wait forever
-            logger
-        );
+        new HandoffConvergenceObserver(targetShardId, sourceShardId, targetPrimaryTerm, sourcePrimaryTerm, shouldRetry, permits, listener)
+            .start();
     }
 
     private ShardId getSplitSource(ShardId targetShardId) {

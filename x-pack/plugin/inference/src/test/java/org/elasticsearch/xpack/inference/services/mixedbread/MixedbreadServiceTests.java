@@ -154,7 +154,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                         ),
                         MixedbreadEmbeddingsTaskSettings.EMPTY_SETTINGS
                     );
-                    // Completion and Sparse embedding is not supported, but in order to test unsupported task types it is included here
+                    // Completion is not supported, but in order to test unsupported task types it is included here
                     case COMPLETION -> new ModelConfigurations(
                         INFERENCE_ID_VALUE,
                         taskType,
@@ -369,33 +369,6 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
             );
         }
     }
-
-    // public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-    // var chunkingSettings = createRandomChunkingSettings();
-    // try (var service = createMixedbreadService()) {
-    // ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(model -> {
-    // assertThat(model, instanceOf(MixedbreadEmbeddingsModel.class));
-    //
-    // var embeddingsModel = (MixedbreadEmbeddingsModel) model;
-    // assertThat(embeddingsModel.getServiceSettings().uri().toString(), Matchers.is(TestUtils.CUSTOM_URL));
-    // assertThat(embeddingsModel.getServiceSettings().modelId(), Matchers.is(TestUtils.MODEL_ID));
-    // assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-    // assertThat(embeddingsModel.getConfigurations().getChunkingSettings().asMap(), Matchers.is(chunkingSettings.asMap()));
-    // assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), Matchers.is(TestUtils.API_KEY));
-    // }, e -> fail("parse request should not fail " + e.getMessage()));
-    //
-    // service.parseRequestConfig(
-    // INFERENCE_ID_VALUE,
-    // TEXT_EMBEDDING,
-    // getRequestConfigMap(
-    // createServiceSettingsMap(TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
-    // chunkingSettings.asMap(),
-    // getSecretSettingsMap(TestUtils.API_KEY)
-    // ),
-    // modelVerificationActionListener
-    // );
-    // }
-    // }
 
     @Before
     public void init() throws Exception {

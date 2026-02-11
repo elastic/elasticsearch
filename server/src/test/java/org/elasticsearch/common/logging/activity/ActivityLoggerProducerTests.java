@@ -78,8 +78,8 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("testType"));
         assertThat(message.get("foo"), equalTo("bar"));
-        assertNull(message.get(ES_FIELDS_PREFIX + "error.type"));
-        assertNull(message.get(ES_FIELDS_PREFIX + "error.message"));
+        assertNull(message.get("error.type"));
+        assertNull(message.get("error.message"));
     }
 
     public void testProduceCommonFailure() {
@@ -90,8 +90,8 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         assertThat(message.get(ES_FIELDS_PREFIX + "took"), equalTo("1000"));
         assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("failType"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "error.type"), equalTo("SomeError"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "error.message"), equalTo("Something went wrong"));
+        assertThat(message.get("error.type"), equalTo("SomeError"));
+        assertThat(message.get("error.message"), equalTo("Something went wrong"));
         assertThat(message.get("foo"), equalTo("bar"));
     }
 }

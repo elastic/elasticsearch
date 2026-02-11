@@ -44,8 +44,8 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         fields.field(EVENT_OUTCOME_FIELD, context.isSuccess() ? "success" : "failure");
         fields.field(ES_FIELDS_PREFIX + "type", context.getType());
         if (context.isSuccess() == false) {
-            fields.field(ES_FIELDS_PREFIX + "error.type", context.getErrorType());
-            fields.field(ES_FIELDS_PREFIX + "error.message", context.getErrorMessage());
+            fields.field("error.type", context.getErrorType());
+            fields.field("error.message", context.getErrorMessage());
         }
         return fields;
     }

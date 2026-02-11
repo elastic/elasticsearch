@@ -91,10 +91,10 @@ public class ActivityLoggingUtils {
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
         assertThat(message.get(ES_FIELDS_PREFIX + "query"), containsString(query));
         if (errorMessage != null) {
-            assertThat(message.get(ES_FIELDS_PREFIX + "error.message"), containsString(errorMessage));
+            assertThat(message.get("error.message"), containsString(errorMessage));
         }
         if (exception != null) {
-            assertThat(message.get(ES_FIELDS_PREFIX + "error.type"), equalTo(exception.getName()));
+            assertThat(message.get("error.type"), equalTo(exception.getName()));
         }
     }
 }

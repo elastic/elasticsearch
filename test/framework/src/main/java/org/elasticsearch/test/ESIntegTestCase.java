@@ -228,6 +228,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -1658,19 +1659,40 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         } catch (AlreadyClosedException ex) {
                             continue;
                         }
-                        assertThat(
-                            "out of sync shards: primary=["
-                                + primaryShardRouting
-                                + "] num_docs_on_primary=["
-                                + docsOnPrimary.size()
-                                + "] vs replica=["
-                                + replicaShardRouting
-                                + "] num_docs_on_replica=["
-                                + docsOnReplica.size()
-                                + "]",
-                            docsOnReplica,
-                            equalTo(docsOnPrimary)
-                        );
+
+                        final int nbDocsOnPrimary = docsOnPrimary.size();
+                        final int nbDocsOnReplica = docsOnReplica.size();
+
+                        final var message = "out of sync shards: primary=["
+                            + primaryShardRouting
+                            + "] num_docs_on_primary=["
+                            + nbDocsOnReplica
+                            + "] vs replica=["
+                            + replicaShardRouting
+                            + "] num_docs_on_replica=["
+                            + nbDocsOnReplica
+                            + "]";
+
+                        if (nbDocsOnPrimary != nbDocsOnReplica) {
+                            assertThat(message, docsOnReplica, equalTo(docsOnPrimary));
+                        } else {
+                            var diffOnPrimary = new ArrayList<DocIdSeqNoAndSource>();
+                            var diffOnReplica = new ArrayList<DocIdSeqNoAndSource>();
+                            for (int doc = 0; doc < nbDocsOnPrimary; doc++) {
+                                var docOnPrimary = docsOnPrimary.get(doc);
+                                var docOnReplica = docsOnReplica.get(doc);
+                                if (Objects.equals(docOnPrimary, docOnReplica) == false) {
+                                    diffOnPrimary.add(docOnPrimary);
+                                    diffOnReplica.add(docOnReplica);
+                                    break;
+                                }
+                            }
+                            assertThat(
+                                message + ", num_docs_different=[" + diffOnPrimary.size() + "]",
+                                diffOnReplica,
+                                equalTo(diffOnPrimary)
+                            );
+                        }
                     }
                 }
             }

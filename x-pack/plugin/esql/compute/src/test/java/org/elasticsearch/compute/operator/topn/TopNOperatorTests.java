@@ -153,7 +153,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             List.of(DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, true, false)),
             pageSize,
-            InputOrdering.NOT_SORTED
+            InputOrdering.NOT_SORTED,
+            null
         );
     }
 
@@ -246,7 +247,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                     List.of(DEFAULT_UNSORTABLE),
                     List.of(new TopNOperator.SortOrder(0, true, false)),
                     pageSize,
-                    sortedInput
+                    sortedInput,
+                    null
                 ).get(context)
             ) {
                 long actualEmpty = RamUsageTester.ramUsed(op, acc);
@@ -345,7 +347,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(DEFAULT_SORTABLE),
                         List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
                         randomPageSize(),
-                        InputOrdering.SORTED
+                        InputOrdering.SORTED,
+                        null
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -398,7 +401,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(DEFAULT_SORTABLE, DEFAULT_SORTABLE),
                         List.of(new TopNOperator.SortOrder(0, asc, nullsFirst), new TopNOperator.SortOrder(1, asc, nullsFirst)),
                         randomPageSize(),
-                        InputOrdering.SORTED
+                        InputOrdering.SORTED,
+                        null
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -417,7 +421,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             List.of(DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, true, false)),
             pageSize,
-            InputOrdering.SORTED
+            InputOrdering.SORTED,
+            null
         );
         var expectedDescription = "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
             + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=SORTED]";
@@ -953,7 +958,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
                         randomPageSize(),
-                        InputOrdering.NOT_SORTED
+                        InputOrdering.NOT_SORTED,
+                        null
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -1048,7 +1054,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
                         randomPageSize(),
-                        InputOrdering.NOT_SORTED
+                        InputOrdering.NOT_SORTED,
+                        null
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -1117,7 +1124,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             encoder,
                             sortOrders,
                             randomPageSize(),
-                            InputOrdering.NOT_SORTED
+                            InputOrdering.NOT_SORTED,
+                            null
                         )
                     ),
                     new PageConsumerOperator(pages::add)
@@ -1166,7 +1174,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
             List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
             randomPageSize(),
-            InputOrdering.NOT_SORTED
+            InputOrdering.NOT_SORTED,
+            null
         );
         String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
             .stream()
@@ -1409,7 +1418,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(encoder),
                         List.of(sortOrders),
                         randomPageSize(),
-                        InputOrdering.NOT_SORTED
+                        InputOrdering.NOT_SORTED,
+                        null
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actualValues, p))
@@ -1502,7 +1512,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             encoders,
             uniqueOrders.stream().toList(),
             rowsPerPage,
-            InputOrdering.NOT_SORTED
+            InputOrdering.NOT_SORTED,
+            null
         );
         for (int p = 0; p < pageCount; p++) {
             assertThat(operator.needsInput(), equalTo(true));
@@ -1616,7 +1627,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
                             randomPageSize(),
-                            InputOrdering.NOT_SORTED
+                            InputOrdering.NOT_SORTED,
+                            null
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
@@ -1743,7 +1755,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
                             randomPageSize(),
-                            InputOrdering.NOT_SORTED
+                            InputOrdering.NOT_SORTED,
+                            null
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
@@ -1834,7 +1847,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean())
                         ),
                         randomPageSize(),
-                        InputOrdering.NOT_SORTED
+                        InputOrdering.NOT_SORTED,
+                        null
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -1871,7 +1885,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(DEFAULT_UNSORTABLE),
                         List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
                         maxPageSize,
-                        InputOrdering.NOT_SORTED
+                        InputOrdering.NOT_SORTED,
+                        null
                     )
                 ),
                 new PageConsumerOperator(p -> {
@@ -1907,7 +1922,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
                 randomPageSize(),
-                InputOrdering.NOT_SORTED
+                InputOrdering.NOT_SORTED,
+                null
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
@@ -1932,7 +1948,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 encoders,
                 List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
                 randomPageSize(),
-                InputOrdering.NOT_SORTED
+                InputOrdering.NOT_SORTED,
+                null
             )
         ) {
             int[] blockValues = IntStream.range(0, rows).toArray();

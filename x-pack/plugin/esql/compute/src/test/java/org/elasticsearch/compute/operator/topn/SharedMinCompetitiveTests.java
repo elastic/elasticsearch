@@ -7,21 +7,121 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SharedMinCompetitiveTests extends ComputeTestCase {
     public void testEmpty() {
-        SharedMinCompetitive minCompetitive = new SharedMinCompetitive(
+        try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
+            assertThat(minCompetitive.get(blockFactory()), nullValue());
+        }
+    }
+
+    public void testOneOffer() {
+        long v = randomLong();
+        try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
+            offerLong(minCompetitive, v);
+            try (Page p = minCompetitive.get(blockFactory())) {
+                assertThat(p.getPositionCount(), equalTo(1));
+                assertThat(p.getBlockCount(), equalTo(1));
+                LongVector vector = p.<LongBlock>getBlock(0).asVector();
+                assertThat(vector.getLong(0), equalTo(v));
+            }
+        }
+    }
+
+    public void testManyOffers() {
+        int count = 10_000;
+        long[] values = randomLongs().limit(count).toArray();
+        try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
+            for (long v : values) {
+                offerLong(minCompetitive, v);
+            }
+            try (Page p = minCompetitive.get(blockFactory())) {
+                assertThat(p.getPositionCount(), equalTo(1));
+                assertThat(p.getBlockCount(), equalTo(1));
+                LongVector vector = p.<LongBlock>getBlock(0).asVector();
+                assertThat(vector.getLong(0), equalTo(Arrays.stream(values).max().getAsLong()));
+            }
+        }
+    }
+
+    public void testManyConcurrentOffers() throws ExecutionException, InterruptedException {
+        int count = 10_000;
+        int threads = 5;
+        long max = Long.MIN_VALUE;
+        ExecutorService exec = Executors.newFixedThreadPool(threads);
+        List<Future<?>> wait = new ArrayList<>();
+        try {
+            try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
+                for (int t = 0; t < threads; t++) {
+                    long[] values = randomLongs().limit(count).toArray();
+                    max = Math.max(max, Arrays.stream(values).max().getAsLong());
+                    wait.add(exec.submit(() -> {
+                        for (long v : values) {
+                            offerLong(minCompetitive, v);
+                        }
+                    }));
+                }
+                for (Future<?> w : wait) {
+                    w.get();
+                }
+                try (Page p = minCompetitive.get(blockFactory())) {
+                    assertThat(p.getPositionCount(), equalTo(1));
+                    assertThat(p.getBlockCount(), equalTo(1));
+                    LongVector vector = p.<LongBlock>getBlock(0).asVector();
+                    assertThat(vector.getLong(0), equalTo(max));
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    private SharedMinCompetitive longMinCompetitive() {
+        return new SharedMinCompetitive(
             blockFactory().breaker(),
             List.of(ElementType.LONG),
-            List.of(TopNEncoder.DEFAULT_SORTABLE),
-            List.of(new TopNOperator.SortOrder(
-                0, false, false
-            ))
+            List.of(TopNEncoder.DEFAULT_UNSORTABLE),
+            List.of(longSortOrder())
         );
+    }
+
+    private void offerLong(SharedMinCompetitive minCompetitive, long l) {
+        try (
+            Block block = blockFactory().newConstantLongBlockWith(l, 1);
+            BreakingBytesRefBuilder b = new BreakingBytesRefBuilder(blockFactory().breaker(), "work");
+        ) {
+            KeyExtractor extractor = longExtractor(block);
+            extractor.writeKey(b, 0);
+            minCompetitive.offer(b.bytesRefView());
+        }
+    }
+
+    private KeyExtractor longExtractor(Block block) {
+        TopNOperator.SortOrder so = longSortOrder();
+        return KeyExtractor.extractorFor(ElementType.LONG, TopNEncoder.DEFAULT_SORTABLE, so.asc(), so.nul(), so.nonNul(), block);
+    }
+
+    private TopNOperator.SortOrder longSortOrder() {
+        return new TopNOperator.SortOrder(0, false, false);
     }
 }

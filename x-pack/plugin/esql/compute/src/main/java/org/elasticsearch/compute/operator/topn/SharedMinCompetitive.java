@@ -13,11 +13,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
-public class SharedMinCompetitive {
+/**
+ * A thread safe, shared holder for the min competitive value from a
+ * set of {@link TopNOperator}s.
+ */
+public class SharedMinCompetitive implements Releasable {
     private final BreakingBytesRefBuilder value;
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
@@ -37,13 +42,14 @@ public class SharedMinCompetitive {
 
     /**
      * Offer an update to the min competitive value.
+     * @param minCompetitive if it is accepted then the bytes are copied
      */
     public void offer(BytesRef minCompetitive) {
-        if (value.bytesRefView().compareTo(minCompetitive) <= 0) {
+        if (value.bytesRefView().compareTo(minCompetitive) >= 0) {
             return;
         }
         synchronized (value) {
-            if (value.bytesRefView().compareTo(minCompetitive) <= 0) {
+            if (value.bytesRefView().compareTo(minCompetitive) >= 0) {
                 return;
             }
             value.clear();
@@ -54,6 +60,10 @@ public class SharedMinCompetitive {
     public Page get(BlockFactory blockFactory) {
         try (BreakingBytesRefBuilder copy = new BreakingBytesRefBuilder(blockFactory.breaker(), "min_competitive_copy")) {
             synchronized (value) {
+                if (value.bytesRefView().length == 0) {
+                    // Not assigned anything yet
+                    return null;
+                }
                 copy.append(value.bytesRefView());
             }
             ResultBuilder[] builders = new ResultBuilder[sortOrders.size()];
@@ -63,24 +73,28 @@ public class SharedMinCompetitive {
                     TopNOperator.SortOrder sortOrder = sortOrders.get(i);
                     TopNEncoder encoder = encoders.get(i);
                     ElementType elementType = elementTypes.get(i);
-                    builders[i] = ResultBuilder.resultBuilderFor(blockFactory, elementType, encoder, true, 1);
-                    try (ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, elementType, encoder, true, 1);) {
-                        if (shallow.bytes[shallow.offset] == sortOrder.nul()) {
-                            builder.decodeValue(new BytesRef(new byte[] {0}));
-                            shallow.offset += 1;
-                            shallow.length -= 1;
-                            continue;
-                        }
+                    ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, elementType, encoder, true, 1);
+                    builders[i] = builder;
+                    if (shallow.bytes[shallow.offset] == sortOrder.nul()) {
+                        builder.decodeValue(new BytesRef(new byte[] { 0 }));
                         shallow.offset += 1;
                         shallow.length -= 1;
-                        builder.decodeKey(shallow);
-                        builder.decodeValue(new BytesRef(new byte[]{1}));
+                        continue;
                     }
+                    shallow.offset += 1;
+                    shallow.length -= 1;
+                    builder.decodeKey(shallow);
+                    builder.decodeValue(new BytesRef(new byte[] { 1 }));
                 }
                 return new Page(ResultBuilder.buildAll(builders));
             } finally {
                 Releasables.close(builders);
             }
         }
+    }
+
+    @Override
+    public void close() {
+        value.close();
     }
 }

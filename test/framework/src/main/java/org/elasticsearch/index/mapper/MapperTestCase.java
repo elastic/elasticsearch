@@ -1662,7 +1662,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context).get());
                 assertThat(
                     ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
                     instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
@@ -1690,7 +1690,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context).get());
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
@@ -1698,7 +1698,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));
 
                 docBlock = TestBlock.docs(0, 2);
-                columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context).get());
                 var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
@@ -1731,7 +1731,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                var columnReader = blockLoader.columnAtATimeReader(context);
+                var columnReader = blockLoader.columnAtATimeReader(context).get();
                 assertThat(
                     columnReader,
                     anyOf(

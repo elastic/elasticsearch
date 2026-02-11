@@ -24,6 +24,7 @@ import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -81,7 +82,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(page -> results.add(page))
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
@@ -101,7 +102,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
@@ -125,7 +126,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(page -> results.add(page))
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
@@ -152,7 +153,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);

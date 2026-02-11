@@ -17,3 +17,5 @@
 * [`VALUES`](../../functions-operators/aggregation-functions.md#esql-values) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`VARIANCE`](../../functions-operators/aggregation-functions.md#esql-variance)
 * [`WEIGHTED_AVG`](../../functions-operators/aggregation-functions.md#esql-weighted_avg)
+* [`FIRST`](../../functions-operators/aggregation-functions.md#esql-first)
+* [`LAST`](../../functions-operators/aggregation-functions.md#esql-last)

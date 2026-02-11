@@ -1,5 +1,0 @@
-pr: 139882
-summary: Fix a validation message in `TimeSeriesGroupByAll`
-area: ES|QL
-type: enhancement
-issues: []

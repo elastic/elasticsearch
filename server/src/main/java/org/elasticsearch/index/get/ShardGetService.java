@@ -150,7 +150,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        MultiEngineGet mget
+        MultiEngineGet mget,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -163,7 +164,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             mget::get
         );
     }
@@ -623,9 +624,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         inferenceLoader.setNextReader(readerContext);
         List<Object> values = inferenceLoader.fetchValues(source, docId, List.of());
         if (values.size() == 1) {
-            var newSource = source.source();
-            newSource.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-            return Source.fromMap(newSource, source.sourceContentType());
+            return source.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, values.get(0)));
         }
         return source;
     }

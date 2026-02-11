@@ -258,8 +258,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         if (values.isEmpty()) {
             return originalSource;
         }
-        originalSource.source().put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-        return Source.fromMap(originalSource.source(), originalSource.sourceContentType());
+        return originalSource.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, values.get(0)));
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {

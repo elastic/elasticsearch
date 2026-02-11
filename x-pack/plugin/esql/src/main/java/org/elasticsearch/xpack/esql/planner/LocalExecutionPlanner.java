@@ -388,7 +388,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {
-        return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context));
+        return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -507,7 +507,14 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(topNExec, rowSize)),
+            new TopNOperatorFactory(
+                limit,
+                asList(elementTypes),
+                asList(encoders),
+                orders,
+                context.pageSize(topNExec, rowSize),
+                topNExec.inputOrdering()
+            ),
             source.layout
         );
     }

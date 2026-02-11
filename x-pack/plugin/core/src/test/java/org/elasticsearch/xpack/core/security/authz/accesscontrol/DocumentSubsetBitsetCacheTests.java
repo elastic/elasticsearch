@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -606,7 +607,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 () -> true,
                 null,
                 Map.of(),
-                MapperMetrics.NOOP
+                null,
+                MapperMetrics.NOOP,
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
 
             context = new TestIndexContext(directory, iw, directoryReader, searchExecutionContext, leaf);

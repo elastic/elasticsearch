@@ -110,13 +110,13 @@ public class Reindexer {
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
-        BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
+        BulkByPaginatedSearchParallelizationHelper.initTaskState(task, request, client, listener);
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
 
-        BulkByScrollParallelizationHelper.executeSlicedAction(
+        BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
             task,
             request,
             ReindexAction.INSTANCE,

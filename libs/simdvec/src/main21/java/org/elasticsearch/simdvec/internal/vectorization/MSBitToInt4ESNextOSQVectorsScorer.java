@@ -18,11 +18,13 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.nativeaccess.ByteBufferAccessInput;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
@@ -36,15 +38,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    final byte[] scratch;
-    final Arena arena;
-    final MemorySegment scratchSeg;
-
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
-        scratch = new byte[(dataLength + 16) * bulkSize];
-        arena = Arena.ofConfined();
-        scratchSeg = arena.allocate((dataLength + 16L) * bulkSize);
     }
 
     @Override
@@ -70,9 +65,9 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
      * given IndexInput. Returning a memory segment of the data.
      */
     private MemorySegment copyOnHeap(IndexInput in, int bytesToRead) throws IOException {
+        byte[] scratch = new byte[bytesToRead];
         in.readBytes(scratch, 0, bytesToRead);
-        MemorySegment.copy(MemorySegment.ofArray(scratch), 0L, scratchSeg, 0L, bytesToRead);
-        return scratchSeg;
+        return MemorySegment.ofArray(scratch);
     }
 
     /**
@@ -80,15 +75,22 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
      * index input. The position of the index input is advanced by length.
      */
     private MemorySegment getMemorySegment(long length) throws IOException {
-        MemorySegment datasetMemorySegment;
-        if (memorySegment == null) {
-            datasetMemorySegment = copyOnHeap(in, Math.toIntExact(length));
-        } else {
+        if (memorySegment != null) {
             long offset = in.getFilePointer();
-            datasetMemorySegment = memorySegment.asSlice(offset, length);
+            MemorySegment seg = memorySegment.asSlice(offset, length);
             in.skipBytes(length);
+            return seg;
         }
-        return datasetMemorySegment;
+        // try direct ByteBuffer access (e.g., from blob cache mmap'd regions)
+        if (in instanceof ByteBufferAccessInput bbai) {
+            long offset = in.getFilePointer();
+            ByteBuffer bb = bbai.byteBufferSliceOrNull(offset, length);
+            if (bb != null) {
+                in.skipBytes(length);
+                return MemorySegment.ofBuffer(bb);
+            }
+        }
+        return copyOnHeap(in, Math.toIntExact(length));
     }
 
     private long nativeQuantizeScore(byte[] q) throws IOException {
@@ -690,10 +692,5 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             centroidDp,
             scoresSegment
         );
-    }
-
-    @Override
-    public void close() {
-        arena.close();
     }
 }

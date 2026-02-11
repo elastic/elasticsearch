@@ -932,10 +932,5 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             }
             return scoredDocs;
         }
-
-        @Override
-        public void close() {
-            osqVectorsScorer.close();
-        }
     }
 }

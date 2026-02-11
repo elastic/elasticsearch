@@ -1046,6 +1046,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
+         * Optimistically try to get a direct ByteBuffer slice from the region.
+         * @return a read-only ByteBuffer slice, or null if not available (evicted, not mmap'd, etc.)
+         */
+        ByteBuffer tryGetByteBufferSlice(long offset, int length) {
+            SharedBytes.IO ioRef = nonVolatileIO();
+            if (ioRef != null) {
+                ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
+                if (slice != null && isEvicted() == false) {
+                    return slice;  // TODO: how to I retain a reference count that needs to be later released.
+                }
+            }
+            return null;
+        }
+
+        /**
          * Populates a range in cache if the range is not available nor pending to be available in cache.
          *
          * @param rangeToWrite the range of bytes to populate
@@ -1318,6 +1333,31 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
+        }
+
+        public ByteBuffer tryGetByteBufferSlice(long offset, int length) {
+            assert assertOffsetsWithinFileLength(offset, length, this.length);
+            final int startRegion = getRegion(offset);
+            final long end = offset + length;
+            final int endRegion = getEndingRegion(end);
+            if (startRegion != endRegion) {
+                return null;
+            }
+            var fileRegion = lastAccessedRegion;
+            if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
+                fileRegion.touch();
+            } else {
+                fileRegion = cache.get(cacheKey, this.length, startRegion);
+            }
+            final var region = fileRegion.chunk;
+            if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
+                return null;
+            }
+            ByteBuffer slice = region.tryGetByteBufferSlice(offset, length);
+            if (slice != null) {
+                lastAccessedRegion = fileRegion;
+            }
+            return slice;
         }
 
         public int populateAndRead(

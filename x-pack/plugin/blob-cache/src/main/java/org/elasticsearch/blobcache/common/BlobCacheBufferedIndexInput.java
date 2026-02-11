@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.nativeaccess.ByteBufferAccessInput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -27,7 +28,7 @@ import java.nio.ByteOrder;
  * <p>
  * Deviates from Lucene's implementation slightly to fix a bug - see [NOTE: Missing Seek] below, and #98970 for more details.
  */
-public abstract class BlobCacheBufferedIndexInput extends IndexInput implements RandomAccessInput {
+public abstract class BlobCacheBufferedIndexInput extends IndexInput implements RandomAccessInput, ByteBufferAccessInput {
 
     private static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0).order(ByteOrder.LITTLE_ENDIAN);
 
@@ -389,6 +390,11 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
         clone.bufferStart = getFilePointer();
 
         return clone;
+    }
+
+    @Override
+    public ByteBuffer byteBufferSliceOrNull(long offset, long length) {
+        return null;
     }
 
     /** Returns default buffer sizes for the given {@link IOContext} */

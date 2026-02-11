@@ -568,9 +568,4 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
-
-    @Override
-    public void close() {
-        // no-op - nothing to close
-    }
 }

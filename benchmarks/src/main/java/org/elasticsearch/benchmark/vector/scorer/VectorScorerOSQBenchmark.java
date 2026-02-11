@@ -20,7 +20,6 @@ import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.simdvec.BufferedIndexInputWrapper;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
@@ -147,7 +146,6 @@ public class VectorScorerOSQBenchmark {
         }
 
         input = directory.openInput("vectors", IOContext.DEFAULT);
-        input = BufferedIndexInputWrapper.wrap("vectors wrapper", input, INPUT_BUFFER_SIZE);
         int binaryQueryLength = switch (bits) {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
             case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);

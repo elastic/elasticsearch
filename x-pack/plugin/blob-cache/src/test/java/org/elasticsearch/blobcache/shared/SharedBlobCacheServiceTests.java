@@ -1980,6 +1980,160 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    // TODO: add tests for eviction, miss, etc?
+    public void testTryGetByteBufferSlice() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(8); // fits in a single region
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, fileLength);
+
+            // before populating, tryGetByteBufferSlice should return null (data not available)
+            assertThat(cacheFile.tryGetByteBufferSlice(0, 100), nullValue());
+
+            // populate the cache with known data
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            final int bytesRead = cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+            assertThat(bytesRead, equalTo((int) fileLength));
+
+            // now tryGetByteBufferSlice should return a valid slice
+            int sliceOffset = randomIntBetween(0, (int) fileLength / 2);
+            int sliceLength = randomIntBetween(1, (int) fileLength - sliceOffset);
+            ByteBuffer slice = cacheFile.tryGetByteBufferSlice(sliceOffset, sliceLength);
+            assertThat(slice, notNullValue());
+            assertTrue(slice.isReadOnly());
+            assertEquals(sliceLength, slice.remaining());
+            byte[] sliceData = new byte[sliceLength];
+            slice.get(sliceData);
+            for (int i = 0; i < sliceLength; i++) {
+                assertEquals(testData[sliceOffset + i], sliceData[i]);
+            }
+        }
+        ioExecutor.shutdown();
+    }
+
+    public void testTryGetByteBufferSliceCrossRegionReturnsNull() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(25); // spans 3 regions
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, fileLength);
+
+            // request a slice that spans the region boundary (region 0 -> region 1)
+            // region 0 covers [0, regionSize), region 1 covers [regionSize, 2*regionSize)
+            int crossBoundaryOffset = regionSize - 100;
+            int crossBoundaryLength = 200; // crosses into region 1
+            ByteBuffer slice = cacheFile.tryGetByteBufferSlice(crossBoundaryOffset, crossBoundaryLength);
+            assertThat(slice, nullValue());
+        }
+    }
+
+    public void testTryGetByteBufferSliceNoMmapReturnsNull() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(8);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), false)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, fileLength);
+
+            // populate the cache
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            // without mmap, tryGetByteBufferSlice should return null even with data populated
+            assertThat(cacheFile.tryGetByteBufferSlice(0, 100), nullValue());
+        }
+        ioExecutor.shutdown();
+    }
+
     private record TestCacheKey(ShardId shardId, String file) implements SharedBlobCacheService.KeyBase {}
 
     private static TestCacheKey randomTestCacheKey(ShardId shardId) {

@@ -456,9 +456,4 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
-
-    @Override
-    public void close() {
-        // no-op - nothing to close
-    }
 }

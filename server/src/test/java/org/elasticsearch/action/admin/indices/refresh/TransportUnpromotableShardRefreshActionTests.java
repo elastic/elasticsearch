@@ -260,16 +260,15 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
 
     private ClusterState clusterStateWithRefreshBlock(ClusterState base, ShardId shardId, ProjectId projectId) {
         IndexMetadata indexMetadata = IndexMetadata.builder(shardId.getIndexName())
-            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID()))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
+            .settings(indexSettings(IndexVersion.current(), shardId.getIndex().getUUID(), 1, 0).build())
             .build();
-        Metadata metadata = Metadata.builder(base.metadata())
-            .put(ProjectMetadata.builder(projectId).put(indexMetadata, false).build())
+        return ClusterState.builder(base)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
+            .blocks(
+                ClusterBlocks.builder(base.blocks())
+                    .addIndexBlock(projectId, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK)
+            )
             .build();
-        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder(base.blocks());
-        blocksBuilder.addIndexBlock(projectId, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK);
-        return ClusterState.builder(base).metadata(metadata).blocks(blocksBuilder.build()).build();
     }
 
     private IndexShardRoutingTable createShardRoutingTableWithPrimaryAndSearchShards(ShardId shardId, boolean withSearchShards) {

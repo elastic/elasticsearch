@@ -1,0 +1,5 @@
+area: Indices APIs
+issues: []
+pr: 141774
+summary: Enable timeouts on bulk inference requests -WIP
+type: feature

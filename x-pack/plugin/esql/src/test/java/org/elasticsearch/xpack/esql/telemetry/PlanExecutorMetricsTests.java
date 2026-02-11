@@ -267,6 +267,70 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         assertEquals(2L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
     }
 
+    public void testSettingsMetricDeduplication() {
+        // Verify that when the same setting is SET multiple times in a single query,
+        // it's only counted once for telemetry purposes.
+
+        String[] indices = new String[] { "test" };
+
+        Client esqlClient = mock(Client.class);
+        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        doAnswer((Answer<Void>) invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
+            listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
+            return null;
+        }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
+
+        var planExecutor = new PlanExecutor(
+            indexResolver,
+            MeterRegistry.NOOP,
+            new XPackLicenseState(() -> 0L),
+            mockQueryLog(),
+            List.of(),
+            Settings.EMPTY
+        );
+
+        // Initial value should be 0
+        assertEquals(0L, planExecutor.metrics().stats().get("settings.time_zone"));
+
+        // Run a query that SETs time_zone multiple times - should only count once
+        var request = new EsqlQueryRequest();
+        request.query("SET time_zone=\"UTC\"; SET time_zone=\"America/New_York\"; FROM test | KEEP foo");
+        request.allowPartialResults(false);
+        EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(null);
+
+        executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
+            @Override
+            public void onResponse(Versioned<Result> result) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("this shouldn't happen: " + e.getMessage());
+            }
+        });
+
+        // time_zone should be 1, not 2 (deduplicated)
+        assertEquals(1L, planExecutor.metrics().stats().get("settings.time_zone"));
+
+        // Run another query with duplicate settings
+        request = new EsqlQueryRequest();
+        request.query("SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; FROM test | KEEP foo");
+        request.allowPartialResults(false);
+        executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
+            @Override
+            public void onResponse(Versioned<Result> result) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("this shouldn't happen: " + e.getMessage());
+            }
+        });
+
+        // time_zone should be 2 (incremented by 1, not 3)
+        assertEquals(2L, planExecutor.metrics().stats().get("settings.time_zone"));
+    }
+
     public void testApproximationSettingMetric() {
         assumeTrue("approximation setting requires snapshot build", Build.current().isSnapshot());
 

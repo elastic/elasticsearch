@@ -608,12 +608,12 @@ public class EsqlSession {
         if (metrics == null || statement.settings() == null) {
             return;
         }
+        // Deduplicate settings by name - if the same setting is SET multiple times in a query,
+        // we only count it once for telemetry purposes.
         // The Metrics class only registers counters for settings applicable to the current environment
         // (e.g., snapshot-only settings are not registered in non-snapshot builds).
         // incSetting() silently ignores settings that don't have a registered counter.
-        for (QuerySetting setting : statement.settings()) {
-            metrics.incSetting(setting.name());
-        }
+        statement.settings().stream().map(QuerySetting::name).distinct().forEach(metrics::incSetting);
     }
 
     /**

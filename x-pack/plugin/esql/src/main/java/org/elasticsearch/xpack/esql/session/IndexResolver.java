@@ -351,7 +351,9 @@ public class IndexResolver {
             fields.put(name, field);
             Set<String> unmappedIndices = new TreeSet<>(allIndexNames);
             unmappedIndices.removeAll(fieldToMappedIndices.getOrDefault(fullName, Set.of()));
-            fieldToUnmappedIndices.put(fullName, unmappedIndices);
+            if (unmappedIndices.isEmpty() == false) {
+                fieldToUnmappedIndices.put(fullName, unmappedIndices);
+            }
         }
 
         boolean allEmpty = true;

@@ -639,6 +639,10 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
                     exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
                     closeAfterHandling = true;
+                } else {
+                    ExceptionsHelper.maybeDieOnAnotherThread(
+                        new AssertionError("Unexpected request method: " + exchange.getRequestMethod())
+                    );
                 }
             } finally {
                 exchange.close();

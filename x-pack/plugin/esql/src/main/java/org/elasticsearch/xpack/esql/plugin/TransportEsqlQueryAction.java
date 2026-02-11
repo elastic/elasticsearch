@@ -129,9 +129,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planExecutor.indexResolver(),
             projectResolver
         );
-        PlannerSettings plannerSettings = new PlannerSettings(clusterService);
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
             searchService.getIndicesService(),
@@ -181,7 +181,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             usageService,
             new InferenceService(client, clusterService),
             blockFactoryProvider,
-            plannerSettings,
+            new PlannerSettings.Holder(clusterService),
             new CrossProjectModeDecider(clusterService.getSettings())
         );
 

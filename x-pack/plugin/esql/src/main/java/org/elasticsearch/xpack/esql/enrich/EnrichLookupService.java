@@ -78,7 +78,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         BigArrays bigArrays,
         BlockFactory blockFactory,
         ProjectResolver projectResolver,
-        PlannerSettings plannerSettings
+        PlannerSettings.Holder plannerSettings
     ) {
         super(
             LOOKUP_ACTION_NAME,

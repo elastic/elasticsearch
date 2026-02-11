@@ -98,7 +98,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         BigArrays bigArrays,
         BlockFactory blockFactory,
         ProjectResolver projectResolver,
-        PlannerSettings plannerSettings
+        PlannerSettings.Holder plannerSettings
     ) {
         super(
             LOOKUP_ACTION_NAME,

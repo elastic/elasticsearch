@@ -148,7 +148,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected final BigArrays bigArrays;
     protected final LocalCircuitBreaker.SizeSettings localBreakerSettings;
     protected final ProjectResolver projectResolver;
-    private final PlannerSettings plannerSettings;
+    private final PlannerSettings.Holder plannerSettings;
     /**
      * Should output {@link Page pages} be combined into a single resulting page?
      * If this is {@code true} we'll run a {@link MergePositionsOperator} to merge
@@ -171,7 +171,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         boolean mergePages,
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest,
         ProjectResolver projectResolver,
-        PlannerSettings plannerSettings
+        PlannerSettings.Holder plannerSettings
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
@@ -279,6 +279,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     protected void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
+        PlannerSettings plannerSettings = this.plannerSettings.get();
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
             Block inputBlock = request.inputPage.getBlock(j);
             if (inputBlock.areAllValuesNull()) {

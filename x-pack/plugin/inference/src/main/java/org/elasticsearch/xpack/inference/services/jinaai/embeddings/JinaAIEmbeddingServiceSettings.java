@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
@@ -19,7 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 
 public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     public static final String NAME = "jinaai_multimodal_embedding_service_settings";
@@ -29,7 +31,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
         return BaseJinaAIEmbeddingsServiceSettings.fromMap(
             map,
             context,
-            (m, v) -> Objects.requireNonNullElse(removeAsType(m, MULTIMODAL_MODEL, Boolean.class, v), DEFAULT_MULTIMODAL_MODEL),
+            (m, v) -> Objects.requireNonNullElse(extractOptionalBoolean(m, MULTIMODAL_MODEL, v), DEFAULT_MULTIMODAL_MODEL),
             JinaAIEmbeddingServiceSettings::new
         );
     }
@@ -48,6 +50,16 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
 
     public JinaAIEmbeddingServiceSettings(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return super.updateServiceSettings(
+            serviceSettings,
+            taskType,
+            (m, v) -> Objects.requireNonNullElse(extractOptionalBoolean(m, MULTIMODAL_MODEL, v), this.isMultimodal()),
+            JinaAIEmbeddingServiceSettings::new
+        );
     }
 
     @Override

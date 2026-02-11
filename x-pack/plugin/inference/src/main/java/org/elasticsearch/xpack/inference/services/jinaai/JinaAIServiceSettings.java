@@ -67,7 +67,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     }
 
     @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public JinaAIServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
         var validationException = new ValidationException();
 
         var extractedRateLimitSettings = RateLimitSettings.of(

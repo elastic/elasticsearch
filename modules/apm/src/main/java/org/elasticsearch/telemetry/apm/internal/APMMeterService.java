@@ -16,11 +16,14 @@ import io.opentelemetry.api.metrics.Meter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 
 import java.util.function.Supplier;
 
 public class APMMeterService extends AbstractLifecycleComponent {
+    static final String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
+
     private final APMMeterRegistry meterRegistry;
     private final Supplier<Meter> otelMeterSupplier;
     private final Supplier<Meter> noopMeterSupplier;
@@ -40,16 +43,13 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
-        if (enabled && otelMeterSupplier instanceof OtelSdkMeterSupplier) {
-            SystemMetrics.register(meterRegistry);
-        }
     }
 
     private static Supplier<Meter> createOtelMeterSupplier(Settings settings) {
-        if (APMAgentSettings.TELEMETRY_OTEL_METRICS_ENABLED_SETTING.get(settings) == false) {
+        if (Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false) {
             return () -> GlobalOpenTelemetry.get().getMeter("elasticsearch");
         }
-        return new OtelSdkMeterSupplier(settings);
+        return new OTelSdkMeterSupplier(settings);
     }
 
     public APMMeterRegistry getMeterRegistry() {
@@ -69,8 +69,12 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        if (otelMeterSupplier instanceof OtelSdkMeterSupplier otelSdk) {
-            otelSdk.close();
+        if (otelMeterSupplier instanceof AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                // TODO
+            }
         }
         meterRegistry.setProvider(noopMeterSupplier.get());
     }

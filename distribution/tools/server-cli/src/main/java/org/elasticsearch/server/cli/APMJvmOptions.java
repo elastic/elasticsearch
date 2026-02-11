@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -38,6 +39,8 @@ import java.util.StringJoiner;
  * server URL and secret key can only be provided when Elasticsearch starts.
  */
 class APMJvmOptions {
+    private static final String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
+
     /**
      * Contains agent configuration that must always be applied, and cannot be overridden.
      */
@@ -139,7 +142,7 @@ class APMJvmOptions {
         IOException {
         boolean tracingEnabled = settings.getAsBoolean("telemetry.tracing.enabled", false);
         boolean metricsEnabled = settings.getAsBoolean("telemetry.metrics.enabled", false);
-        boolean agentMetricsEnabled = settings.getAsBoolean("telemetry.otel.metrics.enabled", false) == false;
+        boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
         boolean attachAgent = tracingEnabled || (metricsEnabled && agentMetricsEnabled);
 
         final Path agentJar = findAgentJar(System.getProperty("user.dir"));

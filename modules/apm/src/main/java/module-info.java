@@ -13,8 +13,6 @@ module org.elasticsearch.telemetry.apm {
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
-    requires java.management;
-    requires jdk.management;
     requires io.opentelemetry.api;
     requires io.opentelemetry.context;
     requires io.opentelemetry.sdk;

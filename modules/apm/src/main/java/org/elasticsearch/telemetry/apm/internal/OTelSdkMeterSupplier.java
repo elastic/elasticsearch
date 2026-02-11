@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder;
+import io.opentelemetry.instrumentation.runtimemetrics.java17.JfrFeature;
 import io.opentelemetry.instrumentation.runtimemetrics.java17.RuntimeMetrics;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
@@ -25,12 +26,12 @@ import org.elasticsearch.core.TimeValue;
 import java.time.Duration;
 import java.util.function.Supplier;
 
-public class OtelSdkMeterSupplier implements Supplier<Meter> {
+public class OTelSdkMeterSupplier implements Supplier<Meter>, AutoCloseable {
     private final Settings settings;
     private SdkMeterProvider meterProvider;
     private RuntimeMetrics runtimeMetrics;
 
-    OtelSdkMeterSupplier(Settings settings) {
+    OTelSdkMeterSupplier(Settings settings) {
         this.settings = settings;
     }
 
@@ -38,24 +39,29 @@ public class OtelSdkMeterSupplier implements Supplier<Meter> {
     public Meter get() {
         if (meterProvider == null) {
             var exporter = createOTLPExporter();
-            TimeValue intervalTimeValue = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+            TimeValue intervalTimeValue = OTelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL.get(settings);
             var reader = PeriodicMetricReader.builder(exporter).setInterval(Duration.ofMillis(intervalTimeValue.millis())).build();
             meterProvider = SdkMeterProvider.builder()
                 .setResource(Resource.builder().put("service.name", "elasticsearch").build())
                 .registerMetricReader(reader)
                 .build();
             var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
-            runtimeMetrics = RuntimeMetrics.builder(otelSdk).enableAllFeatures().emitExperimentalTelemetry().build();
+            runtimeMetrics = RuntimeMetrics.builder(otelSdk)
+                .enableFeature(JfrFeature.THREAD_METRICS)
+                .enableFeature(JfrFeature.CPU_UTILIZATION_METRICS)
+                .enableFeature(JfrFeature.MEMORY_POOL_METRICS)
+                .build();
         }
         return meterProvider.get("elasticsearch");
     }
 
     private OtlpHttpMetricExporter createOTLPExporter() {
-        String serverUrl = APMAgentSettings.APM_AGENT_SETTINGS.getConcreteSetting("telemetry.agent.server_url").get(settings);
-        if (serverUrl == null || serverUrl.isEmpty()) {
-            throw new IllegalStateException("telemetry.otel.metrics.enabled=true requires telemetry.agent.server_url to be configured");
+        String endpoint = OTelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
+        if (endpoint == null || endpoint.isEmpty()) {
+            throw new IllegalStateException(
+                APMMeterService.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.otel.metrics.endpoint to be configured"
+            );
         }
-        String endpoint = serverUrl + (serverUrl.endsWith("/") ? "" : "/") + "v1/metrics";
         OtlpHttpMetricExporterBuilder builder = OtlpHttpMetricExporter.builder().setEndpoint(endpoint);
         String authHeader = getAuthorizationHeader();
         if (authHeader != null) {
@@ -78,7 +84,8 @@ public class OtelSdkMeterSupplier implements Supplier<Meter> {
         return null;
     }
 
-    void close() {
+    @Override
+    public void close() {
         if (runtimeMetrics != null) {
             runtimeMetrics.close();
             runtimeMetrics = null;

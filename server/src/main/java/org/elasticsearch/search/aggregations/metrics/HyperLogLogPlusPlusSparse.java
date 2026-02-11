@@ -9,15 +9,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-
-import java.io.IOException;
-import java.util.function.IntConsumer;
 
 /**
  * AbstractHyperLogLogPlusPlus instance that only supports linear counting. The maximum number of hashes supported
@@ -30,8 +26,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
     // TODO: consider a hll sparse structure
     private final LinearCounting lc;
-    // Reuse a single view to avoid per-call allocations.
-    private final LinearCountingBucketView bucketView = new LinearCountingBucketView();
 
     /**
      * Create an sparse HLL++ algorithm where capacity is the maximum number of hashes this structure can hold
@@ -58,52 +52,8 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     }
 
     @Override
-    protected LinearCountingView linearCountingView(long bucketOrd) {
-        bucketView.reset(bucketOrd);
-        return bucketView;
-    }
-
-    private final class LinearCountingBucketView implements LinearCountingView {
-        private long bucketOrd;
-
-        private void reset(long bucketOrd) {
-            this.bucketOrd = bucketOrd;
-        }
-
-        @Override
-        public int size() {
-            return lc.size(bucketOrd);
-        }
-
-        @Override
-        public void forEachEncoded(IntConsumer consumer) {
-            if (bucketOrd >= lc.values.size() || bucketOrd >= lc.sizes.size()) {
-                return;
-            }
-            IntArray array = lc.values.get(bucketOrd);
-            if (array == null) {
-                return;
-            }
-            int size = lc.sizes.get(bucketOrd);
-            for (int i = 0; i < size; ++i) {
-                consumer.accept(array.get(i));
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (bucketOrd >= lc.values.size() || bucketOrd >= lc.sizes.size()) {
-                return;
-            }
-            IntArray array = lc.values.get(bucketOrd);
-            if (array == null) {
-                return;
-            }
-            int size = lc.sizes.get(bucketOrd);
-            for (int i = 0; i < size; ++i) {
-                out.writeInt(array.get(i));
-            }
-        }
+    protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
+        return lc.values(bucketOrd);
     }
 
     @Override
@@ -180,6 +130,10 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             return size;
         }
 
+        private HashesIterator values(long bucketOrd) {
+            return new LinearCountingIterator(values.get(bucketOrd), size(bucketOrd));
+        }
+
         private int set(long bucketOrd, int value) {
             // This assumes that ensureCapacity has been called before
             assert values.get(bucketOrd) != null : "Added a value without calling ensureCapacity";
@@ -212,4 +166,35 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         }
     }
 
+    private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
+
+        private final IntArray values;
+        private final int size;
+        private int value;
+        private long pos;
+
+        LinearCountingIterator(IntArray values, int size) {
+            this.values = values;
+            this.size = size;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public boolean next() {
+            if (pos < size) {
+                value = values.get(pos++);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public int value() {
+            return value;
+        }
+    }
 }

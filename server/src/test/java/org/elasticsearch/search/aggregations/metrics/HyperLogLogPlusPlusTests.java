@@ -11,12 +11,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -24,10 +21,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,6 +31,7 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityA
 import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -69,7 +66,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 100000);
         final int p = randomIntBetween(14, MAX_PRECISION);
         Set<Integer> set = new HashSet<>();
-        HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
             set.add(n);
@@ -85,12 +83,13 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testMerge() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
         final HyperLogLogPlusPlus[] multi = new HyperLogLogPlusPlus[randomIntBetween(2, 100)];
         final long[] bucketOrds = new long[multi.length];
         for (int i = 0; i < multi.length; ++i) {
             bucketOrds[i] = randomInt(20);
-            multi[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 5);
+            multi[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 5);
         }
         final int numValues = randomIntBetween(1, 100000);
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 1000000);
@@ -102,7 +101,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             final int index = (int) (Math.pow(randomDouble(), 2));
             multi[index].collect(bucketOrds[index], hash);
             if (randomInt(100) == 0) {
-                HyperLogLogPlusPlus merged = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+                HyperLogLogPlusPlus merged = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
                 for (int j = 0; j < multi.length; ++j) {
                     merged.merge(0, multi[j], bucketOrds[j]);
                 }
@@ -114,7 +113,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     public void testFakeHashes() {
         // hashes with lots of leading zeros trigger different paths in the code that we try to go through here
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
 
         counts.collect(0, 0);
         assertEquals(1, counts.cardinality(0));
@@ -174,7 +174,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testRetrieveCardinality() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1);
         int bucket = randomInt(100);
         counts.collect(bucket, randomLong());
         for (int i = 0; i < 1000; i++) {
@@ -183,231 +184,41 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
     }
 
-    public void testTransitionsAndMaxOrd() {
-        final int p = 14;
-        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        final long bucket = 1000;
-        final int threshold = lcThreshold(p);
-        final int arrayLimit = arrayLimit(p);
-        final Set<Integer> seen = new HashSet<>();
-        final int[] seed = new int[] { 0 };
-
-        collectUniqueUntil(counts, p, bucket, seen, seed, arrayLimit);
-        assertEquals(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING, counts.getAlgorithm(bucket));
-
-        collectUniqueUntil(counts, p, bucket, seen, seed, threshold);
-        assertEquals(AbstractHyperLogLogPlusPlus.HYPERLOGLOG, counts.getAlgorithm(bucket));
-        assertEquals(bucket + 1, counts.maxOrd());
-        assertThat((double) counts.cardinality(bucket), closeTo(seen.size(), 0.1 * seen.size()));
-    }
-
-    public void testBreakerSafePromotion() {
-        final int p = 14;
-        final AtomicLong total = new AtomicLong();
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
-            private boolean tripped;
-
-            @Override
-            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                if (tripped == false && bytes >= (1L << p)) {
-                    tripped = true;
-                    throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
-                }
-                total.addAndGet(bytes);
-            }
-
-            @Override
-            public void addWithoutBreaking(long bytes) {
-                total.addAndGet(bytes);
-            }
-        });
-        BigArrays bigArrays = new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking();
-        final int arrayLimit = arrayLimit(p);
-        final Set<Integer> seen = new HashSet<>();
-        boolean tripped = false;
-        final int[] seed = new int[] { 0 };
-
-        try (HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, bigArrays, 0)) {
-            try {
-                collectUniqueUntil(counts, p, 0, seen, seed, arrayLimit);
-            } catch (CircuitBreakingException e) {
-                tripped = true;
-            }
-            assertTrue(tripped);
-            assertEquals(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING, counts.getAlgorithm(0));
-            assertEquals(seen.size(), counts.linearCountingView(0).size());
-
-            collectNextUnique(counts, p, 0, seen, seed);
-            assertEquals(seen.size(), counts.linearCountingView(0).size());
-        }
-    }
-
-    public void testMergeSerializedParityAcrossTiers() throws IOException {
-        final int p = 8;
-        final int arrayLimit = arrayLimit(p);
-        final int threshold = lcThreshold(p);
-
-        assertMergeSerializedParity(p, arrayLimit);
-        assertMergeSerializedParity(p, arrayLimit + 1);
-        assertMergeSerializedParity(p, threshold + 1);
-    }
-
-    public void testWriteToReadFromAcrossTiers() throws IOException {
-        final int p = 8;
-        final int arrayLimit = arrayLimit(p);
-        final int threshold = lcThreshold(p);
-
-        assertWriteToReadFrom(p, arrayLimit);
-        assertWriteToReadFrom(p, arrayLimit + 1);
-        assertWriteToReadFrom(p, threshold + 1);
-    }
-
-    public void testLinearCountingViewAfterPromotion() {
-        final int p = 8;
-        final int arrayLimit = arrayLimit(p);
-        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        final Set<Integer> seen = new HashSet<>();
-        final int[] seed = new int[] { 0 };
-
-        collectUniqueCount(counts, p, 0, seen, seed, arrayLimit + 1);
-        assertEquals(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING, counts.getAlgorithm(0));
-
-        final Set<Integer> actual = new HashSet<>();
-        counts.linearCountingView(0).forEachEncoded(actual::add);
-        assertEquals(seen, actual);
-        assertEquals(seen.size(), counts.linearCountingView(0).size());
-
-        // Reuse the view across buckets and ensure no state bleeds between them.
-        final Set<Integer> seen1 = new HashSet<>();
-        final int[] seed1 = new int[] { 1000 };
-        collectUniqueCount(counts, p, 1, seen1, seed1, 5);
-
-        final Set<Integer> actual1 = new HashSet<>();
-        counts.linearCountingView(1).forEachEncoded(actual1::add);
-        assertEquals(seen1, actual1);
-
-        final Set<Integer> actual0Again = new HashSet<>();
-        counts.linearCountingView(0).forEachEncoded(actual0Again::add);
-        assertEquals(seen, actual0Again);
-    }
-
-    public void testUpgradeToHllFromHashTierPreservesValues() {
-        final int p = 8;
-        final int arrayLimit = arrayLimit(p);
-        final int target = arrayLimit + 5;
-        final long bucket = 0;
-        final Set<Integer> seen = new HashSet<>();
-        final int[] seed = new int[] { 0 };
-        final List<Long> hashes = new ArrayList<>();
-
-        HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        while (hashes.size() < target) {
-            long hash = nextUniqueHash(p, seen, seed);
-            hashes.add(hash);
-            counts.collect(bucket, hash);
-        }
-        assertEquals(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING, counts.getAlgorithm(bucket));
-        counts.upgradeToHll(bucket);
-        assertEquals(AbstractHyperLogLogPlusPlus.HYPERLOGLOG, counts.getAlgorithm(bucket));
-
-        HyperLogLogPlusPlus reference = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        for (long hash : hashes) {
-            reference.collect(bucket, hash);
-        }
-        reference.upgradeToHll(bucket);
-
-        assertTrue(counts.equals(bucket, reference, bucket));
-    }
-
     public void testAllocation() {
         int precision = between(MIN_PRECISION, MAX_PRECISION);
         long initialBucketCount = between(0, 100);
         MockBigArrays.assertFitsIn(
-            ByteSizeValue.ofBytes(initialBucketCount * 16L + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 3),
+            ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
             bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
         );
     }
 
-    private static int lcThreshold(int p) {
-        final int capacity = (1 << p) / 4;
-        return (int) (capacity * 0.75f);
-    }
-
-    private static int arrayLimit(int p) {
-        return Math.min(16, lcThreshold(p));
-    }
-
-    private static void collectUniqueUntil(HyperLogLogPlusPlus counts, int p, long bucket, Set<Integer> seen, int[] seed, int targetSize) {
-        while (seen.size() <= targetSize) {
-            collectNextUnique(counts, p, bucket, seen, seed);
-        }
-    }
-
-    private static void collectUniqueCount(HyperLogLogPlusPlus counts, int p, long bucket, Set<Integer> seen, int[] seed, int targetSize) {
-        while (seen.size() < targetSize) {
-            collectNextUnique(counts, p, bucket, seen, seed);
-        }
-    }
-
-    private static void collectNextUnique(HyperLogLogPlusPlus counts, int p, long bucket, Set<Integer> seen, int[] seed) {
-        while (true) {
-            final long hash = BitMixer.mix64(seed[0]++);
-            final int encoded = AbstractLinearCounting.encodeHash(hash, p);
-            if (seen.contains(encoded)) {
-                continue;
+    public void testDynamicGrowth() {
+        int numGroups = between(1000, 10_000);
+        int numValuesPerGroup = between(1, 20);
+        long requiredBytesOneGroup = 32L * 4L + 48L + 8L; // 48 bytes overhead each group + 8L bytes for the object reference in the array
+        long requiredBytes = requiredBytesOneGroup * numGroups;
+        requiredBytes += 2 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // extra pages for the object array
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(requiredBytes));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(requiredBytes));
+        int precision = 14;
+        try (HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, bigArrays, breaker, between(1, numGroups))) {
+            Map<Long, Set<Integer>> uniques = new HashMap<>();
+            for (long g = 0; g < numGroups; g++) {
+                Set<Integer> sets = new HashSet<>();
+                for (int i = 0; i < numValuesPerGroup; i++) {
+                    int v = randomInt();
+                    long hash = BitMixer.mix64(v);
+                    hll.collect(g, hash);
+                    sets.add(AbstractLinearCounting.encodeHash(hash, precision));
+                }
+                uniques.put(g, sets);
             }
-            counts.collect(bucket, hash);
-            seen.add(encoded);
-            return;
-        }
-    }
-
-    private static long nextUniqueHash(int p, Set<Integer> seen, int[] seed) {
-        while (true) {
-            final long hash = BitMixer.mix64(seed[0]++);
-            final int encoded = AbstractLinearCounting.encodeHash(hash, p);
-            if (seen.add(encoded)) {
-                return hash;
+            for (long g = 0; g < numGroups; g++) {
+                Set<Integer> values = uniques.get(g);
+                int cardinality = (int) hll.cardinality(g);
+                assertThat("group=" + g + " values=" + values, values, hasSize(cardinality));
             }
         }
-    }
-
-    private static void assertMergeSerializedParity(int p, int uniqueCount) throws IOException {
-        HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        Set<Integer> seen = new HashSet<>();
-        int[] seed = new int[] { 0 };
-        collectUniqueCount(source, p, 0, seen, seed, uniqueCount);
-
-        HyperLogLogPlusPlus merged = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        merged.merge(0, source, 0);
-
-        HyperLogLogPlusPlus mergedSerialized = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        BytesStreamOutput out = new BytesStreamOutput();
-        source.writeTo(0, out);
-        BytesRef serialized = out.bytes().toBytesRef();
-        ByteArrayStreamInput in = new ByteArrayStreamInput(serialized.bytes);
-        in.reset(serialized.bytes, serialized.offset, serialized.length);
-        mergedSerialized.mergeSerialized(0, in);
-
-        assertTrue(merged.equals(0, mergedSerialized, 0));
-        assertEquals(merged.cardinality(0), mergedSerialized.cardinality(0));
-    }
-
-    private static void assertWriteToReadFrom(int p, int uniqueCount) throws IOException {
-        HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
-        Set<Integer> seen = new HashSet<>();
-        int[] seed = new int[] { 0 };
-        collectUniqueCount(source, p, 0, seen, seed, uniqueCount);
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        source.writeTo(0, out);
-        BytesRef serialized = out.bytes().toBytesRef();
-        ByteArrayStreamInput in = new ByteArrayStreamInput(serialized.bytes);
-        in.reset(serialized.bytes, serialized.offset, serialized.length);
-        AbstractHyperLogLogPlusPlus read = AbstractHyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
-
-        assertTrue(source.equals(0, read, 0));
-        assertEquals(source.cardinality(0), read.cardinality(0));
     }
 }

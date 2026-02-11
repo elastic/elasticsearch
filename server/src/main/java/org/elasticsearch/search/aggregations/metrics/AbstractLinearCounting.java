@@ -72,4 +72,43 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         return (int) encoded;
     }
 
+    /** Iterator over the hash values */
+    public interface HashesIterator {
+
+        /**
+         * number of elements in the iterator
+         */
+        int size();
+
+        /**
+         * Moves the iterator to the next element if it exists.
+         * @return true if there is a next value, else false.
+         */
+        boolean next();
+
+        /**
+         * Hash value.
+         * @return the current value of the counter.
+         */
+        int value();
+
+        HashesIterator EMPTY = new EmptyIterator();
+    }
+
+    private static class EmptyIterator implements HashesIterator {
+        @Override
+        public int size() {
+            return 0;
+        }
+
+        @Override
+        public boolean next() {
+            return false;
+        }
+
+        @Override
+        public int value() {
+            throw new IllegalStateException("empty iterator");
+        }
+    }
 }

@@ -270,9 +270,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:string.Url_encode_component tests with table reads}
-  issue: https://github.com/elastic/elasticsearch/issues/140809
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/141034
@@ -368,21 +365,12 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/50_index_patterns/disjoint_mappings}
   issue: https://github.com/elastic/elasticsearch/issues/141856
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/141894
 - class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/141954
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/142032
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
-  method: testGroupingAggregate {TestCase=<random exponential histograms>}
-  issue: https://github.com/elastic/elasticsearch/issues/142037
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
-  method: testAggregateIntermediate {TestCase=<random exponential histograms>}
-  issue: https://github.com/elastic/elasticsearch/issues/142068
 - class: org.elasticsearch.xpack.diskbbq.DirectIOIT
   method: testDirectIOUsed {p0=bbq_disk}
   issue: https://github.com/elastic/elasticsearch/issues/141942
@@ -401,9 +389,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumTests
-  method: testGroupingAggregate {TestCase=<random exponential histograms>}
-  issue: https://github.com/elastic/elasticsearch/issues/142081
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/142087
@@ -416,6 +401,12 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/142179
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword
+  issue: https://github.com/elastic/elasticsearch/issues/142282
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=1024 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142289
 
 # Examples:
 #

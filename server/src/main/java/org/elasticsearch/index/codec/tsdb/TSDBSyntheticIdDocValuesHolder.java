@@ -138,7 +138,7 @@ class TSDBSyntheticIdDocValuesHolder {
         int ordinal = tsIdDocValues.lookupTerm(tsId);
         if (0 <= ordinal) {
             cachedTsIdOrd = ordinal;
-            cachedTsId = tsId;
+            cachedTsId = BytesRef.deepCopyOf(tsId);
         }
         return ordinal;
     }
@@ -164,7 +164,7 @@ class TSDBSyntheticIdDocValuesHolder {
         var tsId = tsIdDocValues.lookupOrd(tsIdOrdinal);
         if (tsId != null) {
             cachedTsIdOrd = tsIdOrdinal;
-            cachedTsId = tsId;
+            cachedTsId = BytesRef.deepCopyOf(tsId);
         }
         return tsId;
     }
@@ -213,7 +213,7 @@ class TSDBSyntheticIdDocValuesHolder {
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd || tsIdOrd < ord) {
                 if (ord != cachedTsIdOrd) {
-                    cachedTsId = tsIdDocValues.lookupOrd(ord);
+                    cachedTsId = BytesRef.deepCopyOf(tsIdDocValues.lookupOrd(ord));
                     cachedTsIdOrd = ord;
                 }
                 return docID;
@@ -251,7 +251,7 @@ class TSDBSyntheticIdDocValuesHolder {
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd) {
                 if (ord != cachedTsIdOrd) {
-                    cachedTsId = tsIdDocValues.lookupOrd(ord);
+                    cachedTsId = BytesRef.deepCopyOf(tsIdDocValues.lookupOrd(ord));
                     cachedTsIdOrd = ord;
                 }
                 return docID;

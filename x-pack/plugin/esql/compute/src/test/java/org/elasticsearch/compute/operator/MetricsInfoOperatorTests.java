@@ -613,7 +613,209 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    // ---- FINAL mode tests ----
+    public void testResolveDataStreamName() {
+        // Standard backing index format
+        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-k8s-2024.01.15-000001"), equalTo("k8s"));
+        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-my-stream-2024.01.15-000001"), equalTo("my-stream"));
+        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-logs-2024-2024.06.30-000003"), equalTo("logs-2024"));
+        // Failure store prefix
+        assertThat(MetricsInfoOperator.resolveDataStreamName(".fs-my-stream-2024.01.15-000001"), equalTo("my-stream"));
+        // Non-backing index → returned as-is
+        assertThat(MetricsInfoOperator.resolveDataStreamName("my-index"), equalTo("my-index"));
+        assertThat(MetricsInfoOperator.resolveDataStreamName("index-a"), equalTo("index-a"));
+        // Malformed → returned as-is
+        assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-incomplete"), equalTo(".ds-incomplete"));
+    }
+
+    /**
+     * Different metrics in the same tsid can have different dimension sets.
+     * Metric A appears only with dim "host", metric B appears only with dim "mount".
+     * After processing, A should have {host} and B should have {mount}, not the union.
+     */
+    public void testDifferentMetricsHaveDifferentDimensions() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        // Lookup: cpu_usage and disk_io are metrics
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Tsid 1: has cpu_usage + dimension "host"
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
+            // Tsid 2: has disk_io + dimension "mount"
+            Page input2 = buildPage(blockFactory, "{\"disk_io\": 1024, \"mount\": \"/data\"}", "my-index");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            // Find which row is which metric
+            for (int row = 0; row < output.getPositionCount(); row++) {
+                BytesRefBlock nameBlock = output.getBlock(0);
+                String metricName = nameBlock.getBytesRef(nameBlock.getFirstValueIndex(row), new BytesRef()).utf8ToString();
+                Set<String> dims = collectMultiValues(output, 5, row);
+                if ("cpu_usage".equals(metricName)) {
+                    assertThat("cpu_usage should only have 'host' as dimension", dims, equalTo(Set.of("host")));
+                } else if ("disk_io".equals(metricName)) {
+                    assertThat("disk_io should only have 'mount' as dimension", dims, equalTo(Set.of("mount")));
+                } else {
+                    fail("Unexpected metric: " + metricName);
+                }
+            }
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * Backing indices of the same data stream are grouped together.
+     * Two backing indices with the same metric and signature merge into one row
+     * with the data stream name (not the backing index name) in the data_stream column.
+     */
+    public void testBackingIndicesSameDataStreamGroupedTogether() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Two backing indices of the same data stream "k8s"
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"b\"}", ".ds-k8s-2024.01.15-000002");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Same metric + same signature + same data stream → 1 row
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            // data_stream should be the resolved data stream name, not the backing index name
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("k8s")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * Unit/metric_type/field_type become multi-valued when backing indices of the
+     * same data stream have conflicting values.
+     */
+    public void testConflictingValuesWithinSameDataStreamProduceMultiValuedFields() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        // Lookup returns different field_type depending on backing index
+        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
+            if ("cpu".equals(fieldName)) {
+                if (indexName.endsWith("-000001")) {
+                    return new MetricFieldInfo("cpu", indexName, "double", "gauge", "percent");
+                } else {
+                    return new MetricFieldInfo("cpu", indexName, "float", "gauge", "percent");
+                }
+            }
+            return null;
+        };
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Two backing indices of the same data stream "k8s", different field_type
+            Page input1 = buildPage(blockFactory, "{\"cpu\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
+            Page input2 = buildPage(blockFactory, "{\"cpu\": 0.9, \"host\": \"b\"}", ".ds-k8s-2024.01.15-000002");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Same data stream → grouped into 1 MetricInfo → 1 row with multi-valued field_type
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("k8s")));
+            // field_type should be multi-valued: {double, float}
+            assertThat(collectMultiValues(output, 4, 0), equalTo(Set.of("double", "float")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * Different data streams with different unit/metric_type/field_type produce
+     * separate rows (one per data stream).
+     */
+    public void testDifferentDataStreamsDifferentValuesProduceSeparateRows() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        // Lookup returns different unit depending on index
+        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
+            if ("cpu".equals(fieldName)) {
+                if (indexName.contains("k8s")) {
+                    return new MetricFieldInfo("cpu", indexName, "double", "gauge", "percent");
+                } else {
+                    return new MetricFieldInfo("cpu", indexName, "double", "gauge", "ratio");
+                }
+            }
+            return null;
+        };
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            Page input1 = buildPage(blockFactory, "{\"cpu\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
+            Page input2 = buildPage(blockFactory, "{\"cpu\": 0.9, \"host\": \"b\"}", ".ds-other-2024.01.15-000001");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Different unit (percent vs ratio) across different data streams → 2 rows
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            // Verify each row has the correct data stream and unit
+            for (int row = 0; row < output.getPositionCount(); row++) {
+                Set<String> ds = collectMultiValues(output, 1, row);
+                Set<String> units = collectMultiValues(output, 2, row);
+                if (ds.contains("k8s")) {
+                    assertThat(units, equalTo(Set.of("percent")));
+                } else if (ds.contains("other")) {
+                    assertThat(units, equalTo(Set.of("ratio")));
+                } else {
+                    fail("Unexpected data stream: " + ds);
+                }
+            }
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * Different data streams that have the same values for unit/metric_type/field_type
+     * produce one row with multi-valued data_stream.
+     */
+    public void testDifferentDataStreamsSameValuesProduceMultiValuedDataStream() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // Two different data streams, same metric with the same signature
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"b\"}", ".ds-other-2024.01.15-000001");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Same metric + same signature → 1 row with multi-valued data_stream
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("k8s", "other")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
 
     private static final int[] FINAL_CHANNELS = { 0, 1, 2, 3, 4, 5 };
 

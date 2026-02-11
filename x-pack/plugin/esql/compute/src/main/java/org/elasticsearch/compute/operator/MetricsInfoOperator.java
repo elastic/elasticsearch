@@ -22,6 +22,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
@@ -30,8 +32,11 @@ import java.util.Set;
  * <ul>
  *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects deduplicated input
  *       (one row per {@code _tsid}) from an upstream {@link DistinctByOperator}, with blocks for
- *       {@code _timeseries_metadata} and {@code _index}. Produces one row per distinct metric
- *       signature within the local shards.</li>
+ *       {@code _timeseries_metadata} and {@code _index}. Groups metrics by (metricName, dataStreamName)
+ *       so that different backing indices of the same data stream share one entry. Conflicting
+ *       unit/metric_type/field_type values across backing indices become multi-valued. Dimension
+ *       keys are assigned only to the metrics that actually appeared in each tsid's metadata.
+ *       Produces one row per distinct metric signature within the local shards.</li>
  *   <li><b>FINAL</b> (coordinator) – created via {@link FinalFactory}. Receives the 6-column
  *       output pages produced by INITIAL instances on each data node and merges rows that share
  *       the same {@link MetricSignature}, unioning multi-valued fields ({@code data_stream},
@@ -41,8 +46,8 @@ import java.util.Set;
  * <h2>Output columns (both modes)</h2>
  * <ul>
  *   <li>{@code metric_name} – keyword (single-valued)</li>
- *   <li>{@code data_stream} – keyword (multi-valued); indices/data streams that have this metric
- *       with the same signature</li>
+ *   <li>{@code data_stream} – keyword (multi-valued); data stream names that have this metric
+ *       with the same signature (backing index names are resolved to their parent data stream)</li>
  *   <li>{@code unit} – keyword (multi-valued when backing indices differ; may be null)</li>
  *   <li>{@code metric_type} – keyword (multi-valued when definitions differ across data)</li>
  *   <li>{@code field_type} – keyword (multi-valued when definitions differ across data)</li>
@@ -239,12 +244,13 @@ public class MetricsInfoOperator implements Operator {
             }
 
             String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
+            String dataStreamName = resolveDataStreamName(indexName);
             Map<String, Object> metadata = parseMetadataSource(metadataSource, p);
             if (metadata == null) {
                 continue;
             }
 
-            collectAndAggregateFields(metadata, null, indexName, new HashSet<>());
+            collectAndAggregateFields(metadata, null, indexName, dataStreamName, new HashSet<>(), new HashSet<>());
         }
 
         page.releaseBlocks();
@@ -303,19 +309,43 @@ public class MetricsInfoOperator implements Operator {
         return values;
     }
 
+    /**
+     * Recursively walks the parsed {@code _timeseries_metadata} JSON, classifying each leaf as
+     * either a metric (via {@link #fieldLookup}) or a dimension key.
+     *
+     * @param metadata       the (possibly nested) metadata map for one tsid
+     * @param prefix         dotted path prefix for the current nesting level ({@code null} at root)
+     * @param indexName      concrete backing-index name – used for the field lookup (mapping is per backing index)
+     * @param dataStreamName resolved data-stream name – used as the grouping key so that all
+     *                       backing indices of the same data stream share a single {@link MetricInfo}
+     * @param dimensionKeys  accumulates non-metric leaf keys found in this document
+     * @param touchedMetrics accumulates the {@link MetricInfo} entries that were created or updated
+     *                       by this document, so that dimension keys are only added to the metrics
+     *                       that actually appeared in the same tsid (not all metrics ever seen)
+     */
     @SuppressWarnings("unchecked")
-    private void collectAndAggregateFields(Map<String, Object> metadata, String prefix, String indexName, Set<String> dimensionKeys) {
+    private void collectAndAggregateFields(
+        Map<String, Object> metadata,
+        String prefix,
+        String indexName,
+        String dataStreamName,
+        Set<String> dimensionKeys,
+        Set<MetricInfo> touchedMetrics
+    ) {
         for (Map.Entry<String, Object> entry : metadata.entrySet()) {
             String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
             if (value instanceof Map<?, ?> nested) {
-                collectAndAggregateFields((Map<String, Object>) nested, key, indexName, dimensionKeys);
+                collectAndAggregateFields((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionKeys, touchedMetrics);
             } else {
                 MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
                 if (fieldInfo != null) {
-                    // Step 1. Group by (metricName, dataStreamName)
-                    MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), indexName);
+                    // Group by (metricName, dataStreamName) so that backing indices within the same
+                    // data stream share one MetricInfo entry. Conflicting unit/metric_type/field_type
+                    // across backing indices of the same data stream become multi-valued.
+                    MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
                     MetricInfo info = metricsByKey.computeIfAbsent(infoKey, k -> new MetricInfo(k.metricName(), k.dataStreamName()));
+                    touchedMetrics.add(info);
 
                     if (fieldInfo.unit() != null) {
                         info.units.add(fieldInfo.unit());
@@ -333,10 +363,31 @@ public class MetricsInfoOperator implements Operator {
         }
 
         if (prefix == null && dimensionKeys.isEmpty() == false) {
-            for (MetricInfo info : metricsByKey.values()) {
+            for (MetricInfo info : touchedMetrics) {
                 info.dimensionFieldKeys.addAll(dimensionKeys);
             }
         }
+    }
+
+    /**
+     * Matches the default backing-index / failure-store naming convention produced by
+     * {@code DataStream#getDefaultIndexName}: {@code .ds-{name}-{yyyy.MM.dd}-{000001}}
+     * (or the {@code .fs-} variant).
+     * <p>
+     * Group 1 captures the data-stream name.
+     */
+    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
+
+    /**
+     * Resolves the data-stream name from a concrete backing-index name.
+     * <p>
+     * If the name matches the standard format produced by
+     * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
+     * the data-stream name is extracted. Otherwise the raw index name is returned unchanged.
+     */
+    static String resolveDataStreamName(String indexName) {
+        Matcher m = BACKING_INDEX_PATTERN.matcher(indexName);
+        return m.matches() ? m.group(1) : indexName;
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {

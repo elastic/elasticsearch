@@ -76,7 +76,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -133,7 +132,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -165,7 +164,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -197,7 +196,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -222,7 +221,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -323,7 +322,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ),
             MappedFieldType.FieldExtractPreference.NONE
         );
-        var plan = planner().plan("test", FoldContext.small(), TEST_PLANNER_SETTINGS, fieldExtractExec, EmptyIndexedByShardId.instance());
+        var plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            fieldExtractExec,
+            EmptyIndexedByShardId.instance()
+        );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
         return fieldInfo.loaderAndConverter().apply(0);
@@ -390,7 +395,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromList<>(shardContexts),
             null,
-            TEST_PLANNER_SETTINGS
+            PlannerSettings.DEFAULTS
         );
     }
 

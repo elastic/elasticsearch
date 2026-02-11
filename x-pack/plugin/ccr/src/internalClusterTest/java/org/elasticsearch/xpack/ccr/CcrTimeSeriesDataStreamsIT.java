@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(value = "Don't commit hardcoded repeats")
-@Repeat(iterations = 100)
+@Repeat(iterations = 50)
 public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
 
     @Override

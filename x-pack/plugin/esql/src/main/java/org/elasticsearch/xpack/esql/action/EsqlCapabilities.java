@@ -1853,6 +1853,12 @@ public class EsqlCapabilities {
         LAST_AGG_WITH_NULL_AND_MV_SUPPORT,
 
         /**
+         * Allow FIRST/LAST aggs to accept DATE/DATE_NANOS in the search field
+         * https://github.com/elastic/elasticsearch/issues/142137
+         */
+        FIRST_LAST_AGG_WITH_DATES,
+
+        /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
          */
         ST_EXTENT_AGG_NULL_SUPPORT,
@@ -1875,13 +1881,18 @@ public class EsqlCapabilities {
         /**
          * Bundle flag for PromQL math functions.
          */
-        PROMQL_MATH_V0(),
+        PROMQL_MATH_V0,
+
+        /**
+         * Support for the ACOSH function.
+         */
+        ACOSH_FUNCTION,
 
         /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */
-        PROMQL_BINARY_COMPARISON_V0(),
+        PROMQL_BINARY_COMPARISON_V0,
 
         /**
          * Support for PromQL time() function.
@@ -1936,6 +1947,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/138283
          */
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
+
+        /**
+         * Support for ST_CENTROID_AGG aggregation on geo_shape and cartesian_shape fields.
+         */
+        ST_CENTROID_AGG_SHAPES,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} replaced a stats
@@ -2071,6 +2087,11 @@ public class EsqlCapabilities {
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,
+
+        /**
+         * Implicit SORT @timestamp DESC for TS queries without STATS or explicit SORT.
+         */
+        TS_IMPLICIT_TIMESTAMP_SORT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

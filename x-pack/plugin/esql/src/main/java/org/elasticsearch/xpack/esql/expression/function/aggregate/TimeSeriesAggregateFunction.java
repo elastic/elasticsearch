@@ -54,7 +54,7 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction impl
     }
 
     @Override
-    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
         if (requiredTimeSeriesSource()) {
             List<? extends Expression> parameters = parameters();
             List<Expression> expressions = new ArrayList<>(1 + parameters.size() + EsQueryExec.TIME_SERIES_SOURCE_FIELDS.size());
@@ -68,7 +68,11 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction impl
                     }
                 }
             }
-            return Expressions.references(expressions);
+            List<Attribute> refs = new ArrayList<>();
+            for (Expression input : expressions) {
+                refs.addAll(input.references());
+            }
+            return refs;
         } else {
             return super.aggregateInputReferences(inputAttributes);
         }

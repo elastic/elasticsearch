@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 142186
+summary: Terminate S3 get blob retries when node is shutting down
+type: bug

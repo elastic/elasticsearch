@@ -30,7 +30,7 @@ public class MoveShardsIT extends AbstractAllocationDecisionTestCase {
         ensureShardIsAllocatedToNodes(indexName, nodes.yesNodes());
     }
 
-    public void testShardsWillBeMovedToThrottleNodesWhenNoYesNodesArePresent() {
+    public void testShardMovementWillWaitForThrottleNodesWhenNoYesNodesArePresent() {
         final var initialNode = internalCluster().startNode();
         final var indexName = randomIdentifier();
 

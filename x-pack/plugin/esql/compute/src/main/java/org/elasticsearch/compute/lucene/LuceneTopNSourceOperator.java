@@ -38,8 +38,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,6 +61,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         private final List<SortBuilder<?>> sorts;
         private final long estimatedPerRowSortSize;
         private final TopScoreDocCollectorManager topScoreDocCollectorManager;
+        private final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> contexts,
@@ -87,7 +91,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
             this.estimatedPerRowSortSize = estimatedPerRowSortSize;
-            this.topScoreDocCollectorManager = needsScore ? new TopScoreDocCollectorManager(limit, null, 0) : null;
+            this.topScoreDocCollectorManager = needsScore && sorts.size() == 1 ? new TopScoreDocCollectorManager(limit, null, 0) : null;
+            this.topFieldCollectorManagers = new ConcurrentHashMap<>();
         }
 
         @Override
@@ -101,7 +106,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 limit,
                 sliceQueue,
                 needsScore,
-                topScoreDocCollectorManager
+                topScoreDocCollectorManager,
+                topFieldCollectorManagers
             );
         }
 
@@ -135,6 +141,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private final int limit;
     private final boolean needsScore;
     private final TopScoreDocCollectorManager topScoreDocCollectorManager;
+    private final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
 
     /**
      * Collected docs. {@code null} until we're ready to {@link #emit()}.
@@ -157,8 +164,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         int limit,
         LuceneSliceQueue sliceQueue,
         boolean needsScore,
-        TopScoreDocCollectorManager topScoreDocCollectorManager
-    ) {
+        TopScoreDocCollectorManager topScoreDocCollectorManager,
+        Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers) {
         super(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue);
         this.driverContext = driverContext;
         this.sorts = sorts;
@@ -166,6 +173,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         this.limit = limit;
         this.needsScore = needsScore;
         this.topScoreDocCollectorManager = topScoreDocCollectorManager;
+        this.topFieldCollectorManagers = topFieldCollectorManagers;
         driverContext.breaker().addEstimateBytesAndMaybeBreak(reserveSize(), "esql lucene topn");
     }
 
@@ -212,7 +220,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             try {
                 if (perShardCollector == null || perShardCollector.shardContext.index() != scorer.shardContext().index()) {
                     // TODO: share the bottom between shardCollectors for topN not based solely on score
-                    perShardCollector = newPerShardCollector(scorer.shardContext(), sorts, needsScore, limit, topScoreDocCollectorManager);
+                    perShardCollector = newPerShardCollector(
+                        scorer.shardContext(),
+                        sorts,
+                        needsScore,
+                        limit,
+                        topScoreDocCollectorManager,
+                        topFieldCollectorManagers
+                    );
                 }
                 var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
                 scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), NUM_DOCS_INTERVAL);
@@ -370,7 +385,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         return limit * perRowSize;
     }
 
-    abstract static class PerShardCollector {
+    static class PerShardCollector {
         private final ShardContext shardContext;
         private final TopDocsCollector<?> collector;
 
@@ -393,46 +408,43 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    static final class NonScoringPerShardCollector extends PerShardCollector {
-        NonScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
-            // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
-        }
-    }
-
-    static final class ScoringPerShardCollector extends PerShardCollector {
-        ScoringPerShardCollector(ShardContext shardContext, TopDocsCollector<?> topDocsCollector) {
-            super(shardContext, topDocsCollector);
-        }
-    }
-
     private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.
                 TopScoreDocCollectorManager collectorManager = new TopScoreDocCollectorManager(1, null, 0);
-                return newPerShardCollector(ctx, sorts, needsScore, 1, collectorManager).collector.scoreMode();
+                Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers = new HashMap<>();
+                return newPerShardCollector(ctx, sorts, needsScore, 1, collectorManager, topFieldCollectorManagers).collector.scoreMode();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         };
     }
 
-    private static PerShardCollector newPerShardCollector(ShardContext context, List<SortBuilder<?>> sorts, boolean needsScore, int limit,
-                                                          TopScoreDocCollectorManager topScoreDocCollectorManager)
-        throws IOException {
+    private static PerShardCollector newPerShardCollector(
+        ShardContext context,
+        List<SortBuilder<?>> sorts,
+        boolean needsScore,
+        int limit,
+        TopScoreDocCollectorManager topScoreDocCollectorManager,
+        Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers
+    )        throws IOException {
         Optional<SortAndFormats> sortAndFormats = context.buildSort(sorts);
         if (sortAndFormats.isEmpty()) {
             throw new IllegalStateException("sorts must not be disabled in TopN");
         }
         if (needsScore == false) {
-            return new NonScoringPerShardCollector(context, sortAndFormats.get().sort, limit);
+            TopFieldCollectorManager topFieldCollectorManager = topFieldCollectorManagers.computeIfAbsent(
+                sortAndFormats.get().sort,
+                s -> new TopFieldCollectorManager(s, limit, null, 0)
+            );
+            return new PerShardCollector(context, topFieldCollectorManager.newCollector());
         }
         Sort sort = sortAndFormats.get().sort;
         if (Sort.RELEVANCE.equals(sort)) {
             // SORT _score DESC
             assert topScoreDocCollectorManager != null : "collectorManager must not be null when needsScore is true";
-            return new ScoringPerShardCollector(context, topScoreDocCollectorManager.newCollector());
+            return new PerShardCollector(context, topScoreDocCollectorManager.newCollector());
         }
 
         // SORT ..., _score, ...
@@ -440,7 +452,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         l.add(SortField.FIELD_DOC);
         l.add(SortField.FIELD_SCORE);
         sort = new Sort(l.toArray(SortField[]::new));
-        return new ScoringPerShardCollector(context, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
+        TopFieldCollectorManager topFieldCollectorManager = topFieldCollectorManagers.computeIfAbsent(
+            sort,
+            s -> new TopFieldCollectorManager(s, limit, null, 0)
+        );
+        return new PerShardCollector(context, topFieldCollectorManager.newCollector());
     }
 
     private static final int FIELD_DOC_SIZE = Math.toIntExact(RamUsageEstimator.shallowSizeOf(FieldDoc.class));

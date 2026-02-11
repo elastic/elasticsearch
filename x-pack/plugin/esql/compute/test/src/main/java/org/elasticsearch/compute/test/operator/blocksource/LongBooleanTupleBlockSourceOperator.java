@@ -5,11 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.test.operator.blocksource;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -19,26 +18,26 @@ import java.util.stream.Stream;
  * A source operator whose output is the given tuple values. This operator produces pages
  * with two Blocks. The returned pages preserve the order of values as given in the in initial list.
  */
-public class LongIntBlockSourceOperator extends AbstractBlockSourceOperator {
+public class LongBooleanTupleBlockSourceOperator extends AbstractBlockSourceOperator {
 
     private static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
-    private final List<Tuple<Long, Integer>> values;
+    private final List<Tuple<Long, Boolean>> values;
 
-    public LongIntBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Integer>> values) {
+    public LongBooleanTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Boolean>> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongIntBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Integer>> values, int maxPagePositions) {
+    public LongBooleanTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Boolean>> values, int maxPagePositions) {
         super(blockFactory, maxPagePositions);
         this.values = values.toList();
     }
 
-    public LongIntBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Integer>> values) {
+    public LongBooleanTupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Boolean>> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongIntBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Integer>> values, int maxPagePositions) {
+    public LongBooleanTupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Boolean>> values, int maxPagePositions) {
         super(blockFactory, maxPagePositions);
         this.values = values;
     }
@@ -46,9 +45,9 @@ public class LongIntBlockSourceOperator extends AbstractBlockSourceOperator {
     @Override
     protected Page createPage(int positionOffset, int length) {
         var blockBuilder1 = blockFactory.newLongBlockBuilder(length);
-        var blockBuilder2 = blockFactory.newIntBlockBuilder(length);
+        var blockBuilder2 = blockFactory.newBooleanBlockBuilder(length);
         for (int i = 0; i < length; i++) {
-            Tuple<Long, Integer> item = values.get(positionOffset + i);
+            Tuple<Long, Boolean> item = values.get(positionOffset + i);
             if (item.v1() == null) {
                 blockBuilder1.appendNull();
             } else {
@@ -57,7 +56,7 @@ public class LongIntBlockSourceOperator extends AbstractBlockSourceOperator {
             if (item.v2() == null) {
                 blockBuilder2.appendNull();
             } else {
-                blockBuilder2.appendInt(item.v2());
+                blockBuilder2.appendBoolean(item.v2());
             }
         }
         currentPosition += length;

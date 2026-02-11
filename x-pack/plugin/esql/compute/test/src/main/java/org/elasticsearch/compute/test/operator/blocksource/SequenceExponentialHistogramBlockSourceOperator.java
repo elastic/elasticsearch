@@ -5,11 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.test.operator.blocksource;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.ArrayList;
@@ -20,17 +19,17 @@ import java.util.stream.Stream;
  * A source operator whose output is the given {@link ExponentialHistogram} values. This operator produces pages
  * containing a single Block. The Block contains the histogram values from the given list, in order.
  */
-public class SequenceExponentialHistogramSourceOperator extends AbstractBlockSourceOperator {
+public class SequenceExponentialHistogramBlockSourceOperator extends AbstractBlockSourceOperator {
 
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final List<ExponentialHistogram> values;
 
-    public SequenceExponentialHistogramSourceOperator(BlockFactory blockFactory, Stream<? extends ExponentialHistogram> values) {
+    public SequenceExponentialHistogramBlockSourceOperator(BlockFactory blockFactory, Stream<? extends ExponentialHistogram> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceExponentialHistogramSourceOperator(
+    public SequenceExponentialHistogramBlockSourceOperator(
         BlockFactory blockFactory,
         Stream<? extends ExponentialHistogram> values,
         int maxPagePositions
@@ -39,11 +38,11 @@ public class SequenceExponentialHistogramSourceOperator extends AbstractBlockSou
         this.values = values.map(value -> (ExponentialHistogram) value).toList();
     }
 
-    public SequenceExponentialHistogramSourceOperator(BlockFactory blockFactory, List<? extends ExponentialHistogram> values) {
+    public SequenceExponentialHistogramBlockSourceOperator(BlockFactory blockFactory, List<? extends ExponentialHistogram> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceExponentialHistogramSourceOperator(
+    public SequenceExponentialHistogramBlockSourceOperator(
         BlockFactory blockFactory,
         List<? extends ExponentialHistogram> values,
         int maxPagePositions

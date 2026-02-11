@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction.INDEX_COUNT_LEVEL_VERSION;
+
 public final class ClusterStateHealth implements Writeable {
 
     private final int numberOfNodes;
@@ -180,7 +182,11 @@ public final class ClusterStateHealth implements Writeable {
         indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
         unassignedPrimaryShards = in.readVInt();
-        indexCountLevel = in.readEnum(IndexCountLevel.class);
+        if (in.getTransportVersion().supports(INDEX_COUNT_LEVEL_VERSION)) {
+            indexCountLevel = in.readEnum(IndexCountLevel.class);
+        } else {
+            indexCountLevel = IndexCountLevel.NOT_EVALUATED;
+        }
     }
 
 
@@ -305,7 +311,9 @@ public final class ClusterStateHealth implements Writeable {
         out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
         out.writeVInt(unassignedPrimaryShards);
-        out.writeEnum(indexCountLevel);
+        if (out.getTransportVersion().supports(INDEX_COUNT_LEVEL_VERSION)) {
+            out.writeEnum(indexCountLevel);
+        }
     }
 
     @Override

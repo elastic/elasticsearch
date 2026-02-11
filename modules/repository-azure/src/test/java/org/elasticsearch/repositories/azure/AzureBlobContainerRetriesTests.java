@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -93,6 +94,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomR
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -612,6 +614,46 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             assertThat(failedHeadCalls.get(), equalTo(1));
             assertThat(failedGetCalls.get(), equalTo(1));
         }
+    }
+
+    public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
+        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(1000, 2000));
+        final byte[] blobContents = randomByteArrayOfLength(1024);
+        final int incompleteLength = 10;
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_while_store_closes"), exchange -> {
+            boolean closeAfterHandling = false;
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    handleHeadRequest(exchange, blobContents);
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    final int rangeStart = getRangeStart(exchange);
+                    assertThat(rangeStart, lessThan(blobContents.length));
+                    final OptionalInt rangeEnd = getRangeEnd(exchange);
+                    assertTrue(rangeEnd.isPresent());
+                    assertThat(rangeEnd.getAsInt(), greaterThanOrEqualTo(rangeStart));
+                    final int requestedLength = (rangeEnd.getAsInt() - rangeStart) + 1;
+                    assertThat(requestedLength, lessThanOrEqualTo(blobContents.length - rangeStart));
+                    assertThat(requestedLength, greaterThan(incompleteLength));
+                    addSuccessfulDownloadHeaders(exchange, blobContents, requestedLength);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
+                    exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
+                    closeAfterHandling = true;
+                } else {
+                    ExceptionsHelper.maybeDieOnAnotherThread(
+                        new AssertionError("Unexpected request method: " + exchange.getRequestMethod())
+                    );
+                }
+            } finally {
+                exchange.close();
+                if (closeAfterHandling) {
+                    // Close the client provider after we've sent the response
+                    clientProvider.close();
+                }
+            }
+        });
+
+        assertThrows(AlreadyClosedException.class, () -> blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"));
     }
 
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {

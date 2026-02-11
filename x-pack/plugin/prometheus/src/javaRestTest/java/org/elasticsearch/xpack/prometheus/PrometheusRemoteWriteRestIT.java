@@ -162,6 +162,16 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         assertDataStream(source, "metrics", "myapp.prometheus", "production");
     }
 
+    public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
+        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/my-app/api/v1/write");
+        assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
+    }
+
+    public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
+        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_namespace_metric"), "/_prometheus/myapp/foo:bar/api/v1/write");
+        assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
+    }
+
     // --- helpers ---
 
     private static RemoteWrite.WriteRequest simpleWriteRequest(String metricName) {
@@ -199,7 +209,11 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest) throws IOException {
-        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        return sendAndAssertBadRequest(writeRequest, "/_prometheus/api/v1/write");
+    }
+
+    private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
+        Request request = new Request("POST", endpoint);
         request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));

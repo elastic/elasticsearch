@@ -184,7 +184,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
-     * Prepares a search request to be used in a PaginatedHitSource.
+     * Prepares a search request to be used in a {@link PaginatedHitSource}.
      * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
      */
     // Visible for testing
@@ -362,7 +362,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Process a scroll response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
-     * @param asyncResponse the response to process from PaginatedHitSource
+     * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
     void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         PaginatedHitSource.Response response = asyncResponse.response();

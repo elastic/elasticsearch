@@ -8,4 +8,3 @@
 #
 
 org.elasticsearch.reindex.management.ReindexManagementFeatures
-org.elasticsearch.reindex.management.ReindexPitSearchFeatures

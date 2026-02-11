@@ -18,33 +18,51 @@ import java.nio.ByteOrder;
 
 final class ZstdBuffers {
 
-    private static final int MAX_BLOCK_SIZE = 16384;
     private static final int MAX_COPY_BUFFER_SIZE = 4096;
     private static final Cleaner CLEANER = Cleaner.create();
-
     private static final ThreadLocal<ZstdBuffers> INSTANCE = ThreadLocal.withInitial(ZstdBuffers::new);
 
-    final CloseableByteBuffer src;
-    final CloseableByteBuffer dest;
-    final byte[] copyBuffer;
-    final Zstd zstd;
+    private static final int INITIAL_BLOCK_SIZE = 512;
 
-    static ZstdBuffers get() {
-        return INSTANCE.get();
+    final Zstd zstd;
+    CloseableByteBuffer src;
+    CloseableByteBuffer dest;
+    byte[] copyBuffer;
+    private int capacity;
+    private Cleaner.Cleanable cleanable;
+
+    static ZstdBuffers get(int blockSize) {
+        final ZstdBuffers buffers = INSTANCE.get();
+        buffers.ensureCapacity(blockSize);
+        return buffers;
     }
 
     private ZstdBuffers() {
+        this.zstd = NativeAccess.instance().getZstd();
+        this.capacity = 0;
+        allocate(INITIAL_BLOCK_SIZE);
+    }
+
+    private void ensureCapacity(int blockSize) {
+        if (blockSize <= capacity) {
+            return;
+        }
+        cleanable.clean();
+        allocate(blockSize);
+    }
+
+    private void allocate(int blockSize) {
         final NativeAccess nativeAccess = NativeAccess.instance();
-        this.zstd = nativeAccess.getZstd();
-        final int maxUncompressedSize = MAX_BLOCK_SIZE * Long.BYTES;
-        final int compressBound = zstd.compressBound(maxUncompressedSize);
+        final int uncompressedSize = blockSize * Long.BYTES;
+        final int compressBound = zstd.compressBound(uncompressedSize);
         // NOTE: shared buffers so the Cleaner thread can close them
         this.src = nativeAccess.newSharedBuffer(compressBound);
         this.dest = nativeAccess.newSharedBuffer(compressBound);
         this.copyBuffer = new byte[Math.min(MAX_COPY_BUFFER_SIZE, compressBound)];
         this.src.buffer().order(ByteOrder.LITTLE_ENDIAN);
         this.dest.buffer().order(ByteOrder.LITTLE_ENDIAN);
-        CLEANER.register(this, new BufferCleaner(src, dest));
+        this.cleanable = CLEANER.register(this, new BufferCleaner(src, dest));
+        this.capacity = blockSize;
     }
 
     private record BufferCleaner(CloseableByteBuffer src, CloseableByteBuffer dest) implements Runnable {

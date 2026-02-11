@@ -38,7 +38,7 @@ public final class Lz4DecodeStage implements PayloadDecoder {
             return 0;
         }
 
-        final Lz4Buffers buffers = Lz4Buffers.get();
+        final Lz4Buffers buffers = Lz4Buffers.get(blockSize);
         in.readBytes(buffers.dest, 0, compressedLen);
 
         final int uncompressedSize = blockSize * Long.BYTES;

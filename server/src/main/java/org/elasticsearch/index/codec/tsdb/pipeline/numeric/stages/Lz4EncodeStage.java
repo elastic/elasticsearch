@@ -59,7 +59,7 @@ public final class Lz4EncodeStage implements PayloadEncoder {
             valueCount = blockSize;
         }
 
-        final Lz4Buffers buffers = Lz4Buffers.get();
+        final Lz4Buffers buffers = Lz4Buffers.get(blockSize);
         final int uncompressedSize = valueCount * Long.BYTES;
         writeLongsToBytes(values, valueCount, buffers.src);
 

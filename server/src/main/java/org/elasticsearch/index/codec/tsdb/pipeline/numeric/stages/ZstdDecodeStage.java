@@ -47,7 +47,7 @@ public final class ZstdDecodeStage implements PayloadDecoder {
             throw new IllegalArgumentException("blockSize " + context.blockSize() + " exceeds stage block size " + blockSize);
         }
 
-        final ZstdBuffers buffers = ZstdBuffers.get();
+        final ZstdBuffers buffers = ZstdBuffers.get(blockSize);
         buffers.src.buffer().clear();
         buffers.dest.buffer().clear();
 

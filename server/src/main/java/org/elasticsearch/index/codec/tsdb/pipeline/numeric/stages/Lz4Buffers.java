@@ -11,20 +11,29 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
 final class Lz4Buffers {
 
-    private static final int MAX_BLOCK_SIZE = 16384;
+    private static final int INITIAL_BLOCK_SIZE = 512;
     private static final ThreadLocal<Lz4Buffers> INSTANCE = ThreadLocal.withInitial(Lz4Buffers::new);
 
-    final byte[] src;
-    final byte[] dest;
+    byte[] src;
+    byte[] dest;
 
-    static Lz4Buffers get() {
-        return INSTANCE.get();
+    static Lz4Buffers get(int blockSize) {
+        final Lz4Buffers buffers = INSTANCE.get();
+        buffers.ensureCapacity(blockSize);
+        return buffers;
     }
 
     private Lz4Buffers() {
-        final int maxUncompressedSize = MAX_BLOCK_SIZE * Long.BYTES;
-        final int maxCompressedSize = maxUncompressedSize + maxUncompressedSize / 255 + 16;
-        this.src = new byte[maxUncompressedSize];
-        this.dest = new byte[maxCompressedSize];
+        final int initialSize = INITIAL_BLOCK_SIZE * Long.BYTES;
+        this.src = new byte[initialSize];
+        this.dest = new byte[initialSize + initialSize / 255 + 16];
+    }
+
+    private void ensureCapacity(int blockSize) {
+        final int needed = blockSize * Long.BYTES;
+        if (needed > src.length) {
+            this.src = new byte[needed];
+            this.dest = new byte[needed + needed / 255 + 16];
+        }
     }
 }

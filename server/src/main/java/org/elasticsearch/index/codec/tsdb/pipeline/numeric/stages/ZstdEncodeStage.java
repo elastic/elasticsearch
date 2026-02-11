@@ -54,7 +54,7 @@ public final class ZstdEncodeStage implements PayloadEncoder {
             valueCount = blockSize;
         }
 
-        final ZstdBuffers buffers = ZstdBuffers.get();
+        final ZstdBuffers buffers = ZstdBuffers.get(blockSize);
         buffers.src.buffer().clear();
         buffers.dest.buffer().clear();
 

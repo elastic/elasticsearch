@@ -23,7 +23,7 @@ module org.elasticsearch.nativeaccess {
             org.elasticsearch.searchablesnapshots,
             org.elasticsearch.simdvec,
             org.elasticsearch.systemd,
-            org.elasticsearch.xpack.stateles;
+            org.elasticsearch.xpack.stateless;
 
     uses NativeLibraryProvider;
 

@@ -58,6 +58,5 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
         default Map<String, HttpRouteStats> getStats() {
             return Map.of();
         }
-
     }
 }

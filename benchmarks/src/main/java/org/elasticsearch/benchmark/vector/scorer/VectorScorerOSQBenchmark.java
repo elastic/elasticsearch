@@ -67,7 +67,7 @@ public class VectorScorerOSQBenchmark {
     @Param({ "384", "768", "1024" })
     public int dims;
 
-    @Param({ "1", "2", "4" })
+    @Param({ "1", "2", "4", "7" })
     public int bits;
 
     int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
@@ -110,6 +110,7 @@ public class VectorScorerOSQBenchmark {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dims);
             case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
             case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dims);
+            case 7 -> ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC.getDocPackedLength(dims);
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
 
@@ -138,6 +139,7 @@ public class VectorScorerOSQBenchmark {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
             case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);
             case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getQueryPackedLength(dims);
+            case 7 -> ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC.getQueryPackedLength(dims);
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
 
@@ -167,6 +169,10 @@ public class VectorScorerOSQBenchmark {
             case 4 -> {
                 docBits = 4;
                 yield 4;
+            }
+            case 7 -> {
+                docBits = 7;
+                yield 7;
             }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };

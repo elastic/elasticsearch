@@ -158,8 +158,9 @@ public class KnnIndexTester {
                 case (1) -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
                 case (2) -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
                 case (4) -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
+                case (7) -> ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC;
                 default -> throw new IllegalArgumentException(
-                    "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
+                    "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + quantizeBits
                 );
             };
             format = new ESNextDiskBBQVectorsFormat(

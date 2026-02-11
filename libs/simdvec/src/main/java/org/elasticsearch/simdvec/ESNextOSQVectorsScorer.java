@@ -48,7 +48,11 @@ public class ESNextOSQVectorsScorer {
     protected final float[] additionalCorrections;
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
-        if (queryBits != 4 || (indexBits != 1 && indexBits != 2 && indexBits != 4)) {
+        if (indexBits == 7) {
+            if (queryBits != 7) {
+                throw new IllegalArgumentException("Only symmetric 7-bit query supported for 7-bit index");
+            }
+        } else if (queryBits != 4 || (indexBits != 1 && indexBits != 2 && indexBits != 4)) {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1, 2 or 4-bit index supported");
         }
         this.in = in;
@@ -87,6 +91,13 @@ public class ESNextOSQVectorsScorer {
             if (queryBits == 4) {
                 return quantized4BitScoreSymmetric(q);
             }
+        }
+        if (indexBits == 7) {
+            int total = 0;
+            for (int i = 0; i < dimensions; i++) {
+                total += in.readByte() * q[i];
+            }
+            return total;
         }
         throw new IllegalArgumentException("Only 1-bit index supported");
     }
@@ -173,6 +184,12 @@ public class ESNextOSQVectorsScorer {
                 return;
             }
             throw new IllegalArgumentException("Only symmetric 4-bit query supported for 4-bit index");
+        }
+        if (indexBits == 7) {
+            for (int i = 0; i < count; i++) {
+                scores[i] = quantizeScore(q);
+            }
+            return;
         }
     }
 

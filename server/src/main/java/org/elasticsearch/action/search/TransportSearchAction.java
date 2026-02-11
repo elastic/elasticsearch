@@ -701,7 +701,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void openPIT(Client client, SearchRequest request, long keepAliveMillis, ActionListener<OpenPointInTimeResponse> listener) {
-        OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
+        ResolvedIndexExpressions resolvedIndexExpressions = request.getResolvedIndexExpressions();
+        String[] indices;
+        if (resolvedIndexExpressions == null) {
+            indices = request.indices();
+        } else {
+            indices = request.getResolvedIndexExpressions().getLocalIndicesList().toArray(new String[0]);
+        }
+
+        OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .routing(request.routing())
             .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));

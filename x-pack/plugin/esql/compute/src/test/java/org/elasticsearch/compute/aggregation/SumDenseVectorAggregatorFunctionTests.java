@@ -25,7 +25,10 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new DenseVectorFloatBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToObj(l -> randomVector(VECTOR_DIMENSIONS)));
+        return new DenseVectorFloatBlockSourceOperator(
+            blockFactory,
+            LongStream.range(0, size).mapToObj(l -> randomVector(VECTOR_DIMENSIONS))
+        );
     }
 
     private float[] randomVector(int dimensions) {

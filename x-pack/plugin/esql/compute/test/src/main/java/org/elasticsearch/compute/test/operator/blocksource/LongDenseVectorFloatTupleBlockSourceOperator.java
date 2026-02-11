@@ -30,7 +30,11 @@ public class LongDenseVectorFloatTupleBlockSourceOperator extends AbstractBlockS
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongDenseVectorFloatTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, float[]>> values, int maxPagePositions) {
+    public LongDenseVectorFloatTupleBlockSourceOperator(
+        BlockFactory blockFactory,
+        Stream<Tuple<Long, float[]>> values,
+        int maxPagePositions
+    ) {
         super(blockFactory, maxPagePositions);
         this.values = values.toList();
     }

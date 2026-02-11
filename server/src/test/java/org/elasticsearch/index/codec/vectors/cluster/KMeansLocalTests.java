@@ -205,4 +205,48 @@ public class KMeansLocalTests extends ESTestCase {
         }
         return matched;
     }
+
+    public void testComputeNeighboursThreadSafety() throws IOException {
+        int numCentroids = randomIntBetween(500, 1500);
+        int dims = randomIntBetween(10, 50);
+        float[][] vectors = new float[numCentroids][dims];
+        for (int i = 0; i < numCentroids; i++) {
+            for (int j = 0; j < dims; j++) {
+                vectors[i][j] = randomFloat();
+            }
+        }
+        int clustersPerNeighbour = randomIntBetween(32, 64);
+
+        // sequential version
+        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
+
+        // multiple concurrent executions for consistency
+        for (int iter = 0; iter < 50; iter++) {
+            int numThreads = randomIntBetween(2, 8);
+            try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
+                TaskExecutor taskExecutor = new TaskExecutor(executorService);
+                NeighborHood[] neighborHoodsGraphConcurrent = NeighborHood.computeNeighborhoodsGraph(
+                    taskExecutor,
+                    numThreads,
+                    vectors,
+                    clustersPerNeighbour
+                );
+
+                assertEquals(neighborHoodsGraph.length, neighborHoodsGraphConcurrent.length);
+                for (int i = 0; i < neighborHoodsGraph.length; i++) {
+                    assertArrayEquals(
+                        "Iteration " + iter + ", thread count " + numThreads + ": Different neighbors at index " + i,
+                        neighborHoodsGraph[i].neighbors(),
+                        neighborHoodsGraphConcurrent[i].neighbors()
+                    );
+                    assertEquals(
+                        "Iteration " + iter + ", thread count " + numThreads + ": Different maxIntraDistance at index " + i,
+                        neighborHoodsGraph[i].maxIntraDistance(),
+                        neighborHoodsGraphConcurrent[i].maxIntraDistance(),
+                        1e-5f
+                    );
+                }
+            }
+        }
+    }
 }

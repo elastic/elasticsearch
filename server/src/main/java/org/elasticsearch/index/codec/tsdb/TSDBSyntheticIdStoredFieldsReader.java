@@ -42,10 +42,7 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
         Closeable closeable = null;
         boolean success = false;
         try {
-            var fieldInfo = fn.fieldInfo(IdFieldMapper.NAME);
-            if (fieldInfo == null || SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes()) == false) {
-                throw new IllegalArgumentException("Field [" + IdFieldMapper.NAME + "] is not synthetic");
-            }
+            var fieldInfo = fieldInfo(fn);
             var docValuesProducer = si.getCodec().docValuesFormat().fieldsProducer(new SegmentReadState(directory, si, fn, context));
             closeable = docValuesProducer;
             var storedFieldsReader = new TSDBSyntheticIdStoredFieldsReader(directory, si, fn, context, docValuesProducer, fieldInfo);
@@ -103,11 +100,14 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
 
     @Override
     public StoredFieldsReader clone() {
-        try {
-            return open(directory, segmentInfo, fieldInfos, context);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return new TSDBSyntheticIdStoredFieldsReader(
+            directory,
+            segmentInfo,
+            fieldInfos,
+            context,
+            docValuesProducer.getMergeInstance(),
+            fieldInfo(fieldInfos)
+        );
     }
 
     @Override
@@ -116,5 +116,13 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     @Override
     public void close() throws IOException {
         IOUtils.close(docValuesProducer);
+    }
+
+    private static FieldInfo fieldInfo(FieldInfos fn) {
+        var fieldInfo = fn.fieldInfo(IdFieldMapper.NAME);
+        if (fieldInfo == null || SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes()) == false) {
+            throw new IllegalArgumentException("Field [" + IdFieldMapper.NAME + "] is not synthetic");
+        }
+        return fieldInfo;
     }
 }

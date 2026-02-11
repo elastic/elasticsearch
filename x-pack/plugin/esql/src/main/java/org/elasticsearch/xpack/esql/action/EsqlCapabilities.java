@@ -2088,6 +2088,11 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_GROUP_ON_ALIASES,
 
+        /**
+         * Implicit SORT @timestamp DESC for TS queries without STATS or explicit SORT.
+         */
+        TS_IMPLICIT_TIMESTAMP_SORT,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

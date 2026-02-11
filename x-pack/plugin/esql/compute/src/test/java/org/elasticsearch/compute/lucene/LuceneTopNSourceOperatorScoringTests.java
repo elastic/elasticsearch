@@ -103,6 +103,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
+            LuceneSourceOperator.Factory::autoStrategy,
             taskConcurrency,
             maxPageSize,
             limit,

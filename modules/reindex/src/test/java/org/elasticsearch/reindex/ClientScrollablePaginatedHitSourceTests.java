@@ -92,7 +92,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
-        ClientScrollablePaginatedHitSource PaginatedHitSource = new ClientScrollablePaginatedHitSource(
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
             logger,
             BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
             threadPool,
@@ -103,7 +103,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
         );
 
-        PaginatedHitSource.start();
+        paginatedHitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
             client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
             if (retry >= retries) {
@@ -145,7 +145,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
 
-        ClientScrollablePaginatedHitSource PaginatedHitSource = new ClientScrollablePaginatedHitSource(
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
             logger,
             BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
             threadPool,
@@ -157,7 +157,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new SearchRequest().scroll(timeValueSeconds(10))
         );
 
-        PaginatedHitSource.startNextScroll(timeValueSeconds(100));
+        paginatedHitSource.startNextScroll(timeValueSeconds(100));
         client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
     }
 

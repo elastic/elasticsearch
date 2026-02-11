@@ -210,7 +210,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         // this test primarily tests ClientScrollablePaginatedHitSource but left it to test integration to status
         client.scrollsToReject = randomIntBetween(0, testRequest.getMaxRetries() - 1);
         // use fail() onResponse handler because mocked search never fires on listener.
-        ClientScrollablePaginatedHitSource PaginatedHitSource = new ClientScrollablePaginatedHitSource(
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
             logger,
             buildTestBackoffPolicy(),
             threadPool,
@@ -220,8 +220,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new ParentTaskAssigningClient(client, localNode, testTask),
             testRequest.getSearchRequest()
         );
-        PaginatedHitSource.setScroll(scrollId());
-        PaginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
+        paginatedHitSource.setScroll(scrollId());
+        paginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
         assertBusy(() -> assertEquals(client.scrollsToReject + 1, client.scrollAttempts.get()));
         if (listener.isDone()) {
             Object result = listener.get();
@@ -239,7 +239,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 assertNotNull(ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class));
                 onFail.run();
             };
-            ClientScrollablePaginatedHitSource PaginatedHitSource = new ClientScrollablePaginatedHitSource(
+            ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
                 logger,
                 buildTestBackoffPolicy(),
                 threadPool,
@@ -249,8 +249,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 new ParentTaskAssigningClient(client, localNode, testTask),
                 testRequest.getSearchRequest()
             );
-            PaginatedHitSource.setScroll(scrollId());
-            PaginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
+            paginatedHitSource.setScroll(scrollId());
+            paginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
             assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.scrollAttempts.get()));
         });
         assertNull("There shouldn't be a scroll attempt pending that we didn't reject", client.lastScroll.get());

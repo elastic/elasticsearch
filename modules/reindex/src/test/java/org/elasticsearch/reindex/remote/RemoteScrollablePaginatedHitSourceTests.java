@@ -483,8 +483,8 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     public void testCleanupSuccessful() throws Exception {
         AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
         RestClient client = mock(RestClient.class);
-        TestRemoteScrollablePaginatedHitSource PaginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client);
-        PaginatedHitSource.cleanup(() -> cleanupCallbackCalled.set(true));
+        TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client);
+        paginatedHitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
     }
@@ -493,8 +493,8 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
         RestClient client = mock(RestClient.class);
         doThrow(new RuntimeException("test")).when(client).close();
-        TestRemoteScrollablePaginatedHitSource PaginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client);
-        PaginatedHitSource.cleanup(() -> cleanupCallbackCalled.set(true));
+        TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client);
+        paginatedHitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
     }
@@ -572,7 +572,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder)
             .build();
 
-        TestRemoteScrollablePaginatedHitSource PaginatedHitSource = new TestRemoteScrollablePaginatedHitSource(restClient) {
+        TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(restClient) {
             @Override
             void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
                 if (mockRemoteVersion) {
@@ -583,9 +583,9 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             }
         };
         if (mockRemoteVersion) {
-            PaginatedHitSource.remoteVersion = Version.CURRENT;
+            paginatedHitSource.remoteVersion = Version.CURRENT;
         }
-        return PaginatedHitSource;
+        return paginatedHitSource;
     }
 
     private BackoffPolicy backoff() {

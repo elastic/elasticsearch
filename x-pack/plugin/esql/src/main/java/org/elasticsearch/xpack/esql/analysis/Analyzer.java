@@ -174,6 +174,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -1369,29 +1370,59 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+        private record ResolvedFields(List<Alias> fields, boolean changed) {}
+
+        /**
+         * Common logic for resolving fields with shadowing support.
+         * Resolves unresolved attributes and handles field name shadowing (last definition wins).
+         *
+         * @param fields the fields to resolve
+         * @param resolver function to resolve an UnresolvedAttribute
+         * @param onResolved callback invoked when a field is resolved, receives the resolved alias
+         * @param removeFromOutput whether to remove shadowed fields from the output list (true for Row, false for Eval)
+         * @return a pair of (newFields, changed) where changed indicates if any modifications occurred
+         */
+        private ResolvedFields resolveFieldsWithShadowing(
+            List<Alias> fields,
+            Function<UnresolvedAttribute, Expression> resolver,
+            Consumer<Alias> onResolved,
+            boolean removeFromOutput
+        ) {
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (Alias field : eval.fields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
+            for (Alias field : fields) {
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, resolver);
                 changed |= result != field;
+
+                if (removeFromOutput && result.resolved()) {
+                    // Handle field shadowing: remove any existing field with the same name from output
+                    boolean removed = newFields.removeIf(existing -> existing.name().equals(result.name()));
+                    changed |= removed;
+                }
+
                 newFields.add(result);
 
                 if (result.resolved()) {
-                    // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
-                    Attribute existing = allResolvedInputs.stream()
-                        .filter(attr -> attr.name().equals(result.name()))
-                        .findFirst()
-                        .orElse(null);
-                    if (existing != null) {
-                        allResolvedInputs.remove(existing);
-                    }
-                    allResolvedInputs.add(result.toAttribute());
+                    onResolved.accept(result);
                 }
             }
-            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+
+            return new ResolvedFields(newFields, changed);
+        }
+
+        private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
+            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+
+            ResolvedFields resolved = resolveFieldsWithShadowing(eval.fields(), ua -> resolveAttribute(ua, allResolvedInputs), result -> {
+                // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
+                allResolvedInputs.removeIf(attr -> attr.name().equals(result.name()));
+                allResolvedInputs.add(result.toAttribute());
+            },
+                false  // Don't remove from output - Eval keeps all fields
+            );
+
+            return resolved.changed ? new Eval(eval.source(), eval.child(), resolved.fields) : eval;
         }
 
         /**
@@ -1419,30 +1450,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveRow(Row row) {
             // Build a mapping from field names to their expressions for substitution
             Map<String, Expression> fieldExpressions = new HashMap<>();
-            List<Alias> newFields = new ArrayList<>();
-            boolean changed = false;
 
-            for (Alias field : row.fields()) {
-                // Resolve unresolved attributes by substituting them with previously defined field expressions.
-                // If a matching field is found, replace the attribute with its expression; otherwise, keep it unresolved.
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> fieldExpressions.getOrDefault(ua.name(), ua));
-
-                changed |= result != field;
-
-                // Handle field shadowing: if a field with the same name already exists, remove it
-                // This ensures only the last definition of a field appears in the output
-                if (result.resolved()) {
-                    boolean removed = newFields.removeIf(existing -> existing.name().equals(result.name()));
-                    changed |= removed;
-
+            ResolvedFields resolved = resolveFieldsWithShadowing(
+                row.fields(),
+                ua -> fieldExpressions.getOrDefault(ua.name(), ua),
+                result -> {
                     // Store the field's child expression for future substitutions
                     // If there's a duplicate name, the later one overrides
                     fieldExpressions.put(result.name(), result.child());
-                }
+                },
+                true  // Remove from output - Row removes shadowed fields
+            );
 
-                newFields.add(result);
-            }
-            return changed ? new Row(row.source(), newFields) : row;
+            return resolved.changed ? new Row(row.source(), resolved.fields) : row;
         }
 
         /**

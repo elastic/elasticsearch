@@ -81,11 +81,7 @@ public final class ClusterStateHealth implements Writeable {
      * @param concreteAllIndices An array of index names to consider. Must not be null but may be empty.
      * @param projectId The project id that should be used to access project-specific data from the cluster state. Must not be null.
      */
-    public ClusterStateHealth(
-        final ClusterState clusterState,
-        final String[] concreteAllIndices,
-        final ProjectId projectId
-    ) {
+    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteAllIndices, final ProjectId projectId) {
         this(
             clusterState.metadata().getProject(projectId),
             clusterState.routingTable(projectId),
@@ -188,7 +184,6 @@ public final class ClusterStateHealth implements Writeable {
             indexCountLevel = IndexCountLevel.NOT_EVALUATED;
         }
     }
-
 
     public ClusterStateHealth(
         int activePrimaryShards,

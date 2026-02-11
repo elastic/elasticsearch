@@ -331,7 +331,11 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(
                     new Alias(EMPTY, "x", new Literal(EMPTY, 4, INTEGER)),
                     new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER)),
-                    new Alias(EMPTY, "z", new Add(EMPTY, new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y")))
+                    new Alias(
+                        EMPTY,
+                        "z",
+                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y"), EsqlTestUtils.TEST_CFG)
+                    )
                 )
             )
         );

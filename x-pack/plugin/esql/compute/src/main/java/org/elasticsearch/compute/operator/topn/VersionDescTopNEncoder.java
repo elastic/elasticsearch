@@ -48,7 +48,7 @@ class VersionDescTopNEncoder extends SortableDescTopNEncoder {
 
     @Override
     public String toString() {
-        return "Version";
+        return "VersionDesc";
     }
 
     @Override

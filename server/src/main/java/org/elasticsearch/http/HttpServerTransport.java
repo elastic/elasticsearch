@@ -59,12 +59,5 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
             return Map.of();
         }
 
-        /**
-         * Returns {@code true} if the REST handler registered for the given method and path handles content decoding
-         * (decompression) itself, meaning the HTTP pipeline should pass through the raw compressed bytes.
-         */
-        default boolean requestHandlesContentDecoding(RestRequest.Method method, String rawPath) {
-            return false;
-        }
     }
 }

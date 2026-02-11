@@ -106,15 +106,6 @@ public interface RestHandler {
         return false;
     }
 
-    /**
-     * Whether this handler handles content decoding (decompression) itself rather than
-     * relying on the HTTP pipeline's automatic decompression. When {@code true}, the pipeline
-     * will pass through the raw compressed bytes and the {@code Content-Encoding} header.
-     */
-    default boolean handlesContentDecoding() {
-        return false;
-    }
-
     default boolean mediaTypesValid(RestRequest request) {
         return request.getXContentType() != null;
     }

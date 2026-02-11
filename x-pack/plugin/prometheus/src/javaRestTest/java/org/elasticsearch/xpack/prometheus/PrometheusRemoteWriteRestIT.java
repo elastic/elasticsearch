@@ -204,7 +204,9 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
         Request request = new Request("POST", endpoint);
         request.setEntity(new ByteArrayEntity(snappyCompressed, ContentType.create("application/x-protobuf")));
-        request.setOptions(request.getOptions().toBuilder().addHeader("Content-Encoding", "snappy"));
+        request.setOptions(
+            request.getOptions().toBuilder().addHeader("Content-Encoding", "snappy").addHeader("X-Prometheus-Remote-Write-Version", "0.1.0")
+        );
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }

@@ -100,6 +100,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -662,7 +663,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             safeAwait(haveSentSomeContents);
             clientProvider.close();
             final var exception = assertThrows(ExecutionException.class, downloadFuture::get);
-            assertNotNull(ExceptionsHelper.unwrap(exception, AlreadyClosedException.class));
+            assertThat(exception.getCause(), instanceOf(AlreadyClosedException.class));
         }
     }
 

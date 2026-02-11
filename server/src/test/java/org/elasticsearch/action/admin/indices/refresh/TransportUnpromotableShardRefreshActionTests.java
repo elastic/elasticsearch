@@ -265,8 +265,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
         return ClusterState.builder(base)
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
             .blocks(
-                ClusterBlocks.builder(base.blocks())
-                    .addIndexBlock(projectId, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK)
+                ClusterBlocks.builder(base.blocks()).addIndexBlock(projectId, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK)
             )
             .build();
     }

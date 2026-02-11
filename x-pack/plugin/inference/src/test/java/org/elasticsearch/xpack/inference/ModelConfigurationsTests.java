@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettingsTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,14 +51,14 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             taskType,
             randomAlphaOfLength(6),
             randomServiceSettings(),
-            randomTaskSettings(taskType),
+            randomTaskSettings(),
             randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null,
             endpointMetadata
         );
     }
 
     public static ModelConfigurations mutateTestInstance(ModelConfigurations instance) {
-        return switch (randomIntBetween(0, 5)) {
+        return switch (randomIntBetween(0, 6)) {
             case 0 -> new ModelConfigurations(
                 instance.getInferenceEntityId() + "foo",
                 instance.getTaskType(),
@@ -111,7 +112,16 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 instance.getChunkingSettings(),
                 instance.getEndpointMetadata()
             );
-            case 5 -> {
+            case 5 -> new ModelConfigurations(
+                instance.getInferenceEntityId(),
+                instance.getTaskType(),
+                instance.getService(),
+                instance.getServiceSettings(),
+                randomValueOtherThan(instance.getTaskSettings(), ModelConfigurationsTests::randomTaskSettings),
+                instance.getChunkingSettings(),
+                instance.getEndpointMetadata()
+            );
+            case 6 -> {
                 var chunkingSettings = instance.getChunkingSettings();
                 // Mutate chunkingSettings: if null, create a random one; if non-null, toggle to null or create a different one
                 if (chunkingSettings == null) {
@@ -139,8 +149,8 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
         return ElserInternalServiceSettingsTests.createRandom();
     }
 
-    private static TaskSettings randomTaskSettings(TaskType taskType) {
-        return ElserMlNodeTaskSettings.DEFAULT; // only 1 implementation
+    private static TaskSettings randomTaskSettings() {
+        return JinaAIRerankTaskSettingsTests.createRandom();
     }
 
     @Override

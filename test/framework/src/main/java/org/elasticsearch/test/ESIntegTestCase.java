@@ -1672,7 +1672,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         final var message = "out of sync shards: primary=["
                             + primaryShardRouting
                             + "] num_docs_on_primary=["
-                            + nbDocsOnReplica
+                            + nbDocsOnPrimary
                             + "] vs replica=["
                             + replicaShardRouting
                             + "] num_docs_on_replica=["

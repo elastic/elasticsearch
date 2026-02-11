@@ -41,7 +41,7 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 % TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 % TESTRESPONSE[non_json]
 
-### Run the {{esql}} query API in Console [esql-kibana-console]
+## Run the {{esql}} query API in Console [esql-kibana-console]
 
 We recommend using [Console](docs-content://explore-analyze/query-filter/tools/console.md) to run the {{esql}} query API, because of its rich autocomplete features.
 
@@ -60,7 +60,7 @@ POST /_query?format=txt
 ```
 % TEST[setup:library]
 
-### Response formats [esql-rest-format]
+## Response formats [esql-rest-format]
 
 {{esql}} can return the data in the following human readable and binary formats. You can set the format by specifying the `format` parameter in the URL or by setting the `Accept` or `Content-Type` HTTP header.
 
@@ -83,7 +83,7 @@ POST /_query?format=yaml
 The URL parameter takes precedence over the HTTP headers. If neither is specified then the response is returned in the same format as the request.
 ::::
 
-#### Structured formats
+### Structured formats
 
 Complete responses with metadata. Useful for automatic parsing.
 
@@ -92,7 +92,7 @@ Complete responses with metadata. Useful for automatic parsing.
 | `json` | `application/json` | [JSON](https://www.json.org/) (JavaScript Object Notation) human-readable format |
 | `yaml` | `application/yaml` | [YAML](https://en.wikipedia.org/wiki/YAML) (YAML Ain’t Markup Language) human-readable format |
 
-#### Tabular formats
+### Tabular formats
 
 Query results only, without metadata. Useful for quick and manual data previews.
 
@@ -106,7 +106,7 @@ Query results only, without metadata. Useful for quick and manual data previews.
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which indicates which character should be used to separate the CSV values. It defaults to comma (`,`) and cannot take any of the following values: double quote (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used. Use the `tsv` format instead.
 ::::
 
-#### Binary formats
+### Binary formats
 
 Compact binary encoding. To be used by applications.
 
@@ -117,7 +117,7 @@ Compact binary encoding. To be used by applications.
 | `arrow` | `application/vnd.apache.arrow.stream` | **Experimental.** [Apache Arrow](https://arrow.apache.org/) dataframes, [IPC streaming format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format) |
 
 
-### Filtering using {{es}} Query DSL [esql-rest-filtering]
+## Filter using {{es}} Query DSL [esql-rest-filtering]
 
 Specify a Query DSL query in the `filter` parameter to filter the set of documents that an {{esql}} query runs on.
 
@@ -152,7 +152,7 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 % TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 % TESTRESPONSE[non_json]
 
-#### Filter vs WHERE clause behavior
+### Filter vs WHERE clause behavior
 
 The `filter` parameter can eliminate columns from the result set when it skips entire indices.
 This is useful for resolving type conflicts between attributes of different indices.
@@ -160,7 +160,7 @@ This is useful for resolving type conflicts between attributes of different indi
 For example, if several days of data in a data stream were indexed with an incorrect type, you can use a filter to exclude the incorrect range.
 This allows {{esql}} to use the correct type for the remaining data without changing the source pattern.
 
-##### Example
+#### Example
 
 Consider querying `index-1` with an `f1` attribute and `index-2` with an `f2` attribute.
 
@@ -189,7 +189,7 @@ POST /_query?format=txt
 ```
 % TEST[skip:no index]
 
-### Columnar results [esql-rest-columnar]
+## Columnar results [esql-rest-columnar]
 
 By default, {{esql}} returns results as rows. For example, `FROM` returns each individual document as one row. For the `json`, `yaml`, `cbor` and `smile` [formats](#esql-rest-format), {{esql}} can return the results in a columnar fashion where one row represents all the values of a certain column in the results.
 
@@ -299,82 +299,196 @@ POST /_query
 % TEST[setup:library]
 % TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 
-### Passing parameters to a query [esql-rest-params]
+## Pass parameters to a query [esql-rest-params]
 
-Values, for example for a condition, can be passed to a query "inline", by integrating the value in the query string itself:
+Instead of embedding values directly in a query string, you can use parameters to separate the query logic from its data. This approach prevents injection attacks when queries include user input and makes queries reusable with different values.
+
+{{esql}} supports value and identifier parameters:
+
+- [**Value** (`?`)](#esql-rest-value-params) inserts a literal. Strings are quoted, numbers stay as-is.
+- [**Identifier** (`??`)](#esql-rest-identifier-params) inserts a field name or function name. {applies_to}`stack: preview 9.1`
+
+These parameters can be named, positional, or anonymous:
+
+- **Named** (`?name`, `??name`) are matched to params by name.
+- **Positional** (`?1`, `??2`) are matched to params by position in the array.
+- **Anonymous** (`?`, `??`) are matched to params in the order they appear in the query.
+
+::::{important}
+Don't mix parameter styles in the same query. For example, you cannot use named `?name` with positional `??1`. Choose one style and use it consistently across both value and identifier parameters.
+::::
+
+### Value parameters (`?`) [esql-rest-value-params]
+
+::::{tip} 
+:applies_to: stack: ga 9.1.0
+We recommend using the [`??`](#esql-rest-identifier-params) syntax instead in 9.1 and above.
+::::
+
+**Syntax:**
+
+| Style | Placeholder | `params` format |
+| --- | --- | --- |
+| Named | `?name` | `[{"name": value}, ...]` |
+| Positional | `?1`, `?2` | `[value1, value2, ...]` |
+| Anonymous | `?` | `[value1, value2, ...]` (consumed in order) |
+
+#### Example
 
 ```console
 POST /_query
 {
   "query": """
     FROM library
-    | EVAL year = DATE_EXTRACT("year", release_date)
-    | WHERE page_count > 300 AND author == "Frank Herbert"
-    | STATS count = COUNT(*) by year
-    | WHERE count > 0
-    | LIMIT 5
-  """
-}
-```
-% TEST[setup:library]
-
-To avoid any attempts of hacking or code injection, extract the values in a separate list of parameters. Use question mark placeholders (`?`) in the query string for each of the parameters:
-
-```console
-POST /_query
-{
-  "query": """
-    FROM library
-    | EVAL year = DATE_EXTRACT("year", release_date)
-    | WHERE page_count > ? AND author == ?
-    | STATS count = COUNT(*) by year
-    | WHERE count > ?
-    | LIMIT 5
+    | WHERE page_count > ?min_pages AND author == ?author <1>
+    | KEEP author, name, page_count
+    | SORT page_count DESC
   """,
-  "params": [300, "Frank Herbert", 0]
+  "params": [{"min_pages" : 300}, {"author" : "Frank Herbert"}] <2>
 }
 ```
 % TEST[setup:library]
 
-The parameters can be named parameters or positional parameters.
+1. Named placeholders `?min_pages` and `?author` mark where values are substituted
+2. Each object in `params` maps a name to its value
 
-Named parameters use question mark placeholders (`?`) followed by a string.
+You can also reference params by position:
 
 ```console
 POST /_query
 {
   "query": """
     FROM library
-    | EVAL year = DATE_EXTRACT("year", release_date)
-    | WHERE page_count > ?page_count AND author == ?author
-    | STATS count = COUNT(*) by year
-    | WHERE count > ?count
-    | LIMIT 5
+    | WHERE page_count > ?1 AND author == ?2 <1>
+    | KEEP author, name, page_count
+    | SORT page_count DESC
   """,
-  "params": [{"page_count" : 300}, {"author" : "Frank Herbert"}, {"count" : 0}]
+  "params": [300, "Frank Herbert"] <2>
 }
 ```
 % TEST[setup:library]
 
-Positional parameters use question mark placeholders (`?`) followed by an integer.
+1. `?1` refers to the first param, `?2` to the second
+2. Values are provided as a simple array, matched by position
+
+### Identifier parameters (`??`) [esql-rest-identifier-params]
+
+```{applies_to}
+stack: preview 9.1
+```
+
+The `??` placeholder lets you pass field and function names as plain strings in `params`, without needing to annotate them as identifiers.
+
+We recommend using this syntax instead of the original `?` syntax.
+
+**Syntax:**
+
+| Style | Placeholder | `params` format |
+| --- | --- | --- |
+| Named | `??name` | `[{"name": "field_name"}, ...]` |
+| Positional | `??1`, `??2` | `["field_name", ...]` |
+| Anonymous | `??` | `["field_name", ...]` (consumed in order) |
+
+#### Example
+
+This query uses named identifier parameters for the aggregation function, field, and grouping:
 
 ```console
-POST /_query
+POST /_query?format=txt
 {
   "query": """
-    FROM library
-    | EVAL year = DATE_EXTRACT("year", release_date)
-    | WHERE page_count > ?1 AND author == ?2
-    | STATS count = COUNT(*) by year
-    | WHERE count > ?3
-    | LIMIT 5
+    FROM sample_data
+    | STATS result = ??agg_fn(??field) BY ??group_by <1>
+    | SORT ??group_by
   """,
-  "params": [300, "Frank Herbert", 0]
+  "params": [{"agg_fn": "avg"}, {"field": "event.duration"}, {"group_by": "client.ip"}] <2>
 }
 ```
-% TEST[setup:library]
+% TEST[skip:no sample_data index]
 
-### Running an async {{esql}} query [esql-rest-async-query]
+1. `??agg_fn` is inserted as the function name, `??field` and `??group_by` as field names
+2. Parameter values are substituted as identifiers, not quoted strings
+
+With positional parameters, placeholders reference params by their position in the array:
+
+```console
+POST /_query?format=txt
+{
+  "query": """
+    FROM sample_data
+    | STATS result = ??1(??2) BY ??3 <1>
+    | SORT ??3
+  """,
+  "params": ["avg", "event.duration", "client.ip"] <2>
+}
+```
+% TEST[skip:no sample_data index]
+
+1. `??1` is the first param (function name), `??2` second (field), `??3` third (group by field)
+2. Simple array of identifier names
+
+With anonymous parameters, each `??` consumes the next param in order:
+
+```console
+POST /_query?format=txt
+{
+  "query": """
+    FROM sample_data
+    | STATS result = ??(??) BY ?? <1>
+    | SORT ??
+  """,
+  "params": ["avg", "event.duration", "client.ip", "client.ip"] <2>
+}
+```
+% TEST[skip:no sample_data index]
+
+1. Each `??` is replaced by the next param in the array
+2. `client.ip` appears twice because `SORT ??` consumes a separate param
+
+#### Qualified field names
+
+For dot-separated field names like `car.make`, you can parameterize each segment separately. This is useful when the same namespace prefix applies to multiple fields:
+
+```console
+POST /_query?format=txt
+{
+  "query": """
+    FROM persons
+    | WHERE ??namespace.??field == ?value <1>
+    | KEEP ??namespace.??field, ??namespace.??model, ??sort_field
+    | SORT ??sort_field
+  """,
+  "params": [{"namespace": "car"}, {"field": "make"}, {"value": "Tesla"}, {"model": "model"}, {"sort_field": "first_name"}] <2>
+}
+```
+% TEST[skip:no persons index]
+
+1. `??namespace.??field` is inserted as the qualified field name `car.make`
+2. Each identifier parameter supplies one segment of the dot-separated name
+
+### Combine value and identifier parameters
+
+You can mix both parameter types in the same query. This is useful when both the field to filter on and the filter value are dynamic.
+
+#### Example: Filter on a parameterized field
+
+```console
+POST /_query?format=txt
+{
+  "query": """
+    FROM sample_data
+    | WHERE ??field == ?value <1>
+    | KEEP ??field
+  """,
+  "params": [{"field": "client.ip"}, {"value": "192.168.1.1"}] <2>
+}
+```
+% TEST[skip:no sample_data index]
+
+1. `??field` is an identifier parameter (field name), `?value` is a value parameter (filter value)
+2. Both parameter types can be named and provided together
+
+## Run an async {{esql}} query [esql-rest-async-query]
 
 The [{{esql}} async query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query) lets you asynchronously execute a query request, monitor its progress, and retrieve results when they become available.
 

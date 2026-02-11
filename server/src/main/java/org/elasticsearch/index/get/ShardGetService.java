@@ -150,7 +150,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        MultiEngineGet mget
+        MultiEngineGet mget,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -163,7 +164,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             mget::get
         );
     }

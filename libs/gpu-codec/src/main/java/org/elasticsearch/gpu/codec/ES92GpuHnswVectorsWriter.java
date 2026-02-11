@@ -61,9 +61,9 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
-import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousMemorySegment;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousPackedMemorySegment;
+import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,

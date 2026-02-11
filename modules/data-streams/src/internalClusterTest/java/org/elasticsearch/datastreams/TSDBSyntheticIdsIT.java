@@ -96,6 +96,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -382,12 +383,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(failedRequest.getFailure().getCause(), is(instanceOf(VersionConflictEngineException.class)));
         }
 
-        // Check that synthetic _id field have no postings on disk
+        // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
     }
 
@@ -493,12 +495,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
-        // Check that synthetic _id field have no postings on disk
+        // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);

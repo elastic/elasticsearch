@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModels;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.GP_LLM_V2_COMPLETION_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.JINA_CLIP_V2_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
@@ -49,7 +50,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
         var completionModels = getModels("_all", TaskType.COMPLETION);
 
-        assertThat(allModels, hasSize(9));
+        assertThat(allModels, hasSize(10));
         assertThat(chatCompletionModels, hasSize(2));
         assertThat(completionModels, hasSize(1));
 
@@ -66,6 +67,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         assertInferenceIdTaskType(allModels, GP_LLM_V2_COMPLETION_ENDPOINT_ID, TaskType.COMPLETION);
         assertInferenceIdTaskType(allModels, ELSER_V2_ENDPOINT_ID, TaskType.SPARSE_EMBEDDING);
         assertInferenceIdTaskType(allModels, JINA_EMBED_V3_ENDPOINT_ID, TaskType.TEXT_EMBEDDING);
+        assertInferenceIdTaskType(allModels, JINA_CLIP_V2_ENDPOINT_ID, TaskType.EMBEDDING);
         assertInferenceIdTaskType(allModels, RERANK_V1_ENDPOINT_ID, TaskType.RERANK);
     }
 

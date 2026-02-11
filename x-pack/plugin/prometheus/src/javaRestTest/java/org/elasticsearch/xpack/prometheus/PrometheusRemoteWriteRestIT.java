@@ -164,12 +164,12 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
         String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/my-app/api/v1/write");
-        assertThat(body, containsString("[dataset] 'my-app' contains disallowed characters"));
+        assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
     }
 
     public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
         String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_namespace_metric"), "/_prometheus/myapp/foo:bar/api/v1/write");
-        assertThat(body, containsString("[namespace] 'foo:bar' contains disallowed characters"));
+        assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
     }
 
     // --- helpers ---

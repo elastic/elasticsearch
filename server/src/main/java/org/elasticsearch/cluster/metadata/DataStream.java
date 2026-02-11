@@ -94,6 +94,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+    public static final String TYPE = "type";
+    public static final String DATASET = "dataset";
+    public static final String NAMESPACE = "namespace";
 
     private static final int MAX_LENGTH = 100;
     private static final String REPLACEMENT = "_";
@@ -103,18 +106,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public static String sanitizeType(String type) {
         return sanitizeDataStreamField(type, DISALLOWED_IN_TYPE);
-    }
-
-    /**
-     * Validates that the provided type value is already in its canonical form.
-     * <p>
-     * This method validates and does not sanitize.
-     *
-     * @param type the type value to validate
-     * @throws IllegalArgumentException if the value contains disallowed characters
-     */
-    public static void validateType(String type) {
-        validateDataStreamField("type", type, DataStream::sanitizeType);
     }
 
     public static String sanitizeDataset(String dataset) {
@@ -130,7 +121,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @throws IllegalArgumentException if the value contains disallowed characters
      */
     public static void validateDataset(String dataset) {
-        validateDataStreamField("dataset", dataset, DataStream::sanitizeDataset);
+        validateDataStreamField(DATASET, dataset, DataStream::sanitizeDataset, DISALLOWED_IN_DATASET);
     }
 
     public static String sanitizeNamespace(String namespace) {
@@ -146,12 +137,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @throws IllegalArgumentException if the value contains disallowed characters
      */
     public static void validateNamespace(String namespace) {
-        validateDataStreamField("namespace", namespace, DataStream::sanitizeNamespace);
+        validateDataStreamField(NAMESPACE, namespace, DataStream::sanitizeNamespace, DISALLOWED_IN_NAMESPACE);
     }
 
-    private static void validateDataStreamField(String fieldName, String value, Function<String, String> sanitizer) {
+    private static void validateDataStreamField(
+        String fieldName,
+        String value,
+        Function<String, String> sanitizer,
+        Pattern disallowedCharactersPattern
+    ) {
         if (Objects.equals(sanitizer.apply(value), value) == false) {
-            throw new IllegalArgumentException("[" + fieldName + "] '" + value + "' contains disallowed characters");
+            throw new IllegalArgumentException(
+                "data stream "
+                    + fieldName
+                    + " '"
+                    + value
+                    + "' contains disallowed characters, must conform to regex "
+                    + disallowedCharactersPattern.pattern()
+            );
         }
     }
 

@@ -123,6 +123,7 @@ public final class NumericEncodePipeline implements Closeable {
     private static boolean isPayloadSpec(final StageSpec spec) {
         return spec instanceof StageSpec.BitPack
             || spec instanceof StageSpec.Zstd
+            || spec instanceof StageSpec.Lz4
             || spec instanceof StageSpec.Gorilla
             || spec instanceof StageSpec.RlePayload
             || spec instanceof StageSpec.AlpDouble

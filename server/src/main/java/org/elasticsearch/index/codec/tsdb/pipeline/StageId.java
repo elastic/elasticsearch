@@ -37,7 +37,8 @@ public enum StageId {
     ALP_DOUBLE((byte) 0xA6),
     ALP_FLOAT((byte) 0xA7),
     ALP_RD_DOUBLE((byte) 0xA8),
-    ALP_RD_FLOAT((byte) 0xA9);
+    ALP_RD_FLOAT((byte) 0xA9),
+    LZ4((byte) 0xA5);
 
     public final byte id;
 
@@ -68,6 +69,7 @@ public enum StageId {
             case (byte) 0xA7 -> ALP_FLOAT;
             case (byte) 0xA8 -> ALP_RD_DOUBLE;
             case (byte) 0xA9 -> ALP_RD_FLOAT;
+            case (byte) 0xA5 -> LZ4;
             default -> throw new IllegalArgumentException("Unknown stage ID: 0x" + Integer.toHexString(id & 0xFF));
         };
     }

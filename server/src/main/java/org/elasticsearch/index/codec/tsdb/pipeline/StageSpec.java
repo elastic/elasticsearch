@@ -145,6 +145,17 @@ public sealed interface StageSpec {
         }
     }
 
+    record Lz4(boolean highCompression) implements StageSpec {
+        public Lz4() {
+            this(false);
+        }
+
+        @Override
+        public StageId stageId() {
+            return StageId.LZ4;
+        }
+    }
+
     record Gorilla() implements StageSpec {
         @Override
         public StageId stageId() {

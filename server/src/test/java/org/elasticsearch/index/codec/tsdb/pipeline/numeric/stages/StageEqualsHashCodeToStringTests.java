@@ -328,6 +328,30 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
         assertEquals("AlpRdFloatDecodeStage{blockSize=128}", new AlpRdFloatDecodeStage(128).toString());
     }
 
+    public void testLz4EncodeStageEqualsHashCode() {
+        final var a = new Lz4EncodeStage(128, false);
+        final var b = new Lz4EncodeStage(128, false);
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, new Lz4EncodeStage(128, true));
+        assertNotEquals(a, new Lz4EncodeStage(256, false));
+    }
+
+    public void testLz4EncodeStageToString() {
+        assertEquals("Lz4EncodeStage{highCompression=false, blockSize=128}", new Lz4EncodeStage(128).toString());
+    }
+
+    public void testLz4DecodeStageEqualsHashCode() {
+        final var a = new Lz4DecodeStage(128);
+        final var b = new Lz4DecodeStage(128);
+        final var c = new Lz4DecodeStage(256);
+        assertEqualsContract(a, b, c);
+    }
+
+    public void testLz4DecodeStageToString() {
+        assertEquals("Lz4DecodeStage{blockSize=128}", new Lz4DecodeStage(128).toString());
+    }
+
     public void testEqualsNullAndCrossType() {
         final var delta = new DeltaCodecStage();
         assertNotEquals(null, delta);

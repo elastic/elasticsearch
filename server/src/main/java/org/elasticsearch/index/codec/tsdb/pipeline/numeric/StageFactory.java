@@ -35,6 +35,8 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformEn
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Lz4DecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Lz4EncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.PatchedPForDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.PatchedPForEncodeStage;
@@ -100,6 +102,7 @@ public final class StageFactory {
         return switch (spec) {
             case StageSpec.BitPack() -> new BitPackCodecStage(blockSize);
             case StageSpec.Zstd() -> new ZstdEncodeStage(blockSize, ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL);
+            case StageSpec.Lz4(boolean highCompression) -> new Lz4EncodeStage(blockSize, highCompression);
             case StageSpec.Gorilla() -> new GorillaEncodeStage();
             case StageSpec.RlePayload() -> RlePayloadCodecStage.INSTANCE;
             case StageSpec.AlpDouble(double maxError) -> maxError > 0
@@ -122,6 +125,7 @@ public final class StageFactory {
         return switch (spec) {
             case StageSpec.BitPack() -> new BitPackCodecStage(blockSize);
             case StageSpec.Zstd() -> new ZstdDecodeStage(blockSize);
+            case StageSpec.Lz4 lz4 -> new Lz4DecodeStage(blockSize);
             case StageSpec.Gorilla() -> new GorillaDecodeStage();
             case StageSpec.RlePayload() -> RlePayloadCodecStage.INSTANCE;
             case StageSpec.AlpDouble alpDouble -> new AlpDoubleDecodeStage(blockSize);
@@ -152,6 +156,7 @@ public final class StageFactory {
             case FPC_STAGE -> new StageSpec.FpcStage();
             case BIT_PACK -> new StageSpec.BitPack();
             case ZSTD -> new StageSpec.Zstd();
+            case LZ4 -> new StageSpec.Lz4();
             case GORILLA_PAYLOAD -> new StageSpec.Gorilla();
             case RLE_PAYLOAD -> new StageSpec.RlePayload();
             case ALP_DOUBLE -> new StageSpec.AlpDouble();

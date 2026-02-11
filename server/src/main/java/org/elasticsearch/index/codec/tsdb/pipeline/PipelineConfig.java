@@ -165,6 +165,16 @@ public final class PipelineConfig {
             return new PipelineConfig(DataType.LONG, blockSize, specs);
         }
 
+        public PipelineConfig lz4() {
+            specs.add(new StageSpec.Lz4());
+            return new PipelineConfig(DataType.LONG, blockSize, specs);
+        }
+
+        public PipelineConfig lz4HighCompression() {
+            specs.add(new StageSpec.Lz4(true));
+            return new PipelineConfig(DataType.LONG, blockSize, specs);
+        }
+
         public PipelineConfig rlePayload() {
             specs.add(new StageSpec.RlePayload());
             return new PipelineConfig(DataType.LONG, blockSize, specs);
@@ -258,6 +268,16 @@ public final class PipelineConfig {
 
         public PipelineConfig zstd() {
             specs.add(new StageSpec.Zstd());
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
+
+        public PipelineConfig lz4() {
+            specs.add(new StageSpec.Lz4());
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
+
+        public PipelineConfig lz4HighCompression() {
+            specs.add(new StageSpec.Lz4(true));
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
         }
 
@@ -368,6 +388,16 @@ public final class PipelineConfig {
 
         public PipelineConfig zstd() {
             specs.add(new StageSpec.Zstd());
+            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+        }
+
+        public PipelineConfig lz4() {
+            specs.add(new StageSpec.Lz4());
+            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+        }
+
+        public PipelineConfig lz4HighCompression() {
+            specs.add(new StageSpec.Lz4(true));
             return new PipelineConfig(DataType.FLOAT, blockSize, specs);
         }
 

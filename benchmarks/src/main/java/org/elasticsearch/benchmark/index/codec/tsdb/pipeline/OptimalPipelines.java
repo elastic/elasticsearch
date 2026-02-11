@@ -74,7 +74,15 @@ public final class OptimalPipelines {
         Map.entry(
             "quantize-1e6-fpc-offset-gcd-bitpack",
             bs -> PipelineConfig.forDoubles(bs).quantizeDouble(1e-6).fpcStage().offset().gcd().bitPack()
-        )
+        ),
+        // LZ4 pipelines
+        Map.entry("lz4", bs -> PipelineConfig.forDoubles(bs).lz4()),
+        Map.entry("lz4-hc", bs -> PipelineConfig.forDoubles(bs).lz4HighCompression()),
+        Map.entry("xor-lz4", bs -> PipelineConfig.forDoubles(bs).xor().lz4()),
+        Map.entry("delta-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).delta().offset().gcd().lz4()),
+        Map.entry("alp_double_stage-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().offset().gcd().lz4()),
+        Map.entry("fpc-lz4", bs -> PipelineConfig.forDoubles(bs).fpcStage().lz4()),
+        Map.entry("fpc-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).fpcStage().offset().gcd().lz4())
     );
 
     private static final Map<String, IntFunction<PipelineConfig>> ALL;

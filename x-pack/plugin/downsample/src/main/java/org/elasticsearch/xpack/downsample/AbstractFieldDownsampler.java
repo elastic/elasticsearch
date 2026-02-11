@@ -101,7 +101,8 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         SearchExecutionContext context,
         String[] fields,
         Map<String, String> multiFieldSources,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        CounterResetDataPoints extraDataPoints
     ) {
         List<AbstractFieldDownsampler<?>> fetchers = new ArrayList<>();
         for (String field : fields) {
@@ -120,7 +121,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    fetchers.add(create(field, fieldType, fieldData, samplingMethod));
+                    fetchers.add(create(field, fieldType, fieldData, samplingMethod, extraDataPoints));
                 }
             }
         }
@@ -131,7 +132,8 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         String fieldName,
         MappedFieldType fieldType,
         IndexFieldData<?> fieldData,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        CounterResetDataPoints extraDataPoints
     ) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
@@ -150,9 +152,18 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             assert fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE
                 || fieldType.getMetricType() == TimeSeriesParams.MetricType.COUNTER
                 : "only gauges and counters accepted, other metrics should have been handled earlier";
-            if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE
-                && fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
-                return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldType, fieldData);
+            if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
+                if (fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
+                    return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldType, fieldData);
+                }
+                if (fieldType.getMetricType() == TimeSeriesParams.MetricType.COUNTER) {
+                    return new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler(
+                        fieldName,
+                        fieldType,
+                        fieldData,
+                        extraDataPoints
+                    );
+                }
             }
             return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldType, fieldData);
         } else {

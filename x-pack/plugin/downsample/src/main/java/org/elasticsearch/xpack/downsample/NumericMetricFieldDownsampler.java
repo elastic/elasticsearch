@@ -12,6 +12,7 @@ import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,7 +25,8 @@ import java.io.IOException;
  * gauge and metric types.
  */
 abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsampler<SortedNumericDoubleValues> permits
-    AggregateMetricDoubleFieldDownsampler, NumericMetricFieldDownsampler.AggregateGauge, NumericMetricFieldDownsampler.LastValue {
+    AggregateMetricDoubleFieldDownsampler, NumericMetricFieldDownsampler.AggregateGauge, NumericMetricFieldDownsampler.LastValue,
+    NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler {
 
     NumericMetricFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         super(name, new NumericFieldFetcher(name, fieldType, fieldData));
@@ -134,6 +136,97 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             if (isEmpty() == false) {
                 builder.field(name(), lastValue);
             }
+        }
+    }
+
+    /**
+     * {@link NumericMetricFieldDownsampler} implementation for creating the required downsampling doc to support a pre-aggregated
+     *  counter metric field. This producer tracks the following:
+     * - The first value for this counter per tsid and bucket, so it can be stored in the downsampled document.
+     * - The last-seen timestamp, so it can update the extraDataPoints structure which is shared across all aggregate counter producers.
+     */
+    static final class AggregateCounterFieldDownsampler extends NumericMetricFieldDownsampler {
+
+        private CounterResetDataPoints extraDataPoints;
+        double downsampledValue = Double.NaN;
+        long lastTimestamp = -1;
+        boolean isEmpty = true;
+
+        // Cross bucket value
+        double previousValue = Double.NaN;
+
+        AggregateCounterFieldDownsampler(
+            String name,
+            MappedFieldType fieldType,
+            IndexFieldData<?> fieldData,
+            CounterResetDataPoints resetDataPoints
+        ) {
+            super(name, fieldType, fieldData);
+            this.extraDataPoints = resetDataPoints;
+            assert extraDataPoints != null;
+        }
+
+        public void collect(
+            SortedNumericDoubleValues counterDocValues,
+            SortedNumericLongValues timestampDocValues,
+            IntArrayList docIdBuffer
+        ) throws IOException {
+            for (int i = 0; i < docIdBuffer.size(); i++) {
+                int docId = docIdBuffer.get(i);
+                if (counterDocValues.advanceExact(docId) == false || timestampDocValues.advanceExact(docId) == false) {
+                    continue;
+                }
+                int docValuesCount = counterDocValues.docValueCount();
+                assert docValuesCount > 0;
+                isEmpty = false;
+                var currentCounterValue = counterDocValues.nextValue();
+                var currentTimestamp = timestampDocValues.nextValue();
+                // If this the first time we encounter a value for this tsid
+                if (Double.isNaN(previousValue)) {
+                    downsampledValue = currentCounterValue;
+                    previousValue = currentCounterValue;
+                    lastTimestamp = currentTimestamp;
+                    continue;
+                }
+
+                // if we detect a reset
+                if (currentCounterValue > previousValue) {
+                    if (lastTimestamp > 0) {
+                        extraDataPoints.addDataPoint(lastTimestamp, name(), previousValue);
+                    }
+                    extraDataPoints.addDataPoint(currentTimestamp, name(), currentCounterValue);
+                }
+                downsampledValue = currentCounterValue;
+                previousValue = currentCounterValue;
+                lastTimestamp = currentTimestamp;
+            }
+        }
+
+        public void reset() {
+            isEmpty = true;
+            downsampledValue = Double.NaN;
+            lastTimestamp = -1;
+        }
+
+        public void tsidReset() {
+            reset();
+            previousValue = Double.NaN;
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name(), downsampledValue);
+            }
+        }
+
+        public boolean isEmpty() {
+            return isEmpty;
+        }
+
+        @Override
+        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+            throw new UnsupportedOperationException("This producer should never be called without timestamps");
         }
     }
 

@@ -149,7 +149,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @param id the document id
      * @return a non-null value for the document id
      */
-    protected String overrideId(String id) {
+    protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
         return id;
     }
 

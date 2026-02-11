@@ -153,6 +153,7 @@ import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
@@ -1353,9 +1354,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static List<DocIdSeqNoAndSource> getLiveDocs(Engine engine, boolean refresh) throws IOException {
         assertThat(engine, notNullValue());
 
-        var source = "test_get_doc_ids";
+        var reason = "test_get_doc_ids";
         if (refresh) {
-            engine.refresh(source);
+            engine.refresh(reason);
         }
         final var engineConfig = engine.getEngineConfig();
         assertThat("Method expects a non-NoOpEngine", engine, not(instanceOf(NoOpEngine.class)));
@@ -1374,12 +1375,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 var leafLoader = storedFieldLoader.getLoader(leaf, null);
                 leafLoader.advanceTo(segmentDocID);
-                var sourceRef = sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID })
-                    .source(leafLoader, segmentDocID)
-                    .internalSourceRef();
-                assert sourceRef != null;
-                assert sourceRef.length() > 0;
-                return sourceRef;
+                src = sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID }).source(leafLoader, segmentDocID).internalSourceRef();
+                assert src != null;
+                assert src.length() > 0;
+                return src;
             } catch (IOException ioe) {
                 throw new AssertionError(ioe);
             }
@@ -1388,7 +1387,26 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Some indices merge away the _id field
         final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
-        Engine.Searcher searcher = engine.acquireSearcher(source, Engine.SearcherScope.INTERNAL);
+        final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
+        final TriFunction<String, LeafReaderContext, Integer, String> forceLoadingId = (id, leaf, segmentDocID) -> {
+            if (id != null) {
+                return id;
+            } else if (pruneIdField == false) {
+                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
+            }
+            try {
+                var leafLoader = storedFieldLoader.getLoader(leaf, null);
+                leafLoader.advanceTo(segmentDocID);
+                id = idLoader.leaf(leafLoader, leaf.reader(), new int[] { segmentDocID }).getId(segmentDocID);
+                assert id != null;
+                assert id.isEmpty() == false;
+                return id;
+            } catch (IOException ioe) {
+                throw new AssertionError(ioe);
+            }
+        };
+
+        Engine.Searcher searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL);
         try {
             Translog.Snapshot snapshot = null;
             try {
@@ -1414,14 +1432,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         }
 
                         @Override
-                        protected String overrideId(String id) {
-                            if (id != null) {
-                                return super.overrideId(id);
-                            } else if (pruneIdField == false) {
-                                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-                            } else {
-                                return NULL_ID; // Return a fake value to allow comparison
-                            }
+                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingId.apply(id, leaf, segmentDocID);
                         }
 
                         @Override
@@ -1447,18 +1459,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                         @Override
                         protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null source too
+                            return false; // Return docs with null reason too
                         }
 
                         @Override
-                        protected String overrideId(String id) {
-                            if (id != null) {
-                                return super.overrideId(id);
-                            } else if (pruneIdField == false) {
-                                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-                            } else {
-                                return NULL_ID; // Return a fake value to allow comparison
-                            }
+                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingId.apply(id, leaf, segmentDocID);
                         }
 
                         @Override

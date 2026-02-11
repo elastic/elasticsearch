@@ -1,0 +1,6 @@
+area: Vector Search
+issues: []
+pr: 142299
+summary: "[DiskBBQ] Update centroids using all vectors in the last iteration of the\
+  \ Lloyd's algorithm"
+type: bug

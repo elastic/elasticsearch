@@ -933,4 +933,5 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             return scoredDocs;
         }
     }
+
 }

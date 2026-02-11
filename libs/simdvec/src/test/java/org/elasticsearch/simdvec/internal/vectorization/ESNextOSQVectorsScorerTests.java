@@ -82,8 +82,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
-                var slice = in.slice("test", 0, (long) length * numVectors);
-                var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
+                final IndexInput slice = in.slice("test", 0, (long) length * numVectors);
+                final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                     slice,
                     queryBits,
                     indexBits,
@@ -91,7 +91,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     length,
                     ESNextOSQVectorsScorer.BULK_SIZE
                 );
-                var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
+                final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
                     in,
                     queryBits,
                     indexBits,
@@ -267,7 +267,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
-
         try (Directory dir = newParametrizedDirectory()) {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
                 random().nextBytes(paddingBytes);
@@ -284,7 +283,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 }
                 CodecUtil.writeFooter(out);
             }
-
             final float[] query = new float[dimensions];
             randomVector(query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(

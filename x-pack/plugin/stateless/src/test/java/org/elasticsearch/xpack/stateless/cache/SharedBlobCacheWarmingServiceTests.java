@@ -139,7 +139,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
-                vbcc.getTotalSizeInBytes()
+                vbcc.getTotalSizeInBytes(),
+                SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
             ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(vbcc.getTotalSizeInBytes()));
@@ -185,7 +186,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
-                vbcc.getTotalSizeInBytes()
+                vbcc.getTotalSizeInBytes(),
+                SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
             ByteBuffer buffer = ByteBuffer.allocate(fakeNode.sharedCacheService.getRegionSize());
@@ -444,7 +446,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var cacheKey = new FileCacheKey(indexShard.shardId(), primaryTerm, vbcc.getBlobName());
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = fakeNode.sharedCacheService.getCacheFile(
                 cacheKey,
-                vbcc.getTotalSizeInBytes()
+                vbcc.getTotalSizeInBytes(),
+                SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
             var writeBuffer = ByteBuffer.allocate(8192);
@@ -622,7 +625,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 // Data should be available in the cache
                 final var cacheFile = node.sharedCacheService.getCacheFile(
                     new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
-                    minimizedEnd
+                    minimizedEnd,
+                    SharedBlobCacheService.CacheMissHandler.NOOP
                 );
                 assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(minimizedEnd - rangeStart)), rangeStart));
             }
@@ -683,7 +687,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // Data should be available in the cache
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
-                rangeSize
+                rangeSize,
+                SharedBlobCacheService.CacheMissHandler.NOOP
             );
             assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(rangeSize)), 0));
         }

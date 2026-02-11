@@ -45,6 +45,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
@@ -994,7 +996,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics
         ) {
-            super(environment, settings, threadPool, blobCacheMetrics);
+            super(
+                environment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+            );
         }
 
         @Override

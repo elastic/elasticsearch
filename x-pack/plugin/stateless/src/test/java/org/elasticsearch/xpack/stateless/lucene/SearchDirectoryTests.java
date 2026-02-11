@@ -36,6 +36,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -163,7 +164,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     nodeEnvironment,
                     settings,
                     threadPool,
-                    BlobCacheMetrics.NOOP
+                    BlobCacheMetrics.NOOP,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {
                     @Override
                     protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {

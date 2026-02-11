@@ -75,6 +75,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
@@ -133,6 +134,7 @@ import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -647,7 +649,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 services.nodeEnvironment(),
                 settings,
                 threadPool,
-                new BlobCacheMetrics(MeterRegistry.NOOP)
+                new BlobCacheMetrics(MeterRegistry.NOOP),
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
             this.cacheBlobReaderService = new CacheBlobReaderService(settings, cacheService, client, threadPool);

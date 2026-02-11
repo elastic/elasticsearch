@@ -317,7 +317,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                     new CacheFileReader(
                         sharedCacheService.getCacheFile(
                             new FileCacheKey(shardId, getPrimaryTerm(), virtualBatchedCompoundCommit.getBlobName()),
-                            virtualBatchedCompoundCommit.getTotalSizeInBytes()
+                            virtualBatchedCompoundCommit.getTotalSizeInBytes(),
+                            SharedBlobCacheService.CacheMissHandler.NOOP
                         ),
                         cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -696,7 +697,11 @@ public class CacheBlobReaderTests extends ESTestCase {
                 internalLocation.getValue().primaryTerm(),
                 internalLocation.getValue().blobName()
             );
-            final var cacheFile = node.sharedCacheService.getCacheFile(fileCacheKey, regionSize);
+            final var cacheFile = node.sharedCacheService.getCacheFile(
+                fileCacheKey,
+                regionSize,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(
                 internalLocation.getKey(),
                 internalLocation.getValue().blobFile()

@@ -15,8 +15,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
-import java.io.IOException;
-
 public abstract class MultiProjectRestTestCase extends ESRestTestCase {
 
     @Override
@@ -25,7 +23,7 @@ public abstract class MultiProjectRestTestCase extends ESRestTestCase {
     }
 
     @After
-    public void removeNonDefaultProjects() throws IOException {
+    public void removeNonDefaultProjects() throws Exception {
         if (preserveClusterUponCompletion() == false) {
             cleanUpProjects();
         }

@@ -188,6 +188,8 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
 
         var responseBody = entityAsMap(response);
         assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+
+        ensureGreen(INDEX_NAME);
     }
 
     @SuppressWarnings("unchecked")

@@ -30,7 +30,7 @@ public class BlobStoreSnapshotMetrics {
     private final CounterMetric numberOfBlobsUploaded = new CounterMetric();
     private final CounterMetric numberOfBytesUploaded = new CounterMetric();
     private final CounterMetric uploadTimeInMillis = new CounterMetric();
-    private final CounterMetric uploadReadTimeInNanos = new CounterMetric();
+    private final CounterMetric uploadReadTimeInMillis = new CounterMetric();
     private final CounterMetric numberOfShardSnapshotsStarted = new CounterMetric();
     private final CounterMetric numberOfShardSnapshotsCompleted = new CounterMetric();
     private final Map<String, Object> metricAttributes;
@@ -84,7 +84,7 @@ public class BlobStoreSnapshotMetrics {
 
     public void incrementUploadReadTime(long readTimeInMillis) {
         snapshotMetrics.uploadReadDurationCounter().incrementBy(readTimeInMillis, metricAttributes);
-        uploadReadTimeInNanos.inc(readTimeInMillis);
+        uploadReadTimeInMillis.inc(readTimeInMillis);
     }
 
     public LongWithAttributes getShardSnapshotsInProgress() {
@@ -101,7 +101,7 @@ public class BlobStoreSnapshotMetrics {
             numberOfBlobsUploaded.count(),
             numberOfBytesUploaded.count(),
             uploadTimeInMillis.count(),
-            uploadReadTimeInNanos.count()
+            uploadReadTimeInMillis.count()
         );
     }
 }

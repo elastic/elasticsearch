@@ -21,6 +21,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
@@ -116,8 +117,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -193,6 +196,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -3370,6 +3374,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             () -> testData.physicalOptimizer().verify(planWithInvalidJoinRightSide, plan.output())
         );
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
     }
 
     public void testVerifierOnDuplicateOutputAttributes() {
@@ -9493,6 +9502,106 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rangeQuery.to(), equalTo(endRange));
         assertFalse(rangeQuery.includeLower());
         assertTrue(rangeQuery.includeUpper());
+    }
+
+    /**
+     * <pre>{@code
+     * ProjectExec[[c{r}#4, n{r}#6]]
+     * \_LimitExec[3[INTEGER],null]
+     *   \_ExchangeExec[[c{r}#4, n{r}#6],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * Project[[c{r}#4, n{r}#6]]
+     * \_Limit[3[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[n{r}#6],[n{r}#6]]
+     *     |_Eval[[null[NULL] AS n#6]]
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_Aggregate[[n{r}#6],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, n{r}#6]]
+     *       \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
+     * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, n{r}#6]]<>]]
+     * }</pre>
+     */
+    public void testInlineStatsGroupByNullFromEmployees() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+
+        var query = """
+            FROM test
+            | INLINE STATS c = COUNT(*) BY n = null
+            | KEEP c, n
+            | LIMIT 3
+            """;
+        PhysicalPlan plan = physicalPlanNoSerializationCheck(query);
+        PhysicalPlan optimized = physicalOptimizer().optimize(plan);
+
+        // ProjectExec[[c{r}#4, n{r}#6]]
+        var project = as(optimized, ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("c", "n"));
+
+        // LimitExec[3[INTEGER],null]
+        var limit = as(project.child(), LimitExec.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(3));
+
+        // ExchangeExec[[c{r}#4, n{r}#6],false]
+        var exchange = as(limit.child(), ExchangeExec.class);
+        assertThat(exchange.inBetweenAggs(), equalTo(false));
+        assertThat(Expressions.names(exchange.output()), contains("c", "n"));
+
+        // FragmentExec containing the logical plan
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fragmentPlan = fragment.fragment();
+
+        // Project[[c{r}#4, n{r}#6]]
+        var fragmentProject = as(fragmentPlan, Project.class);
+        assertThat(Expressions.names(fragmentProject.projections()), contains("c", "n"));
+
+        // Limit[3[INTEGER],false,false]
+        var fragmentLimit = as(fragmentProject.child(), Limit.class);
+        assertThat(fragmentLimit.limit().fold(FoldContext.small()), equalTo(3));
+
+        // InlineJoin[LEFT,[n{r}#6],[n{r}#6]]
+        var inlineJoin = as(fragmentLimit.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), contains("n"));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), contains("n"));
+
+        // Left branch: Eval[[null[NULL] AS n#6]] -> EsRelation[test]
+        var leftEval = as(inlineJoin.left(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), contains("n"));
+        var alias = as(leftEval.fields().get(0), Alias.class);
+        assertThat(alias.child().fold(FoldContext.small()), nullValue());
+        var esRelation = as(leftEval.child(), EsRelation.class);
+
+        // Right branch: Aggregate[[n{r}#6],[COUNT(*) AS c#4, n{r}#6]] -> StubRelation
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "n"));
+        assertThat(Expressions.names(aggregate.groupings()), contains("n"));
+        var stubRelation = as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * ProjectExec[[first_name{f}#6]]
+     * \_TopNExec[[Order[last_name{f}#9,ASC,LAST]],1000[INTEGER],null]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     *                    TopN[[Order[last_name{f}#9,ASC,LAST]],1000[INTEGER],false]
+     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]]]
+     */
+    public void testTopNUsesSortedInputFromDataNodes() {
+        String query = """
+              from test
+            | sort last_name
+            | keep first_name
+            """;
+        var plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var topNExec = as(project.child(), TopNExec.class);
+        assertThat(topNExec.inputOrdering(), equalTo(TopNOperator.InputOrdering.SORTED));
+        var exchangeExec = as(topNExec.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topN = as(fragmentExec.fragment(), TopN.class);
+        var sorts = topN.order();
+        assertThat(sorts.size(), equalTo(1));
+        assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
+        var esRelation = as(topN.child(), EsRelation.class);
     }
 
     @Override

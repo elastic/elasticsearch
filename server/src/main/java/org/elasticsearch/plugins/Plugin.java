@@ -24,13 +24,14 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -42,6 +43,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -97,6 +99,11 @@ public abstract class Plugin implements Closeable {
          * A service to allow retrieving an executor to run an async action
          */
         ThreadPool threadPool();
+
+        /**
+         * A service for allocating (and recycling) sizeable amounts of memory.
+         */
+        BigArrays bigArrays();
 
         /**
          * A service to watch for changes to node local files
@@ -188,7 +195,7 @@ public abstract class Plugin implements Closeable {
         /**
          * Provider for additional SlowLog fields
          */
-        SlowLogFieldProvider slowLogFieldProvider();
+        ActionLoggingFieldsProvider loggingFieldsProvider();
 
         /**
          * Provider for indexing pressure
@@ -202,6 +209,9 @@ public abstract class Plugin implements Closeable {
 
         /** A resolver for project routing information */
         ProjectRoutingResolver projectRoutingResolver();
+
+        /** A utility for executing transport actions on remote nodes */
+        RemoteTransportClient remoteTransportClient();
     }
 
     /**

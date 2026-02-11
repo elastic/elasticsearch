@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
@@ -17,10 +18,10 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.FloatVectorScorer;
+import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
-import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
-import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.EuclideanSupplier;
-import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.MaxInnerProductSupplier;
+import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 
 import java.util.Optional;
 
@@ -35,6 +36,29 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
+    public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
+        return FloatVectorScorer.create(sim, values, queryVector);
+    }
+
+    @Override
     public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
@@ -42,16 +66,19 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         float scoreCorrectionConstant
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
-        if (input instanceof MemorySegmentAccessInput == false) {
-            return Optional.empty();
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(
+                    new Int7SQVectorScorerSupplier.DotProductSupplier(msInput, values, scoreCorrectionConstant)
+                );
+                case EUCLIDEAN -> Optional.of(new Int7SQVectorScorerSupplier.EuclideanSupplier(msInput, values, scoreCorrectionConstant));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(
+                    new Int7SQVectorScorerSupplier.MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant)
+                );
+            };
         }
-        MemorySegmentAccessInput msInput = (MemorySegmentAccessInput) input;
-        checkInvariants(values.size(), values.dimension(), input);
-        return switch (similarityType) {
-            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductSupplier(msInput, values, scoreCorrectionConstant));
-            case EUCLIDEAN -> Optional.of(new EuclideanSupplier(msInput, values, scoreCorrectionConstant));
-            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant));
-        };
+        return Optional.empty();
     }
 
     @Override

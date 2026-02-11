@@ -209,7 +209,12 @@ public final class TimeSeriesBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         long endExclusive = positionCount();
-        return IntVector.range(0, Math.toIntExact(endExclusive), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(endExclusive));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(positionCount());
     }
 
     @Override

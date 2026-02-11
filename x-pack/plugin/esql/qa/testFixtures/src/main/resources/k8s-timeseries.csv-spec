@@ -10,6 +10,62 @@ TS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,networ
 2024-05-10T00:22:49.000Z | staging         | two         | 3                     | 1.75
 ;
 
+implicitTimestampSortBasic
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s | WHERE cluster == "qa" | KEEP @timestamp, cluster, pod | LIMIT 5;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword
+2024-05-10T00:22:59.000Z | qa              | one
+2024-05-10T00:22:54.000Z | qa              | three
+2024-05-10T00:21:56.000Z | qa              | one
+2024-05-10T00:21:26.000Z | qa              | one
+2024-05-10T00:20:46.000Z | qa              | two
+;
+
+implicitTimestampSortWithFilter
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s | WHERE cluster == "prod" | KEEP @timestamp, cluster, pod | LIMIT 3;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword
+2024-05-10T00:22:53.000Z | prod            | two
+2024-05-10T00:22:12.000Z | prod            | one
+2024-05-10T00:22:08.000Z | prod            | one
+;
+
+implicitTimestampSortWithEval
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s 
+| WHERE cluster == "staging" 
+| EVAL bytes_kb = network.bytes_in / 1024.0 
+| KEEP @timestamp, cluster, bytes_kb 
+| LIMIT 5;
+
+@timestamp:datetime      | cluster:keyword | bytes_kb:double
+2024-05-10T00:22:53.000Z | staging         | 0.232421875
+2024-05-10T00:22:49.000Z | staging         | 0.0029296875
+2024-05-10T00:22:42.000Z | staging         | 0.0029296875
+2024-05-10T00:22:08.000Z | staging         | 0.0673828125
+2024-05-10T00:21:59.000Z | staging         | 0.7314453125
+;
+
+noImplicitSortWithExplicitSort
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+
+TS k8s | SORT cluster ASC, @timestamp DESC | KEEP @timestamp, cluster, pod | LIMIT 3;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword
+2024-05-10T00:22:53.000Z | prod            | two
+2024-05-10T00:22:12.000Z | prod            | one
+2024-05-10T00:22:08.000Z | prod            | one
+;
+
 timeseriesWithAggsAndSourceQuoting
 required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
@@ -139,7 +195,7 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithPromql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 required_capability: rate_with_interpolation_v2
 
 PROMQL index=k8s step=5m max(rate(network.total_bytes_in[5m]))
@@ -163,7 +219,7 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]));
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime
@@ -752,7 +808,7 @@ maxRate:double | tbucket:datetime
 ;
 
 instant_selector_dimensions_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
@@ -818,7 +874,7 @@ count:long | _timeseries:keyword                                                
 ;
 
 bare_count_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h count=(count_over_time(network.cost[1h]))
 | SORT count DESC
@@ -862,7 +918,7 @@ network.cost:double | _timeseries:keyword                                       
 ;
 
 bare_metric_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
 ;
@@ -927,7 +983,7 @@ avg:double         | _timeseries:keyword                                        
 ;
 
 bare_avg_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h avg=(avg_over_time(network.cost[1h]))
 | SORT avg DESC
@@ -993,7 +1049,7 @@ sum:double | _timeseries:keyword                                                
 ;
 
 bare_sum_over_time_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h sum=(sum_over_time(network.cost[1h]))
 | SORT sum DESC
@@ -1038,7 +1094,7 @@ _timeseries:keyword                                                   | tbucket:
 ;
 
 bare_rate_with_tbucket_outputs_dimensions_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
 | EVAL rate=ROUND(rate, 3)
@@ -1216,7 +1272,7 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 ;
 
 derivative_of_gauge_metric_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=5m max_deriv=(max by (pod) (deriv(network.cost{pod="three"}[5m])))
 | SORT step
@@ -1285,4 +1341,109 @@ min:double | std_dev:double | pod:keyword
 193.0      | 427.9853269    | one
 715.0      | 208.6955678    | three
 602.0      | 375.7757842    | two
+;
+
+Case statement for Aggregate Metric Double (Standard Mode)
+required_capability: case_support_for_summary_fields
+
+FROM k8s-downsampled
+| EVAL result = CASE(network.eth0.up, network.eth0.tx, network.eth0.rx)
+| KEEP network.eth0.up, result
+;
+ignoreOrder:true
+
+network.eth0.up:boolean | result:aggregate_metric_double
+true                    | {"min":263.0\,"max":740.0\,"sum":5390.0\,"value_count":10}
+true                    | {"min":442.0\,"max":1011.0\,"sum":3850.0\,"value_count":7}
+false                   | {"min":289.0\,"max":869.0\,"sum":2604.0\,"value_count":6}
+false                   | {"min":221.0\,"max":836.0\,"sum":6696.0\,"value_count":9}
+true                    | {"min":20.0\,"max":190.0\,"sum":370.0\,"value_count":10}
+false                   | {"min":452.0\,"max":882.0\,"sum":1786.0\,"value_count":3}
+false                   | {"min":329.0\,"max":655.0\,"sum":3780.0\,"value_count":9}
+true                    | {"min":304.0\,"max":1148.0\,"sum":8590.0\,"value_count":10}
+true                    | {"min":605.0\,"max":605.0\,"sum":605.0\,"value_count":1}
+true                    | {"min":231.0\,"max":795.0\,"sum":4096.0\,"value_count":8}
+true                    | {"min":604.0\,"max":664.0\,"sum":3100.0\,"value_count":5}
+true                    | {"min":172.0\,"max":411.0\,"sum":755.0\,"value_count":3}
+false                   | {"min":291.0\,"max":317.0\,"sum":1818.0\,"value_count":6}
+true                    | {"min":663.0\,"max":1419.0\,"sum":11259.0\,"value_count":9}
+true                    | {"min":113.0\,"max":341.0\,"sum":1112.0\,"value_count":4}
+false                   | {"min":684.0\,"max":1049.0\,"sum":8850.0\,"value_count":10}
+true                    | {"min":441.0\,"max":1248.0\,"sum":11960.0\,"value_count":10}
+true                    | {"min":321.0\,"max":685.0\,"sum":1932.0\,"value_count":3}
+false                   | {"min":362.0\,"max":741.0\,"sum":3360.0\,"value_count":8}
+true                    | {"min":315.0\,"max":815.0\,"sum":4320.0\,"value_count":8}
+false                   | {"min":673.0\,"max":995.0\,"sum":5033.0\,"value_count":7}
+false                   | {"min":228.0\,"max":228.0\,"sum":228.0\,"value_count":1}
+true                    | {"min":377.0\,"max":602.0\,"sum":2190.0\,"value_count":5}
+true                    | {"min":162.0\,"max":715.0\,"sum":1912.0\,"value_count":8}
+false                   | {"min":512.0\,"max":1509.0\,"sum":2021.0\,"value_count":2}
+false                   | {"min":178.0\,"max":815.0\,"sum":3875.0\,"value_count":5}
+false                   | {"min":138.0\,"max":669.0\,"sum":5211.0\,"value_count":9}
+;
+
+
+Case statement for Aggregate Metric Double (TS Mode)
+required_capability: case_support_for_summary_fields
+
+TS k8s-downsampled
+| EVAL result = CASE(network.eth0.up, network.eth0.tx, network.eth0.rx)
+| KEEP network.eth0.up, result
+;
+ignoreOrder:true
+
+network.eth0.up:boolean | result:aggregate_metric_double
+true                    | {"min":263.0\,"max":740.0\,"sum":5390.0\,"value_count":10}
+true                    | {"min":442.0\,"max":1011.0\,"sum":3850.0\,"value_count":7}
+false                   | {"min":289.0\,"max":869.0\,"sum":2604.0\,"value_count":6}
+false                   | {"min":221.0\,"max":836.0\,"sum":6696.0\,"value_count":9}
+true                    | {"min":20.0\,"max":190.0\,"sum":370.0\,"value_count":10}
+false                   | {"min":452.0\,"max":882.0\,"sum":1786.0\,"value_count":3}
+false                   | {"min":329.0\,"max":655.0\,"sum":3780.0\,"value_count":9}
+true                    | {"min":304.0\,"max":1148.0\,"sum":8590.0\,"value_count":10}
+true                    | {"min":605.0\,"max":605.0\,"sum":605.0\,"value_count":1}
+true                    | {"min":231.0\,"max":795.0\,"sum":4096.0\,"value_count":8}
+true                    | {"min":604.0\,"max":664.0\,"sum":3100.0\,"value_count":5}
+true                    | {"min":172.0\,"max":411.0\,"sum":755.0\,"value_count":3}
+false                   | {"min":291.0\,"max":317.0\,"sum":1818.0\,"value_count":6}
+true                    | {"min":663.0\,"max":1419.0\,"sum":11259.0\,"value_count":9}
+true                    | {"min":113.0\,"max":341.0\,"sum":1112.0\,"value_count":4}
+false                   | {"min":684.0\,"max":1049.0\,"sum":8850.0\,"value_count":10}
+true                    | {"min":441.0\,"max":1248.0\,"sum":11960.0\,"value_count":10}
+true                    | {"min":321.0\,"max":685.0\,"sum":1932.0\,"value_count":3}
+false                   | {"min":362.0\,"max":741.0\,"sum":3360.0\,"value_count":8}
+true                    | {"min":315.0\,"max":815.0\,"sum":4320.0\,"value_count":8}
+false                   | {"min":673.0\,"max":995.0\,"sum":5033.0\,"value_count":7}
+false                   | {"min":228.0\,"max":228.0\,"sum":228.0\,"value_count":1}
+true                    | {"min":377.0\,"max":602.0\,"sum":2190.0\,"value_count":5}
+true                    | {"min":162.0\,"max":715.0\,"sum":1912.0\,"value_count":8}
+false                   | {"min":512.0\,"max":1509.0\,"sum":2021.0\,"value_count":2}
+false                   | {"min":178.0\,"max":815.0\,"sum":3875.0\,"value_count":5}
+false                   | {"min":138.0\,"max":669.0\,"sum":5211.0\,"value_count":9}
+;
+
+GroupingOnScalarFunction
+required_capability: ts_command_v0
+required_capability: ts_command_group_on_aliases
+TS k8s
+| STATS m = max(max_over_time(network.cost)) by pod = to_upper(pod), bucket = bucket(@timestamp,5minute)
+| sort bucket, pod
+;
+
+m:double | pod:keyword | bucket:datetime
+11.0     | ONE         | 2024-05-10T00:00:00.000Z
+12.125   | THREE       | 2024-05-10T00:00:00.000Z
+12.375   | TWO         | 2024-05-10T00:00:00.000Z
+12.375   | ONE         | 2024-05-10T00:05:00.000Z
+11.5     | THREE       | 2024-05-10T00:05:00.000Z
+12.5     | TWO         | 2024-05-10T00:05:00.000Z
+11.875   | ONE         | 2024-05-10T00:10:00.000Z
+11.625   | THREE       | 2024-05-10T00:10:00.000Z
+7.75     | TWO         | 2024-05-10T00:10:00.000Z
+12.125   | ONE         | 2024-05-10T00:15:00.000Z
+12.375   | THREE       | 2024-05-10T00:15:00.000Z
+11.5     | TWO         | 2024-05-10T00:15:00.000Z
+11.875   | ONE         | 2024-05-10T00:20:00.000Z
+10.875   | THREE       | 2024-05-10T00:20:00.000Z
+10.75    | TWO         | 2024-05-10T00:20:00.000Z
 ;

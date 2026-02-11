@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -60,12 +62,22 @@ public class ESVectorUtil {
             .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
 
-    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension, bulkSize);
-    }
-
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    public static float dotProduct(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.dotProduct(a, b);
+    }
+
+    public static float squareDistance(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
     }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
@@ -436,5 +448,22 @@ public class ESVectorUtil {
     public static int indexOf(byte[] bytes, int offset, int length, byte marker) {
         Objects.checkFromIndexSize(offset, length, bytes.length);
         return IMPL.indexOf(bytes, offset, length, marker);
+    }
+
+    /**
+     * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
+     * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
+     * thrown, but invalid results will be returned.
+     *
+     * @param bytesRef bytes reference containing a valid utf-8 encoded string
+     * @return the number of code points in the bytes ref
+     */
+    public static int codePointCount(BytesRef bytesRef) {
+        // Scalar logic is faster for lengths below approximately 12
+        if (bytesRef.length < 12) {
+            return UnicodeUtil.codePointCount(bytesRef);
+        }
+        Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
+        return IMPL.codePointCount(bytesRef);
     }
 }

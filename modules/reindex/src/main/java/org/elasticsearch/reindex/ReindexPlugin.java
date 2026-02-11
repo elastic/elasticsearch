@@ -9,10 +9,10 @@
 
 package org.elasticsearch.reindex;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,6 +25,8 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -41,19 +43,21 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
-
 public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
 
     public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
+    // N.B. We declare this in the reindex module, so that we can check whether the feature is available on the cluster here - but we
+    // register it via a FeatureSpecification in the reindex-management module, to work around build problems caused by doing it here.
+    // (The enrich plugin depends on this module, and registering features leads to either duplicate feature or JAR hell errors.)
+    // (This approach means that the functionality requires both reindex and reindex-management modules to be present and enabled.)
+    public static final NodeFeature RELOCATE_ON_SHUTDOWN_NODE_FEATURE = new NodeFeature("reindex_relocate_on_shutdown");
+
     /**
      * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
      */
     public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
-
-    private final SetOnce<ReindexRelocationNodePicker> relocationNodePicker = new SetOnce<>();
 
     @Override
     public List<ActionHandler> getActions() {
@@ -67,8 +71,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return singletonList(
-            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new)
+        return List.of(
+            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
+            new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new)
         );
     }
 
@@ -88,19 +93,24 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             new RestReindexAction(clusterSupportsFeature),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
-            new RestRethrottleAction(nodesInCluster)
+            new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),
+            new RestReindexRethrottleAction(nodesInCluster)
         );
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        assert relocationNodePicker.get() != null : "ReindexPlugin.relocationNodePicker was not set";
         return List.of(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, relocationNodePicker.get())
+            new PluginComponentBinding<>(
+                ReindexRelocationNodePicker.class,
+                DiscoveryNode.isStateless(services.environment().settings())
+                    ? new StatelessReindexRelocationNodePicker()
+                    : new StatefulReindexRelocationNodePicker()
+            )
         );
     }
 
@@ -112,17 +122,4 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         return settings;
     }
 
-    @Override
-    public void loadExtensions(ExtensionLoader loader) {
-        relocationNodePicker.set(loadRelocationNodePicker(loader));
-    }
-
-    private ReindexRelocationNodePicker loadRelocationNodePicker(ExtensionLoader loader) {
-        List<ReindexRelocationNodePicker> relocationNodePickersFromExtensions = loader.loadExtensions(ReindexRelocationNodePicker.class);
-        return switch (relocationNodePickersFromExtensions.size()) {
-            case 0 -> new DefaultReindexRelocationNodePicker();
-            case 1 -> relocationNodePickersFromExtensions.getFirst();
-            default -> throw new IllegalStateException(ReindexRelocationNodePicker.class + " may not have multiple implementations");
-        };
-    }
 }

@@ -404,7 +404,8 @@ module org.elasticsearch.server {
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
-            org.elasticsearch.xpack.diskbbq;
+            org.elasticsearch.xpack.diskbbq,
+            org.elasticsearch.xpack.stateless;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
@@ -491,7 +492,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.routing.allocation.shards
         to
             org.elasticsearch.shardhealth,
-            org.elasticsearch.serverless.shardhealth,
+            org.elasticsearch.xpack.stateless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
@@ -513,4 +514,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader;
     exports org.elasticsearch.index.mapper.blockloader.docvalues;
     exports org.elasticsearch.index.mapper.blockloader.docvalues.fn;
+    exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
 }

@@ -23,13 +23,13 @@ null                  | 2024-05-10T00:01:00.000Z
 ;
 
 irate_of_long_no_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m irate_bytes_in=(avg(irate(network.total_bytes_in[1m])))
 | SORT irate_bytes_in DESC, step DESC | LIMIT 10;
 
 irate_bytes_in:double | step:datetime
-null                  | 2024-05-10T00:01:00.000Z
 140.58333333333331    | 2024-05-10T00:02:00.000Z
 134.5314713064713     | 2024-05-10T00:09:00.000Z
 116.41911764705883    | 2024-05-10T00:22:00.000Z
@@ -39,6 +39,7 @@ null                  | 2024-05-10T00:01:00.000Z
 78.83333333333333     | 2024-05-10T00:13:00.000Z
 71.04464285714286     | 2024-05-10T00:15:00.000Z
 51.58823529411765     | 2024-05-10T00:19:00.000Z
+48.28571428571428     | 2024-05-10T00:07:00.000Z
 ;
 
 irate_of_long_grouping
@@ -63,7 +64,7 @@ irate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 irate_of_long_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=5m irate_bytes_in=(avg by (cluster) (irate(network.total_bytes_in[5m])))
 | SORT irate_bytes_in DESC, step, cluster | LIMIT 10;
@@ -102,13 +103,13 @@ null               | 2024-05-10T00:01:00.000Z
 ;
 
 irate_of_double_no_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m irate_cost=(sum(irate(network.total_cost[1m])))
 | SORT irate_cost DESC, step | LIMIT 10;
 
 irate_cost:double  | step:datetime
-null               | 2024-05-10T00:01:00.000Z
 7.836832264957265  | 2024-05-10T00:09:00.000Z
 3.590324074074074  | 2024-05-10T00:17:00.000Z
 2.6708333333333334 | 2024-05-10T00:02:00.000Z
@@ -118,6 +119,7 @@ null               | 2024-05-10T00:01:00.000Z
 2.020833333333333  | 2024-05-10T00:00:00.000Z
 1.951470588235294  | 2024-05-10T00:14:00.000Z
 1.8680555555555556 | 2024-05-10T00:13:00.000Z
+1.6049107142857142 | 2024-05-10T00:15:00.000Z
 ;
 
 irate_with_filtering
@@ -145,7 +147,7 @@ irate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 irate_with_filtering_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m irate_bytes_in=(sum by (cluster) (irate(network.total_bytes_in{pod="one"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -183,7 +185,7 @@ irate_bytes:double | cluster:keyword | time_bucket:datetime     | irate_kb:doubl
 ;
 
 eval_on_irate_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m irate_bytes=(avg by (cluster) (irate(network.total_bytes_in[10m])))
 | EVAL irate_kb = irate_bytes / 1024.0
@@ -235,13 +237,13 @@ null                  | 2024-05-10T00:01:00.000Z
 ;
 
 irate_of_expression_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m irate_bytes_in=(avg(irate(network.total_bytes_in[1m]) + 10))
 | SORT irate_bytes_in DESC, step DESC | LIMIT 10;
 
 irate_bytes_in:double | step:datetime
-null                  | 2024-05-10T00:01:00.000Z
 150.58333333333331    | 2024-05-10T00:02:00.000Z
 144.5314713064713     | 2024-05-10T00:09:00.000Z
 126.41911764705883    | 2024-05-10T00:22:00.000Z
@@ -251,6 +253,7 @@ null                  | 2024-05-10T00:01:00.000Z
 88.83333333333333     | 2024-05-10T00:13:00.000Z
 81.04464285714286     | 2024-05-10T00:15:00.000Z
 61.58823529411765     | 2024-05-10T00:19:00.000Z
+58.28571428571428     | 2024-05-10T00:07:00.000Z
 ;
 
 datenanos_irate_long
@@ -356,7 +359,7 @@ irate_of_ratio:double | cluster:keyword | time_bucket:datetime
 ;
 
 irate_of_ratio_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m irate_of_ratio=(sum by (cluster) (irate(network.total_cost[10m]) / irate(network.total_bytes_in[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -394,21 +397,22 @@ null                  | qa              | 2024-05-10T00:22:00.000Z
 ;
 
 irate_of_long_grouping_1min_nulls_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=2m irate_bytes_in=(avg by (cluster) (irate(network.total_bytes_in[2m])))
 | SORT irate_bytes_in NULLS FIRST, step, cluster | LIMIT 10;
 
 irate_bytes_in:double | step:datetime            | cluster:keyword
-null                  | 2024-05-10T00:00:00.000Z | qa
-null                  | 2024-05-10T00:00:00.000Z | staging
-null                  | 2024-05-10T00:06:00.000Z | prod
-null                  | 2024-05-10T00:10:00.000Z | prod
-null                  | 2024-05-10T00:10:00.000Z | staging
-null                  | 2024-05-10T00:22:00.000Z | qa
 0.08823529411764706   | 2024-05-10T00:22:00.000Z | staging
 0.3                   | 2024-05-10T00:04:00.000Z | prod
 0.875                 | 2024-05-10T00:12:00.000Z | qa
 4.300925925925926     | 2024-05-10T00:02:00.000Z | qa
+4.37482276552044      | 2024-05-10T00:08:00.000Z | prod
+4.933082706766918     | 2024-05-10T00:14:00.000Z | staging
+5.389646464646464     | 2024-05-10T00:16:00.000Z | staging
+6.566666666666666     | 2024-05-10T00:20:00.000Z | qa
+6.695402298850574     | 2024-05-10T00:12:00.000Z | staging
+9.893214497920377     | 2024-05-10T00:18:00.000Z | prod
 ;
 

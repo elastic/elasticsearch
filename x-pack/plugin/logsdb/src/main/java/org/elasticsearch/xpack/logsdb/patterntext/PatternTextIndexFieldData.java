@@ -72,7 +72,7 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
     @Override
     public LeafFieldData loadDirect(LeafReaderContext context) throws IOException {
         LeafReader leafReader = context.reader();
-        var values = PatternTextCompositeValues.from(leafReader, fieldType);
+        var values = PatternTextFallbackDocValues.from(leafReader, fieldType);
         return new LeafFieldData() {
 
             final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;

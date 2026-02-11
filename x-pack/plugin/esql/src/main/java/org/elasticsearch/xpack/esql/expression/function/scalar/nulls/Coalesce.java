@@ -49,6 +49,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "cartesian_shape",
             "date_nanos",
             "date",
+            "histogram",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -58,6 +59,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "version",
             "exponential_histogram" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
@@ -73,6 +75,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "histogram",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -82,6 +85,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "version",
                 "exponential_histogram" },
@@ -95,6 +99,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "histogram",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -104,6 +109,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "version",
                 "exponential_histogram" },
@@ -208,13 +214,15 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 toEvaluator,
                 children()
             );
-            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, HISTOGRAM, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
                 .toEvaluator(toEvaluator, children());
             case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
+            case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, AGGREGATE_METRIC_DOUBLE, TDIGEST, HISTOGRAM, DENSE_VECTOR, DATE_RANGE ->
-                throw new UnsupportedOperationException(dataType() + " can't be coalesced");
+                SCALED_FLOAT, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, DATE_RANGE -> throw new UnsupportedOperationException(
+                    dataType() + " can't be coalesced"
+                );
         };
     }
 }

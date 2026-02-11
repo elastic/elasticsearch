@@ -36,7 +36,7 @@ class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggrega
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TDigestState state = getState(owningBucketOrdinal);
+        HistogramUnionState state = getState(owningBucketOrdinal);
         if (state == null) {
             return buildEmptyAggregation();
         } else {
@@ -51,7 +51,7 @@ class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggrega
 
     @Override
     public double metric(String name, long bucketOrd) {
-        TDigestState state = getState(bucketOrd);
+        HistogramUnionState state = getState(bucketOrd);
         if (state == null) {
             return Double.NaN;
         } else {

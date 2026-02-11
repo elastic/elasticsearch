@@ -18,16 +18,17 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
@@ -112,7 +113,7 @@ public class TopNOomRaceTests extends ESTestCase {
                 @Override
                 protected Page createPage(int positionOffset, int length) {
                     lastEnd = positionOffset + length;
-                    Block ints = IntVector.range(positionOffset, lastEnd, blockFactory).asBlock();
+                    Block ints = blockFactory.newIntRangeVector(positionOffset, lastEnd).asBlock();
                     Block[] blocks = new Block[repeats];
                     blocks[0] = ints;
                     for (int b = 1; b < repeats; b++) {
@@ -129,14 +130,15 @@ public class TopNOomRaceTests extends ESTestCase {
                 Collections.nCopies(repeats, ElementType.INT),
                 Collections.nCopies(repeats, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, false, false)),
-                Integer.MAX_VALUE
+                Integer.MAX_VALUE,
+                InputOrdering.NOT_SORTED
             );
             drivers.add(TestDriverFactory.create(driverContext, source, List.of(topn), new PageConsumerOperator(page -> {
                 assertThat(page.getPositionCount(), equalTo(topCount));
                 page.close();
             })));
         }
-        expectThrows(CircuitBreakingException.class, () -> OperatorTestCase.runDriver(drivers));
+        expectThrows(CircuitBreakingException.class, () -> new TestDriverRunner().run(drivers));
         for (DriverContext c : contexts) {
             OperatorTestCase.assertDriverContext(c);
         }

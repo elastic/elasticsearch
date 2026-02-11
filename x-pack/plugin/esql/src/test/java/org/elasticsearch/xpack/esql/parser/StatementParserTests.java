@@ -691,6 +691,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
                     command + " <logstash-{now/M{yyyy.MM}}>::data, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures\""
                 );
+
+                assertStringAsIndexPattern("cluster:foo::data", command + " cluster:foo::data");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:foo::failures");
+
+                assertStringAsIndexPattern("cluster:foo::data", command + " \"cluster:foo::data\"");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " \"cluster:foo::failures\"");
+
+                // Wildcards
+                assertStringAsIndexPattern("cluster:*::data", command + " cluster:*::data");
+                assertStringAsIndexPattern("cluster:*::failures", command + " cluster:*::failures");
+                assertStringAsIndexPattern("*:index::data", command + " *:index::data");
+                assertStringAsIndexPattern("*:index::failures", command + " *:index::failures");
+                assertStringAsIndexPattern("*:index*::data", command + " *:index*::data");
+                assertStringAsIndexPattern("*:index*::failures", command + " *:index*::failures");
+                assertStringAsIndexPattern("*:*::data", command + " *:*::data");
+                assertStringAsIndexPattern("*:*::failures", command + " *:*::failures");
+                assertStringAsIndexPattern("cluster:*::data", command + " \"cluster:*::data\"");
+                assertStringAsIndexPattern("cluster:*::failures", command + " \"cluster:*::failures\"");
+                assertStringAsIndexPattern("*:index::data", command + " \"*:index::data\"");
+                assertStringAsIndexPattern("*:index::failures", command + " \"*:index::failures\"");
+                assertStringAsIndexPattern("*:index*::data", command + " \"*:index*::data\"");
+                assertStringAsIndexPattern("*:index*::failures", command + " \"*:index*::failures\"");
+                assertStringAsIndexPattern("*:*::data", command + " \"*:*::data\"");
+                assertStringAsIndexPattern("*:*::failures", command + " \"*:*::failures\"");
             }
         }
     }
@@ -778,15 +802,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::dat", lineNumber);
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
 
-                // Cluster name cannot be combined with selector yet.
-                int parseLineNumber = 6;
-                if (command.startsWith("TS")) {
-                    parseLineNumber = 4;
-                }
-
-                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
-                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
-
                 // Index pattern cannot be quoted if cluster string is present.
                 expectErrorWithLineNumber(
                     command,
@@ -801,46 +816,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
 
+                // Index pattern cannot be clubbed together with cluster string without including selector if present
+                int parseLineNumber = 6;
+                if (command.startsWith("TS")) {
+                    parseLineNumber = 4;
+                }
+
                 expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
                 expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
 
-                expectErrorWithLineNumber(
-                    command,
-                    "\"cluster:foo::data\"",
-                    lineNumber,
-                    "Invalid index name [cluster:foo::data], Selectors are not yet supported on remote cluster patterns"
-                );
-                expectErrorWithLineNumber(
-                    command,
-                    "\"cluster:foo::failures\"",
-                    lineNumber,
-                    "Invalid index name [cluster:foo::failures], Selectors are not yet supported on remote cluster patterns"
-                );
-
-                // Wildcards
-                expectDoubleColonErrorWithLineNumber(command, "cluster:*::data", parseLineNumber + 9);
-                expectDoubleColonErrorWithLineNumber(command, "cluster:*::failures", parseLineNumber + 9);
-                expectDoubleColonErrorWithLineNumber(command, "*:index::data", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index::failures", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index*::data", parseLineNumber + 8);
-                expectDoubleColonErrorWithLineNumber(command, "*:index*::failures", parseLineNumber + 8);
-                expectDoubleColonErrorWithLineNumber(command, "*:*::data", parseLineNumber + 3);
-                expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
-
                 // Too many colons
-                expectInvalidIndexNameErrorWithLineNumber(
-                    command,
-                    "\"index:::data\"",
-                    lineNumber,
-                    "index:::data",
-                    "Selectors are not yet supported on remote cluster patterns"
-                );
+                expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"index::::data\"",
                     lineNumber,
                     "index::::data",
-                    "Invalid usage of :: separator"
+                    "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
 
                 expectErrorWithLineNumber(
@@ -1263,18 +1255,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMetadataFieldMultipleDeclarations() {
         expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
-    }
-
-    public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test metadata _feature", "line 1:20: unsupported metadata field [_feature]");
-    }
-
-    public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test metadata _doesnot_compute", "line 1:20: unsupported metadata field [_doesnot_compute]");
-    }
-
-    public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test metadata emp_no", "line 1:20: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -3215,7 +3195,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
         Map<String, String> commands = Map.ofEntries(
-            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata'}"),
+            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', '::', ',', 'metadata'}"),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
@@ -3378,18 +3358,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
-            // If a stream in on a remote and the pattern is entirely quoted, we should be able to validate it.
-            // Note: invalid selector syntax is covered in a different test.
-            {
-                var fromPattern = randomIndexPattern();
-                var malformedIndexSelectorPattern = quote(
-                    (randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER)))
-                );
-                // Format: FROM <some index>, "<cluster alias>:<some index>::<data|failures>"
-                var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
-                expectError(query, "Selectors are not yet supported on remote cluster patterns");
-            }
-
             // If a stream in on a remote and the cluster alias and index pattern are separately quoted, we should
             // still be able to validate it.
             // Note: invalid selector syntax is covered in a different test.
@@ -3763,11 +3731,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankComputedFieldsWithoutName() {
-        // Unnamed alias are forbidden
-        expectError(
-            "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
-            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}"
+        var plan = processingCommand("""
+            RERANK "statement text" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH { "inference_id": "inferenceID" }
+            """);
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(
+            rerank.rerankFields(),
+            equalToIgnoringIds(
+                List.of(
+                    alias("title", attribute("title")),
+                    alias(
+                        "SUBSTRING(description, 0, 100)",
+                        function("SUBSTRING", List.of(attribute("description"), integer(0), integer(100)))
+                    ),
+                    alias("yearRenamed", attribute("year"))
+                )
+            )
         );
+        assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankWithPositionalParameters() {
@@ -3812,6 +3797,83 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
     }
 
+    public void testCompletionWithTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {\"temperature\": 0.5 } }"
+            ),
+            Completion.class
+        );
+
+        assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+
+        MapExpression taskSettings = plan.taskSettings();
+        assertThat(taskSettings.get("temperature"), equalTo(Literal.fromDouble(null, 0.5)));
+    }
+
+    public void testCompletionWithEmptyTaskSettings() {
+        var plan = as(
+            processingCommand("COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", \"task_settings\": {} }"),
+            Completion.class
+        );
+
+        assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
+        assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(plan.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
+    }
+
+    public void testCompletionWithMultipleTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", "
+                    + "\"task_settings\": {\"foo\": \"bar\", \"baz\": \"qux\"} }"
+            ),
+            Completion.class
+        );
+
+        MapExpression taskSettings = plan.taskSettings();
+        assertThat(taskSettings.get("foo"), equalTo(literalString("bar")));
+        assertThat(taskSettings.get("baz"), equalTo(literalString("qux")));
+    }
+
+    public void testCompletionWithNestedTaskSettings() {
+        var plan = as(
+            processingCommand(
+                "COMPLETION prompt_field WITH { \"inference_id\" : \"inferenceID\", "
+                    + "\"task_settings\": {\"nested_map\": {\"foo\": \"bar\"}} }"
+            ),
+            Completion.class
+        );
+
+        MapExpression taskSettings = plan.taskSettings();
+        MapExpression nestedMap = (MapExpression) taskSettings.get("nested_map");
+        assertThat(nestedMap.get("foo"), equalTo(literalString("bar")));
+    }
+
+    public void testCompletionInvalidTaskSettingsType() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": 3 }",
+            "Option [task_settings] must be a map, found [3]"
+        );
+    }
+
+    public void testCompletionTaskSettingsNull() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": null }",
+            "Invalid named parameter [\"task_settings\":null], NULL is not supported"
+        );
+    }
+
+    public void testCompletionTaskSettingsNotAMap() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": \"not_a_valid_map\" }",
+            "Option [task_settings] must be a map, found [\"not_a_valid_map\"]"
+        );
+    }
+
     public void testRerankCommandDisabled() {
         Settings settings = Settings.builder().put(InferenceSettings.RERANK_ENABLED_SETTING.getKey(), false).build();
 
@@ -3829,7 +3891,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:42: Inavalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
+            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
         );
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
@@ -3940,7 +4002,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:31: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id]]"
+            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings]]"
         );
 
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
@@ -4176,7 +4238,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', '::', ',', 'metadata'");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
@@ -4327,7 +4389,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithLimitOnly() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr dense_embedding limit 10");
+        var cmd = processingCommand("mmr on dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
@@ -4342,7 +4404,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithLimitAndLambda() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        var cmd = processingCommand("mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+        var cmd = processingCommand("mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
@@ -4463,11 +4525,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidMMRCommands() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        expectError("row a = 1 | mmr some_field", "line 1:27: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
-        expectError("row a = 1 | mmr some_field limit", "line 1:33: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
+        expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
         expectError(
-            "row a = 1 | mmr some_field limit 5 {\"unknown\": true}",
-            "line 1:36: mismatched input '{' expecting {<EOF>, '|', 'with'}"
+            "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
+            "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
     }
 

@@ -54,6 +54,14 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         }
     }
 
+    /**
+     * Get the projection array (list of block indices to keep).
+     * Exposed for testing to verify projection behavior.
+     */
+    public int[] getProjection() {
+        return projection.clone();
+    }
+
     @Override
     public String toString() {
         if (projection.length < 10) {

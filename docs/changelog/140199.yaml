@@ -1,5 +1,0 @@
-pr: 140199
-summary: Fix Decision.Type serialization BWC
-area: Allocation
-type: bug
-issues: []

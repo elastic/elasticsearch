@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -29,6 +30,7 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -252,7 +254,7 @@ public class SecureClusterStateSettings implements SecureSettings {
 
                     Set<String> duplicateKeys = Sets.intersection(stringSecrets.keySet(), fileSecrets.keySet());
                     if (duplicateKeys.isEmpty() == false) {
-                        throw new IllegalStateException("Some settings were defined as both string and file settings: " + duplicateKeys);
+                        throw new IllegalStateException("Some secrets were defined as both string and file secrets: " + duplicateKeys);
                     }
 
                     Map.Entry[] entries = new Map.Entry[stringSecrets.size() + fileSecrets.size()];
@@ -269,9 +271,40 @@ public class SecureClusterStateSettings implements SecureSettings {
 
             ParseField stringSecretsField = new ParseField("string_secrets");
             ParseField fileSecretsField = new ParseField("file_secrets");
-            secretsParser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), stringSecretsField);
-            secretsParser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), fileSecretsField);
+            secretsParser.declareObject(optionalConstructorArg(), ParserHolder::parseSecrets, stringSecretsField);
+            secretsParser.declareObject(optionalConstructorArg(), ParserHolder::parseSecrets, fileSecretsField);
             return secretsParser;
+        }
+
+        private static Map<String, String> parseSecrets(XContentParser parser, Void ignore) throws IOException {
+            Map<String, String> secrets = new HashMap<>();
+            parseSecrets(parser, new StringBuilder(), secrets);
+            return secrets;
+        }
+
+        // see Settings.fromXContent
+        private static void parseSecrets(XContentParser parser, StringBuilder keyBuilder, Map<String, String> secrets) throws IOException {
+            final int length = keyBuilder.length();
+            String currentFieldName;
+            while ((currentFieldName = parser.nextFieldName()) != null) {
+                keyBuilder.setLength(length);
+                keyBuilder.append(currentFieldName);
+                XContentParser.Token token = parser.nextToken();
+                switch (token) {
+                    case START_OBJECT -> {
+                        keyBuilder.append('.');
+                        parseSecrets(parser, keyBuilder, secrets);
+                    }
+                    case VALUE_STRING -> {
+                        String key = keyBuilder.toString();
+                        String value = parser.text();
+                        if (secrets.put(key, value) != null) {
+                            throw new IllegalStateException("Duplicate secret for key: " + key);
+                        }
+                    }
+                    default -> XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
+                }
+            }
         }
     }
 }

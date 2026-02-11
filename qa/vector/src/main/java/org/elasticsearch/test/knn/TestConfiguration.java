@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -52,7 +53,10 @@ record TestConfiguration(
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
     List<SearchParameters> searchParams,
-    int numMergeWorkers
+    int numMergeWorkers,
+    boolean doPrecondition,
+    int preconditioningBlockDims,
+    int secondaryClusterSize
 ) {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -62,9 +66,9 @@ record TestConfiguration(
     static final ParseField INDEX_TYPE_FIELD = new ParseField("index_type");
     static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
     static final ParseField K_FIELD = new ParseField("k");
-    // static final ParseField N_PROBE_FIELD = new ParseField("n_probe");
     static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     static final ParseField IVF_CLUSTER_SIZE_FIELD = new ParseField("ivf_cluster_size");
+    static final ParseField SECONDARY_CLUSTER_SIZE = new ParseField("secondary_cluster_size");
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
     static final ParseField HNSW_EF_CONSTRUCTION_FIELD = new ParseField("hnsw_ef_construction");
@@ -86,6 +90,8 @@ record TestConfiguration(
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
+    static final ParseField DO_PRECONDITION = new ParseField("precondition");
+    static final ParseField PRECONDITIONING_BLOCK_DIMS = new ParseField("preconditioning_block_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
 
@@ -138,9 +144,12 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
+        PARSER.declareBoolean(Builder::setDoPrecondition, DO_PRECONDITION);
+        PARSER.declareInt(Builder::setPreconditioningBlockDims, PRECONDITIONING_BLOCK_DIMS);
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
+        PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
     }
 
     public int numberOfSearchRuns() {
@@ -157,6 +166,81 @@ record TestConfiguration(
         return Strings.toString(b, true, false);
     }
 
+    public static String formattedParameterHelp() {
+        List<ParameterHelp> params = List.of(
+            new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
+            new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
+            new ParameterHelp("num_docs", "int", "Number of documents to index."),
+            new ParameterHelp("num_queries", "int", "Number of queries to run from the query vectors file."),
+            new ParameterHelp("index_type", "string", "Index type: hnsw, flat, ivf, or gpu_hnsw."),
+            new ParameterHelp("ivf_cluster_size", "int", "IVF: number of clusters."),
+            new ParameterHelp("secondary_cluster_size", "int", "IVF: centroids per parent cluster; -1 uses the format default."),
+            new ParameterHelp("hnsw_m", "int", "HNSW: M parameter (graph degree)."),
+            new ParameterHelp("hnsw_ef_construction", "int", "HNSW: efConstruction parameter."),
+            new ParameterHelp("index_threads", "int", "Number of threads used for indexing."),
+            new ParameterHelp("reindex", "boolean", "Whether to build a new index from the document vectors."),
+            new ParameterHelp("force_merge", "boolean", "Whether to force-merge the index after indexing."),
+            new ParameterHelp("force_merge_max_num_segments", "int", "Force-merge target number of segments."),
+            new ParameterHelp("vector_space", "string", "Similarity: euclidean, dot_product, or cosine."),
+            new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
+            new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
+            new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
+            new ParameterHelp("merge_policy", "string", "Merge policy: tiered, log_byte, log_doc, or no."),
+            new ParameterHelp("merge_workers", "int", "Number of merge worker threads for vector formats."),
+            new ParameterHelp("writer_buffer_mb", "double", "Index writer RAM buffer size in MB."),
+            new ParameterHelp("writer_buffer_docs", "int", "Max buffered docs before flush; -1 disables auto flush by docs."),
+            new ParameterHelp("on_disk_rescore", "boolean", "Search: enable on-disk rescore for search."),
+            new ParameterHelp("precondition", "boolean", "IVF: apply preconditioning prior to indexing."),
+            new ParameterHelp("preconditioning_block_dims", "int", "IVF: block dimensions used for preconditioning."),
+            new ParameterHelp("num_candidates", "array[int]", "HNSW: number of candidates (efSearch) to consider per query."),
+            new ParameterHelp("k", "array[int]", "Search: top K results to return."),
+            new ParameterHelp("visit_percentage", "array[double]", "IVF: percentage of IVF index to visit (0.0-100.0)."),
+            new ParameterHelp("over_sampling_factor", "array[float]", "Search: oversampling factor for approximate search."),
+            new ParameterHelp("search_threads", "array[int]", "Search: threads per searcher."),
+            new ParameterHelp("num_searchers", "array[int]", "Search: number of parallel searchers."),
+            new ParameterHelp("filter_selectivity", "array[float]", "Search: filter selectivity (0.0-1.0)."),
+            new ParameterHelp("filter_cache", "array[boolean]", "Search: whether filters are cached."),
+            new ParameterHelp("early_termination", "array[boolean]", "Search: allow early termination when possible."),
+            new ParameterHelp("seed", "array[long]", "Search: random seed used random filters."),
+            new ParameterHelp(
+                "search_params",
+                "array[object]",
+                "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            )
+        );
+
+        int nameWidth = "parameter".length();
+        int typeWidth = "type".length();
+        for (ParameterHelp param : params) {
+            nameWidth = Math.max(nameWidth, param.name.length());
+            typeWidth = Math.max(typeWidth, param.type.length());
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Configuration parameters:");
+        sb.append("\n");
+        sb.append(formatParamRow("parameter", "type", "description", nameWidth, typeWidth));
+        sb.append("\n");
+        sb.append("-".repeat(nameWidth)).append("  ").append("-".repeat(typeWidth)).append("  ").append("-".repeat("description".length()));
+        sb.append("\n");
+        for (ParameterHelp param : params) {
+            sb.append(formatParamRow(param.name, param.type, param.description, nameWidth, typeWidth));
+            sb.append("\n");
+        }
+        sb.append("\n");
+        sb.append(
+            "Notes: array parameters are combined as a cartesian product to define multiple search runs. "
+                + "If you use search_params, do not provide multiple values for array parameters."
+        );
+        return sb.toString();
+    }
+
+    private static String formatParamRow(String name, String type, String description, int nameWidth, int typeWidth) {
+        return String.format(Locale.ROOT, "%-" + nameWidth + "s  %-" + typeWidth + "s  %s", name, type, description);
+    }
+
+    private record ParameterHelp(String name, String type, String description) {}
+
     static class Builder implements ToXContentObject {
         private List<Path> docVectors;
         private Path queryVectors;
@@ -166,7 +250,7 @@ record TestConfiguration(
         private List<Integer> numCandidates = List.of(1000);
         private List<Integer> k = List.of(10);
         private List<Double> visitPercentages = List.of(1.0);
-        private int ivfClusterSize = 1000;
+        private int ivfClusterSize = ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
         private List<Float> overSamplingFactor = List.of(0f);
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
@@ -186,9 +270,12 @@ record TestConfiguration(
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
+        private boolean doPrecondition = false;
+        private int preconditioningBlockDims = 64;
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
+        private int secondaryClusterSize = -1;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -350,6 +437,16 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setDoPrecondition(boolean doPrecondition) {
+            this.doPrecondition = doPrecondition;
+            return this;
+        }
+
+        public Builder setPreconditioningBlockDims(int preconditioningBlockDims) {
+            this.preconditioningBlockDims = preconditioningBlockDims;
+            return this;
+        }
+
         public Builder setFilterCached(List<Boolean> filterCached) {
             this.filterCached = filterCached;
             return this;
@@ -357,6 +454,11 @@ record TestConfiguration(
 
         public Builder setSearchParams(List<SearchParameters.Builder> searchParams) {
             this.searchParams = searchParams;
+            return this;
+        }
+
+        public Builder setSecondaryClusterSize(int secondaryClusterSize) {
+            this.secondaryClusterSize = secondaryClusterSize;
             return this;
         }
 
@@ -428,7 +530,10 @@ record TestConfiguration(
                 forceMergeMaxNumSegments,
                 onDiskRescore,
                 searchRuns,
-                numMergeWorkers
+                numMergeWorkers,
+                doPrecondition,
+                preconditioningBlockDims,
+                secondaryClusterSize
             );
         }
 

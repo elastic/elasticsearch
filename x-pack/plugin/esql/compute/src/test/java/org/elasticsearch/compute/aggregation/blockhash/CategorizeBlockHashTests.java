@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -56,7 +57,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.test.OperatorTestCase.runDriver;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -513,12 +513,14 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
+                    Integer.MAX_VALUE,
+                    1.0,
                     analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         driver = TestDriverFactory.create(
             driverContext,
@@ -532,12 +534,14 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
+                    Integer.MAX_VALUE,
+                    1.0,
                     analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         List<Page> finalOutput = new ArrayList<>();
 
@@ -553,12 +557,14 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
                     ),
                     16 * 1024,
+                    randomIntBetween(1, 1000),
+                    randomDoubleBetween(0.1, 1.0, true),
                     analysisRegistry
                 ).get(driverContext)
             ),
             new PageConsumerOperator(finalOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         assertThat(finalOutput, hasSize(1));
         assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));

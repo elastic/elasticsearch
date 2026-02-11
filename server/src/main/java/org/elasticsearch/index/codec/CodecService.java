@@ -51,9 +51,7 @@ public class CodecService implements CodecProvider {
 
         boolean useSyntheticId = mapperService != null
             && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
-            && mapperService.getIndexSettings()
-                .getIndexVersionCreated()
-                .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
 
         var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
         if (useSyntheticId) {

@@ -135,12 +135,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         protected AbstractEvaluator(DriverContext driverContext, Source source) {
             this.driverContext = driverContext;
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            );
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
         }
 
         protected abstract ExpressionEvaluator next();

@@ -134,8 +134,13 @@ class AbstractRateGroupingFunction {
             for (int i = startIndex; i < endIndex; i++) {
                 int start = sliceOffsets.get(i * 2L);
                 int end = sliceOffsets.get(i * 2L + 1);
-                queue.valueCount += (end - start);
-                queue.add(new Slice(buffer.timestamps, start, end));
+                if (start < end) {
+                    queue.valueCount += (end - start);
+                    queue.add(new Slice(buffer.timestamps, start, end));
+                }
+            }
+            if (queue.valueCount == 0) {
+                return null;
             }
             return queue;
         }

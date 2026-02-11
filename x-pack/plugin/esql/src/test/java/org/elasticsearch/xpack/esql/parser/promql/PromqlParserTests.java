@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
-import org.junit.BeforeClass;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -50,11 +49,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class PromqlParserTests extends ESTestCase {
 
     private static final EsqlParser parser = EsqlParser.INSTANCE;
-
-    @BeforeClass
-    public static void checkPromqlEnabled() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-    }
 
     public void testNoParenthesis() {
         Stream.of(
@@ -249,6 +243,7 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testExplain() {
+        assumeTrue("requires explain command", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         assertExplain("""
             PROMQL index=k8s step=5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
@@ -265,6 +260,7 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void assertExplain(String query, Class<? extends UnaryPlan> promqlCommandClass) {
+        assumeTrue("requires explain command", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         var plan = parser.parseQuery("EXPLAIN ( " + query + " )");
         Explain explain = plan.collect(Explain.class).getFirst();
         PromqlCommand promqlCommand = explain.query().collect(PromqlCommand.class).getFirst();

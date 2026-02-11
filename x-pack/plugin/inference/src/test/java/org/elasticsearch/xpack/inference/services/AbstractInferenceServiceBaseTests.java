@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -35,7 +37,6 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
     protected final MockWebServer webServer = new MockWebServer();
     protected ThreadPool threadPool;
     protected HttpClientManager clientManager;
-    protected AbstractInferenceServiceParameterizedTests.TestCase testCase;
 
     @Override
     @Before
@@ -113,8 +114,16 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
 
         protected abstract Map<String, Object> createServiceSettingsMap(TaskType taskType);
 
+        protected abstract ModelConfigurations createModelConfigurations(TaskType taskType);
+
+        protected abstract ModelSecrets createModelSecrets();
+
         protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
             return createServiceSettingsMap(taskType);
+        }
+
+        protected Map<String, Object> createTaskSettingsMap(TaskType taskType) {
+            return createTaskSettingsMap();
         }
 
         protected abstract Map<String, Object> createTaskSettingsMap();
@@ -122,6 +131,10 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
         protected abstract Map<String, Object> createSecretSettingsMap();
 
         protected abstract void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets);
+
+        protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets, ConfigurationParseContext parseContext) {
+            assertModel(model, taskType, modelIncludesSecrets);
+        }
 
         protected void assertModel(Model model, TaskType taskType) {
             assertModel(model, taskType, true);

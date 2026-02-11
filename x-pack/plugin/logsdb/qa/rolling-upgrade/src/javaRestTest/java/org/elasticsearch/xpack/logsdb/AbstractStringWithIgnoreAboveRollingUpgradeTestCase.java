@@ -13,6 +13,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -26,17 +27,27 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public abstract class AbstractStringWithIgnoreAboveRollingUpgradeTestCase extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
 
-    private final String dataStreamName;
-    private final Mapper.IgnoreAbove ignoreAbove;
+    /**
+     * Extended configuration that includes ignore_above settings.
+     */
+    public record TemplateConfigWithIgnoreAbove(String dataStreamName, String template, Mapper.IgnoreAbove ignoreAbove) {}
 
-    public AbstractStringWithIgnoreAboveRollingUpgradeTestCase(String dataStreamName, String template, Mapper.IgnoreAbove ignoreAbove) {
-        super(dataStreamName, template);
-        this.dataStreamName = dataStreamName;
-        this.ignoreAbove = ignoreAbove;
+    protected abstract Map<String, TemplateConfigWithIgnoreAbove> getTemplatesWithIgnoreAbove();
+
+    @Override
+    protected List<TemplateConfig> getTemplates() {
+        // Convert TemplateConfigWithIgnoreAbove to TemplateConfig for the parent class
+        return getTemplatesWithIgnoreAbove().values()
+            .stream()
+            .map(config -> new TemplateConfig(config.dataStreamName(), config.template()))
+            .toList();
     }
 
     @Override
-    protected void query() throws Exception {
+    protected void query(TemplateConfig config) throws Exception {
+        String dataStreamName = config.dataStreamName();
+        Mapper.IgnoreAbove ignoreAbove = getTemplatesWithIgnoreAbove().get(dataStreamName).ignoreAbove;
+
         var queryRequest = new Request("POST", "/_query");
         queryRequest.addParameter("pretty", "true");
         queryRequest.setJsonEntity("""
@@ -78,8 +89,8 @@ public abstract class AbstractStringWithIgnoreAboveRollingUpgradeTestCase extend
             }
         }
 
-        // block loaders do not return ignored fields, so we need to filter out all generates messages that would've been ignored
-        List<String> messages = getMessages();
+        // block loaders do not return ignored fields, so we need to filter out all generated messages that would've been ignored
+        List<String> messages = getMessages(dataStreamName);
         List<String> expectedMessages = ignoreAbove.isSet()
             ? messages.stream().filter(msg -> ignoreAbove.isIgnored(msg) == false).toList()
             : messages;

@@ -68,6 +68,7 @@
       },
       "analyze_wildcard": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether wildcard and prefix queries should be analyzed (default: false)"
       },
       "ccs_minimize_roundtrips": {
@@ -102,7 +103,8 @@
       },
       "from": {
         "type": "int",
-        "description": "Starting offset (default: 0)"
+        "default": 0,
+        "description": "Starting offset"
       },
       "ignore_unavailable": {
         "type": "boolean",
@@ -159,7 +161,8 @@
       },
       "size": {
         "type": "int",
-        "description": "Number of hits to return (default: 10)"
+        "default": 10,
+        "description": "Number of hits to return"
       },
       "sort": {
         "type": "list",

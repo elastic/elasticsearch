@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import static org.apache.lucene.util.BitUtil.VH_LE_LONG;
+import static org.apache.lucene.util.BitUtil.VH_NATIVE_LONG;
 
 /** Byte array utilities. */
 final class ByteArrayUtils {
@@ -47,6 +48,35 @@ final class ByteArrayUtils {
             i += Long.BYTES;
         }
         return -1;
+    }
+
+    static int codePointCount(byte[] bytes, int offset, int length) {
+        int pos = offset;
+        int limit = offset + length;
+        int continuations = 0;
+
+        for (; pos <= limit - 8; pos += 8) {
+            long data = readLongNative(bytes, pos);
+            long high = data & 0x8080808080808080L;
+            // If all bytes start with 0, they are all ascii, so the block can be skipped.
+            if (high != 0) {
+                // Set the high bit in `mask` if the high bit in data is set and the second bit is not set
+                long mask = high & (~data << 1);
+                continuations += Long.bitCount(mask);
+            }
+        }
+
+        // Last 7 or fewer bytes
+        while (pos < limit) {
+            continuations += (bytes[pos] & 0xC0) == 0x80 ? 1 : 0;
+            pos++;
+        }
+
+        return length - continuations;
+    }
+
+    private static long readLongNative(byte[] arr, int offset) {
+        return (long) VH_NATIVE_LONG.get(arr, offset);
     }
 
     private static long readLongLE(byte[] arr, int offset) {

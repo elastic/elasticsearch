@@ -30,12 +30,7 @@ public class BlockLoaderWarnings implements org.elasticsearch.index.mapper.block
     @Override
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
         if (delegate == null) {
-            delegate = Warnings.createOnlyWarnings(
-                warningsMode,
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            );
+            delegate = Warnings.createOnlyWarnings(warningsMode, source);
         }
         delegate.registerException(exceptionClass, message);
     }

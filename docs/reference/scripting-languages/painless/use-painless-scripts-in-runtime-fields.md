@@ -1,11 +1,14 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-runtime-fields.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
-# Use painless scripts in runtime fields [painless-runtime-fields]
+# Use Painless scripts in runtime fields [painless-runtime-fields]
 
 A runtime field is a field that is evaluated at query time. When you define a runtime field, you can immediately use it in search requests, aggregations, filtering, and sorting.
 

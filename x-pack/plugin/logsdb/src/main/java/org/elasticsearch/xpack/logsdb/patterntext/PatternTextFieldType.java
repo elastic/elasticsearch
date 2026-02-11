@@ -130,7 +130,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             @Override
             public void setNextReader(LeafReaderContext context) {
                 try {
-                    this.docValues = PatternTextCompositeValues.from(context.reader(), PatternTextFieldType.this);
+                    this.docValues = PatternTextFallbackDocValues.from(context.reader(), PatternTextFieldType.this);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -337,7 +337,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             }
         }
 
-        return new PatternTextBlockLoader((leafReader -> PatternTextCompositeValues.from(leafReader, this)));
+        return new BytesRefsFromBinaryBlockLoader(leafReader -> PatternTextFallbackDocValues.from(leafReader, this));
     }
 
     @Override

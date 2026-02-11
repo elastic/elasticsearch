@@ -50,6 +50,11 @@ public class OTelSdkMeterSupplier implements Supplier<Meter>, AutoCloseable {
                 .enableFeature(JfrFeature.THREAD_METRICS)
                 .enableFeature(JfrFeature.CPU_UTILIZATION_METRICS)
                 .enableFeature(JfrFeature.MEMORY_POOL_METRICS)
+                .disableFeature(JfrFeature.CONTEXT_SWITCH_METRICS)
+                .disableFeature(JfrFeature.CPU_COUNT_METRICS)
+                .disableFeature(JfrFeature.LOCK_METRICS)
+                .disableFeature(JfrFeature.MEMORY_ALLOCATION_METRICS)
+                .disableFeature(JfrFeature.NETWORK_IO_METRICS)
                 .build();
         }
         return meterProvider.get("elasticsearch");

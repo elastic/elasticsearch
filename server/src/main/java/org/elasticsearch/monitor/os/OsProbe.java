@@ -114,6 +114,9 @@ public class OsProbe {
      * {@link #getFreePhysicalMemorySize()}.
      */
     public long getActualFreePhysicalMemorySize() {
+        if (Constants.LINUX == false) {
+            return getFreePhysicalMemorySize();
+        }
         try {
             List<String> meminfoLines = readProcMeminfo();
             long available = parseMeminfoKbToBytes(meminfoLines, "MemAvailable:");
@@ -944,6 +947,9 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/meminfo")
     List<String> readProcMeminfo() throws IOException {
         final List<String> lines;
+        if (Constants.LINUX == false) {
+            return Collections.emptyList();
+        }
         if (Files.exists(PathUtils.get("/proc/meminfo"))) {
             lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
             assert lines != null && lines.isEmpty() == false;

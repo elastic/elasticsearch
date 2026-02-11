@@ -71,7 +71,6 @@ public class MetricValidator {
         // APM Java agent-compatible metric names (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
         "system.memory.*",
         "system.process.*",
-        "jvm.fd.*",
         "jvm.file_descriptor.*",
         "jvm.gc.*",
         "jvm.memory.*"

@@ -765,7 +765,7 @@ public class SnapshotStressTestsHelper {
                                             trackedRepository.repositoryName,
                                             cloneName
                                         );
-                                        if (abortRunnable != NO_OP_RUNNABLE) {
+                                        if (abortRunnable == NO_OP_RUNNABLE) {
                                             snapshots.put(cloneName, new TrackedSnapshot(trackedRepository, cloneName));
                                             completedSnapshotLatch.countDown();
                                         }
@@ -1120,7 +1120,7 @@ public class SnapshotStressTestsHelper {
                         logger.info("--> started partial snapshot [{}:{}]", trackedRepository.repositoryName, snapshotName);
                         Releasables.close(releasableAfterStart.transfer());
                         pollForSnapshotCompletion(client, trackedRepository.repositoryName, snapshotName, releaseAll, () -> {
-                            if (abortRunnable != NO_OP_RUNNABLE) {
+                            if (abortRunnable == NO_OP_RUNNABLE) {
                                 snapshots.put(snapshotName, new TrackedSnapshot(trackedRepository, snapshotName));
                                 completedSnapshotLatch.countDown();
                             }

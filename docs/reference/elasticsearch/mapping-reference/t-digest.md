@@ -117,7 +117,7 @@ PUT my-index-000001/_doc/1
 ```console
 POST /_query?format=txt
 {
-	"query": "FROM test | STATS Percentile(99, latency)"
+	"query": "FROM my-index-000001 | STATS Percentile(latency, 99)"
 }
 
 

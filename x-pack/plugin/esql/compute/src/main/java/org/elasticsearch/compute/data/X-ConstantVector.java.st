@@ -64,7 +64,7 @@ $if(BytesRef)$
 $endif$
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
 

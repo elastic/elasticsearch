@@ -695,7 +695,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
                     exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
                 } else {
-                    fail("unexpected request method: " + exchange.getRequestMethod());
+                    ExceptionsHelper.maybeDieOnAnotherThread(
+                        new AssertionError("unexpected request method: " + exchange.getRequestMethod())
+                    );
                 }
             } finally {
                 exchange.close();

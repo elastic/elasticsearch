@@ -16,7 +16,9 @@ import org.apache.lucene.search.Query;
 
 import java.util.Objects;
 
-class MergedDocValuesRangeQuery {
+final class MergedDocValuesRangeQuery {
+
+    private MergedDocValuesRangeQuery() {}
 
     /**
      * Attempt to merge together two overlapping NumericDocValuesRangeQuery instances.  Returns

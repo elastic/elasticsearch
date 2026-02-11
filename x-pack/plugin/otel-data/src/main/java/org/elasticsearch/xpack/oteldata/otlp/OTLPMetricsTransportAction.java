@@ -11,27 +11,18 @@ import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,9 +34,7 @@ import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -56,14 +45,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @see <a href="https://opentelemetry.io/docs/specs/otlp">OTLP Specification</a>
  */
-public class OTLPMetricsTransportAction extends HandledTransportAction<OTLPActionRequest, OTLPActionResponse> {
+public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     public static final String NAME = "indices:data/write/otlp/metrics";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
-
-    private static final Logger logger = LogManager.getLogger(OTLPMetricsTransportAction.class);
-    public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
-    private final Client client;
 
     // visible for testing
     volatile MappingHints defaultMappingHints;
@@ -76,8 +61,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<OTLPActio
         Client client,
         ClusterService clusterService
     ) {
-        super(NAME, transportService, actionFilters, OTLPActionRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
-        this.client = client;
+        super(NAME, transportService, actionFilters, threadPool, client);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
         clusterSettings.addSettingsUpdateConsumer(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE, histogramFieldTypeSetting -> {
@@ -86,45 +70,31 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<OTLPActio
     }
 
     @Override
-    protected void doExecute(Task task, OTLPActionRequest request, ActionListener<OTLPActionResponse> listener) {
+    protected ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder) throws IOException {
         BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
         DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor);
-        try {
-            var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
-            context.groupDataPoints(metricsServiceRequest);
-            if (context.totalDataPoints() == 0) {
-                handleEmptyRequest(listener);
-                return;
-            }
-            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
-            context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
-            if (bulkRequestBuilder.numberOfActions() == 0) {
-                // all data points were ignored
-                handlePartialSuccess(listener, context);
-                return;
-            }
-
-            bulkRequestBuilder.execute(new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse bulkItemResponses) {
-                    if (bulkItemResponses.hasFailures() || context.getIgnoredDataPoints() > 0) {
-                        handlePartialSuccess(bulkItemResponses, context, listener);
-                    } else {
-                        handleSuccess(listener);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    handleFailure(listener, e, context);
-                }
-            });
-
-        } catch (Exception e) {
-            logger.error("failed to execute otlp metrics request", e);
-            handleFailure(listener, e, context);
+        var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
+        context.groupDataPoints(metricsServiceRequest);
+        if (context.totalDataPoints() == 0) {
+            return context;
         }
+        MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
+        context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
+        return context;
+    }
+
+    @Override
+    protected ExportMetricsServiceResponse emptyResponse() {
+        return ExportMetricsServiceResponse.newBuilder().build();
+    }
+
+    @Override
+    protected ExportMetricsServiceResponse responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+        ExportMetricsPartialSuccess partialSuccess = ExportMetricsPartialSuccess.newBuilder()
+            .setRejectedDataPoints(rejectedDataPoints)
+            .setErrorMessage(message)
+            .build();
+        return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();
     }
 
     private void addIndexRequest(
@@ -152,108 +122,4 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<OTLPActio
             );
         }
     }
-
-    private static void handleSuccess(ActionListener<OTLPActionResponse> listener) {
-        listener.onResponse(new OTLPActionResponse(RestStatus.OK, ExportMetricsServiceResponse.newBuilder().build()));
-    }
-
-    private static void handleEmptyRequest(ActionListener<OTLPActionResponse> listener) {
-        // If the server receives an empty request
-        // (a request that does not carry any telemetry data)
-        // the server SHOULD respond with success.
-        // https://opentelemetry.io/docs/specs/otlp/#full-success-1
-        handleSuccess(listener);
-    }
-
-    private static void handlePartialSuccess(ActionListener<OTLPActionResponse> listener, DataPointGroupingContext context) {
-        // If the request is only partially accepted
-        // (i.e. when the server accepts only parts of the data and rejects the rest),
-        // the server MUST respond with HTTP 200 OK.
-        // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
-        ExportMetricsServiceResponse response = responseWithRejectedDataPoints(
-            context.getIgnoredDataPoints(),
-            context.getIgnoredDataPointsMessage(IGNORED_DATA_POINTS_MESSAGE_LIMIT)
-        );
-        listener.onResponse(new OTLPActionResponse(RestStatus.BAD_REQUEST, response));
-    }
-
-    private static void handlePartialSuccess(
-        BulkResponse bulkItemResponses,
-        DataPointGroupingContext context,
-        ActionListener<OTLPActionResponse> listener
-    ) {
-        // index -> status -> failure group
-        Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
-        // If the request is only partially accepted
-        // (i.e. when the server accepts only parts of the data and rejects the rest),
-        // the server MUST respond with HTTP 200 OK.
-        // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
-        RestStatus status = RestStatus.OK;
-        int failures = 0;
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
-            BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-            if (failure != null) {
-                // we're counting each document as one data point here
-                // which is an approximation since one document can represent multiple data points
-                failures++;
-                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                    // If the server receives more requests than the client is allowed or the server is overloaded,
-                    // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
-                    // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
-                    // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
-                    status = RestStatus.TOO_MANY_REQUESTS;
-                }
-                FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
-                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
-                failureGroup.failureCount().incrementAndGet();
-            }
-        }
-        if (bulkItemResponses.getItems().length == failures) {
-            // all data points failed, so we report total data points as failures
-            failures = context.totalDataPoints();
-        }
-        StringBuilder failureMessageBuilder = new StringBuilder();
-        for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
-            String indexName = indexEntry.getKey();
-            for (Map.Entry<RestStatus, FailureGroup> statusEntry : indexEntry.getValue().entrySet()) {
-                RestStatus restStatus = statusEntry.getKey();
-                FailureGroup failureGroup = statusEntry.getValue();
-                failureMessageBuilder.append("Index [")
-                    .append(indexName)
-                    .append("] returned status [")
-                    .append(restStatus)
-                    .append("] for ")
-                    .append(failureGroup.failureCount())
-                    .append(" documents. Sample error message: ");
-                failureMessageBuilder.append(failureGroup.failureMessageSample());
-                failureMessageBuilder.append("\n");
-            }
-        }
-        failureMessageBuilder.append(context.getIgnoredDataPointsMessage(10));
-        ExportMetricsServiceResponse response = responseWithRejectedDataPoints(
-            failures + context.getIgnoredDataPoints(),
-            failureMessageBuilder.toString()
-        );
-        listener.onResponse(new OTLPActionResponse(status, response));
-    }
-
-    record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
-
-    private static void handleFailure(ActionListener<OTLPActionResponse> listener, Exception e, DataPointGroupingContext context) {
-        // https://opentelemetry.io/docs/specs/otlp/#failures-1
-        // If the processing of the request fails,
-        // the server MUST respond with appropriate HTTP 4xx or HTTP 5xx status code.
-        listener.onResponse(
-            new OTLPActionResponse(ExceptionsHelper.status(e), responseWithRejectedDataPoints(context.totalDataPoints(), e.getMessage()))
-        );
-    }
-
-    private static ExportMetricsServiceResponse responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
-        ExportMetricsPartialSuccess partialSuccess = ExportMetricsPartialSuccess.newBuilder()
-            .setRejectedDataPoints(rejectedDataPoints)
-            .setErrorMessage(message)
-            .build();
-        return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();
-    }
-
 }

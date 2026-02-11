@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -47,8 +48,10 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         if (request.hasContent()) {
-            String dataset = request.param("dataset", "generic");
-            String namespace = request.param("namespace", "default");
+            String dataset = request.param(DataStream.DATASET, "generic");
+            String namespace = request.param(DataStream.NAMESPACE, "default");
+            DataStream.validateDataset(dataset);
+            DataStream.validateNamespace(namespace);
             var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
                 request.content().retain(),
                 dataset,

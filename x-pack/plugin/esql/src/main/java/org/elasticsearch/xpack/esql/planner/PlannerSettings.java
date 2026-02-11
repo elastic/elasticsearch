@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Values for cluster level settings used in physical planning.
@@ -123,31 +124,60 @@ public class PlannerSettings {
         );
     }
 
-    private volatile DataPartitioning defaultDataPartitioning;
-    private volatile ByteSizeValue valuesLoadingJumboSize;
-    private volatile int luceneTopNLimit;
-    private volatile ByteSizeValue intermediateLocalRelationMaxSize;
+    public static class Holder {
+        private final AtomicReference<PlannerSettings> settings = new AtomicReference<>(PlannerSettings.DEFAULTS);
 
-    private volatile int partialEmitKeysThreshold;
-    private volatile double partialEmitUniquenessThreshold;
-    private volatile int reuseColumnLoadersThreshold;
+        public Holder(ClusterService clusterService) {
+            var clusterSettings = clusterService.getClusterSettings();
+            clusterSettings.initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> settings.updateAndGet(s -> s.defaultDataPartitioning(v)));
+            clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> settings.updateAndGet(s -> s.valuesLoadingJumboSize(v)));
+            clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> settings.updateAndGet(s -> s.luceneTopNLimit(v)));
+            clusterSettings.initializeAndWatch(
+                INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+                v -> settings.updateAndGet(s -> s.intermediateLocalRelationMaxSize(v))
+            );
+            clusterSettings.initializeAndWatch(
+                PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.partialEmitKeysThreshold(v))
+            );
+            clusterSettings.initializeAndWatch(
+                PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.partialEmitUniquenessThreshold(v))
+            );
+            clusterSettings.initializeAndWatch(
+                REUSE_COLUMN_LOADERS_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.reuseColumnLoadersThreshold(v))
+            );
+        }
 
-    /**
-     * Ctor for prod that listens for updates from the {@link ClusterService}.
-     */
-    public PlannerSettings(ClusterService clusterService) {
-        var clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
-        clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> this.valuesLoadingJumboSize = v);
-        clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> this.luceneTopNLimit = v);
-        clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
-        clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD, v -> this.partialEmitKeysThreshold = v);
-        clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD, v -> this.partialEmitUniquenessThreshold = v);
-        clusterSettings.initializeAndWatch(REUSE_COLUMN_LOADERS_THRESHOLD, v -> this.reuseColumnLoadersThreshold = v);
+        public PlannerSettings get() {
+            return settings.get();
+        }
     }
 
+    private final DataPartitioning defaultDataPartitioning;
+    private final ByteSizeValue valuesLoadingJumboSize;
+    private final int luceneTopNLimit;
+    private final ByteSizeValue intermediateLocalRelationMaxSize;
+    private final int partialEmitKeysThreshold;
+    private final double partialEmitUniquenessThreshold;
+    private final int reuseColumnLoadersThreshold;
+
     /**
-     * Ctor for testing.
+     * Defaults.
+     */
+    public static final PlannerSettings DEFAULTS = new PlannerSettings(
+        DEFAULT_DATA_PARTITIONING.get(Settings.EMPTY),
+        VALUES_LOADING_JUMBO_SIZE.get(Settings.EMPTY),
+        LUCENE_TOPN_LIMIT.getDefault(Settings.EMPTY),
+        INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getDefault(Settings.EMPTY),
+        PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getDefault(Settings.EMPTY),
+        PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getDefault(Settings.EMPTY),
+        REUSE_COLUMN_LOADERS_THRESHOLD.getDefault(Settings.EMPTY)
+    );
+
+    /**
+     * Create.
      */
     public PlannerSettings(
         DataPartitioning defaultDataPartitioning,
@@ -167,12 +197,48 @@ public class PlannerSettings {
         this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
     }
 
+    public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold
+        );
+    }
+
     public DataPartitioning defaultDataPartitioning() {
         return defaultDataPartitioning;
     }
 
+    public PlannerSettings valuesLoadingJumboSize(ByteSizeValue valuesLoadingJumboSize) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold
+        );
+    }
+
     public ByteSizeValue valuesLoadingJumboSize() {
         return valuesLoadingJumboSize;
+    }
+
+    public PlannerSettings luceneTopNLimit(int luceneTopNLimit) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold
+        );
     }
 
     /**
@@ -193,16 +259,64 @@ public class PlannerSettings {
         return luceneTopNLimit;
     }
 
+    public PlannerSettings intermediateLocalRelationMaxSize(ByteSizeValue intermediateLocalRelationMaxSize) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold
+        );
+    }
+
     public ByteSizeValue intermediateLocalRelationMaxSize() {
         return intermediateLocalRelationMaxSize;
+    }
+
+    public PlannerSettings partialEmitKeysThreshold(int partialEmitKeysThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold
+        );
     }
 
     public int partialEmitKeysThreshold() {
         return partialEmitKeysThreshold;
     }
 
+    public PlannerSettings partialEmitUniquenessThreshold(double partialEmitUniquenessThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold
+        );
+    }
+
     public double partialEmitUniquenessThreshold() {
         return partialEmitUniquenessThreshold;
+    }
+
+    public PlannerSettings reuseColumnLoadersThreshold(int reuseColumnLoadersThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold
+        );
     }
 
     /**

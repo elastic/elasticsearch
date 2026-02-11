@@ -18,7 +18,7 @@ public class FixedLengthAscTopNEncoderTests extends AbstractFixedTopNEncoderTest
 
     @Override
     protected TopNEncoder encoder() {
-        return SortableAscTopNEncoder.IP;
+        return TopNEncoder.IP;
     }
 
     @Override

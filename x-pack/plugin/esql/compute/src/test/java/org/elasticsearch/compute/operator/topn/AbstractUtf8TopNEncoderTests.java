@@ -19,15 +19,23 @@ public abstract class AbstractUtf8TopNEncoderTests extends AbstractSortableTopNE
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCase<?>> tests = new ArrayList<>();
-        tests.add(testCase("alpha", () -> randomAlphaOfLengthBetween(0, 100)));
-        tests.add(testCase("unicode", () -> randomRealisticUnicodeOfCodepointLengthBetween(0, 100)));
+        tests.addAll(testCases("alpha", () -> randomAlphaOfLengthBetween(0, 100)));
+        tests.addAll(testCases("unicode", () -> randomRealisticUnicodeOfCodepointLengthBetween(0, 100)));
+        tests.addAll(testCases("unrealistic unicode", () -> randomUnicodeOfLengthBetween(0, 100)));
         return tests.stream().map(t -> new Object[] { t }).toList();
     }
 
-    private static TestCase<BytesRef> testCase(String name, Supplier<String> randomValue) {
+    private static List<TestCase<BytesRef>> testCases(String name, Supplier<String> randomValue) {
+        return List.of(
+            testCase(name, () -> new BytesRef(randomValue.get())),
+            testCase(name + " inside garbage", () -> embedInRandomBytes(new BytesRef(randomValue.get())))
+        );
+    }
+
+    private static TestCase<BytesRef> testCase(String name, Supplier<BytesRef> randomValue) {
         return new TestCase<>(
             name,
-            () -> new BytesRef(randomValue.get()),
+            randomValue,
             BytesRef::compareTo,
             TopNEncoder::encodeBytesRef,
             (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())

@@ -275,8 +275,7 @@ public class ExtractorTests extends ESTestCase {
 
         BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
         boolean asc = randomBoolean();
-        KeyExtractor.extractorFor(testCase.type, testCase.encoder.toSortable(asc), asc, randomByte(), randomByte(), value)
-            .writeKey(keysBuilder, 0);
+        KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, randomByte(), randomByte(), value).writeKey(keysBuilder, 0);
         assertThat(keysBuilder.length(), greaterThan(0));
 
         BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();

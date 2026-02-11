@@ -27,8 +27,10 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
@@ -51,9 +53,8 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /**
-     * Internal row to be used in the PriorityQueue instead of the full blown Page.
-     * It mirrors somehow the Block build in the sense that it keeps around an array of offsets and a count of values (to account for
-     * multivalues) to reference each position in each block of the Page.
+     * A single top "row". Implements {@link Comparable} and {@link Row#equals} comparing
+     * the sort keys.
      */
     static final class Row implements Accountable, Comparable<Row>, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
@@ -61,7 +62,7 @@ public class TopNOperator implements Operator, Accountable {
         private final CircuitBreaker breaker;
 
         /**
-         * The sort key.
+         * The sort keys, encoded into bytes so we can sort by calling {@link Arrays#compareUnsigned}.
          */
         final BreakingBytesRefBuilder keys;
 
@@ -79,7 +80,7 @@ public class TopNOperator implements Operator, Accountable {
         @Nullable
         RefCounted shardRefCounter;
 
-        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
+        Row(CircuitBreaker breaker, int preAllocatedKeysSize, int preAllocatedValueSize) {
             breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
             this.breaker = breaker;
             boolean success = false;
@@ -122,8 +123,24 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public int compareTo(Row rhs) {
-            // TODO if we fill the trailing bytes with 0 we could do a comparison on the bytes which is faster
+            // TODO if we fill the trailing bytes with 0 we could do a comparison on the entire array
+            // When Nik measured this it was marginally faster. But it's worth a bit of research.
             return -keys.bytesRefView().compareTo(rhs.keys.bytesRefView());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ;
+            Row row = (Row) o;
+            return keys.bytesRefView().equals(row.keys.bytesRefView());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(keys);
         }
 
         @Override
@@ -165,7 +182,7 @@ public class TopNOperator implements Operator, Accountable {
                 SortOrder so = sortOrders.get(k);
                 keyExtractors[k] = KeyExtractor.extractorFor(
                     elementTypes.get(so.channel),
-                    encoders.get(so.channel).toSortable(so.asc),
+                    encoders.get(so.channel),
                     so.asc,
                     so.nul(),
                     so.nonNul(),
@@ -347,7 +364,7 @@ public class TopNOperator implements Operator, Accountable {
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+                    spare = new Row(breaker, spareKeysPreAllocSize, spareValuesPreAllocSize);
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
@@ -514,7 +531,6 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         protected boolean lessThan(Row lhs, Row rhs) {
-            // return compareRows(r1, r2) < 0;
             return lhs.compareTo(rhs) < 0;
         }
 

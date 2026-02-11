@@ -15,20 +15,14 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 public abstract class AbstractFixedTopNEncoderTests extends AbstractSortableTopNEncoderTests {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCase<?>> tests = new ArrayList<>();
-        tests.add(
-            new TestCase<>(
-                "ip",
-                AbstractFixedTopNEncoderTests::randomIp,
-                BytesRef::compareTo,
-                TopNEncoder::encodeBytesRef,
-                (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
-            )
-        );
+        tests.add(testCase("ip", AbstractFixedTopNEncoderTests::randomIp));
+        tests.add(testCase("ip inside garbage", () -> embedInRandomBytes(randomIp())));
         return tests.stream().map(t -> new Object[] { t }).toList();
     }
 
@@ -40,4 +34,13 @@ public abstract class AbstractFixedTopNEncoderTests extends AbstractSortableTopN
         return new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(randomBoolean())));
     }
 
+    private static TestCase<BytesRef> testCase(String name, Supplier<BytesRef> randomValue) {
+        return new TestCase<>(
+            name,
+            randomValue,
+            BytesRef::compareTo,
+            TopNEncoder::encodeBytesRef,
+            (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
+        );
+    }
 }

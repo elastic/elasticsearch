@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -16,9 +14,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -26,21 +22,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        List<TestCase<?>> tests = new ArrayList<>();
-        tests.add(new TestCase<>("long", ESTestCase::randomLong, Long::compare, TopNEncoder::encodeLong, TopNEncoder::decodeLong));
-        tests.add(
-            new TestCase<>("double", ESTestCase::randomDouble, Double::compare, TopNEncoder::encodeDouble, TopNEncoder::decodeDouble)
-        );
-        tests.add(new TestCase<>("int", ESTestCase::randomInt, Integer::compare, TopNEncoder::encodeInt, TopNEncoder::decodeInt));
-        tests.add(new TestCase<>("float", ESTestCase::randomFloat, Float::compare, TopNEncoder::encodeFloat, TopNEncoder::decodeFloat));
-        tests.add(
-            new TestCase<>("bool", ESTestCase::randomBoolean, Boolean::compare, TopNEncoder::encodeBoolean, TopNEncoder::decodeBoolean)
-        );
-        return tests.stream().map(t -> new Object[] { t }).toList();
-    }
-
     protected record TestCase<T>(
         String name,
         Supplier<T> randomValue,
@@ -81,7 +62,7 @@ public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
         }
     }
 
-    private final TestCase<?> testCase;
+    protected final TestCase<?> testCase;
 
     protected AbstractSortableTopNEncoderTests(TestCase<?> testCase) {
         this.testCase = testCase;

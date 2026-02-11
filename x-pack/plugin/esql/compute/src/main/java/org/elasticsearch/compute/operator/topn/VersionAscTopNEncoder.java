@@ -16,13 +16,18 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
     @Override
     public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
-        for (int i = value.offset; i < value.length; i++) {
+        refuseNul(value);
+        bytesRefBuilder.append(value);
+        bytesRefBuilder.append(Utf8AscTopNEncoder.TERMINATOR);
+    }
+
+    static void refuseNul(BytesRef value) {
+        int end = value.offset + value.length;
+        for (int i = value.offset; i < end; i++) {
             if (value.bytes[i] == Utf8AscTopNEncoder.TERMINATOR) {
                 throw new IllegalArgumentException("Can't sort versions containing nul");
             }
         }
-        bytesRefBuilder.append(value);
-        bytesRefBuilder.append(Utf8AscTopNEncoder.TERMINATOR);
     }
 
     @Override

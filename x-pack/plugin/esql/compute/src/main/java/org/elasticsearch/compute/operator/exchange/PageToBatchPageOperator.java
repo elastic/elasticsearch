@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SinkOperator;
 
@@ -61,17 +62,17 @@ final class PageToBatchPageOperator extends SinkOperator {
             bufferedPage != null
         );
 
-        if (page instanceof BatchPage) {
-            throw new IllegalArgumentException("PageToBatchPageOperator received a BatchPage - this should not happen");
+        if (page.batchMetadata() != null) {
+            throw new IllegalArgumentException("PageToBatchPageOperator received a page with BatchMetadata - this should not happen");
         }
 
         if (batchContext == null) {
-            throw new IllegalStateException("Cannot convert Page to BatchPage: BatchContext not set on PageToBatchPageOperator");
+            throw new IllegalStateException("Cannot add BatchMetadata to Page: BatchContext not set on PageToBatchPageOperator");
         }
 
         long batchId = batchContext.getBatchId();
         if (batchId == BatchContext.UNDEFINED_BATCH_ID) {
-            throw new IllegalStateException("Cannot convert Page to BatchPage: no batch ID detected yet");
+            throw new IllegalStateException("Cannot add BatchMetadata to Page: no batch ID detected yet");
         }
 
         // If we have a buffered page, send it now (with isLastPageInBatch=false)
@@ -87,7 +88,7 @@ final class PageToBatchPageOperator extends SinkOperator {
     }
 
     /**
-     * Send the buffered page to the delegate sink.
+     * Send the buffered page to the delegate sink with batch metadata attached.
      * @param isLastPageInBatch whether this is the last page in the batch
      */
     private void sendBufferedPage(boolean isLastPageInBatch) {
@@ -96,12 +97,13 @@ final class PageToBatchPageOperator extends SinkOperator {
         }
 
         int pageIndex = nextPageIndexInBatch++;
-        BatchPage batchPage = new BatchPage(bufferedPage, bufferedBatchId, pageIndex, isLastPageInBatch);
-        // Release the original page - BatchPage now owns the blocks
+        BatchMetadata metadata = new BatchMetadata(bufferedBatchId, pageIndex, isLastPageInBatch);
+        Page pageWithMetadata = bufferedPage.withBatchMetadata(metadata);
+        // Release the original page - pageWithMetadata now owns the blocks (ref count was incremented)
         bufferedPage.releaseBlocks();
         bufferedPage = null;
 
-        delegate.addInput(batchPage);
+        delegate.addInput(pageWithMetadata);
 
         if (isLastPageInBatch) {
             logger.debug("[PageToBatchPageOperator] Sent last page in batch {} with isLastPageInBatch=true", bufferedBatchId);
@@ -137,7 +139,7 @@ final class PageToBatchPageOperator extends SinkOperator {
         } else {
             // No pages were produced - send empty marker page
             logger.debug("[PageToBatchPageOperator] Sending empty marker for batch {}", batchId);
-            BatchPage marker = BatchPage.createMarker(batchId, nextPageIndexInBatch);
+            Page marker = Page.createBatchMarkerPage(batchId, nextPageIndexInBatch);
             delegate.addInput(marker);
             logger.debug("[PageToBatchPageOperator] Empty marker sent for batch {}", batchId);
         }

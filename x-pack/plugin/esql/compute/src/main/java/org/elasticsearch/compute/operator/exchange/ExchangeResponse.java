@@ -36,7 +36,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     public ExchangeResponse(BlockStreamInput in) throws IOException {
         this.blockFactory = in.blockFactory();
-        this.page = in.readOptionalWriteable(Page::readFrom);
+        this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();
     }
 

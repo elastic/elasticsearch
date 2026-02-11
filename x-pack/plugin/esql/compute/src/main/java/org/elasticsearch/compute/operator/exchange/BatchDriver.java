@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -185,22 +186,28 @@ public final class BatchDriver extends Driver {
         logger.debug("[BatchDriver] Batch {} complete, state is now {}", batchId, batchContext.getState());
     }
 
-    Page unwrapBatchPage(BatchPage batchPage) {
-        if (batchPage.isBatchMarkerOnly()) {
-            batchPage.releaseBlocks();
+    /**
+     * Process a page with batch metadata, returning null for marker pages.
+     * For non-marker pages, returns a new page WITHOUT batch metadata.
+     * The batch metadata has already been extracted and used for batch state management.
+     */
+    Page processBatchPage(Page page) {
+        if (page.isBatchMarkerOnly()) {
+            page.releaseBlocks();
             return null;
         }
-        if (batchPage.getBlockCount() > 0) {
-            Block[] blocks = new Block[batchPage.getBlockCount()];
+        // Create a new page without batch metadata - the metadata has been extracted
+        if (page.getBlockCount() > 0) {
+            Block[] blocks = new Block[page.getBlockCount()];
             for (int i = 0; i < blocks.length; i++) {
-                blocks[i] = batchPage.getBlock(i);
+                blocks[i] = page.getBlock(i);
                 blocks[i].incRef();
             }
             Page unwrappedPage = new Page(blocks);
-            batchPage.releaseBlocks();
+            page.releaseBlocks();
             return unwrappedPage;
         }
-        batchPage.releaseBlocks();
+        page.releaseBlocks();
         return null;
     }
 
@@ -228,15 +235,15 @@ public final class BatchDriver extends Driver {
                 return null;
             }
 
-            if ((page instanceof BatchPage) == false) {
+            BatchMetadata metadata = page.batchMetadata();
+            if (metadata == null) {
                 page.releaseBlocks();
                 throw new IllegalArgumentException(
-                    Strings.format("BatchDriver only accepts BatchPage, but received: %s", page.getClass().getName())
+                    Strings.format("BatchDriver only accepts pages with BatchMetadata, but received page without metadata")
                 );
             }
 
-            BatchPage batchPage = (BatchPage) page;
-            long pageBatchId = batchPage.batchId();
+            long pageBatchId = metadata.batchId();
             BatchContext ctx = driver.batchContext;
 
             // Handle state transitions based on current state
@@ -248,7 +255,7 @@ public final class BatchDriver extends Driver {
                 case ACTIVE -> {
                     // Verify batch ID matches
                     if (pageBatchId != ctx.getBatchId()) {
-                        batchPage.releaseBlocks();
+                        page.releaseBlocks();
                         throw new IllegalStateException(
                             Strings.format("Received page for batch %d but currently processing batch %d", pageBatchId, ctx.getBatchId())
                         );
@@ -256,17 +263,17 @@ public final class BatchDriver extends Driver {
                 }
                 case DRAINING -> {
                     // Should not reach here - we return null above
-                    batchPage.releaseBlocks();
+                    page.releaseBlocks();
                     throw new IllegalStateException("Received page while in DRAINING state");
                 }
             }
 
             // Check if this is the last page in the batch
-            if (batchPage.isLastPageInBatch()) {
+            if (metadata.isLastPageInBatch()) {
                 ctx.startDraining();
             }
 
-            return driver.unwrapBatchPage(batchPage);
+            return driver.processBatchPage(page);
         }
 
         @Override

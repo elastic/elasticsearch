@@ -256,7 +256,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
             Page inputPage;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                inputPage = Page.readFrom(bsi);
+                inputPage = new Page(bsi);
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
@@ -374,7 +374,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.pages = bsi.readCollectionAsList(Page::readFrom);
+                this.pages = bsi.readCollectionAsList(Page::new);
             }
         }
 

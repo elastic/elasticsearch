@@ -65,13 +65,6 @@ public final class BatchContext {
     }
 
     /**
-     * Check if at least one batch has ever started.
-     */
-    public boolean hasStartedAnyBatch() {
-        return state != BatchLifecycle.NOT_STARTED;
-    }
-
-    /**
      * Transition to ACTIVE state when first page of a new batch is received.
      * Valid from: NOT_STARTED, IDLE
      * @param newBatchId the batch ID

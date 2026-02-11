@@ -47,7 +47,7 @@ final class ExchangeBuffer {
         }
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with the stop API, and the queue size should be very small.
-            if (page instanceof BatchPage == false) {
+            if (page.batchMetadata() == null) {
                 if (queue.removeIf(p -> p == page)) {
                     page.releaseBlocks();
                     final int size = queueSize.decrementAndGet();

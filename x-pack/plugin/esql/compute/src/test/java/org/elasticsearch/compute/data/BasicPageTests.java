@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -25,6 +24,8 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BasicPageTests extends SerializationTestCase {
 
@@ -336,7 +337,7 @@ public class BasicPageTests extends SerializationTestCase {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, page -> {
                 try (BytesStreamOutput out = new BytesStreamOutput()) {
                     out.writeCollection(origPages);
-                    return blockStreamInput(out).readCollectionAsList(Page::readFrom);
+                    return blockStreamInput(out).readCollectionAsList(Page::new);
                 }
             }, null, pages -> Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks)));
         } finally {
@@ -353,7 +354,7 @@ public class BasicPageTests extends SerializationTestCase {
         page.releaseBlocks();
     }
 
-    public void testBatchPageSerialization() throws IOException {
+    public void testPageWithBatchMetadataSerialization() throws IOException {
         int positions = randomIntBetween(1, 100);
         long batchId = randomLong();
         int pageIndexInBatch = randomIntBetween(0, 50);
@@ -363,18 +364,18 @@ public class BasicPageTests extends SerializationTestCase {
             blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
             blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock()
         );
-        BatchPage origPage = new BatchPage(basePage, batchId, pageIndexInBatch, isLastPage);
+        Page origPage = basePage.withBatchMetadata(new BatchMetadata(batchId, pageIndexInBatch, isLastPage));
         basePage.releaseBlocks();
         try {
             Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
             try {
-                assertThat(deserPage, is(instanceOf(BatchPage.class)));
-                BatchPage deserBatchPage = (BatchPage) deserPage;
-                assertThat(deserBatchPage.batchId(), is(batchId));
-                assertThat(deserBatchPage.pageIndexInBatch(), is(pageIndexInBatch));
-                assertThat(deserBatchPage.isLastPageInBatch(), is(isLastPage));
-                assertThat(deserBatchPage.getPositionCount(), is(origPage.getPositionCount()));
-                assertThat(deserBatchPage.getBlockCount(), is(origPage.getBlockCount()));
+                assertThat(deserPage.batchMetadata(), is(notNullValue()));
+                BatchMetadata metadata = deserPage.batchMetadata();
+                assertThat(metadata.batchId(), is(batchId));
+                assertThat(metadata.pageIndexInBatch(), is(pageIndexInBatch));
+                assertThat(metadata.isLastPageInBatch(), is(isLastPage));
+                assertThat(deserPage.getPositionCount(), is(origPage.getPositionCount()));
+                assertThat(deserPage.getBlockCount(), is(origPage.getBlockCount()));
             } finally {
                 deserPage.releaseBlocks();
             }
@@ -383,22 +384,22 @@ public class BasicPageTests extends SerializationTestCase {
         }
     }
 
-    public void testBatchPageMarkerSerialization() throws IOException {
+    public void testBatchMarkerPageSerialization() throws IOException {
         long batchId = randomLong();
         int pageIndexInBatch = randomIntBetween(0, 50);
 
-        BatchPage origPage = BatchPage.createMarker(batchId, pageIndexInBatch);
+        Page origPage = Page.createBatchMarkerPage(batchId, pageIndexInBatch);
         try {
             Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
             try {
-                assertThat(deserPage, is(instanceOf(BatchPage.class)));
-                BatchPage deserBatchPage = (BatchPage) deserPage;
-                assertThat(deserBatchPage.batchId(), is(batchId));
-                assertThat(deserBatchPage.pageIndexInBatch(), is(pageIndexInBatch));
-                assertThat(deserBatchPage.isLastPageInBatch(), is(true));
-                assertThat(deserBatchPage.isBatchMarkerOnly(), is(true));
-                assertThat(deserBatchPage.getPositionCount(), is(0));
-                assertThat(deserBatchPage.getBlockCount(), is(0));
+                assertThat(deserPage.batchMetadata(), is(notNullValue()));
+                BatchMetadata metadata = deserPage.batchMetadata();
+                assertThat(metadata.batchId(), is(batchId));
+                assertThat(metadata.pageIndexInBatch(), is(pageIndexInBatch));
+                assertThat(metadata.isLastPageInBatch(), is(true));
+                assertThat(deserPage.isBatchMarkerOnly(), is(true));
+                assertThat(deserPage.getPositionCount(), is(0));
+                assertThat(deserPage.getBlockCount(), is(0));
             } finally {
                 deserPage.releaseBlocks();
             }
@@ -417,7 +418,7 @@ public class BasicPageTests extends SerializationTestCase {
             Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
             try {
                 assertThat(deserPage, is(instanceOf(Page.class)));
-                assertThat(deserPage instanceof BatchPage, is(false));
+                assertThat(deserPage.batchMetadata(), is(nullValue()));
                 assertThat(deserPage.getPositionCount(), is(origPage.getPositionCount()));
                 assertThat(deserPage.getBlockCount(), is(origPage.getBlockCount()));
             } finally {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -569,17 +570,17 @@ public class BatchDriverTests extends ESTestCase {
 
                         if (batchPages.isEmpty()) {
                             // Empty batch - send marker page
-                            BatchPage marker = BatchPage.createMarker(batchId, 0);
+                            Page marker = Page.createBatchMarkerPage(batchId, 0);
                             waitForExchangeSink(exchange.exchangeSink);
                             exchange.exchangeSink.addPage(marker);
                         } else {
                             for (int pageIdx = 0; pageIdx < batchPages.size(); pageIdx++) {
                                 Page page = batchPages.get(pageIdx);
                                 boolean isLastPageInBatch = (pageIdx == batchPages.size() - 1);
-                                BatchPage batchPage = new BatchPage(page, batchId, pageIdx, isLastPageInBatch);
+                                Page pageWithMetadata = page.withBatchMetadata(new BatchMetadata(batchId, pageIdx, isLastPageInBatch));
 
                                 waitForExchangeSink(exchange.exchangeSink);
-                                exchange.exchangeSink.addPage(batchPage);
+                                exchange.exchangeSink.addPage(pageWithMetadata);
                                 logger.debug(
                                     "[TEST] feedAllBatches: Added page {}/{} for batch {} (isLastPageInBatch={})",
                                     pageIdx + 1,
@@ -721,17 +722,17 @@ public class BatchDriverTests extends ESTestCase {
 
                 if (batchPages.isEmpty()) {
                     // Empty batch - send marker page
-                    BatchPage marker = BatchPage.createMarker(batchId, 0);
+                    Page marker = Page.createBatchMarkerPage(batchId, 0);
                     waitForExchangeSink(exchangeSink);
                     exchangeSink.addPage(marker);
                 } else {
                     for (int pageIdx = 0; pageIdx < batchPages.size(); pageIdx++) {
                         Page page = batchPages.get(pageIdx);
                         boolean isLastPageInBatch = (pageIdx == batchPages.size() - 1);
-                        BatchPage batchPage = new BatchPage(page, batchId, pageIdx, isLastPageInBatch);
+                        Page pageWithMetadata = page.withBatchMetadata(new BatchMetadata(batchId, pageIdx, isLastPageInBatch));
 
                         waitForExchangeSink(exchangeSink);
-                        exchangeSink.addPage(batchPage);
+                        exchangeSink.addPage(pageWithMetadata);
                         logger.debug(
                             "[TEST] feedBatch: Added page {}/{} for batch {} (isLastPageInBatch={})",
                             pageIdx + 1,
@@ -1034,18 +1035,18 @@ public class BatchDriverTests extends ESTestCase {
                     for (int pageIdx = 0; pageIdx < batch0Pages.size(); pageIdx++) {
                         Page page = batch0Pages.get(pageIdx);
                         boolean isLastPageInBatch = (pageIdx == batch0Pages.size() - 1);
-                        BatchPage batchPage = new BatchPage(page, 0, pageIdx, isLastPageInBatch);
+                        Page pageWithMetadata = page.withBatchMetadata(new BatchMetadata(0, pageIdx, isLastPageInBatch));
                         waitForExchangeSink(exchange.exchangeSink);
-                        exchange.exchangeSink.addPage(batchPage);
+                        exchange.exchangeSink.addPage(pageWithMetadata);
                     }
 
                     // Send batch 1 pages but NOT the last page (so batch 1 is still processing)
                     List<Page> batch1Pages = batches.get(1);
                     for (int pageIdx = 0; pageIdx < batch1Pages.size() - 1; pageIdx++) {
                         Page page = batch1Pages.get(pageIdx);
-                        BatchPage batchPage = new BatchPage(page, 1, pageIdx, false); // Not last page
+                        Page pageWithMetadata = page.withBatchMetadata(new BatchMetadata(1, pageIdx, false)); // Not last page
                         waitForExchangeSink(exchange.exchangeSink);
-                        exchange.exchangeSink.addPage(batchPage);
+                        exchange.exchangeSink.addPage(pageWithMetadata);
                     }
 
                     // Now send a page for batch 2 while batch 1 is still processing (not ended)
@@ -1053,12 +1054,12 @@ public class BatchDriverTests extends ESTestCase {
                     List<Page> batch2Pages = batches.get(2);
                     if (batch2Pages.isEmpty() == false) {
                         Page page = batch2Pages.get(0);
-                        BatchPage batchPage = new BatchPage(page, 2, 0, false);
+                        Page pageWithMetadata = page.withBatchMetadata(new BatchMetadata(2, 0, false));
                         waitForExchangeSink(exchange.exchangeSink);
-                        exchange.exchangeSink.addPage(batchPage);
+                        exchange.exchangeSink.addPage(pageWithMetadata);
                     } else {
                         // If batch 2 is empty, send a marker
-                        BatchPage marker = BatchPage.createMarker(2, 0);
+                        Page marker = Page.createBatchMarkerPage(2, 0);
                         waitForExchangeSink(exchange.exchangeSink);
                         exchange.exchangeSink.addPage(marker);
                     }
@@ -1245,7 +1246,7 @@ public class BatchDriverTests extends ESTestCase {
     private record TestData(List<List<Page>> batches, List<List<Page>> expectedOutputBatches) {}
 
     /**
-     * A sink operator wrapper that filters out BatchPage markers (empty batch signals).
+     * A sink operator wrapper that filters out batch marker pages (empty batch signals).
      * This is needed because TestResultPageSinkOperator cannot handle pages with 0 blocks,
      * but PageToBatchPageOperator.flushBatch() sends marker pages for empty batches.
      * Also triggers onBatchEnd callback when a batch ends (detected via isLastPageInBatch).
@@ -1266,13 +1267,15 @@ public class BatchDriverTests extends ESTestCase {
 
         @Override
         protected void doAddInput(Page page) {
+            BatchMetadata metadata = page.batchMetadata();
+
             // Detect batch end and trigger callback (before filtering)
-            if (page instanceof BatchPage batchPage && batchPage.isLastPageInBatch()) {
+            if (metadata != null && metadata.isLastPageInBatch()) {
                 onBatchEnd.run();
             }
 
-            // Filter out marker pages (BatchPages with isBatchMarkerOnly=true)
-            if (page instanceof BatchPage batchPage && batchPage.isBatchMarkerOnly()) {
+            // Filter out marker pages (pages with isBatchMarkerOnly=true)
+            if (page.isBatchMarkerOnly()) {
                 // Just release the marker page, don't pass to delegate
                 page.releaseBlocks();
                 return;

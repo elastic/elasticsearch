@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -296,8 +295,8 @@ public class Driver implements Releasable, Describable {
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
-                } else if (page.getPositionCount() == 0 && (page instanceof BatchPage) == false) {
-                    // Empty result, release any memory it holds immediately and move to the next iteration
+                } else if (page.getPositionCount() == 0 && page.batchMetadata() == null) {
+                    // Empty result (not a batch marker), release any memory it holds immediately and move to the next iteration
                     page.releaseBlocks();
                 } else {
                     // Non-empty result from the previous operation, move it to the next operation

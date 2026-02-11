@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.iceberg;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.lang.reflect.Method;
-
 /**
  * Unit tests for IcebergCatalogAdapter.
  * Tests the version number extraction logic used for finding metadata files.
@@ -118,13 +116,7 @@ public class IcebergCatalogAdapterTests extends ESTestCase {
         assertEquals(expectedSourceType, metadata.sourceType());
     }
 
-    /**
-     * Helper to invoke the private extractVersionNumber method via reflection.
-     * This allows testing the version extraction logic without requiring S3 connectivity.
-     */
-    private int invokeExtractVersionNumber(String path) throws Exception {
-        Method method = IcebergCatalogAdapter.class.getDeclaredMethod("extractVersionNumber", String.class);
-        method.setAccessible(true);
-        return (int) method.invoke(null, path);
+    private int invokeExtractVersionNumber(String path) {
+        return IcebergCatalogAdapter.extractVersionNumber(path);
     }
 }

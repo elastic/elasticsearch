@@ -150,10 +150,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
-        FileSet result = GlobExpander.expandGlob(
-            "file://" + root.toAbsolutePath() + "/**/*.parquet",
-            new TestLocalStorageProvider()
-        );
+        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**/*.parquet", new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -167,10 +164,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet") || p.endsWith(".csv")).count();
 
-        FileSet result = GlobExpander.expandGlob(
-            "file://" + root.toAbsolutePath() + "/**/*.{parquet,csv}",
-            new TestLocalStorageProvider()
-        );
+        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**/*.{parquet,csv}", new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {

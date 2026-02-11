@@ -529,11 +529,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             formatReader,
             StoragePath.of("s3://bucket/a.parquet"),
             List.of(
-                new FieldAttribute(
-                    Source.EMPTY,
-                    "x",
-                    new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-                )
+                new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
             ),
             100,
             10,
@@ -801,9 +797,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             Executor executor,
             ActionListener<CloseableIterator<Page>> listener
         ) {
-            executor.execute(() -> {
-                listener.onResponse(emptyIterator());
-            });
+            executor.execute(() -> { listener.onResponse(emptyIterator()); });
         }
 
         @Override

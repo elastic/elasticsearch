@@ -135,11 +135,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return new AsyncExternalSourceOperator(buffer);
     }
 
-    private void startMultiFileRead(
-        List<String> projectedColumns,
-        AsyncExternalSourceBuffer buffer,
-        DriverContext driverContext
-    ) {
+    private void startMultiFileRead(List<String> projectedColumns, AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         executor.execute(() -> {
             try {
                 for (StorageEntry entry : fileSet.files()) {

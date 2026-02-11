@@ -124,7 +124,7 @@ public class IcebergCatalogAdapter {
      * @param path the full path to the metadata file
      * @return the version number, or 0 if it cannot be parsed
      */
-    private static int extractVersionNumber(String path) {
+    static int extractVersionNumber(String path) {
         try {
             // Get filename from path
             int lastSlash = path.lastIndexOf('/');

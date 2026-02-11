@@ -130,7 +130,7 @@ public class IcebergTableCatalog implements TableCatalog {
 
         @Override
         public String format() {
-            return task.file().format().name().toLowerCase();
+            return task.file().format().name().toLowerCase(java.util.Locale.ROOT);
         }
 
         @Override

@@ -91,10 +91,7 @@ public class GlobExpanderTests extends ESTestCase {
     // -- expandCommaSeparated --
 
     public void testExpandCommaSeparatedMixedGlobAndLiteral() throws IOException {
-        List<StorageEntry> listing = List.of(
-            entry("s3://bucket/data/a.parquet", 100),
-            entry("s3://bucket/data/b.parquet", 200)
-        );
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
         StubProvider provider = new StubProvider(listing);
         provider.existingPaths.add("s3://bucket/extra.parquet");
 

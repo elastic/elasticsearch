@@ -188,7 +188,7 @@ public class IcebergPushdownFiltersTests extends ESTestCase {
         assertTrue("Expected field 'value' in: " + resultStr, resultStr.contains("value"));
         assertTrue("Expected value '10' in: " + resultStr, resultStr.contains("10"));
         assertTrue("Expected value '20' in: " + resultStr, resultStr.contains("20"));
-        assertTrue("Expected 'and' operator in: " + resultStr, resultStr.toLowerCase().contains("and"));
+        assertTrue("Expected 'and' operator in: " + resultStr, resultStr.toLowerCase(java.util.Locale.ROOT).contains("and"));
     }
 
     public void testRangeExclusiveBoth() {
@@ -204,7 +204,7 @@ public class IcebergPushdownFiltersTests extends ESTestCase {
         assertTrue("Expected field 'value' in: " + resultStr, resultStr.contains("value"));
         assertTrue("Expected value '10' in: " + resultStr, resultStr.contains("10"));
         assertTrue("Expected value '20' in: " + resultStr, resultStr.contains("20"));
-        assertTrue("Expected 'and' operator in: " + resultStr, resultStr.toLowerCase().contains("and"));
+        assertTrue("Expected 'and' operator in: " + resultStr, resultStr.toLowerCase(java.util.Locale.ROOT).contains("and"));
     }
 
     public void testAndExpression() {
@@ -225,7 +225,7 @@ public class IcebergPushdownFiltersTests extends ESTestCase {
         assertTrue("Expected value 'approved' in: " + resultStr, resultStr.contains("approved"));
         assertTrue("Expected field 'active' in: " + resultStr, resultStr.contains("active"));
         assertTrue("Expected value 'true' in: " + resultStr, resultStr.contains("true"));
-        assertTrue("Expected 'and' operator in: " + resultStr, resultStr.toLowerCase().contains("and"));
+        assertTrue("Expected 'and' operator in: " + resultStr, resultStr.toLowerCase(java.util.Locale.ROOT).contains("and"));
     }
 
     public void testOrExpression() {
@@ -244,7 +244,7 @@ public class IcebergPushdownFiltersTests extends ESTestCase {
         assertTrue("Expected field 'category' in: " + resultStr, resultStr.contains("category"));
         assertTrue("Expected value 'A' in: " + resultStr, resultStr.contains("A"));
         assertTrue("Expected value 'B' in: " + resultStr, resultStr.contains("B"));
-        assertTrue("Expected 'or' operator in: " + resultStr, resultStr.toLowerCase().contains("or"));
+        assertTrue("Expected 'or' operator in: " + resultStr, resultStr.toLowerCase(java.util.Locale.ROOT).contains("or"));
     }
 
     public void testNotExpression() {
@@ -258,7 +258,7 @@ public class IcebergPushdownFiltersTests extends ESTestCase {
 
         assertNotNull(result);
         String resultStr = result.toString();
-        assertTrue("Expected 'not' operator in: " + resultStr, resultStr.toLowerCase().contains("not"));
+        assertTrue("Expected 'not' operator in: " + resultStr, resultStr.toLowerCase(java.util.Locale.ROOT).contains("not"));
         assertTrue("Expected field 'status' in: " + resultStr, resultStr.contains("status"));
         assertTrue("Expected value 'inactive' in: " + resultStr, resultStr.contains("inactive"));
     }

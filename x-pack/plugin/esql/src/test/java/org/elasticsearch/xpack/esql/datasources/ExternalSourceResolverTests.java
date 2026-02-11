@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +17,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -28,10 +31,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
-
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 
 import java.io.InputStream;
 import java.time.Instant;
@@ -143,10 +142,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         schemasByPath.put("s3://bucket/data/a.parquet", schema);
         schemasByPath.put("s3://bucket/data/b.parquet", schema);
 
-        List<StorageEntry> entries = List.of(
-            entry("s3://bucket/data/a.parquet", 100),
-            entry("s3://bucket/data/b.parquet", 200)
-        );
+        List<StorageEntry> entries = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
 
         ExternalSourceResolution resolution = resolveMultiFile("s3://bucket/data/*.parquet", schemasByPath, entries);
 
@@ -179,10 +175,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testGlobNoMatchThrows() {
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
 
-        Exception e = expectThrows(
-            RuntimeException.class,
-            () -> resolveMultiFile("s3://bucket/data/*.parquet", schemasByPath, List.of())
-        );
+        Exception e = expectThrows(RuntimeException.class, () -> resolveMultiFile("s3://bucket/data/*.parquet", schemasByPath, List.of()));
         assertTrue(e.getMessage().contains("Glob pattern matched no files"));
     }
 
@@ -398,12 +391,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        DataSourceModule module = new DataSourceModule(
-            List.of(plugin),
-            Settings.EMPTY,
-            blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        DataSourceModule module = new DataSourceModule(List.of(plugin), Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
     }

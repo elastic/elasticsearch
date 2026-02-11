@@ -77,7 +77,19 @@ public record SourceOperatorContext(
         Map<String, Object> sourceMetadata,
         Object pushedFilter
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter, null);
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            null
+        );
     }
 
     public SourceOperatorContext(

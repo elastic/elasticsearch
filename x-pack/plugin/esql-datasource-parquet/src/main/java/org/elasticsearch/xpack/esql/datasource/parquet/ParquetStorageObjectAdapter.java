@@ -189,7 +189,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         @Override
         public int read(java.nio.ByteBuffer buf) throws IOException {
-            if (!buf.hasRemaining()) {
+            if (buf.hasRemaining() == false) {
                 return 0;
             }
 

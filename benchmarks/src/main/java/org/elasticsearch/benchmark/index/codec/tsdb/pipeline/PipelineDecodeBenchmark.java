@@ -11,19 +11,11 @@ package org.elasticsearch.benchmark.index.codec.tsdb.pipeline;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodec;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-/**
- * Decoding benchmark for pipeline doc values.
- *
- * <p>Measures the performance of {@link PipelineDocValuesEncoder#decode},
- * which decompresses a byte buffer back into a block of long values.
- *
- * <p>Supports batching multiple blocks per invocation to reduce JMH harness overhead.
- */
 public final class PipelineDecodeBenchmark extends AbstractPipelineBenchmark {
 
     private ByteArrayDataInput[] dataInputs;
@@ -32,16 +24,10 @@ public final class PipelineDecodeBenchmark extends AbstractPipelineBenchmark {
     private int encodedSize;
 
     private int blocksPerInvocation;
-
-    /**
-     * Checksum of decoded values for the last benchmark invocation.
-     * Accumulates a value from each decoded block to create a data dependency on all iterations,
-     * preventing the JIT from optimizing away any decode operations.
-     */
     private long lastDecodedChecksum;
 
-    public PipelineDecodeBenchmark(NumericCodec codec) {
-        super(codec);
+    public PipelineDecodeBenchmark(PipelineConfig config) {
+        super(config);
     }
 
     public PipelineDecodeBenchmark() {

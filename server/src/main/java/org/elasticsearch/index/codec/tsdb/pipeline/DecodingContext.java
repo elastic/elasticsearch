@@ -15,15 +15,15 @@ import java.io.IOException;
 
 public final class DecodingContext implements MetadataReader {
 
-    private final byte[] stageIds;
+    private final int pipelineLength;
     private final int blockSize;
 
     private DataInput dataInput;
     private short positionBitmap;
 
-    public DecodingContext(int blockSize, final byte[] stageIds) {
+    public DecodingContext(int blockSize, int pipelineLength) {
         this.blockSize = blockSize;
-        this.stageIds = stageIds;
+        this.pipelineLength = pipelineLength;
     }
 
     public void setDataInput(final DataInput dataInput) {
@@ -31,7 +31,7 @@ public final class DecodingContext implements MetadataReader {
     }
 
     public int pipelineLength() {
-        return stageIds.length;
+        return pipelineLength;
     }
 
     public void setPositionBitmap(short bitmap) {
@@ -68,6 +68,11 @@ public final class DecodingContext implements MetadataReader {
     @Override
     public long readZLong() throws IOException {
         return dataInput.readZLong();
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        return dataInput.readLong();
     }
 
     @Override

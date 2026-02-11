@@ -9,8 +9,8 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public abstract class AbstractTSDBCodecBenchmark {
      * Creates a new benchmark instance with the standard TSDB block size.
      */
     public AbstractTSDBCodecBenchmark() {
-        this.blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+        this.blockSize = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
         this.encoder = new TSDBDocValuesEncoder(blockSize);
     }
 

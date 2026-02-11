@@ -11,6 +11,9 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -21,7 +24,6 @@ public class PipelineDescriptorTests extends ESTestCase {
         final int length = randomIntBetween(1, PipelineDescriptor.MAX_PIPELINE_LENGTH);
         final byte[] stageIds = randomStageIds(length);
         final int blockSize = randomBlockSize();
-
         final PipelineDescriptor descriptor = new PipelineDescriptor(stageIds, blockSize);
 
         assertEquals(length, descriptor.pipelineLength());
@@ -43,25 +45,19 @@ public class PipelineDescriptorTests extends ESTestCase {
     public void testDefensiveCopyOnConstruction() {
         final byte[] stageIds = { StageId.DELTA.id, StageId.BIT_PACK.id };
         final PipelineDescriptor descriptor = new PipelineDescriptor(stageIds, randomBlockSize());
-
         stageIds[0] = StageId.OFFSET.id;
-
         assertEquals(StageId.DELTA.id, descriptor.stageIdAt(0));
     }
 
     public void testDefensiveCopyOnAccess() {
         final byte[] original = { StageId.DELTA.id, StageId.BIT_PACK.id };
         final PipelineDescriptor descriptor = new PipelineDescriptor(original, randomBlockSize());
-
-        final byte[] returned = descriptor.stageIds();
-        returned[0] = StageId.OFFSET.id;
-
+        descriptor.stageIds()[0] = StageId.OFFSET.id;
         assertEquals(StageId.DELTA.id, descriptor.stageIdAt(0));
     }
 
     public void testInvalidConstructionThrows() {
         final int validBlockSize = randomBlockSize();
-
         expectThrows(IllegalArgumentException.class, () -> new PipelineDescriptor(null, validBlockSize));
         expectThrows(IllegalArgumentException.class, () -> new PipelineDescriptor(new byte[0], validBlockSize));
         expectThrows(
@@ -76,17 +72,16 @@ public class PipelineDescriptorTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        final int length = randomIntBetween(1, PipelineDescriptor.MAX_PIPELINE_LENGTH);
-        final byte[] stageIds = randomStageIds(length);
-        final int blockSize = randomBlockSize();
-        final PipelineDescriptor original = new PipelineDescriptor(stageIds, blockSize);
+        final PipelineDescriptor original = new PipelineDescriptor(
+            randomStageIds(randomIntBetween(1, PipelineDescriptor.MAX_PIPELINE_LENGTH)),
+            randomBlockSize()
+        );
 
         final byte[] buffer = new byte[128];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
         original.writeTo(out);
 
-        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
-        final PipelineDescriptor restored = PipelineDescriptor.readFrom(in);
+        final PipelineDescriptor restored = PipelineDescriptor.readFrom(new ByteArrayDataInput(buffer, 0, out.getPosition()));
 
         assertEquals(original, restored);
         assertEquals(original.pipelineLength(), restored.pipelineLength());
@@ -116,8 +111,7 @@ public class PipelineDescriptorTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         final byte[] stageIds = randomStageIds(randomIntBetween(1, 5));
-        final int blockSize = 128;
-
+        final int blockSize = randomBlockSize();
         final PipelineDescriptor d1 = new PipelineDescriptor(stageIds, blockSize);
         final PipelineDescriptor d2 = new PipelineDescriptor(stageIds.clone(), blockSize);
 
@@ -127,8 +121,206 @@ public class PipelineDescriptorTests extends ESTestCase {
         final byte[] differentStages = randomStageIds(stageIds.length);
         differentStages[0] = stageIds[0] == StageId.DELTA.id ? StageId.OFFSET.id : StageId.DELTA.id;
         assertNotEquals(d1, new PipelineDescriptor(differentStages, blockSize));
+        assertNotEquals(d1, new PipelineDescriptor(stageIds, blockSize == 128 ? 256 : 128));
+    }
 
-        assertNotEquals(d1, new PipelineDescriptor(stageIds, 256));
+    public void testDefaultConstructorProducesLongDataType() {
+        assertEquals(
+            PipelineDescriptor.DataType.LONG,
+            new PipelineDescriptor(new byte[] { StageId.DELTA.id, StageId.BIT_PACK.id }, randomBlockSize()).dataType()
+        );
+    }
+
+    public void testDataTypeRoundTrip() throws IOException {
+        for (PipelineDescriptor.DataType dataType : PipelineDescriptor.DataType.values()) {
+            final PipelineDescriptor original = new PipelineDescriptor(
+                new byte[] { StageId.DELTA.id, StageId.OFFSET.id, StageId.BIT_PACK.id },
+                randomBlockSize(),
+                dataType
+            );
+
+            final byte[] buffer = new byte[128];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+            original.writeTo(out);
+
+            final PipelineDescriptor restored = PipelineDescriptor.readFrom(new ByteArrayDataInput(buffer, 0, out.getPosition()));
+            assertEquals(original, restored);
+            assertEquals(dataType, restored.dataType());
+        }
+    }
+
+    public void testDifferentDataTypeNotEqual() {
+        final byte[] stageIds = { StageId.DELTA.id, StageId.BIT_PACK.id };
+        final int blockSize = randomBlockSize();
+        final PipelineDescriptor longDesc = new PipelineDescriptor(stageIds, blockSize, PipelineDescriptor.DataType.LONG);
+        final PipelineDescriptor doubleDesc = new PipelineDescriptor(stageIds.clone(), blockSize, PipelineDescriptor.DataType.DOUBLE);
+
+        assertNotEquals(longDesc, doubleDesc);
+        assertNotEquals(longDesc.hashCode(), doubleDesc.hashCode());
+    }
+
+    public void testFromDescriptorRoundTripVariousPipelines() throws IOException {
+        final int blockSize = randomBlockSize();
+        final PipelineConfig[] configs = {
+            PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack(),
+            PipelineConfig.forLongs(blockSize).delta().bitPack(),
+            PipelineConfig.forLongs(blockSize).rle().bitPack(),
+            PipelineConfig.forLongs(blockSize).offset().gcd().bitPack(),
+            PipelineConfig.forLongs(blockSize).xor().bitPack(),
+            PipelineConfig.forLongs(blockSize).patchedPFor().bitPack(),
+            PipelineConfig.forDoubles(blockSize).alpDoubleStage().alpDouble(),
+            PipelineConfig.forDoubles(blockSize).alpRdDoubleStage().alpRdDouble(),
+            PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack(),
+            PipelineConfig.forDoubles(blockSize).alpRdDoubleStage().offset().gcd().bitPack(),
+            PipelineConfig.forFloats(blockSize).alpFloatStage().alpFloat(),
+            PipelineConfig.forFloats(blockSize).alpRdFloatStage().alpRdFloat(),
+            PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack(),
+            PipelineConfig.forFloats(blockSize).alpRdFloatStage().offset().gcd().bitPack() };
+
+        for (PipelineConfig config : configs) {
+            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
+                final PipelineDescriptor originalDesc = encoder.descriptor();
+
+                final long[] original = generateTestData(config, blockSize);
+                final byte[] buffer = new byte[blockSize * Long.BYTES + 4096];
+                final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+                encoder.newBlockEncoder().encode(original.clone(), original.length, out);
+
+                try (NumericDecoder decoder = NumericDecoder.fromDescriptor(originalDesc)) {
+                    final long[] decoded = new long[blockSize];
+                    decoder.newBlockDecoder().decode(decoded, new ByteArrayDataInput(buffer, 0, out.getPosition()));
+                    assertArrayEquals("Data round-trip failed for config: " + config, original, decoded);
+                }
+
+                try (NumericEncoder reconstructed = NumericEncoder.fromConfig(config)) {
+                    assertEquals("Descriptor round-trip failed for config: " + config, originalDesc, reconstructed.descriptor());
+                }
+            }
+        }
+    }
+
+    public void testDoublePipelinesProduceDoubleDataType() throws IOException {
+        final int blockSize = randomBlockSize();
+        final PipelineConfig[] configs = {
+            PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack(),
+            PipelineConfig.forDoubles(blockSize).alpDoubleStage().gcd().bitPack(),
+            PipelineConfig.forDoubles(blockSize).alpRdDoubleStage().offset().gcd().bitPack(),
+            PipelineConfig.forDoubles(blockSize).alpRdDoubleStage().gcd().bitPack() };
+        for (PipelineConfig config : configs) {
+            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
+                assertEquals(
+                    "Config " + config + " should produce DOUBLE DataType",
+                    PipelineDescriptor.DataType.DOUBLE,
+                    encoder.descriptor().dataType()
+                );
+            }
+        }
+    }
+
+    public void testLongPipelinesProduceLongDataType() throws IOException {
+        final int blockSize = randomBlockSize();
+        final PipelineConfig[] configs = {
+            PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack(),
+            PipelineConfig.forLongs(blockSize).delta().bitPack(),
+            PipelineConfig.forLongs(blockSize).offset().gcd().bitPack(),
+            PipelineConfig.forLongs(blockSize).rle().bitPack(),
+            PipelineConfig.forLongs(blockSize).xor().bitPack() };
+        for (PipelineConfig config : configs) {
+            try (NumericEncoder encoder = NumericEncoder.fromConfig(config)) {
+                assertEquals(
+                    "Config " + config + " should produce LONG DataType",
+                    PipelineDescriptor.DataType.LONG,
+                    encoder.descriptor().dataType()
+                );
+            }
+        }
+    }
+
+    public void testFromDescriptorUnknownStageIdThrows() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumericDecoder.fromDescriptor(new PipelineDescriptor(new byte[] { (byte) 0xFF, StageId.BIT_PACK.id }, randomBlockSize()))
+        );
+    }
+
+    public void testDataTypeFromIdUnknownThrows() {
+        expectThrows(IllegalArgumentException.class, () -> PipelineDescriptor.DataType.fromId((byte) 0x99));
+    }
+
+    public void testFloatDataTypeRoundTrip() throws IOException {
+        for (PipelineDescriptor.DataType dataType : PipelineDescriptor.DataType.values()) {
+            final PipelineDescriptor original = new PipelineDescriptor(
+                new byte[] { StageId.DELTA.id, StageId.OFFSET.id, StageId.BIT_PACK.id },
+                randomBlockSize(),
+                dataType
+            );
+
+            final byte[] buffer = new byte[128];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+            original.writeTo(out);
+
+            final PipelineDescriptor restored = PipelineDescriptor.readFrom(new ByteArrayDataInput(buffer, 0, out.getPosition()));
+            assertEquals(original, restored);
+            assertEquals(dataType, restored.dataType());
+        }
+    }
+
+    public void testFloatPipelinesProduceFloatDataType() {
+        final int blockSize = randomBlockSize();
+        final PipelineConfig[] configs = {
+            PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack(),
+            PipelineConfig.forFloats(blockSize).alpFloatStage().gcd().bitPack(),
+            PipelineConfig.forFloats(blockSize).alpRdFloatStage().offset().gcd().bitPack(),
+            PipelineConfig.forFloats(blockSize).alpRdFloatStage().gcd().bitPack() };
+        for (PipelineConfig config : configs) {
+            assertEquals("Config " + config + " should produce FLOAT DataType", PipelineConfig.DataType.FLOAT, config.dataType());
+        }
+    }
+
+    public void testFloatDoubleStageTypeMismatchThrows() {
+        final int blockSize = randomBlockSize();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumericEncoder.fromConfig(
+                new PipelineConfig(
+                    PipelineConfig.DataType.FLOAT,
+                    blockSize,
+                    java.util.List.of(new StageSpec.AlpDoubleStage(), new StageSpec.BitPack())
+                )
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumericEncoder.fromConfig(
+                new PipelineConfig(
+                    PipelineConfig.DataType.DOUBLE,
+                    blockSize,
+                    java.util.List.of(new StageSpec.AlpFloatStage(), new StageSpec.BitPack())
+                )
+            )
+        );
+    }
+
+    private long[] generateTestData(PipelineConfig config, int size) {
+        final long[] data = new long[size];
+        switch (config.dataType()) {
+            case LONG -> {
+                for (int i = 0; i < size; i++) {
+                    data[i] = randomLongBetween(0, 1_000_000L);
+                }
+            }
+            case DOUBLE -> {
+                for (int i = 0; i < size; i++) {
+                    data[i] = NumericUtils.doubleToSortableLong(randomDoubleBetween(1.0, 1000.0, true));
+                }
+            }
+            case FLOAT -> {
+                for (int i = 0; i < size; i++) {
+                    data[i] = NumericUtils.floatToSortableInt((float) randomDoubleBetween(1.0, 1000.0, true));
+                }
+            }
+        }
+        return data;
     }
 
     private byte[] randomStageIds(int length) {
@@ -141,6 +333,6 @@ public class PipelineDescriptorTests extends ESTestCase {
     }
 
     private int randomBlockSize() {
-        return 1 << randomIntBetween(4, 12);
+        return 1 << randomIntBetween(7, 10);
     }
 }

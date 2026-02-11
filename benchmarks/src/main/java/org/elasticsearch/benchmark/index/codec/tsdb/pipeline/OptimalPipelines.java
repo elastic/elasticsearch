@@ -9,17 +9,19 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb.pipeline;
 
-import org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodec;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 
+import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 public final class OptimalPipelines {
 
-    private static final int BLOCK_SIZE = ES94TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+    private static final int BLOCK_SIZE = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
-    private static final Map<String, Supplier<NumericCodec>> PIPELINES = Map.ofEntries(
+    private static final Map<String, Supplier<PipelineConfig>> LEGACY = Map.ofEntries(
         Map.entry("full", OptimalPipelines::full),
         Map.entry("allStages", OptimalPipelines::allStages),
         Map.entry("timestamp", OptimalPipelines::timestamp),
@@ -34,73 +36,118 @@ public final class OptimalPipelines {
         Map.entry("nonSorted", OptimalPipelines::nonSorted)
     );
 
+    private static final Map<String, IntFunction<PipelineConfig>> DOUBLE_SHORTLIST = Map.ofEntries(
+        // ALP payload stages (monolithic encode/decode)
+        Map.entry("alp_double", bs -> PipelineConfig.forDoubles(bs).alpDouble()),
+        Map.entry("alp_rd_double", bs -> PipelineConfig.forDoubles(bs).alpRdDouble()),
+        // ALP transform + bitpack pipelines
+        Map.entry("alp_double_stage-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().offset().gcd().bitPack()),
+        Map.entry(
+            "alp_rd_double_stage-offset-gcd-bitpack",
+            bs -> PipelineConfig.forDoubles(bs).alpRdDoubleStage().offset().gcd().bitPack()
+        ),
+        // Quantize pipelines
+        Map.entry(
+            "quantize-1e6-delta-offset-gcd-bitpack",
+            bs -> PipelineConfig.forDoubles(bs).quantizeDouble(1e-6).delta().offset().gcd().bitPack()
+        ),
+        Map.entry(
+            "alp_double_stage-1e6-offset-gcd-bitpack",
+            bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-6).offset().gcd().bitPack()
+        ),
+        // Baselines
+        Map.entry("gorilla", bs -> PipelineConfig.forDoubles(bs).gorilla()),
+        Map.entry("xor-bitpack", bs -> PipelineConfig.forDoubles(bs).xor().bitPack()),
+        Map.entry("offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).offset().gcd().bitPack()),
+        Map.entry("zstd", bs -> PipelineConfig.forDoubles(bs).zstd()),
+        // Integer-path (raw long bits)
+        Map.entry("delta-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).delta().offset().gcd().bitPack()),
+        Map.entry("delta-offset-gcd-zstd", bs -> PipelineConfig.forDoubles(bs).delta().offset().gcd().zstd()),
+        // ALP + zstd
+        Map.entry("alp_double_stage-offset-gcd-zstd", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().offset().gcd().zstd()),
+        Map.entry("alp_double_stage-1e6-zstd", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-6).zstd()),
+        // FPC pipelines
+        Map.entry("fpc-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).fpcStage().offset().gcd().bitPack()),
+        Map.entry("fpc-bitpack", bs -> PipelineConfig.forDoubles(bs).fpcStage().bitPack()),
+        Map.entry("fpc-zstd", bs -> PipelineConfig.forDoubles(bs).fpcStage().zstd()),
+        Map.entry("fpc-offset-gcd-zstd", bs -> PipelineConfig.forDoubles(bs).fpcStage().offset().gcd().zstd()),
+        Map.entry(
+            "quantize-1e6-fpc-offset-gcd-bitpack",
+            bs -> PipelineConfig.forDoubles(bs).quantizeDouble(1e-6).fpcStage().offset().gcd().bitPack()
+        )
+    );
+
+    private static final Map<String, IntFunction<PipelineConfig>> ALL;
+    static {
+        var combined = new java.util.HashMap<String, IntFunction<PipelineConfig>>();
+        LEGACY.forEach((name, supplier) -> combined.put(name, bs -> supplier.get()));
+        DOUBLE_SHORTLIST.forEach(combined::putIfAbsent);
+        ALL = Map.copyOf(combined);
+    }
+
     private OptimalPipelines() {}
 
-    public static NumericCodec byName(final String name) {
-        final Supplier<NumericCodec> supplier = PIPELINES.get(name);
-        if (supplier == null) {
-            throw new IllegalArgumentException("Unknown pipeline: " + name);
+    public static PipelineConfig byName(final String name, int blockSize) {
+        final IntFunction<PipelineConfig> factory = ALL.get(name);
+        if (factory == null) {
+            throw new IllegalArgumentException("Unknown pipeline: " + name + ". Available: " + ALL.keySet());
         }
-        return supplier.get();
+        return factory.apply(blockSize);
     }
 
-    // delta->offset->gcd->bit-pack (ES87-compatible)
-    public static NumericCodec full() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).delta().offset().gcd().bitPack().build();
+    public static PipelineConfig byName(final String name) {
+        return byName(name, BLOCK_SIZE);
     }
 
-    // delta->offset->bit-pack
-    public static NumericCodec timestamp() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).delta().offset().bitPack().build();
+    public static List<String> shortlistDoubleNames() {
+        return List.copyOf(DOUBLE_SHORTLIST.keySet());
     }
 
-    // delta->offset->bit-pack
-    public static NumericCodec increasing() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).delta().offset().bitPack().build();
+    public static PipelineConfig full() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().gcd().bitPack();
     }
 
-    // delta->offset->bit-pack
-    public static NumericCodec decreasing() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).delta().offset().bitPack().build();
+    public static PipelineConfig timestamp() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().bitPack();
     }
 
-    // offset->gcd->bit-pack
-    public static NumericCodec gcdFriendly() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).offset().gcd().bitPack().build();
+    public static PipelineConfig increasing() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().bitPack();
     }
 
-    // offset->bit-pack
-    public static NumericCodec gaugeLike() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).offset().bitPack().build();
+    public static PipelineConfig decreasing() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().bitPack();
     }
 
-    // offset->bit-pack
-    public static NumericCodec constant() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).offset().bitPack().build();
+    public static PipelineConfig gcdFriendly() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).offset().gcd().bitPack();
     }
 
-    // offset->bit-pack
-    public static NumericCodec lowCardinality() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).offset().bitPack().build();
+    public static PipelineConfig gaugeLike() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).offset().bitPack();
     }
 
-    // offset->bit-pack
-    public static NumericCodec nearConstant() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).offset().bitPack().build();
+    public static PipelineConfig constant() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).offset().bitPack();
     }
 
-    // delta->offset->bit-pack
-    public static NumericCodec counterWithResets() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).delta().offset().bitPack().build();
+    public static PipelineConfig lowCardinality() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).offset().bitPack();
     }
 
-    // offset->bit-pack
-    public static NumericCodec nonSorted() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).offset().bitPack().build();
+    public static PipelineConfig nearConstant() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).offset().bitPack();
     }
 
-    // delta->offset->gcd->bit-pack
-    public static NumericCodec allStages() {
-        return NumericCodec.withBlockSize(BLOCK_SIZE).delta().offset().gcd().bitPack().build();
+    public static PipelineConfig counterWithResets() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().bitPack();
+    }
+
+    public static PipelineConfig nonSorted() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).offset().bitPack();
+    }
+
+    public static PipelineConfig allStages() {
+        return PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().gcd().bitPack();
     }
 }

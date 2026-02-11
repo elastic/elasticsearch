@@ -20,9 +20,7 @@ public class DecodingContextTests extends ESTestCase {
     }
 
     public void testSetPositionBitmap() {
-        final int blockSize = randomBlockSize();
-        final byte[] stageIds = { 0x01, 0x02, 0x03 };
-        final DecodingContext context = new DecodingContext(blockSize, stageIds);
+        final DecodingContext context = new DecodingContext(randomBlockSize(), 3);
 
         context.setPositionBitmap((short) 0b101);
         assertTrue(context.isStageApplied(0));
@@ -31,9 +29,7 @@ public class DecodingContextTests extends ESTestCase {
     }
 
     public void testClearResetsBitmap() {
-        final int blockSize = randomBlockSize();
-        final byte[] stageIds = { 0x01, 0x02 };
-        final DecodingContext context = new DecodingContext(blockSize, stageIds);
+        final DecodingContext context = new DecodingContext(randomBlockSize(), 2);
 
         final byte[] buffer = new byte[16];
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, buffer.length);
@@ -49,22 +45,17 @@ public class DecodingContextTests extends ESTestCase {
 
     public void testBlockSize() {
         final int blockSize = randomBlockSize();
-        final byte[] stageIds = { 0x01 };
-        final DecodingContext context = new DecodingContext(blockSize, stageIds);
+        final DecodingContext context = new DecodingContext(blockSize, 1);
         assertEquals(blockSize, context.blockSize());
     }
 
     public void testPipelineLength() {
-        final int blockSize = randomBlockSize();
-        final byte[] stageIds = { 0x01, 0x02, 0x03, 0x04, 0x05 };
-        final DecodingContext context = new DecodingContext(blockSize, stageIds);
+        final DecodingContext context = new DecodingContext(randomBlockSize(), 5);
         assertEquals(5, context.pipelineLength());
     }
 
     public void testMetadataReaderReadsFromDataInput() throws Exception {
-        final int blockSize = randomBlockSize();
-        final byte[] stageIds = { 0x01, 0x02 };
-        final DecodingContext context = new DecodingContext(blockSize, stageIds);
+        final DecodingContext context = new DecodingContext(randomBlockSize(), 2);
 
         final byte[] buffer = { 0x42, 0x7F };
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, buffer.length);
@@ -77,9 +68,7 @@ public class DecodingContextTests extends ESTestCase {
     }
 
     public void testSetDataInput() {
-        final int blockSize = randomBlockSize();
-        final byte[] stageIds = { 0x01 };
-        final DecodingContext context = new DecodingContext(blockSize, stageIds);
+        final DecodingContext context = new DecodingContext(randomBlockSize(), 1);
 
         final byte[] buffer = new byte[16];
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, buffer.length);

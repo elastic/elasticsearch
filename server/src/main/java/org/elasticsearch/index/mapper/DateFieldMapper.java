@@ -283,6 +283,7 @@ public final class DateFieldMapper extends FieldMapper {
             m -> toType(m).builderParams.onScriptError(),
             script
         );
+        private final Parameter<String> optimizeFor;
 
         private final Resolution resolution;
         private final IndexVersion indexCreatedVersion;
@@ -306,6 +307,22 @@ public final class DateFieldMapper extends FieldMapper {
                 m -> toType(m).ignoreMalformed,
                 FieldMapper.IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
+
+            this.optimizeFor = new Parameter<>(
+                "optimize_for",
+                true,
+                () -> null,
+                (n, c, o) -> o == null ? null : (String) o,
+                m -> toType(m).optimizeFor,
+                XContentBuilder::field,
+                Objects::toString
+            ).acceptsNull().addValidator(v -> {
+                if (v != null) {
+                    if ("storage".equals(v) == false && "speed".equals(v) == false && "balanced".equals(v) == false) {
+                        throw new IllegalArgumentException("[optimize_for] must be one of [storage, speed, balanced] but was [" + v + "]");
+                    }
+                }
+            });
 
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, index, docValues);
@@ -372,7 +389,8 @@ public final class DateFieldMapper extends FieldMapper {
                 ignoreMalformed,
                 script,
                 onScriptErrorParam,
-                meta };
+                meta,
+                optimizeFor };
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -428,7 +446,8 @@ public final class DateFieldMapper extends FieldMapper {
                 resolution,
                 nullValue.getValue(),
                 scriptValues(),
-                meta.getValue()
+                meta.getValue(),
+                optimizeFor.getValue()
             );
 
             Long nullTimestamp = parseNullValue(ft);
@@ -466,6 +485,29 @@ public final class DateFieldMapper extends FieldMapper {
         private final String nullValue;
         private final FieldValues<Long> scriptValues;
         private final boolean isSyntheticSource;
+        private final String optimizeFor;
+
+        public DateFieldType(
+            String name,
+            IndexType indexType,
+            boolean isStored,
+            boolean isSyntheticSource,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            FieldValues<Long> scriptValues,
+            Map<String, String> meta,
+            String optimizeFor
+        ) {
+            super(name, indexType, isStored, meta);
+            this.dateTimeFormatter = dateTimeFormatter;
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
+            this.resolution = resolution;
+            this.nullValue = nullValue;
+            this.scriptValues = scriptValues;
+            this.isSyntheticSource = isSyntheticSource;
+            this.optimizeFor = optimizeFor;
+        }
 
         public DateFieldType(
             String name,
@@ -478,13 +520,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, indexType, isStored, meta);
-            this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = dateTimeFormatter.toDateMathParser();
-            this.resolution = resolution;
-            this.nullValue = nullValue;
-            this.scriptValues = scriptValues;
-            this.isSyntheticSource = isSyntheticSource;
+            this(name, indexType, isStored, isSyntheticSource, dateTimeFormatter, resolution, nullValue, scriptValues, meta, null);
         }
 
         public DateFieldType(
@@ -497,7 +533,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            this(name, indexType, isStored, false, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
+            this(name, indexType, isStored, false, dateTimeFormatter, resolution, nullValue, scriptValues, meta, null);
         }
 
         public DateFieldType(String name) {
@@ -557,6 +593,10 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateMathParser dateMathParser() {
             return dateMathParser;
+        }
+
+        public String optimizeFor() {
+            return optimizeFor;
         }
 
         // Visible for testing.
@@ -1073,6 +1113,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final FieldValues<Long> scriptValues;
 
+    private final String optimizeFor;
     private final boolean isDataStreamTimestampField;
     private final IndexSettings indexSettings;
 
@@ -1099,6 +1140,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
+        this.optimizeFor = builder.optimizeFor.getValue();
         this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
     }

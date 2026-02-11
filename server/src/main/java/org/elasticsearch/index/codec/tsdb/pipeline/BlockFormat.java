@@ -11,7 +11,8 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder;
 
 import java.io.IOException;
 
@@ -30,7 +31,7 @@ import java.io.IOException;
 //
 // Each block contains:
 //   - bitmap: 1 byte (<= 8 stages) or 2 bytes (> 8 stages) indicating which stages were applied
-//   - payload: the encoded values written by the terminal PayloadCodecStage (BitPack or Zstd)
+//   - payload: the encoded values written by the terminal payload stage (BitPack or Zstd)
 //   - stage metadata: per-stage metadata written by transformation stages (e.g., GCD divisor)
 //
 // The bitmap is written first so the decoder knows which stages to reverse. Stage metadata
@@ -45,7 +46,7 @@ public final class BlockFormat {
     public static void writeBlock(
         final DataOutput out,
         final long[] values,
-        final PayloadCodecStage payloadStage,
+        final PayloadEncoder payloadStage,
         final EncodingContext context
     ) throws IOException {
         writeHeader(out, context);
@@ -56,7 +57,7 @@ public final class BlockFormat {
     public static int readBlock(
         final DataInput in,
         final long[] values,
-        final PayloadCodecStage payloadStage,
+        final PayloadDecoder payloadStage,
         final DecodingContext context,
         int payloadPosition
     ) throws IOException {

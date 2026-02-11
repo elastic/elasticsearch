@@ -16,11 +16,6 @@ import java.util.stream.LongStream;
 
 public class OffsetCodecStageTests extends NumericCodecStageTestCase {
 
-    public void testIdAndName() {
-        assertEquals((byte) 0x02, OffsetCodecStage.INSTANCE.id());
-        assertEquals("offset", OffsetCodecStage.INSTANCE.name());
-    }
-
     public void testRoundTripPositiveOffset() throws IOException {
         final int blockSize = randomBlockSize();
         final long min = randomLongBetween(1000000, 10000000);
@@ -86,6 +81,6 @@ public class OffsetCodecStageTests extends NumericCodecStageTestCase {
     }
 
     private void assertRoundTrip(final long[] original, int blockSize) throws IOException {
-        assertRoundTrip(original, blockSize, StageId.OFFSET.id, OffsetCodecStage.INSTANCE);
+        assertRoundTrip(original, blockSize, StageId.OFFSET.id, OffsetCodecStage.INSTANCE, OffsetCodecStage.INSTANCE);
     }
 }

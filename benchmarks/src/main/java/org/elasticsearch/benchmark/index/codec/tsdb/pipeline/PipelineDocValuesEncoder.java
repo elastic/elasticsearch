@@ -11,47 +11,48 @@ package org.elasticsearch.benchmark.index.codec.tsdb.pipeline;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
 
 import java.io.Closeable;
 import java.io.IOException;
 
 public final class PipelineDocValuesEncoder implements Closeable {
 
-    private final NumericCodec codec;
+    private final NumericEncoder numericEncoder;
+    private final NumericDecoder numericDecoder;
     private final NumericBlockEncoder encoder;
     private final NumericBlockDecoder decoder;
 
-    public static NumericCodec createES87CompatibleCodec(int blockSize) {
-        return NumericCodec.withBlockSize(blockSize).delta().offset().gcd().bitPack().build();
-    }
-
-    public PipelineDocValuesEncoder(NumericCodec codec) {
-        this.codec = codec;
-        this.encoder = codec.newEncoder();
-        this.decoder = codec.newDecoder();
+    public PipelineDocValuesEncoder(final PipelineConfig config) {
+        this.numericEncoder = NumericEncoder.fromConfig(config);
+        this.numericDecoder = NumericDecoder.fromDescriptor(numericEncoder.descriptor());
+        this.encoder = numericEncoder.newBlockEncoder();
+        this.decoder = numericDecoder.newBlockDecoder();
     }
 
     public PipelineDocValuesEncoder(int blockSize) {
-        this(createES87CompatibleCodec(blockSize));
+        this(PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack());
     }
 
     public int getBlockSize() {
-        return codec.blockSize();
+        return numericEncoder.blockSize();
     }
 
-    public void encode(long[] in, DataOutput out) throws IOException {
+    public void encode(final long[] in, final DataOutput out) throws IOException {
         encoder.encode(in, in.length, out);
     }
 
-    public void decode(DataInput in, long[] out) throws IOException {
+    public void decode(final DataInput in, final long[] out) throws IOException {
         decoder.decode(out, in);
     }
 
     @Override
     public void close() throws IOException {
-        codec.close();
+        numericEncoder.close();
+        numericDecoder.close();
     }
 }

@@ -17,7 +17,7 @@ import java.util.Arrays;
 public final class EncodingContext {
 
     private final MetadataBuffer metadataBuffer;
-    private final short[] positionOffsets;
+    private final int[] positionOffsets;
     private final int blockSize;
     private final int pipelineLength;
 
@@ -29,11 +29,15 @@ public final class EncodingContext {
         this(blockSize, pipelineLength, new MetadataBuffer());
     }
 
+    public EncodingContext(int blockSize, int pipelineLength, int metadataCapacity) {
+        this(blockSize, pipelineLength, new MetadataBuffer(metadataCapacity));
+    }
+
     EncodingContext(int blockSize, int pipelineLength, final MetadataBuffer metadataBuffer) {
         this.blockSize = blockSize;
         this.pipelineLength = pipelineLength;
         this.metadataBuffer = metadataBuffer;
-        this.positionOffsets = new short[PipelineDescriptor.MAX_PIPELINE_LENGTH];
+        this.positionOffsets = new int[PipelineDescriptor.MAX_PIPELINE_LENGTH];
         this.valueCount = 0;
         this.positionBitmap = 0;
         this.currentPosition = -1;
@@ -43,7 +47,7 @@ public final class EncodingContext {
         return pipelineLength;
     }
 
-    // NOTE: Internal use only - called by NumericPipeline to set the current
+    // NOTE: Internal use only - called by the encode pipeline to set the current
     // stage position before invoking each stage's encode method.
     public void setCurrentPosition(int position) {
         this.currentPosition = position;
@@ -54,8 +58,13 @@ public final class EncodingContext {
     }
 
     public void applyStage(int position) {
+        // Only record the offset on the first call for this position.
+        // Subsequent calls (e.g., multiple writeLong calls from a stage)
+        // should not overwrite the starting offset.
+        if ((positionBitmap & (1 << position)) == 0) {
+            positionOffsets[position] = metadataBuffer.size();
+        }
         positionBitmap = (short) (positionBitmap | (1 << position));
-        positionOffsets[position] = metadataBuffer.size();
     }
 
     public boolean isStageApplied(int position) {
@@ -72,10 +81,14 @@ public final class EncodingContext {
         return metadataBuffer;
     }
 
-    // NOTE: Metadata is written in reverse order (last stage first) so that during
-    // decoding, each stage reads its metadata in the order it executes. Decoding
-    // runs stages in reverse: stage N-1 -> stage 0, so metadata for stage N-1
-    // must appear first in the stream.
+    // NOTE: Metadata is written in reverse stage order (stage N-1 first, stage 0 last)
+    // because the decoder runs stages in reverse: N-1 -> N-2 -> ... -> 0. By matching
+    // the write order to the decode order, the decoder can read metadata as a single
+    // sequential forward pass through the stream. Without this, the decoder would need
+    // to either buffer all metadata upfront or know each stage's metadata size in advance
+    // to seek to the right offset. Each stage's metadata is variable-length (e.g., ALP
+    // writes e + f + exceptions, GCD writes a single VLong), so skipping without
+    // buffering is not possible.
     public void writeStageMetadata(final DataOutput out) throws IOException {
         int numStages = pipelineLength() - 1;
         int nextEndOffset = metadataBuffer.size();
@@ -105,7 +118,7 @@ public final class EncodingContext {
 
     public void clear() {
         metadataBuffer.clear();
-        Arrays.fill(positionOffsets, (short) 0);
+        Arrays.fill(positionOffsets, 0);
         valueCount = 0;
         positionBitmap = 0;
         currentPosition = -1;

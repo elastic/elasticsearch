@@ -12,26 +12,18 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 import org.apache.lucene.util.MathUtil;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
-import org.elasticsearch.index.codec.tsdb.pipeline.MetadataWriter;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder;
 
 import java.io.IOException;
 
-public final class GcdCodecStage implements NumericCodecStage {
-
-    public static final GcdCodecStage INSTANCE = new GcdCodecStage();
-
-    GcdCodecStage() {}
+public enum GcdCodecStage implements TransformEncoder, TransformDecoder {
+    INSTANCE;
 
     @Override
     public byte id() {
         return StageId.GCD.id;
-    }
-
-    @Override
-    public String name() {
-        return "gcd";
     }
 
     @Override
@@ -52,17 +44,35 @@ public final class GcdCodecStage implements NumericCodecStage {
             values[i] /= gcd;
         }
 
-        final MetadataWriter meta = context.metadata();
-        meta.writeVLong(gcd - 2);
+        // NOTE: Metadata layout: [gcd-2: VLong].
+        // GCD is always >= 2 when the stage applies (0 and 1 are skipped), so
+        // subtracting 2 makes the common case (small GCDs) fit in fewer bytes.
+        context.metadata().writeVLong(gcd - 2);
         return valueCount;
     }
 
+    public static int encodeStatic(final GcdCodecStage stage, final long[] values, int valueCount, final EncodingContext context)
+        throws IOException {
+        return stage.encode(values, valueCount, context);
+    }
+
+    public static int decodeStatic(final GcdCodecStage stage, final long[] values, int valueCount, final DecodingContext context)
+        throws IOException {
+        return stage.decode(values, valueCount, context);
+    }
+
     @Override
-    public int decode(long[] values, int valueCount, DecodingContext context) throws IOException {
+    public int decode(final long[] values, int valueCount, final DecodingContext context) throws IOException {
+        // NOTE: Metadata layout: [gcd-2: VLong].
         long gcd = context.metadata().readVLong() + 2;
         for (int i = 0; i < valueCount; i++) {
             values[i] *= gcd;
         }
         return valueCount;
+    }
+
+    @Override
+    public String toString() {
+        return "GcdCodecStage";
     }
 }

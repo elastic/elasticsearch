@@ -39,6 +39,14 @@ public interface MetadataWriter {
     MetadataWriter writeZLong(long value);
 
     /**
+     * Writes a fixed 8-byte long in Lucene format.
+     *
+     * @param value the long to write
+     * @return this writer for chaining
+     */
+    MetadataWriter writeLong(long value);
+
+    /**
      * Writes a variable-length integer.
      *
      * @param value the integer to write

@@ -41,6 +41,14 @@ public interface MetadataReader {
     long readZLong() throws IOException;
 
     /**
+     * Reads a fixed 8-byte long in Lucene format.
+     *
+     * @return the long value
+     * @throws IOException if an I/O error occurs
+     */
+    long readLong() throws IOException;
+
+    /**
      * Reads a variable-length integer.
      *
      * @return the decoded integer

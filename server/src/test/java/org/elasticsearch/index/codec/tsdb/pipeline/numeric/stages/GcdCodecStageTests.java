@@ -16,11 +16,6 @@ import java.util.stream.LongStream;
 
 public class GcdCodecStageTests extends NumericCodecStageTestCase {
 
-    public void testIdAndName() {
-        assertEquals((byte) 0x03, GcdCodecStage.INSTANCE.id());
-        assertEquals("gcd", GcdCodecStage.INSTANCE.name());
-    }
-
     public void testRoundTripBasic() throws IOException {
         final int blockSize = randomBlockSize();
         final long gcd = randomLongBetween(2, 100);
@@ -68,6 +63,6 @@ public class GcdCodecStageTests extends NumericCodecStageTestCase {
     }
 
     private void assertRoundTrip(final long[] original, int blockSize) throws IOException {
-        assertRoundTrip(original, blockSize, StageId.GCD.id, GcdCodecStage.INSTANCE);
+        assertRoundTrip(original, blockSize, StageId.GCD.id, GcdCodecStage.INSTANCE, GcdCodecStage.INSTANCE);
     }
 }

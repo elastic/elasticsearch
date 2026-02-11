@@ -9,38 +9,51 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 
-import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Transforms numeric values in-place during encoding.
- * Writes transformation parameters to the encoding context metadata.
+ * Write-path coordinator: owns a {@link NumericEncodePipeline} and produces
+ * {@link NumericBlockEncoder} instances for encoding blocks of values.
+ * Created from a pipeline configuration; the consumer never constructs a decoder.
  */
-public interface NumericEncoder {
+public final class NumericEncoder implements Closeable {
 
-    /**
-     * Returns the unique stage identifier.
-     *
-     * @return the stage ID byte
-     */
-    byte id();
+    private final NumericEncodePipeline pipeline;
 
-    /**
-     * Returns a human-readable name for the stage.
-     *
-     * @return the stage name
-     */
-    String name();
+    NumericEncoder(final NumericEncodePipeline pipeline) {
+        this.pipeline = pipeline;
+    }
 
-    /**
-     * Transforms values in-place and writes metadata to the context.
-     *
-     * @param values the values to transform (modified in-place)
-     * @param valueCount the number of values to process
-     * @param context the encoding context for writing metadata
-     * @return the new value count after transformation
-     * @throws IOException if an I/O error occurs
-     */
-    int encode(long[] values, int valueCount, EncodingContext context) throws IOException;
+    public static NumericEncoder fromConfig(final PipelineConfig config) {
+        return new NumericEncoder(NumericEncodePipeline.fromConfig(config));
+    }
+
+    public static NumericEncoder withDefault(int blockSize) {
+        return new NumericEncoder(NumericEncodePipeline.withDefault(blockSize));
+    }
+
+    public NumericBlockEncoder newBlockEncoder() {
+        return new NumericBlockEncoder(pipeline);
+    }
+
+    public PipelineDescriptor descriptor() {
+        return pipeline.descriptor();
+    }
+
+    public int blockSize() {
+        return pipeline.blockSize();
+    }
+
+    public boolean requiresExplicitClose() {
+        return pipeline.requiresExplicitClose();
+    }
+
+    @Override
+    public void close() throws IOException {
+        pipeline.close();
+    }
 }

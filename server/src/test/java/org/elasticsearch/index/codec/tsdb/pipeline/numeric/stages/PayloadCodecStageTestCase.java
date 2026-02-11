@@ -24,6 +24,6 @@ public abstract class PayloadCodecStageTestCase extends CodecStageTestCase {
 
     protected DecodingContext createDecodingContext(int blockSize, byte stageId) {
         final PipelineDescriptor pipeline = new PipelineDescriptor(new byte[] { stageId }, blockSize);
-        return new DecodingContext(blockSize, pipeline.stageIds());
+        return new DecodingContext(blockSize, pipeline.pipelineLength());
     }
 }

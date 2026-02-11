@@ -10,18 +10,29 @@
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 
 import java.io.IOException;
 
+// NOTE: NumericBlockEncoder is NOT thread-safe. Each instance owns an EncodingContext
+// with mutable per-call state (positionBitmap, metadataBuffer, valueCount). Callers that
+// may run concurrently must each hold their own encoder instance.
 public final class NumericBlockEncoder {
 
-    private final NumericPipeline pipeline;
+    private final NumericEncodePipeline pipeline;
+    private final EncodingContext encodingContext;
 
-    NumericBlockEncoder(final NumericPipeline pipeline) {
+    NumericBlockEncoder(final NumericEncodePipeline pipeline) {
         this.pipeline = pipeline;
+        this.encodingContext = new EncodingContext(pipeline.blockSize(), pipeline.size(), pipeline.metadataCapacity());
     }
 
-    public void encode(long[] values, int valueCount, final DataOutput out) throws IOException {
-        pipeline.encode(values, valueCount, out);
+    public void encode(final long[] values, int valueCount, final DataOutput out) throws IOException {
+        encodingContext.clear();
+        pipeline.encode(values, valueCount, out, encodingContext);
+    }
+
+    public int blockSize() {
+        return pipeline.blockSize();
     }
 }

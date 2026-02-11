@@ -16,17 +16,21 @@ import java.io.IOException;
 
 public final class MetadataBuffer implements MetadataWriter {
 
-    private static final int DEFAULT_DATA_CAPACITY = 64;
+    public static final int DEFAULT_CAPACITY = 64;
 
     private byte[] data;
-    private short dataSize;
+    private int dataSize;
 
     public MetadataBuffer() {
-        this.data = new byte[DEFAULT_DATA_CAPACITY];
+        this(DEFAULT_CAPACITY);
+    }
+
+    public MetadataBuffer(int initialCapacity) {
+        this.data = new byte[initialCapacity];
         this.dataSize = 0;
     }
 
-    public short size() {
+    public int size() {
         return dataSize;
     }
 
@@ -64,6 +68,26 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     @Override
+    public MetadataWriter writeLong(long value) {
+        // Match Lucene's DataOutput.writeLong format for compatibility with DataInput.readLong
+        // Lucene writes: [low int little-endian] [high int little-endian]
+        ensureCapacity(Long.BYTES);
+        int lo = (int) value;
+        int hi = (int) (value >> 32);
+        // Write low int first (little-endian)
+        data[dataSize++] = (byte) lo;
+        data[dataSize++] = (byte) (lo >> 8);
+        data[dataSize++] = (byte) (lo >> 16);
+        data[dataSize++] = (byte) (lo >> 24);
+        // Write high int second (little-endian)
+        data[dataSize++] = (byte) hi;
+        data[dataSize++] = (byte) (hi >> 8);
+        data[dataSize++] = (byte) (hi >> 16);
+        data[dataSize++] = (byte) (hi >> 24);
+        return this;
+    }
+
+    @Override
     public MetadataWriter writeVInt(int value) {
         while ((value & ~0x7F) != 0) {
             ensureCapacity(1);
@@ -91,7 +115,7 @@ public final class MetadataBuffer implements MetadataWriter {
     public MetadataWriter writeBytes(final byte[] bytes, int offset, int length) {
         ensureCapacity(length);
         System.arraycopy(bytes, offset, data, dataSize, length);
-        dataSize = (short) (dataSize + length);
+        dataSize += length;
         return this;
     }
 }

@@ -13,11 +13,12 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder;
 
 import java.io.IOException;
 
-public final class TestPayloadCodecStage implements PayloadCodecStage {
+public final class TestPayloadCodecStage implements PayloadEncoder, PayloadDecoder {
 
     // Test-only ID for pipeline descriptors - see StageId for reserved ID documentation
     public static final byte TEST_STAGE_ID = (byte) 0x00;
@@ -32,12 +33,7 @@ public final class TestPayloadCodecStage implements PayloadCodecStage {
     }
 
     @Override
-    public String name() {
-        return "test";
-    }
-
-    @Override
-    public void encode(long[] values, int valueCount, DataOutput out, EncodingContext context) throws IOException {
+    public void encode(final long[] values, int valueCount, final DataOutput out, final EncodingContext context) throws IOException {
         out.writeVInt(valueCount);
         for (int i = 0; i < valueCount; i++) {
             out.writeLong(values[i]);
@@ -45,11 +41,19 @@ public final class TestPayloadCodecStage implements PayloadCodecStage {
     }
 
     @Override
-    public int decode(long[] values, DataInput in, DecodingContext context) throws IOException {
+    public int decode(final long[] values, final DataInput in, final DecodingContext context) throws IOException {
         int valueCount = in.readVInt();
         for (int i = 0; i < valueCount; i++) {
             values[i] = in.readLong();
         }
         return valueCount;
     }
+
+    @Override
+    public boolean requiresExplicitClose() {
+        return false;
+    }
+
+    @Override
+    public void close() {}
 }

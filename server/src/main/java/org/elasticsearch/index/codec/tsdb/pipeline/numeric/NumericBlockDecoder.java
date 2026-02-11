@@ -10,18 +10,29 @@
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 
 import org.apache.lucene.store.DataInput;
+import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 
 import java.io.IOException;
 
+// NOTE: NumericBlockDecoder is NOT thread-safe. Each instance owns a DecodingContext
+// with mutable per-call state (dataInput, positionBitmap). Callers that may run
+// concurrently must each hold their own decoder instance.
 public final class NumericBlockDecoder {
 
-    private final NumericPipeline pipeline;
+    private final NumericDecodePipeline pipeline;
+    private final DecodingContext decodingContext;
 
-    NumericBlockDecoder(final NumericPipeline pipeline) {
+    NumericBlockDecoder(final NumericDecodePipeline pipeline) {
         this.pipeline = pipeline;
+        this.decodingContext = new DecodingContext(pipeline.blockSize(), pipeline.size());
     }
 
-    public int decode(long[] values, final DataInput in) throws IOException {
-        return pipeline.decode(values, in);
+    public int decode(final long[] values, final DataInput in) throws IOException {
+        decodingContext.clear();
+        return pipeline.decode(values, in, decodingContext);
+    }
+
+    public int blockSize() {
+        return pipeline.blockSize();
     }
 }

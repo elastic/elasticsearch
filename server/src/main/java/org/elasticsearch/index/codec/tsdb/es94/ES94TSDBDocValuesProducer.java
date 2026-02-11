@@ -49,14 +49,21 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -77,11 +84,28 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
     private final int numericBlockShift;
     private final int numericBlockSize;
     private final int numericBlockMask;
-    private final NumericCodec numericCodec;
-    private final NumericBlockDecoder decoder;
+    private final NumericCodecFactory numericCodecFactory;
+    // NOTE: Track all decoders created for this segment. Decoders own native resources (e.g., ZstdDecodeStage buffers)
+    // that must be released when the producer is closed.
+    // IMPORTANT TODO: Native buffers (ZstdDecodeStage srcBuffer/destBuffer) are allocated when the
+    // decoder is created and only released when this producer is closed, which happens when the segment
+    // reader is closed. A segment reader can stay open for the entire shard lifetime (large segments may
+    // never merge), so native memory accumulates per Zstd-encoded field and is held indefinitely. The
+    // JVM GC has no visibility into off-heap allocations, so there is no back-pressure to reclaim them.
+    // Fix: use thread-local native arenas (see DiskIoBufferPool for the pattern) so each search thread
+    // owns a reusable buffer pair. Memory is bounded by thread pool size, no Lucene/ES bridging needed.
+    // SearchContext.addReleasable() and ReaderContext.addOnClose() are alternatives but require bridging
+    // from the Lucene codec layer to the ES search layer.
+    private final List<NumericDecoder> perFieldDecoders = new ArrayList<>();
 
-    ES94TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
-        throws IOException {
+    ES94TSDBDocValuesProducer(
+        SegmentReadState state,
+        String dataCodec,
+        String dataExtension,
+        String metaCodec,
+        String metaExtension,
+        NumericCodecFactory numericCodecFactory
+    ) throws IOException {
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
         this.sorted = new IntObjectHashMap<>();
@@ -109,10 +133,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                if (version >= ES94TSDBDocValuesFormat.VERSION_NUMERIC_LARGE_BLOCKS) {
-                    blockShift = in.readByte();
-                }
-                readFields(in, state.fieldInfos, version, blockShift);
+                blockShift = in.readByte();
+                readFields(in, state.fieldInfos, blockShift);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -123,8 +145,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         this.numericBlockShift = blockShift;
         this.numericBlockSize = 1 << blockShift;
         this.numericBlockMask = numericBlockSize - 1;
-        this.numericCodec = ES94TSDBDocValuesFormat.createNumericCodec(numericBlockSize);
-        this.decoder = numericCodec.newDecoder();
+        this.numericCodecFactory = numericCodecFactory;
 
         String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
         this.data = state.directory.openInput(dataName, state.context);
@@ -152,7 +173,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
             this.version = version;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(this.data, numericCodec);
+                IOUtils.closeWhileHandlingException(this.data);
             }
         }
     }
@@ -169,7 +190,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         int version,
         int primarySortFieldNumber,
         boolean merging,
-        int numericBlockShift
+        int numericBlockShift,
+        NumericCodecFactory numericCodecFactory
     ) {
         this.numerics = numerics;
         this.binaries = binaries;
@@ -185,8 +207,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         this.numericBlockShift = numericBlockShift;
         this.numericBlockSize = 1 << numericBlockShift;
         this.numericBlockMask = numericBlockSize - 1;
-        this.numericCodec = ES94TSDBDocValuesFormat.createNumericCodec(numericBlockSize);
-        this.decoder = numericCodec.newDecoder();
+        this.numericCodecFactory = numericCodecFactory;
     }
 
     @Override
@@ -203,8 +224,30 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
             version,
             primarySortFieldNumber,
             true,
-            numericBlockShift
+            numericBlockShift,
+            numericCodecFactory
         );
+    }
+
+    private NumericBlockDecoder newDecoder(final NumericEntry entry) {
+        final NumericDecoder decoder;
+        if (entry.pipelineDescriptor != null) {
+            decoder = numericCodecFactory.createDecoder(entry.pipelineDescriptor);
+        } else {
+            // NOTE: Legacy path for fields written without a pipeline descriptor.
+            // Build a default codec to obtain the descriptor, then create a decoder from it.
+            final PipelineDescriptor defaultDescriptor = numericCodecFactory.createEncoder(PipelineConfig.defaultConfig(numericBlockSize))
+                .descriptor();
+            decoder = numericCodecFactory.createDecoder(defaultDescriptor);
+        }
+        if (decoder.requiresExplicitClose()) {
+            perFieldDecoders.add(decoder);
+        }
+        return decoder.newBlockDecoder();
+    }
+
+    private int entryBlockSize(final NumericEntry entry) {
+        return entry.pipelineDescriptor != null ? entry.pipelineDescriptor.blockSize() : numericBlockSize;
     }
 
     @Override
@@ -1553,7 +1596,9 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(data, numericCodec);
+        IOUtils.close(data);
+        IOUtils.close(perFieldDecoders);
+        perFieldDecoders.clear();
     }
 
     /**
@@ -1574,26 +1619,40 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         return -1;
     }
 
-    private void readFields(IndexInput meta, FieldInfos infos, int version, int numericBlockShift) throws IOException {
+    private void readFields(IndexInput meta, FieldInfos infos, int numericBlockShift) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
             if (info == null) {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
             byte type = meta.readByte();
+            final PipelineDescriptor pipelineDesc;
+            if (type == ES94TSDBDocValuesFormat.NUMERIC || type == ES94TSDBDocValuesFormat.SORTED_NUMERIC) {
+                pipelineDesc = FieldDescriptor.read(meta);
+            } else {
+                pipelineDesc = null;
+            }
             if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
                 skippers.put(info.number, readDocValueSkipperMeta(meta));
             }
             if (type == ES94TSDBDocValuesFormat.NUMERIC) {
-                numerics.put(info.number, readNumeric(meta, numericBlockShift));
+                // NOTE: instead of using the segment-level blockShift we use the per-field blockShift
+                // which allows us to read numeric blocks and their index adapting to each field block size.
+                final NumericEntry entry = readNumeric(meta, pipelineDesc.blockShift());
+                entry.pipelineDescriptor = pipelineDesc;
+                numerics.put(info.number, entry);
             } else if (type == ES94TSDBDocValuesFormat.BINARY) {
-                binaries.put(info.number, readBinary(meta, version));
+                binaries.put(info.number, readBinary(meta));
             } else if (type == ES94TSDBDocValuesFormat.SORTED) {
                 sorted.put(info.number, readSorted(meta, numericBlockShift));
             } else if (type == ES94TSDBDocValuesFormat.SORTED_SET) {
                 sortedSets.put(info.number, readSortedSet(meta, numericBlockShift));
             } else if (type == ES94TSDBDocValuesFormat.SORTED_NUMERIC) {
-                sortedNumerics.put(info.number, readSortedNumeric(meta, numericBlockShift));
+                // NOTE: instead of using the segment-level blockShift we use the per-field blockShift
+                // which allows us to read numeric blocks and their index adapting to each field block size.
+                final SortedNumericEntry entry = readSortedNumeric(meta, pipelineDesc.blockShift());
+                entry.pipelineDescriptor = pipelineDesc;
+                sortedNumerics.put(info.number, entry);
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
@@ -1645,13 +1704,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         entry.denseRankPower = meta.readByte();
     }
 
-    private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
-        final BinaryDVCompressionMode compression;
-        if (version >= ES94TSDBDocValuesFormat.VERSION_BINARY_DV_COMPRESSION) {
-            compression = BinaryDVCompressionMode.fromMode(meta.readByte());
-        } else {
-            compression = BinaryDVCompressionMode.NO_COMPRESS;
-        }
+    private BinaryEntry readBinary(IndexInput meta) throws IOException {
+        final BinaryDVCompressionMode compression = BinaryDVCompressionMode.fromMode(meta.readByte());
         final BinaryEntry entry = new BinaryEntry(compression);
 
         entry.dataOffset = meta.readLong();
@@ -1875,13 +1929,16 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
+        final int fieldBlockSize = entryBlockSize(entry);
+        final int fieldBlockShift = Integer.numberOfTrailingZeros(fieldBlockSize);
+        final int fieldBlockMask = fieldBlockSize - 1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
-                private final NumericBlockDecoder decoder = ES94TSDBDocValuesProducer.this.decoder;
+                private final NumericBlockDecoder decoder = newDecoder(entry);
+                private final TSDBDocValuesEncoder ordinalDecoder = bitsPerOrd >= 0 ? new TSDBDocValuesEncoder(fieldBlockSize) : null;
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[numericBlockSize];
-                // lookahead block
+                private final long[] currentBlock = new long[fieldBlockSize];
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
@@ -1894,8 +1951,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long longValue() throws IOException {
                     final int index = doc;
-                    final int blockIndex = index >>> numericBlockShift;
-                    final int blockInIndex = index & numericBlockMask;
+                    final int blockIndex = index >>> fieldBlockShift;
+                    final int blockInIndex = index & fieldBlockMask;
                     if (blockIndex == currentBlockIndex) {
                         return currentBlock[blockInIndex];
                     }
@@ -1911,7 +1968,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                     if (bitsPerOrd == -1) {
                         decoder.decode(currentBlock, valuesData);
                     } else {
-                        decoder.decode(currentBlock, valuesData);
+                        ordinalDecoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                     }
                     return currentBlock[blockInIndex];
                 }
@@ -1937,8 +1994,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                     doc = docs.get(docsCount - 1);
                     for (int i = offset; i < docsCount;) {
                         int index = docs.get(i);
-                        final int blockIndex = index >>> numericBlockShift;
-                        final int blockInIndex = index & numericBlockMask;
+                        final int blockIndex = index >>> fieldBlockShift;
+                        final int blockInIndex = index & fieldBlockMask;
                         if (blockIndex != currentBlockIndex) {
                             assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
                             // no need to seek if the loading block is the next block
@@ -1949,7 +2006,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                             if (bitsPerOrd == -1) {
                                 decoder.decode(currentBlock, valuesData);
                             } else {
-                                decoder.decode(currentBlock, valuesData);
+                                ordinalDecoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                             }
                         }
 
@@ -1957,7 +2014,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                         // Instead of iterating over docs and find the max length, take an optimistic approach to avoid as
                         // many comparisons as there are remaining docs and instead do at most 7 comparisons:
                         int length = 1;
-                        int remainingBlockLength = Math.min(numericBlockSize - blockInIndex, docsCount - i);
+                        int remainingBlockLength = Math.min(fieldBlockSize - blockInIndex, docsCount - i);
                         for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
                             int lastIndex = i + newLength - 1;
                             if (isDense(index, docs.get(lastIndex), newLength)) {
@@ -1973,21 +2030,25 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 long lookAheadValueAt(int targetDoc) throws IOException {
-                    final int blockIndex = targetDoc >>> numericBlockShift;
-                    final int valueIndex = targetDoc & numericBlockMask;
+                    final int blockIndex = targetDoc >>> fieldBlockShift;
+                    final int valueIndex = targetDoc & fieldBlockMask;
                     if (blockIndex == currentBlockIndex) {
                         return currentBlock[valueIndex];
                     }
                     // load data to the lookahead block
                     if (lookaheadBlockIndex != blockIndex) {
                         if (lookaheadBlock == null) {
-                            lookaheadBlock = new long[numericBlockSize];
+                            lookaheadBlock = new long[fieldBlockSize];
                             lookaheadData = data.slice("look_ahead_values", entry.valuesOffset, entry.valuesLength);
                         }
                         if (lookaheadBlockIndex + 1 != blockIndex) {
                             lookaheadData.seek(indexReader.get(blockIndex));
                         }
-                        decoder.decode(lookaheadBlock, lookaheadData);
+                        if (bitsPerOrd == -1) {
+                            decoder.decode(lookaheadBlock, lookaheadData);
+                        } else {
+                            ordinalDecoder.decodeOrdinals(lookaheadData, lookaheadBlock, bitsPerOrd);
+                        }
                         lookaheadBlockIndex = blockIndex;
                     }
                     return lookaheadBlock[valueIndex];
@@ -2008,10 +2069,11 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 entry.numValues
             );
             return new BaseSparseNumericValues(disi) {
-                private final NumericBlockDecoder decoder = ES94TSDBDocValuesProducer.this.decoder;
+                private final NumericBlockDecoder decoder = newDecoder(entry);
+                private final TSDBDocValuesEncoder ordinalDecoder = bitsPerOrd >= 0 ? new TSDBDocValuesEncoder(fieldBlockSize) : null;
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[numericBlockSize];
+                private final long[] currentBlock = new long[fieldBlockSize];
 
                 @Override
                 public int docIDRunEnd() throws IOException {
@@ -2021,8 +2083,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long longValue() throws IOException {
                     final int index = disi.index();
-                    final int blockIndex = index >>> numericBlockShift;
-                    final int blockInIndex = index & numericBlockMask;
+                    final int blockIndex = index >>> fieldBlockShift;
+                    final int blockInIndex = index & fieldBlockMask;
                     if (blockIndex != currentBlockIndex) {
                         assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
                         // no need to seek if the loading block is the next block
@@ -2033,7 +2095,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                         if (bitsPerOrd == -1) {
                             decoder.decode(currentBlock, valuesData);
                         } else {
-                            decoder.decode(currentBlock, valuesData);
+                            ordinalDecoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                         }
                     }
                     return currentBlock[blockInIndex];
@@ -2091,8 +2153,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                     try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt)) {
                         for (int i = 0; i < valueCount;) {
                             final int index = firstIndex + i;
-                            final int blockIndex = index >>> numericBlockShift;
-                            final int blockStartIndex = index & numericBlockMask;
+                            final int blockIndex = index >>> fieldBlockShift;
+                            final int blockStartIndex = index & fieldBlockMask;
                             if (blockIndex != currentBlockIndex) {
                                 assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
                                 if (currentBlockIndex + 1 != blockIndex) {
@@ -2101,7 +2163,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                                 currentBlockIndex = blockIndex;
                                 decoder.decode(currentBlock, valuesData);
                             }
-                            final int count = Math.min(numericBlockSize - blockStartIndex, valueCount - i);
+                            final int count = Math.min(fieldBlockSize - blockStartIndex, valueCount - i);
                             singletonLongBuilder.appendLongs(currentBlock, blockStartIndex, count);
                             i += count;
                         }
@@ -2177,12 +2239,16 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
 
+        final int fieldBlockSize = entryBlockSize(entry);
+        final int fieldBlockShift = Integer.numberOfTrailingZeros(fieldBlockSize);
+        final int fieldBlockMask = fieldBlockSize - 1;
         final long[] currentBlockIndex = { -1 };
-        final long[] currentBlock = new long[numericBlockSize];
-        final NumericBlockDecoder decoder = this.decoder;
+        final long[] currentBlock = new long[fieldBlockSize];
+        final NumericBlockDecoder decoder = newDecoder(entry);
+        final TSDBDocValuesEncoder ordinalDecoder = bitsPerOrd >= 0 ? new TSDBDocValuesEncoder(fieldBlockSize) : null;
         return index -> {
-            final long blockIndex = index >>> numericBlockShift;
-            final int blockInIndex = (int) (index & numericBlockMask);
+            final long blockIndex = index >>> fieldBlockShift;
+            final int blockInIndex = (int) (index & fieldBlockMask);
             if (blockIndex != currentBlockIndex[0]) {
                 // no need to seek if the loading block is the next block
                 if (currentBlockIndex[0] + 1 != blockIndex) {
@@ -2192,7 +2258,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 if (bitsPerOrd == -1) {
                     decoder.decode(currentBlock, valuesData);
                 } else {
-                    decoder.decode(currentBlock, valuesData);
+                    ordinalDecoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                 }
             }
             return currentBlock[blockInIndex];
@@ -2365,6 +2431,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         long valuesOffset;
         long valuesLength;
         DirectMonotonicReader.Meta sortedOrdinals;
+        PipelineDescriptor pipelineDescriptor; // null means default pipeline (pre-descriptor segments)
     }
 
     static class BinaryEntry {

@@ -13,19 +13,31 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 // these IDs must NEVER change as it would break the ability to decode existing data.
 //
 // NOTE: ID 0x00 is reserved for test-only stages (see TestPayloadCodecStage).
-// TODO: Consider reserving a range of IDs (e.g., 0x00-0x0F) for future internal use,
-// keeping production transformation stages starting at 0x10 and terminal stages at 0xA0.
 public enum StageId {
-    // Transformation stages (NumericCodecStage) - applied in sequence, reversible
+    // Transformation stages - applied in sequence, reversible
     DELTA((byte) 0x01),
     OFFSET((byte) 0x02),
     GCD((byte) 0x03),
     PATCHED_PFOR((byte) 0x04),
-    ZIGZAG((byte) 0x05),
+    XOR((byte) 0x06),
+    QUANTIZE_DOUBLE((byte) 0x08),
+    DELTA_DELTA((byte) 0x05),
+    RLE((byte) 0x0B),
+    ALP_DOUBLE_STAGE((byte) 0x0C),
+    ALP_FLOAT_STAGE((byte) 0x0D),
+    ALP_RD_DOUBLE_STAGE((byte) 0x0E),
+    ALP_RD_FLOAT_STAGE((byte) 0x0F),
+    FPC_STAGE((byte) 0x10),
 
-    // Terminal stages (PayloadCodecStage) - write final encoded payload
+    // Terminal stages - write final encoded payload
     BIT_PACK((byte) 0xA1),
-    ZSTD((byte) 0xA2);
+    ZSTD((byte) 0xA2),
+    GORILLA_PAYLOAD((byte) 0xA3),
+    RLE_PAYLOAD((byte) 0xA4),
+    ALP_DOUBLE((byte) 0xA6),
+    ALP_FLOAT((byte) 0xA7),
+    ALP_RD_DOUBLE((byte) 0xA8),
+    ALP_RD_FLOAT((byte) 0xA9);
 
     public final byte id;
 
@@ -39,9 +51,23 @@ public enum StageId {
             case (byte) 0x02 -> OFFSET;
             case (byte) 0x03 -> GCD;
             case (byte) 0x04 -> PATCHED_PFOR;
-            case (byte) 0x05 -> ZIGZAG;
+            case (byte) 0x05 -> DELTA_DELTA;
+            case (byte) 0x06 -> XOR;
+            case (byte) 0x08 -> QUANTIZE_DOUBLE;
+            case (byte) 0x0B -> RLE;
+            case (byte) 0x0C -> ALP_DOUBLE_STAGE;
+            case (byte) 0x0D -> ALP_FLOAT_STAGE;
+            case (byte) 0x0E -> ALP_RD_DOUBLE_STAGE;
+            case (byte) 0x0F -> ALP_RD_FLOAT_STAGE;
+            case (byte) 0x10 -> FPC_STAGE;
             case (byte) 0xA1 -> BIT_PACK;
             case (byte) 0xA2 -> ZSTD;
+            case (byte) 0xA3 -> GORILLA_PAYLOAD;
+            case (byte) 0xA4 -> RLE_PAYLOAD;
+            case (byte) 0xA6 -> ALP_DOUBLE;
+            case (byte) 0xA7 -> ALP_FLOAT;
+            case (byte) 0xA8 -> ALP_RD_DOUBLE;
+            case (byte) 0xA9 -> ALP_RD_FLOAT;
             default -> throw new IllegalArgumentException("Unknown stage ID: 0x" + Integer.toHexString(id & 0xFF));
         };
     }

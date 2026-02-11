@@ -79,7 +79,7 @@ public class BlockFormatTests extends ESTestCase {
 
     public void testReadBlockThrowsWhenPipelineNotSet() {
         final int blockSize = randomBlockSize();
-        final DecodingContext decodingContext = new DecodingContext(blockSize, new byte[0]);
+        final DecodingContext decodingContext = new DecodingContext(blockSize, 0);
 
         final byte[] buffer = new byte[256];
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer);
@@ -121,7 +121,7 @@ public class BlockFormatTests extends ESTestCase {
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
         BlockFormat.writeBlock(out, values, TestPayloadCodecStage.INSTANCE, encodingContext);
 
-        final DecodingContext decodingContext = new DecodingContext(blockSize, stageIds);
+        final DecodingContext decodingContext = new DecodingContext(blockSize, stageIds.length);
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
         BlockFormat.readBlock(in, values, TestPayloadCodecStage.INSTANCE, decodingContext, payloadPosition);
 

@@ -21,13 +21,6 @@ import java.util.stream.LongStream;
 
 public class BitPackCodecStageTests extends PayloadCodecStageTestCase {
 
-    public void testIdAndName() throws IOException {
-        try (BitPackCodecStage stage = new BitPackCodecStage(randomBlockSize())) {
-            assertEquals((byte) 0xA1, stage.id());
-            assertEquals("bit-pack", stage.name());
-        }
-    }
-
     public void testEncodeWritesBitsPerValueAndPackedData() throws IOException {
         final int blockSize = randomBlockSize();
         final long[] values = LongStream.generate(() -> randomLongBetween(0, 255)).limit(blockSize).toArray();

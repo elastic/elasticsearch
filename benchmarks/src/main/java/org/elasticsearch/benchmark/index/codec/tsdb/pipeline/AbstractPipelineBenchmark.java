@@ -9,34 +9,27 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb.pipeline;
 
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodec;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-/**
- * Base class for pipeline codec encode/decode benchmarks.
- *
- * <p>Supports batching multiple blocks per JMH invocation to reduce harness overhead
- * when measuring fast operations (sub-microsecond). The reset logic is moved into
- * the {@link #run()} method rather than using {@code @Setup(Level.Invocation)}.
- */
 public abstract class AbstractPipelineBenchmark {
 
-    protected static final int EXTRA_METADATA_SIZE = 64;
+    protected static final int EXTRA_METADATA_SIZE = 20 * 1024;
 
     protected final PipelineDocValuesEncoder encoder;
     protected final int blockSize;
 
-    public AbstractPipelineBenchmark(NumericCodec codec) {
-        this.blockSize = codec.blockSize();
-        this.encoder = new PipelineDocValuesEncoder(codec);
+    public AbstractPipelineBenchmark(PipelineConfig config) {
+        this.encoder = new PipelineDocValuesEncoder(config);
+        this.blockSize = encoder.getBlockSize();
     }
 
     public AbstractPipelineBenchmark() {
-        this.blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+        this.blockSize = ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
         this.encoder = new PipelineDocValuesEncoder(blockSize);
     }
 

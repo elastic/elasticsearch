@@ -50,7 +50,7 @@ public class MetadataBufferTests extends ESTestCase {
 
     public void testBufferGrowsWithLargeData() throws IOException {
         final MetadataBuffer buffer = new MetadataBuffer();
-        final int count = randomIntBetween(50, 150);
+        final int count = randomIntBetween(100, 200);
 
         for (int i = 0; i < count; i++) {
             buffer.writeVInt(i);
@@ -160,5 +160,105 @@ public class MetadataBufferTests extends ESTestCase {
         assertEquals(longVal, in.readVLong());
         assertEquals(zintVal, in.readZInt());
         assertEquals(zlongVal, in.readZLong());
+    }
+
+    public void testWriteLongRoundtrip() throws IOException {
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final long value = randomLong();
+
+        buffer.writeLong(value);
+
+        assertEquals(Long.BYTES, buffer.size());
+
+        byte[] output = new byte[64];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(output);
+        buffer.writeTo(out, 0, buffer.size());
+
+        final ByteArrayDataInput in = new ByteArrayDataInput(output, 0, out.getPosition());
+        assertEquals(value, in.readLong());
+    }
+
+    public void testWriteLongByteLayoutMatchesLucene() throws IOException {
+        final long value = randomLong();
+
+        final byte[] luceneOutput = new byte[Long.BYTES];
+        new ByteArrayDataOutput(luceneOutput).writeLong(value);
+
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeLong(value);
+        final byte[] bufferOutput = new byte[Long.BYTES];
+        buffer.writeTo(new ByteArrayDataOutput(bufferOutput), 0, buffer.size());
+
+        assertArrayEquals("MetadataBuffer.writeLong byte layout must match Lucene DataOutput.writeLong", luceneOutput, bufferOutput);
+    }
+
+    public void testWriteLongBoundaryValues() throws IOException {
+        final long[] values = new long[] { 0L, 1L, -1L, Long.MIN_VALUE, Long.MAX_VALUE, 0x00000000FFFFFFFFL, 0xFFFFFFFF00000000L };
+
+        for (long value : values) {
+            final MetadataBuffer buffer = new MetadataBuffer();
+            buffer.writeLong(value);
+
+            final byte[] output = new byte[64];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(output);
+            buffer.writeTo(out, 0, buffer.size());
+
+            assertEquals(
+                "Roundtrip failed for value " + Long.toHexString(value),
+                value,
+                new ByteArrayDataInput(output, 0, out.getPosition()).readLong()
+            );
+
+            final byte[] luceneOutput = new byte[Long.BYTES];
+            new ByteArrayDataOutput(luceneOutput).writeLong(value);
+            final byte[] bufferBytes = new byte[Long.BYTES];
+            new ByteArrayDataOutput(bufferBytes).writeBytes(output, 0, Long.BYTES);
+            assertArrayEquals("Byte layout mismatch for value " + Long.toHexString(value), luceneOutput, bufferBytes);
+        }
+    }
+
+    public void testWriteLongMultipleValues() throws IOException {
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int count = randomIntBetween(5, 20);
+        final long[] values = new long[count];
+
+        for (int i = 0; i < count; i++) {
+            values[i] = randomLong();
+            buffer.writeLong(values[i]);
+        }
+
+        assertEquals(count * Long.BYTES, buffer.size());
+
+        byte[] output = new byte[count * Long.BYTES];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(output);
+        buffer.writeTo(out, 0, buffer.size());
+
+        final ByteArrayDataInput in = new ByteArrayDataInput(output, 0, out.getPosition());
+        for (int i = 0; i < count; i++) {
+            assertEquals("Value at index " + i, values[i], in.readLong());
+        }
+    }
+
+    public void testWriteLongMixedWithOtherTypes() throws IOException {
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final byte byteVal = randomByte();
+        final long longVal = randomLong();
+        final int vintVal = randomIntBetween(0, Integer.MAX_VALUE);
+        final long longVal2 = randomLong();
+
+        buffer.writeByte(byteVal);
+        buffer.writeLong(longVal);
+        buffer.writeVInt(vintVal);
+        buffer.writeLong(longVal2);
+
+        byte[] output = new byte[256];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(output);
+        buffer.writeTo(out, 0, buffer.size());
+
+        final ByteArrayDataInput in = new ByteArrayDataInput(output, 0, out.getPosition());
+        assertEquals(byteVal, in.readByte());
+        assertEquals(longVal, in.readLong());
+        assertEquals(vintVal, in.readVInt());
+        assertEquals(longVal2, in.readLong());
     }
 }

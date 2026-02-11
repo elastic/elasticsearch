@@ -9,38 +9,43 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 
-import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Reverses numeric value transformations during decoding.
- * Reads transformation parameters from the decoding context metadata.
+ * Read-path coordinator: owns a {@link NumericDecodePipeline} and produces
+ * {@link NumericBlockDecoder} instances for decoding blocks of values.
+ * Created from a {@link PipelineDescriptor};
+ * the producer never constructs an encoder.
  */
-public interface NumericDecoder {
+public final class NumericDecoder implements Closeable {
 
-    /**
-     * Returns the unique stage identifier.
-     *
-     * @return the stage ID byte
-     */
-    byte id();
+    private final NumericDecodePipeline pipeline;
 
-    /**
-     * Returns a human-readable name for the stage.
-     *
-     * @return the stage name
-     */
-    String name();
+    NumericDecoder(final NumericDecodePipeline pipeline) {
+        this.pipeline = pipeline;
+    }
 
-    /**
-     * Reverses the transformation in-place using metadata from the context.
-     *
-     * @param values the values to restore (modified in-place)
-     * @param valueCount the number of values to process
-     * @param context the decoding context for reading metadata
-     * @return the new value count after restoration
-     * @throws IOException if an I/O error occurs
-     */
-    int decode(long[] values, int valueCount, DecodingContext context) throws IOException;
+    public static NumericDecoder fromDescriptor(final PipelineDescriptor descriptor) {
+        return new NumericDecoder(NumericDecodePipeline.fromDescriptor(descriptor));
+    }
+
+    public NumericBlockDecoder newBlockDecoder() {
+        return new NumericBlockDecoder(pipeline);
+    }
+
+    public int blockSize() {
+        return pipeline.blockSize();
+    }
+
+    public boolean requiresExplicitClose() {
+        return pipeline.requiresExplicitClose();
+    }
+
+    @Override
+    public void close() throws IOException {
+        pipeline.close();
+    }
 }

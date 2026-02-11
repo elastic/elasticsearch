@@ -16,11 +16,6 @@ import java.util.stream.LongStream;
 
 public class DeltaCodecStageTests extends NumericCodecStageTestCase {
 
-    public void testIdAndName() {
-        assertEquals((byte) 0x01, DeltaCodecStage.INSTANCE.id());
-        assertEquals("delta", DeltaCodecStage.INSTANCE.name());
-    }
-
     public void testRoundTripMonotonicIncreasing() throws IOException {
         final int blockSize = randomBlockSize();
         final long start = randomLongBetween(0, 1000);
@@ -74,6 +69,6 @@ public class DeltaCodecStageTests extends NumericCodecStageTestCase {
     }
 
     private void assertRoundTrip(final long[] original, int blockSize) throws IOException {
-        assertRoundTrip(original, blockSize, StageId.DELTA.id, DeltaCodecStage.INSTANCE);
+        assertRoundTrip(original, blockSize, StageId.DELTA.id, DeltaCodecStage.INSTANCE, DeltaCodecStage.INSTANCE);
     }
 }

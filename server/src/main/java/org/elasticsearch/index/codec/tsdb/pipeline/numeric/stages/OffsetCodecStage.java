@@ -12,11 +12,12 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder;
 
 import java.io.IOException;
 
-public final class OffsetCodecStage implements NumericCodecStage {
+public final class OffsetCodecStage implements TransformEncoder, TransformDecoder {
 
     private static final int DEFAULT_MIN_OFFSET_RATIO_PERCENT = 25;
     public static final OffsetCodecStage INSTANCE = new OffsetCodecStage();
@@ -37,11 +38,6 @@ public final class OffsetCodecStage implements NumericCodecStage {
     @Override
     public byte id() {
         return StageId.OFFSET.id;
-    }
-
-    @Override
-    public String name() {
-        return "offset";
     }
 
     @Override
@@ -72,12 +68,26 @@ public final class OffsetCodecStage implements NumericCodecStage {
             values[i] -= min;
         }
 
+        // NOTE: Metadata layout: [min: ZLong].
+        // The minimum value subtracted from all elements. Zigzag-encoded because
+        // min can be negative (e.g., sortable-longs for negative doubles).
         context.metadata().writeZLong(min);
         return valueCount;
     }
 
+    public static int encodeStatic(final OffsetCodecStage stage, final long[] values, int valueCount, final EncodingContext context)
+        throws IOException {
+        return stage.encode(values, valueCount, context);
+    }
+
+    public static int decodeStatic(final OffsetCodecStage stage, final long[] values, int valueCount, final DecodingContext context)
+        throws IOException {
+        return stage.decode(values, valueCount, context);
+    }
+
     @Override
-    public int decode(long[] values, int valueCount, DecodingContext context) throws IOException {
+    public int decode(final long[] values, int valueCount, final DecodingContext context) throws IOException {
+        // NOTE: Metadata layout: [min: ZLong].
         long min = context.metadata().readZLong();
         for (int i = 0; i < valueCount; i++) {
             values[i] += min;
@@ -93,5 +103,20 @@ public final class OffsetCodecStage implements NumericCodecStage {
             return (max / 100) * minOffsetRatioPercent;
         }
         return (max * minOffsetRatioPercent) / 100;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || (o instanceof OffsetCodecStage that && minOffsetRatioPercent == that.minOffsetRatioPercent);
+    }
+
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(minOffsetRatioPercent);
+    }
+
+    @Override
+    public String toString() {
+        return "OffsetCodecStage{minOffsetRatioPercent=" + minOffsetRatioPercent + "}";
     }
 }

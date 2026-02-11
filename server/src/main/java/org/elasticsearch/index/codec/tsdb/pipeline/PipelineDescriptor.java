@@ -15,17 +15,42 @@ import org.apache.lucene.store.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
-// NOTE: PipelineDescriptor is used internally by NumericPipeline to track stage configuration.
-// The writeTo/readFrom methods exist for future use via FieldDescriptor to create self-describing
-// formats. See FieldDescriptor for details on why this is deferred in the POC.
+// NOTE: PipelineDescriptor tracks stage configuration and is the contract between encoder and decoder.
+// The writeTo/readFrom methods are used by FieldDescriptor to create self-describing formats.
 public final class PipelineDescriptor {
 
     public static final int MAX_PIPELINE_LENGTH = 16;
 
+    public enum DataType {
+        LONG((byte) 0x00),
+        DOUBLE((byte) 0x01),
+        FLOAT((byte) 0x02);
+
+        public final byte id;
+
+        DataType(byte id) {
+            this.id = id;
+        }
+
+        public static DataType fromId(byte id) {
+            return switch (id) {
+                case 0x00 -> LONG;
+                case 0x01 -> DOUBLE;
+                case 0x02 -> FLOAT;
+                default -> throw new IllegalArgumentException("Unknown DataType: 0x" + Integer.toHexString(id & 0xFF));
+            };
+        }
+    }
+
     private final byte[] stageIds;
     private final byte blockShift;
+    private final DataType dataType;
 
     public PipelineDescriptor(byte[] stageIds, int blockSize) {
+        this(stageIds, blockSize, DataType.LONG);
+    }
+
+    public PipelineDescriptor(byte[] stageIds, int blockSize, DataType dataType) {
         if (stageIds == null || stageIds.length == 0) {
             throw new IllegalArgumentException("Pipeline must have at least one stage");
         }
@@ -37,11 +62,13 @@ public final class PipelineDescriptor {
         }
         this.stageIds = stageIds.clone();
         this.blockShift = (byte) Integer.numberOfTrailingZeros(blockSize);
+        this.dataType = dataType;
     }
 
-    private PipelineDescriptor(byte[] stageIds, byte blockShift) {
+    private PipelineDescriptor(byte[] stageIds, byte blockShift, DataType dataType) {
         this.stageIds = stageIds;
         this.blockShift = blockShift;
+        this.dataType = dataType;
     }
 
     public int pipelineLength() {
@@ -68,10 +95,25 @@ public final class PipelineDescriptor {
         return stageIds.clone();
     }
 
+    public DataType dataType() {
+        return dataType;
+    }
+
+    public PipelineDescriptor withBlockSize(int blockSize) {
+        byte newBlockShift = (byte) Integer.numberOfTrailingZeros(blockSize);
+        if (newBlockShift == this.blockShift) {
+            return this;
+        }
+        return new PipelineDescriptor(stageIds.clone(), blockSize, dataType);
+    }
+
+    // Wire format: [VInt stageCount] [byte[] stageIds] [byte blockShift] [byte dataType]
+    // NOTE: Format evolution is handled by the version byte in FieldDescriptor.
     public void writeTo(DataOutput out) throws IOException {
         out.writeVInt(stageIds.length);
         out.writeBytes(stageIds, 0, stageIds.length);
         out.writeByte(blockShift);
+        out.writeByte(dataType.id);
     }
 
     public static PipelineDescriptor readFrom(DataInput in) throws IOException {
@@ -82,7 +124,8 @@ public final class PipelineDescriptor {
         byte[] stageIds = new byte[length];
         in.readBytes(stageIds, 0, length);
         byte blockShift = in.readByte();
-        return new PipelineDescriptor(stageIds, blockShift);
+        DataType dataType = DataType.fromId(in.readByte());
+        return new PipelineDescriptor(stageIds, blockShift, dataType);
     }
 
     @Override
@@ -90,13 +133,14 @@ public final class PipelineDescriptor {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PipelineDescriptor that = (PipelineDescriptor) o;
-        return blockShift == that.blockShift && Arrays.equals(stageIds, that.stageIds);
+        return blockShift == that.blockShift && dataType == that.dataType && Arrays.equals(stageIds, that.stageIds);
     }
 
     @Override
     public int hashCode() {
         int result = Arrays.hashCode(stageIds);
         result = 31 * result + blockShift;
+        result = 31 * result + dataType.id;
         return result;
     }
 
@@ -107,7 +151,7 @@ public final class PipelineDescriptor {
             if (i > 0) sb.append(", ");
             sb.append(StageId.fromId(stageIds[i]).name());
         }
-        sb.append("], blockSize=").append(blockSize()).append("}");
+        sb.append("], blockSize=").append(blockSize()).append(", dataType=").append(dataType).append("}");
         return sb.toString();
     }
 }

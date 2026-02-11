@@ -16,14 +16,19 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodec;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolutionPolicy;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
 
 import java.io.IOException;
 
 /**
  * Derived from {@link org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat} with the following change:
  * <ul>
- *     <li>Uses {@link NumericCodec} pipeline encoding (delta, offset, gcd, bitPack) instead of
+ *     <li>Uses pipeline encoding (delta, offset, gcd, bitPack) instead of
  *     {@link org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder} for numeric fields.</li>
  * </ul>
  */
@@ -45,9 +50,7 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final byte SORTED_NUMERIC = 4;
 
     static final int VERSION_START = 0;
-    static final int VERSION_BINARY_DV_COMPRESSION = 1;
-    static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
-    static final int VERSION_CURRENT = VERSION_NUMERIC_LARGE_BLOCKS;
+    static final int VERSION_CURRENT = VERSION_START;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -132,17 +135,54 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     final boolean enableOptimizedMerge;
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
+    final PipelineResolutionPolicy resolutionPolicy;
 
     public static ES94TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock) {
         return useLargeNumericBlock ? new ES94TSDBDocValuesFormat(NUMERIC_LARGE_BLOCK_SHIFT) : new ES94TSDBDocValuesFormat();
     }
 
-    public static NumericCodec createNumericCodec(int blockSize) {
-        return NumericCodec.withBlockSize(blockSize).delta().offset().gcd().bitPack().build();
+    public static ES94TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock, PipelineResolutionPolicy resolutionPolicy) {
+        int blockShift = useLargeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT;
+        return new ES94TSDBDocValuesFormat(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            blockShift,
+            resolutionPolicy
+        );
     }
+
+    static final NumericCodecFactory NUMERIC_CODEC_FACTORY = new NumericCodecFactory() {
+        @Override
+        public NumericEncoder createEncoder(PipelineConfig config) {
+            if (config.isDefault()) {
+                return NumericEncoder.withDefault(config.blockSize());
+            }
+            return NumericEncoder.fromConfig(config);
+        }
+
+        @Override
+        public NumericDecoder createDecoder(PipelineDescriptor descriptor) {
+            return NumericDecoder.fromDescriptor(descriptor);
+        }
+    };
 
     public ES94TSDBDocValuesFormat() {
         this(NUMERIC_BLOCK_SHIFT);
+    }
+
+    public ES94TSDBDocValuesFormat(final PipelineResolutionPolicy resolutionPolicy) {
+        this(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            NUMERIC_BLOCK_SHIFT,
+            resolutionPolicy
+        );
     }
 
     public ES94TSDBDocValuesFormat(int numericBlockShift) {
@@ -204,6 +244,26 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         final boolean enablePerBlockCompression,
         final int numericBlockShift
     ) {
+        this(
+            skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
+            enableOptimizedMerge,
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
+            numericBlockShift,
+            null
+        );
+    }
+
+    public ES94TSDBDocValuesFormat(
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode,
+        final boolean enablePerBlockCompression,
+        final int numericBlockShift,
+        final PipelineResolutionPolicy resolutionPolicy
+    ) {
         super(CODEC_NAME);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
@@ -215,6 +275,7 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
         this.numericBlockShift = numericBlockShift;
+        this.resolutionPolicy = resolutionPolicy;
     }
 
     @Override
@@ -227,6 +288,8 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             minDocsPerOrdinalForRangeEncoding,
             enableOptimizedMerge,
             numericBlockShift,
+            NUMERIC_CODEC_FACTORY,
+            resolutionPolicy,
             DATA_CODEC,
             DATA_EXTENSION,
             META_CODEC,
@@ -236,6 +299,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new ES94TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES94TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION, NUMERIC_CODEC_FACTORY);
     }
 }

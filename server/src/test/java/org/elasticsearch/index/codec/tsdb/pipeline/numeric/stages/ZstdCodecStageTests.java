@@ -21,16 +21,8 @@ import java.util.stream.LongStream;
 public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
 
     public void testIdAndName() {
-        try (ZstdCodecStage stage = new ZstdCodecStage(randomBlockSize(), ZstdCodecStage.DEFAULT_COMPRESSION_LEVEL)) {
+        try (ZstdEncodeStage stage = new ZstdEncodeStage(randomBlockSize(), ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL)) {
             assertEquals((byte) 0xA2, stage.id());
-            assertEquals("zstd", stage.name());
-        }
-    }
-
-    public void testCustomBlockSize() {
-        final int blockSize = randomBlockSize();
-        try (ZstdCodecStage stage = new ZstdCodecStage(blockSize, randomIntBetween(1, 10))) {
-            assertEquals(blockSize, stage.blockSize());
         }
     }
 
@@ -65,16 +57,19 @@ public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
         final long[] values = original.clone();
         final EncodingContext encodingContext = createEncodingContext(blockSize);
 
-        try (ZstdCodecStage zstdStage = new ZstdCodecStage(blockSize, ZstdCodecStage.DEFAULT_COMPRESSION_LEVEL)) {
+        try (
+            ZstdEncodeStage encodeStage = new ZstdEncodeStage(blockSize, ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL);
+            ZstdDecodeStage decodeStage = new ZstdDecodeStage(blockSize)
+        ) {
             final byte[] dataBuffer = new byte[blockSize * Long.BYTES * 2];
             final ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(dataBuffer);
-            zstdStage.encode(values, valueCount, dataOutput, encodingContext);
+            encodeStage.encode(values, valueCount, dataOutput, encodingContext);
 
             final DecodingContext decodingContext = createDecodingContext(blockSize);
             final ByteArrayDataInput dataInput = new ByteArrayDataInput(dataBuffer, 0, dataOutput.getPosition());
             final long[] decoded = new long[blockSize];
 
-            assertEquals(blockSize, zstdStage.decode(decoded, dataInput, decodingContext));
+            assertEquals(blockSize, decodeStage.decode(decoded, dataInput, decodingContext));
             assertArrayEquals(original, decoded);
         }
     }
@@ -91,7 +86,10 @@ public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
 
     public void testBufferReuseMultipleOperations() throws IOException {
         final int blockSize = randomBlockSize();
-        try (ZstdCodecStage zstdStage = new ZstdCodecStage(blockSize, ZstdCodecStage.DEFAULT_COMPRESSION_LEVEL)) {
+        try (
+            ZstdEncodeStage encodeStage = new ZstdEncodeStage(blockSize, ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL);
+            ZstdDecodeStage decodeStage = new ZstdDecodeStage(blockSize)
+        ) {
             for (int iter = 0; iter < 5; iter++) {
                 final long[] original = LongStream.generate(ZstdCodecStageTests::randomLong).limit(blockSize).toArray();
                 final long[] values = original.clone();
@@ -99,13 +97,13 @@ public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
 
                 final byte[] dataBuffer = new byte[blockSize * Long.BYTES * 2];
                 final ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(dataBuffer);
-                zstdStage.encode(values, values.length, dataOutput, encodingContext);
+                encodeStage.encode(values, values.length, dataOutput, encodingContext);
 
                 final DecodingContext decodingContext = createDecodingContext(blockSize);
                 final ByteArrayDataInput dataInput = new ByteArrayDataInput(dataBuffer, 0, dataOutput.getPosition());
                 final long[] decoded = new long[blockSize];
 
-                assertEquals(blockSize, zstdStage.decode(decoded, dataInput, decodingContext));
+                assertEquals(blockSize, decodeStage.decode(decoded, dataInput, decodingContext));
                 assertArrayEquals("Failed on iteration " + iter, original, decoded);
             }
         }
@@ -127,13 +125,13 @@ public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
         final long[] values = new long[tooLarge];
         final EncodingContext encodingContext = createEncodingContext(blockSize);
 
-        try (ZstdCodecStage zstdStage = new ZstdCodecStage(blockSize, ZstdCodecStage.DEFAULT_COMPRESSION_LEVEL)) {
+        try (ZstdEncodeStage encodeStage = new ZstdEncodeStage(blockSize, ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL)) {
             final byte[] dataBuffer = new byte[tooLarge * Long.BYTES * 2];
             final ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(dataBuffer);
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> zstdStage.encode(values, values.length, dataOutput, encodingContext)
+                () -> encodeStage.encode(values, values.length, dataOutput, encodingContext)
             );
             assertTrue(e.getMessage().contains("exceeds block size"));
         }
@@ -146,18 +144,19 @@ public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
 
         final EncodingContext encodingContext = createEncodingContext(customBlockSize);
 
-        try (ZstdCodecStage zstdStage = new ZstdCodecStage(customBlockSize, 1)) {
-            assertEquals(customBlockSize, zstdStage.blockSize());
-
+        try (
+            ZstdEncodeStage encodeStage = new ZstdEncodeStage(customBlockSize, 1);
+            ZstdDecodeStage decodeStage = new ZstdDecodeStage(customBlockSize)
+        ) {
             final byte[] dataBuffer = new byte[customBlockSize * Long.BYTES * 2];
             final ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(dataBuffer);
-            zstdStage.encode(values, values.length, dataOutput, encodingContext);
+            encodeStage.encode(values, values.length, dataOutput, encodingContext);
 
             final DecodingContext decodingContext = createDecodingContext(customBlockSize);
             final ByteArrayDataInput dataInput = new ByteArrayDataInput(dataBuffer, 0, dataOutput.getPosition());
             final long[] decoded = new long[customBlockSize];
 
-            assertEquals(customBlockSize, zstdStage.decode(decoded, dataInput, decodingContext));
+            assertEquals(customBlockSize, decodeStage.decode(decoded, dataInput, decodingContext));
             assertArrayEquals(original, decoded);
         }
     }
@@ -171,23 +170,26 @@ public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
     }
 
     private void assertRoundTrip(final long[] original, int blockSize) throws IOException {
-        assertRoundTripWithLevel(original, blockSize, ZstdCodecStage.DEFAULT_COMPRESSION_LEVEL);
+        assertRoundTripWithLevel(original, blockSize, ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL);
     }
 
     private void assertRoundTripWithLevel(final long[] original, int blockSize, int compressionLevel) throws IOException {
         final long[] values = original.clone();
         final EncodingContext encodingContext = createEncodingContext(blockSize);
 
-        try (ZstdCodecStage zstdStage = new ZstdCodecStage(blockSize, compressionLevel)) {
+        try (
+            ZstdEncodeStage encodeStage = new ZstdEncodeStage(blockSize, compressionLevel);
+            ZstdDecodeStage decodeStage = new ZstdDecodeStage(blockSize)
+        ) {
             final byte[] dataBuffer = new byte[blockSize * Long.BYTES * 2];
             final ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(dataBuffer);
-            zstdStage.encode(values, original.length, dataOutput, encodingContext);
+            encodeStage.encode(values, original.length, dataOutput, encodingContext);
 
             final DecodingContext decodingContext = createDecodingContext(blockSize);
             final ByteArrayDataInput dataInput = new ByteArrayDataInput(dataBuffer, 0, dataOutput.getPosition());
             final long[] decoded = new long[original.length];
 
-            assertEquals(blockSize, zstdStage.decode(decoded, dataInput, decodingContext));
+            assertEquals(blockSize, decodeStage.decode(decoded, dataInput, decodingContext));
             assertArrayEquals(original, decoded);
         }
     }

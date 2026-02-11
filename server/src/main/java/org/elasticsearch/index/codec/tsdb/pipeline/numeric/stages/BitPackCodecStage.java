@@ -16,12 +16,13 @@ import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public final class BitPackCodecStage implements PayloadCodecStage {
+public final class BitPackCodecStage implements PayloadEncoder, PayloadDecoder {
 
     private final DocValuesForUtil forUtil;
     private final int blockSize;
@@ -37,11 +38,8 @@ public final class BitPackCodecStage implements PayloadCodecStage {
     }
 
     @Override
-    public String name() {
-        return "bit-pack";
-    }
-
-    @Override
+    // NOTE: Payload layout: [bitsPerValue: VInt] [packed data via DocValuesForUtil].
+    // No stage metadata (writes directly to DataOutput, not MetadataWriter).
     public void encode(final long[] values, int valueCount, final DataOutput out, final EncodingContext context) throws IOException {
         if (valueCount < blockSize) {
             Arrays.fill(values, valueCount, blockSize, 0L);
@@ -74,5 +72,28 @@ public final class BitPackCodecStage implements PayloadCodecStage {
             or |= values[i];
         }
         return or == 0 ? 0 : DocValuesForUtil.roundBits(PackedInts.unsignedBitsRequired(or));
+    }
+
+    @Override
+    public boolean requiresExplicitClose() {
+        return false;
+    }
+
+    @Override
+    public void close() {}
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || (o instanceof BitPackCodecStage that && blockSize == that.blockSize);
+    }
+
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(blockSize);
+    }
+
+    @Override
+    public String toString() {
+        return "BitPackCodecStage{blockSize=" + blockSize + "}";
     }
 }

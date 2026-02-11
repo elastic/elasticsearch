@@ -15,7 +15,12 @@ import org.elasticsearch.index.codec.tsdb.pipeline.BlockFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,19 +29,26 @@ public abstract class NumericCodecStageTestCase extends CodecStageTestCase {
 
     protected static final byte PAYLOAD_STAGE = TestPayloadCodecStage.TEST_STAGE_ID;
 
-    protected void assertRoundTrip(long[] original, int blockSize, byte stageId, NumericCodecStage stage) throws IOException {
-        assertRoundTrip(original, blockSize, stageId, stage, 64);
+    protected void assertRoundTrip(long[] original, int blockSize, byte stageId, TransformEncoder encoder, TransformDecoder decoder)
+        throws IOException {
+        assertRoundTrip(original, blockSize, stageId, encoder, decoder, 64);
     }
 
-    protected void assertRoundTrip(long[] original, int blockSize, byte stageId, NumericCodecStage stage, int extraBuffer)
-        throws IOException {
+    protected void assertRoundTrip(
+        long[] original,
+        int blockSize,
+        byte stageId,
+        TransformEncoder encoder,
+        TransformDecoder decoder,
+        int extraBuffer
+    ) throws IOException {
         final long[] values = original.clone();
         final PipelineDescriptor pipeline = new PipelineDescriptor(new byte[] { stageId, PAYLOAD_STAGE }, blockSize);
         final EncodingContext encodingContext = new EncodingContext(blockSize, pipeline.pipelineLength());
         encodingContext.setValueCount(values.length);
         encodingContext.setCurrentPosition(0);
 
-        stage.encode(values, values.length, encodingContext);
+        encoder.encode(values, values.length, encodingContext);
 
         final boolean stageApplied = Arrays.equals(original, values) == false;
         if (stageApplied == false) {
@@ -50,12 +62,12 @@ public abstract class NumericCodecStageTestCase extends CodecStageTestCase {
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
         BlockFormat.writeBlock(out, values, TestPayloadCodecStage.INSTANCE, encodingContext);
 
-        final DecodingContext decodingContext = new DecodingContext(blockSize, pipeline.stageIds());
+        final DecodingContext decodingContext = new DecodingContext(blockSize, pipeline.pipelineLength());
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
         decodingContext.setDataInput(in);
         BlockFormat.readBlock(in, values, TestPayloadCodecStage.INSTANCE, decodingContext, 1);
 
-        stage.decode(values, values.length, decodingContext);
+        decoder.decode(values, values.length, decodingContext);
 
         assertArrayEquals(original, values);
     }
@@ -67,11 +79,30 @@ public abstract class NumericCodecStageTestCase extends CodecStageTestCase {
         return context;
     }
 
-    protected void assertStageSkipped(long[] original, int blockSize, byte stageId, NumericCodecStage stage) throws IOException {
+    protected void assertStageSkipped(long[] original, int blockSize, byte stageId, TransformEncoder encoder) throws IOException {
         final long[] values = original.clone();
         final EncodingContext encodingContext = createEncodingContext(blockSize, stageId);
-        stage.encode(values, values.length, encodingContext);
+        encoder.encode(values, values.length, encodingContext);
         assertArrayEquals(original, values);
         assertFalse(encodingContext.isStageApplied(0));
+    }
+
+    protected void assertFullPipelineRoundTrip(long[] original, NumericEncoder encoder) throws IOException {
+        final long[] values = original.clone();
+        final int blockSize = encoder.blockSize();
+
+        final byte[] buffer = new byte[blockSize * Long.BYTES * 4 + 4096];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+
+        final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
+        blockEncoder.encode(values, values.length, out);
+
+        final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+        final NumericBlockDecoder blockDecoder = decoder.newBlockDecoder();
+        final long[] decoded = new long[blockSize];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        blockDecoder.decode(decoded, in);
+
+        assertArrayEquals(original, Arrays.copyOf(decoded, original.length));
     }
 }

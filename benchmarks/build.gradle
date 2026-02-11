@@ -99,11 +99,24 @@ tasks.named('test').configure {
   }
 }
 
+// NOTE: Copy NumericDataGenerators from server test sources so benchmarks can reuse
+// the same data patterns without adding a testFixtures dependency.
+def numericDataGenSource = "${project(':server').projectDir}/src/test/java/org/elasticsearch/index/codec/tsdb/pipeline/bench/NumericDataGenerators.java"
+def numericDataGenDir = layout.buildDirectory.dir("generated/sources/numericDataGenerators")
+def copyNumericDataGenerators = tasks.register('copyNumericDataGenerators', Copy) {
+  inputs.file(numericDataGenSource)
+  from numericDataGenSource
+  into numericDataGenDir.map { it.dir("org/elasticsearch/index/codec/tsdb/pipeline/bench") }
+  outputs.dir(numericDataGenDir)
+}
+sourceSets.main.java.srcDir numericDataGenDir
+tasks.named('compileJava').configure { dependsOn(copyNumericDataGenerators) }
+
 spotless {
   java {
     // IDEs can sometimes run annotation processors that leave files in
     // here, causing Spotless to complain. Even though this path ought not
     // to exist, exclude it anyway in order to avoid spurious failures.
-    targetExclude 'src/main/generated/**/*.java'
+    targetExclude 'src/main/generated/**/*.java', 'build/generated/**/*.java'
   }
 }

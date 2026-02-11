@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -126,9 +125,8 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     private Set<String> indexRandomDocuments(String index, int numdocs) {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         Set<String> docIds = new HashSet<>(numdocs);
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         Instant now = Instant.now();
-        for (int i = 0; i < builders.length; i++) {
+        for (int i = 0; i < numdocs; i++) {
             String source = String.format(Locale.ROOT, """
                 {"@timestamp": "%s", "hostname": "host", "metric": {"field": "cpu-load", "value": %d}}
                 """, now.plus(i, ChronoUnit.SECONDS), randomByte());

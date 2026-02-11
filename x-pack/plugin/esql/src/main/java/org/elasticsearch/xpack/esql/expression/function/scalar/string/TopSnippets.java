@@ -259,7 +259,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             String content = value.utf8ToString();
 
             List<String> chunks = chunkText(content, chunkingSettings);
-            allScoredChunks.addAll(scorer.scoreChunks(chunks, queryString, Integer.MAX_VALUE, false));
+            allScoredChunks.addAll(scorer.scoreChunks(chunks, queryString, numSnippets, false));
         }
 
         List<String> snippets = allScoredChunks.stream()

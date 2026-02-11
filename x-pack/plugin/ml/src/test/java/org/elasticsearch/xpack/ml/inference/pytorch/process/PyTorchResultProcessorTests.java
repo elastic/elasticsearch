@@ -268,7 +268,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.timingStats().getSum(), equalTo(1000L));
         assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(1L));
         assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1000L));
-        assertThat(stats.inferenceProcessRssMemory(), equalTo(111L));
+        assertThat(Math.round(stats.inferenceProcessRssStats().getAverage()), equalTo(111L));
 
         processor.processInferenceResult(b);
         processor.updateStats(b);
@@ -281,7 +281,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.timingStats().getSum(), equalTo(1900L));
         assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(2L));
         assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1900L));
-        assertThat(stats.inferenceProcessRssMemory(), equalTo(222L));
+        assertThat(Math.round(stats.inferenceProcessRssStats().getAverage()), equalTo(166L)); // (111+222)/2
 
         processor.processInferenceResult(c);
         processor.updateStats(c);
@@ -294,7 +294,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.timingStats().getSum(), equalTo(2100L));
         assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(2L));
         assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1900L));
-        assertThat(stats.inferenceProcessRssMemory(), equalTo(333L));
+        assertThat(Math.round(stats.inferenceProcessRssStats().getAverage()), equalTo(222L)); // (111+222+333)/3
     }
 
     public void testsTimeDependentStats() {

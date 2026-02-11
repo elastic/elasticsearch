@@ -40,7 +40,7 @@ public class PyTorchResultProcessor {
         LongSummaryStatistics timingStats,
         LongSummaryStatistics timingStatsExcludingCacheHits,
         int errorCount,
-        Long inferenceProcessRssMemory,
+        LongSummaryStatistics inferenceProcessRssStats,
         long cacheHitCount,
         int numberOfPendingResults,
         Instant lastUsed,
@@ -58,7 +58,7 @@ public class PyTorchResultProcessor {
     private final LongSummaryStatistics timingStats;
     private final LongSummaryStatistics timingStatsExcludingCacheHits;
     private int errorCount;
-    private Long inferenceProcessRssMemory;
+    private final LongSummaryStatistics inferenceProcessRssStats;
     private long cacheHitCount;
     private long peakThroughput;
 
@@ -80,6 +80,7 @@ public class PyTorchResultProcessor {
         this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
         this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
+        this.inferenceProcessRssStats = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
         this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
         this.currentTimeMsSupplier = currentTimeSupplier;
@@ -258,7 +259,7 @@ public class PyTorchResultProcessor {
             cloneSummaryStats(timingStats),
             cloneSummaryStats(timingStatsExcludingCacheHits),
             errorCount,
-            inferenceProcessRssMemory,
+            cloneSummaryStats(inferenceProcessRssStats),
             cacheHitCount,
             pendingResults.size(),
             lastResultTimeMs > 0 ? Instant.ofEpochMilli(lastResultTimeMs) : null,
@@ -281,7 +282,7 @@ public class PyTorchResultProcessor {
         timingStats.accept(timeMs);
 
         if (result.processStats() != null) {
-            this.inferenceProcessRssMemory = result.processStats().memoryRss();
+            this.inferenceProcessRssStats.accept(result.processStats().memoryRss());
         }
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();

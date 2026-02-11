@@ -36,6 +36,10 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
         this.metric = metric;
     }
 
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        return AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
+    }
+
     static final class Aggregate extends AggregateMetricDoubleFieldDownsampler {
 
         private double max = MAX_NO_VALUE;

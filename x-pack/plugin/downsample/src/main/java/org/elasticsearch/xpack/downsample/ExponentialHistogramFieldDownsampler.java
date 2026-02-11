@@ -15,9 +15,11 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
+import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 
@@ -42,6 +44,10 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
     }
 
     protected abstract ExponentialHistogram downsampledValue();
+
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        return ExponentialHistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
+    }
 
     @Override
     public void write(XContentBuilder builder) throws IOException {

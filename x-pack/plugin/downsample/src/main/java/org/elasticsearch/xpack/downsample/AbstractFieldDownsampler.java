@@ -12,12 +12,9 @@ import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,14 +80,14 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         Map<String, String> multiFieldSources,
         DownsampleConfig.SamplingMethod samplingMethod
     ) {
-        List<AbstractFieldDownsampler<?>> fetchers = new ArrayList<>();
+        List<AbstractFieldDownsampler<?>> downsamplers = new ArrayList<>();
         for (String field : fields) {
             String sourceField = multiFieldSources.getOrDefault(field, field);
             MappedFieldType fieldType = context.getFieldType(sourceField);
             assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
-                fetchers.addAll(AggregateMetricDoubleFieldDownsampler.create(context, aggMetricFieldType, samplingMethod));
+                downsamplers.addAll(AggregateMetricDoubleFieldDownsampler.create(context, aggMetricFieldType, samplingMethod));
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;
@@ -100,11 +97,11 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    fetchers.add(create(field, fieldType, fieldData, samplingMethod));
+                    downsamplers.add(create(field, fieldType, fieldData, samplingMethod));
                 }
             }
         }
-        return Collections.unmodifiableList(fetchers);
+        return Collections.unmodifiableList(downsamplers);
     }
 
     private static AbstractFieldDownsampler<?> create(
@@ -113,31 +110,22 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         IndexFieldData<?> fieldData,
         DownsampleConfig.SamplingMethod samplingMethod
     ) {
-        assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
-            : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
-        if (HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())
-            || TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
+        assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType)
+            : "Aggregate metric double should be handled by a dedicated downsampler";
+        if (TDigestHistogramFieldDownsampler.supportsFieldType(fieldType)) {
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
-        if (ExponentialHistogramFieldDownsampler.TYPE.equals(fieldType.typeName())) {
+        if (ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType)) {
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
-        if (fieldType.getMetricType() != null) {
-            // TODO: Support POSITION in downsampling
-            if (fieldType.getMetricType() == POSITION) {
-                throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
-            }
-            assert fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE
-                || fieldType.getMetricType() == TimeSeriesParams.MetricType.COUNTER
-                : "only gauges and counters accepted, other metrics should have been handled earlier";
-            if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE
-                && fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
-                return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
-            }
-            return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldData);
-        } else {
-            // If a field is not a metric, we downsample it as a label
-            return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData);
+        if (NumericMetricFieldDownsampler.supportsFieldType(fieldType)) {
+            return NumericMetricFieldDownsampler.create(fieldName, fieldType.getMetricType(), fieldData, samplingMethod);
         }
+        // TODO: Support POSITION in downsampling
+        if (fieldType.getMetricType() == POSITION) {
+            throw new IllegalArgumentException("Unsupported metric type [position] for downsampling");
+        }
+        // If a field is not a metric, we downsample it as a label
+        return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData);
     }
 }

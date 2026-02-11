@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
@@ -48,6 +49,11 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
     public HistogramValues getLeaf(LeafReaderContext context) throws IOException {
         LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
         return histogramFieldData.getHistogramValues();
+    }
+
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        return TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())
+            || HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
     }
 
     /**

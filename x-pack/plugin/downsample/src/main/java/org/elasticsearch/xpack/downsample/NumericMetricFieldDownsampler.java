@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,6 +36,25 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     public SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
         LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
         return numericFieldData.getDoubleValues();
+    }
+
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        TimeSeriesParams.MetricType metricType = fieldType.getMetricType();
+        return metricType == TimeSeriesParams.MetricType.GAUGE || metricType == TimeSeriesParams.MetricType.COUNTER;
+    }
+
+    static NumericMetricFieldDownsampler create(
+        String fieldName,
+        TimeSeriesParams.MetricType metricType,
+        IndexFieldData<?> fieldData,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
+        assert metricType == TimeSeriesParams.MetricType.GAUGE || metricType == TimeSeriesParams.MetricType.COUNTER
+            : "only gauges and counters accepted, other metrics should have been handled by dedicated downsamplers";
+        if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE && metricType == TimeSeriesParams.MetricType.GAUGE) {
+            return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
+        }
+        return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldData);
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;

@@ -45,6 +45,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -59,6 +60,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
@@ -433,7 +435,13 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics
         ) {
-            super(environment, settings, threadPool, blobCacheMetrics);
+            super(
+                environment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+            );
         }
 
         @Override

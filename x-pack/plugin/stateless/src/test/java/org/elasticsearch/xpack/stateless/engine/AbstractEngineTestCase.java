@@ -67,6 +67,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -100,6 +101,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -451,7 +453,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             indexSettings.getSettings(),
             threadPool,
             BlobCacheMetrics.NOOP,
-            System::nanoTime
+            System::nanoTime,
+            new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
         var directory = new SearchDirectory(
             cache,

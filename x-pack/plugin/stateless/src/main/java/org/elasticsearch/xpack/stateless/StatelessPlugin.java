@@ -104,7 +104,9 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -222,6 +224,7 @@ import org.elasticsearch.xpack.stateless.engine.RefreshThrottlingService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -284,6 +287,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -550,6 +554,10 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<DesiredTopologyContext> desiredTopologyContext = new SetOnce<>();
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
+
+    private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
+        BlobStoreCacheDirectoryMetrics::new
+    );
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -1165,7 +1173,8 @@ public class StatelessPlugin extends Plugin
             nodeEnvironment,
             settings,
             threadPool,
-            blobCacheMetrics
+            blobCacheMetrics,
+            metricHolder
         );
         statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;
@@ -1850,6 +1859,11 @@ public class StatelessPlugin extends Plugin
         } catch (IOException e) {
             throw new EngineCreationFailureException(config.getShardId(), "failed to read last segments info", e);
         }
+    }
+
+    @Override
+    public void registerDirectoryMetrics(BiConsumer<String, PluggableDirectoryMetricsHolder<?>> registrator) {
+        registrator.accept("serverless", metricHolder);
     }
 
     protected CodecProvider getCodecProvider(EngineConfig engineConfig) {

@@ -22,8 +22,10 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.concurrent.Executor;
@@ -36,15 +38,18 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
     private final Executor shardReadThreadPoolExecutor;
+    private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics
+        BlobCacheMetrics blobCacheMetrics,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics);
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
+        this.metricsHolder = metricsHolder;
     }
 
     // for tests
@@ -53,10 +58,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInNanosSupplier
+        LongSupplier relativeTimeInNanosSupplier,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier);
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
+        this.metricsHolder = metricsHolder;
     }
 
     public void assertInvariants() {
@@ -85,5 +92,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     @Override
     public long getRegionEnd(int region) {
         return super.getRegionEnd(region);
+    }
+
+    public PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder() {
+        return metricsHolder;
     }
 }

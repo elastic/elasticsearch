@@ -39,6 +39,12 @@ public final class MixedbreadUtils {
     // embeddings fields
     public static final String INPUT_NAME = "input";
     public static final String INPUT_TYPE_FIELD = "input_type";
+
+    public static final String DIMENSIONS_FIELD = "dimensions";
+    public static final String PROMPT_FIELD = "prompt";
+    public static final String NORMALIZED_FIELD = "normalized";
+    public static final String ENCODING_FORMAT_FIELD = "encoding_format";
+
     public static final String TRUNCATE_FIELD = "truncate";
 
     public static final String EMBEDDINGS_ERROR_PREFIX = "Embeddings rerank";

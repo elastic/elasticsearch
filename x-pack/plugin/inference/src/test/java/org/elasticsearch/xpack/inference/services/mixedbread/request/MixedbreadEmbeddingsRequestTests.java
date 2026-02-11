@@ -39,11 +39,12 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
         var request = createRequest(TestUtils.CUSTOM_URL, INPUT_TYPE_ELASTIC_INITIAL_VALUE, TRUNCATE_ELASTIC_VALUE, null);
         var requestMap = getEntityAsMap(request);
-        assertThat(requestMap, aMapWithSize(4));
+        assertThat(requestMap, aMapWithSize(5));
         assertThat(requestMap.get("input"), is(List.of(INPUT)));
-        assertThat(requestMap.get("truncate"), is("start"));
-        assertThat(requestMap.get("input_type"), is("passage"));
         assertThat(requestMap.get("model"), is(TestUtils.MODEL_ID));
+        assertThat(requestMap.get("prompt"), is(TestUtils.PROMPT));
+        assertThat(requestMap.get("normalized"), is(TestUtils.NORMALIZED));
+        assertThat(requestMap.get("encoding_format"), is(TestUtils.ENCODING_VALUE));
     }
 
     public void testGetTruncationInfo() {
@@ -73,8 +74,7 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
         return new MixedbreadEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(INPUT), new boolean[] { false }),
-            embeddingsModel,
-            requestInputType
+            embeddingsModel
         );
     }
 

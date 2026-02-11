@@ -11,8 +11,6 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -34,7 +32,6 @@ public class MixedbreadEmbeddingsRequest implements Request {
     private final MixedbreadEmbeddingsModel model;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
-    private final InputType inputType;
 
     /**
      * Constructs a new {@link MixedbreadEmbeddingsRequest} with the specified truncator, input, and model.
@@ -42,18 +39,11 @@ public class MixedbreadEmbeddingsRequest implements Request {
      * @param truncator the truncator to handle input truncation
      * @param input the input to be truncated
      * @param model the Mixedbread embeddings model to be used for the request
-     * @param inputType the type of input being processed
      */
-    public MixedbreadEmbeddingsRequest(
-        Truncator truncator,
-        Truncator.TruncationResult input,
-        MixedbreadEmbeddingsModel model,
-        @Nullable InputType inputType
-    ) {
+    public MixedbreadEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, MixedbreadEmbeddingsModel model) {
         this.model = Objects.requireNonNull(model);
         this.truncator = Objects.requireNonNull(truncator);
         this.truncationResult = Objects.requireNonNull(input);
-        this.inputType = inputType;
     }
 
     @Override
@@ -65,8 +55,10 @@ public class MixedbreadEmbeddingsRequest implements Request {
                 new MixedbreadEmbeddingsRequestEntity(
                     truncationResult.input(),
                     model.getServiceSettings().modelId(),
-                    extractInputTypeToUse(),
-                    model.getTaskSettings().getTruncation()
+                    model.getServiceSettings().dimensions(),
+                    model.getServiceSettings().prompt(),
+                    model.getServiceSettings().normalized(),
+                    model.getServiceSettings().encodingFormat()
                 )
             ).getBytes(StandardCharsets.UTF_8)
         );
@@ -78,23 +70,6 @@ public class MixedbreadEmbeddingsRequest implements Request {
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
-    /**
-     * Extracts the input type to be used for the request.
-     * It first checks if the inputType field is specified, then checks the model's task settings.
-     * If neither is specified, it defaults to {@link InputType#SEARCH}.
-     *
-     * @return the {@link InputType} to be used for the request
-     */
-    private InputType extractInputTypeToUse() {
-        if (InputType.isSpecified(inputType)) {
-            return inputType;
-        } else if (InputType.isSpecified(model.getTaskSettings().getInputType())) {
-            return model.getTaskSettings().getInputType();
-        } else {
-            return InputType.SEARCH;
-        }
-    }
-
     @Override
     public URI getURI() {
         return model.getServiceSettings().uri();
@@ -103,7 +78,7 @@ public class MixedbreadEmbeddingsRequest implements Request {
     @Override
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
-        return new MixedbreadEmbeddingsRequest(truncator, truncatedInput, model, inputType);
+        return new MixedbreadEmbeddingsRequest(truncator, truncatedInput, model);
     }
 
     @Override

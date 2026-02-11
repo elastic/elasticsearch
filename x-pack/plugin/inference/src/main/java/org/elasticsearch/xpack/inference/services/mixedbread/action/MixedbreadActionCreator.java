@@ -70,8 +70,7 @@ public class MixedbreadActionCreator implements MixedbreadActionVisitor {
             embeddingsInput -> new MixedbreadEmbeddingsRequest(
                 serviceComponents.truncator(),
                 truncate(embeddingsInput.getTextInputs(), overriddenModel.getServiceSettings().maxInputTokens()),
-                overriddenModel,
-                embeddingsInput.getInputType()
+                overriddenModel
             ),
             EmbeddingsInput.class
         );

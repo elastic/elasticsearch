@@ -174,7 +174,17 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
     ) {
         return new MixedbreadEmbeddingsModel(
             "inferenceEntityId",
-            new MixedbreadEmbeddingsServiceSettings(modelId, url, dimensions, SimilarityMeasure.DOT_PRODUCT, maxInputTokens, null),
+            new MixedbreadEmbeddingsServiceSettings(
+                modelId,
+                url,
+                dimensions,
+                TestUtils.PROMPT,
+                TestUtils.NORMALIZED,
+                TestUtils.ENCODING_VALUE,
+                SimilarityMeasure.DOT_PRODUCT,
+                maxInputTokens,
+                null
+            ),
             new MixedbreadEmbeddingsTaskSettings(inputType, truncation),
             chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))

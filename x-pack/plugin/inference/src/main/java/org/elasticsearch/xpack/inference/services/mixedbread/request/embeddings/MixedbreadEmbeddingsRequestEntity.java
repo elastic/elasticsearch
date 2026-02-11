@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.inference.services.mixedbread.request.embeddings;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 
 import java.io.IOException;
@@ -23,16 +21,22 @@ import java.util.Objects;
  *
  * @param input the input to be truncated
  * @param modelId the model identifier
- * @param inputType the type of input being processed
- * @param truncation specifies whether input text should be truncated if it exceeds the model's maximum supported length
+ * @param dimensions specifies the dimensionality of the generated embedding vector
+ * @param prompt the query text used to rank the provided documents by relevance
+ * @param normalized specifies whether to normalize the embeddings
+ * @param encodingFormat specifies the encoding format of the embeddings
  */
-public record MixedbreadEmbeddingsRequestEntity(List<String> input, String modelId, InputType inputType, @Nullable Truncation truncation)
-    implements
-        ToXContentObject {
+public record MixedbreadEmbeddingsRequestEntity(
+    List<String> input,
+    String modelId,
+    @Nullable Integer dimensions,
+    @Nullable String prompt,
+    @Nullable Boolean normalized,
+    @Nullable String encodingFormat
+) implements ToXContentObject {
     public MixedbreadEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
         Objects.requireNonNull(modelId);
-        Objects.requireNonNull(inputType);
     }
 
     @Override
@@ -40,9 +44,20 @@ public record MixedbreadEmbeddingsRequestEntity(List<String> input, String model
         builder.startObject();
         builder.field(MixedbreadUtils.INPUT_NAME, input);
         builder.field(MixedbreadUtils.MODEL_FIELD, modelId);
-        builder.field(MixedbreadUtils.INPUT_TYPE_FIELD, MixedbreadUtils.inputTypeToString(inputType));
-        if (truncation != null) {
-            builder.field(MixedbreadUtils.TRUNCATE_FIELD, truncation);
+
+        if (dimensions != null) {
+            builder.field(MixedbreadUtils.DIMENSIONS_FIELD, dimensions);
+        }
+        if (prompt != null) {
+            builder.field(MixedbreadUtils.PROMPT_FIELD, prompt);
+        }
+
+        if (normalized != null) {
+            builder.field(MixedbreadUtils.NORMALIZED_FIELD, normalized);
+        }
+
+        if (encodingFormat != null) {
+            builder.field(MixedbreadUtils.ENCODING_FORMAT_FIELD, encodingFormat);
         }
         builder.endObject();
         return builder;

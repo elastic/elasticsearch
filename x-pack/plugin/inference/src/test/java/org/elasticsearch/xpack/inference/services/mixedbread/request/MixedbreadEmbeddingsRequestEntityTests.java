@@ -25,68 +25,53 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new MixedbreadEmbeddingsRequestEntity(
             List.of("abc"),
             TestUtils.MODEL_ID,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE
+            TestUtils.DIMENSIONS,
+            TestUtils.PROMPT,
+            TestUtils.NORMALIZED,
+            TestUtils.ENCODING_VALUE
         );
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc"],
                 "model": "model_id_value",
-                "input_type": "passage",
-                "truncate": "start"
+                "dimensions": 3,
+                "prompt": "prompt_value",
+                "normalized": false,
+                "encoding_format": "float"
             }
             """));
     }
 
     public void testXContent_SingleRequest_WritesMinimalFields() throws IOException {
-        var entity = new MixedbreadEmbeddingsRequestEntity(
-            List.of("abc"),
-            TestUtils.MODEL_ID,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            null
-        );
+        var entity = new MixedbreadEmbeddingsRequestEntity(List.of("abc"), TestUtils.MODEL_ID, null, null, null, null);
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc"],
-                "model": "model_id_value",
-                "input_type": "passage"
+                "model": "model_id_value"
             }
             """));
     }
 
     public void testXContent_MultipleRequests_WritesAllFieldsIfDefined() throws IOException {
-        var entity = new MixedbreadEmbeddingsRequestEntity(
-            List.of("abc", "def"),
-            TestUtils.MODEL_ID,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE
-        );
+        var entity = new MixedbreadEmbeddingsRequestEntity(List.of("abc", "def"), TestUtils.MODEL_ID, null, null, null, null);
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc", "def"],
-                "model": "model_id_value",
-                "input_type": "passage",
-                "truncate": "start"
+                "model": "model_id_value"
             }
             """));
     }
 
     public void testXContent_MultipleRequests_WritesMinimalFields() throws IOException {
-        var entity = new MixedbreadEmbeddingsRequestEntity(
-            List.of("abc", "def"),
-            TestUtils.MODEL_ID,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            null
-        );
+        var entity = new MixedbreadEmbeddingsRequestEntity(List.of("abc", "def"), TestUtils.MODEL_ID, null, null, null, null);
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc", "def"],
-                "model": "model_id_value",
-                "input_type": "passage"
+                "model": "model_id_value"
             }
             """));
     }

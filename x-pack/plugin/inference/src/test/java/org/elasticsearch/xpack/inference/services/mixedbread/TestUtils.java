@@ -20,6 +20,11 @@ public final class TestUtils {
     public static final Boolean RETURN_DOCUMENTS_TRUE = true;
     public static final Boolean RETURN_DOCUMENTS_FALSE = false;
 
+    public static final int DIMENSIONS = 3;
+    public static final String PROMPT = "prompt_value";
+    public static final Boolean NORMALIZED = Boolean.FALSE;
+    public static final String ENCODING_VALUE = "float";
+
     public static final InputType INPUT_TYPE_INITIAL_ELASTIC_VALUE = InputType.INGEST;
     public static final Truncation TRUNCATE_INITIAL_ELASTIC_VALUE = Truncation.START;
     public static final InputType INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE = InputType.SEARCH;

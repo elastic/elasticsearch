@@ -24,10 +24,11 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
 /**
- * Returns the sample value if there is exactly one element, otherwise returns null.
+ * Returns the sample value if there is exactly one element, otherwise returns NaN.
  */
 public class Scalar extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Scalar", Scalar::new);
@@ -90,6 +91,7 @@ public class Scalar extends AggregateFunction implements SurrogateExpression {
         Max max = new Max(s, field, filter(), window());
         Literal one = new Literal(s, 1L, LONG);
 
-        return new Case(s, new Equals(s, count, one), List.of(max, Literal.NULL));
+        Literal nan = new Literal(s, Double.NaN, DOUBLE);
+        return new Case(s, new Equals(s, count, one), List.of(max, nan));
     }
 }

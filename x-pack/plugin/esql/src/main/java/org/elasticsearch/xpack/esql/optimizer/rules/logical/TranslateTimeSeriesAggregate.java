@@ -360,7 +360,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         Attribute g,
         List<NamedExpression> firstPassAggs,
         List<Expression> secondPassGroupings,
-        InternalNames internalNames,
+        TemporaryNameUtils.InternalNameGenerator internalNames,
         LogicalOptimizerContext context,
         List<Alias> packDimensions,
         List<Alias> unpackDimensions,

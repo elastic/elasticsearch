@@ -395,7 +395,7 @@ public class PromqlFunctionRegistry {
         vector("Returns the scalar as a vector with no labels.", "vector(1)"),
         scalar(
             "Returns the sample value of a single-element instant vector as a scalar. "
-                + "If the input vector does not have exactly one element, scalar returns null.",
+                + "If the input vector does not have exactly one element, scalar returns NaN.",
             "scalar(sum(http_requests_total))"
         ),
         scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI), "Returns the value of pi.", "pi()"),

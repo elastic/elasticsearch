@@ -184,7 +184,8 @@ public class KnnIndexTester {
                         elementType,
                         false,
                         exec != null ? args.numMergeWorkers() : 1,
-                        exec
+                        exec,
+                        args.flatIndexThreshold()
                     );
                 }
             } else if (quantizeBits < 32) {
@@ -200,7 +201,8 @@ public class KnnIndexTester {
                         true,
                         false,
                         exec != null ? args.numMergeWorkers() : 1,
-                        exec
+                        exec,
+                        args.flatIndexThreshold()
                     );
                 }
             } else {
@@ -209,7 +211,8 @@ public class KnnIndexTester {
                     args.hnswEfConstruction(),
                     elementType,
                     exec != null ? args.numMergeWorkers() : 1,
-                    exec
+                    exec,
+                    args.flatIndexThreshold()
                 );
             }
         }

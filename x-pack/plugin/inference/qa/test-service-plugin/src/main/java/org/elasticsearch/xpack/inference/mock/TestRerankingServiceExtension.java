@@ -248,13 +248,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestTaskSettings(
-        boolean useTextLength,
-        float minScore,
-        float resultDiff,
-        Integer topN,
-        boolean hideTopN
-    ) implements TaskSettings, TopNProvider {
+    public record TestTaskSettings(boolean useTextLength, float minScore, float resultDiff, Integer topN, boolean hideTopN)
+        implements
+            TaskSettings,
+            TopNProvider {
 
         static final String NAME = "test_reranking_task_settings";
 

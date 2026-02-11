@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.analytics.aggregations.support;
+package org.elasticsearch.xpack.analytics.aggregations.support;
 
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.core.analytics.aggregations.support.HistogramValuesSource;
 
 import java.util.Locale;
 import java.util.function.LongSupplier;

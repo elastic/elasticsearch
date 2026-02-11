@@ -53,13 +53,13 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
-import org.elasticsearch.xpack.core.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -243,7 +243,7 @@ public class TDigestFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             // TODO - This needs to be changed to a custom values source type
-            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(name(), null) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {
@@ -344,6 +344,11 @@ public class TDigestFieldMapper extends FieldMapper {
                     BucketedSort.ExtraData extra
                 ) {
                     throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
+                }
+
+                @Override
+                public ValuesSourceType getValuesSourceType() {
+                    throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not support aggregations");
                 }
             };
         }

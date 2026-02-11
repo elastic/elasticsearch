@@ -96,9 +96,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/124341
-- class: org.elasticsearch.cli.keystore.AddStringKeyStoreCommandTests
-  method: testStdinWithMultipleValues
-  issue: https://github.com/elastic/elasticsearch/issues/126882
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
@@ -371,9 +368,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/142032
-- class: org.elasticsearch.xpack.diskbbq.DirectIOIT
-  method: testDirectIOUsed {p0=bbq_disk}
-  issue: https://github.com/elastic/elasticsearch/issues/141942
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testTrueModeSupportedVectorType
   issue: https://github.com/elastic/elasticsearch/issues/142070
@@ -383,9 +377,6 @@ tests:
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testAutoModeSupportedVectorType
   issue: https://github.com/elastic/elasticsearch/issues/142072
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFieldDataStats
-  issue: https://github.com/elastic/elasticsearch/issues/142078
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
@@ -404,6 +395,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword
   issue: https://github.com/elastic/elasticsearch/issues/142282
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=1024 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142289
 
 # Examples:
 #

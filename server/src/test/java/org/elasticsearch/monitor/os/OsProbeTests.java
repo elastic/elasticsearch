@@ -335,11 +335,7 @@ public class OsProbeTests extends ESTestCase {
         OsProbe probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
         assertThat(probe.getActualFreePhysicalMemorySize(), equalTo(39646240 * 1024L));
 
-        meminfoLines = Arrays.asList(
-            "MemFree:         10 kB",
-            "Buffers:         20 kB",
-            "Cached:         30 kB"
-        );
+        meminfoLines = Arrays.asList("MemFree:         10 kB", "Buffers:         20 kB", "Cached:         30 kB");
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
         assertThat(probe.getActualFreePhysicalMemorySize(), equalTo((10 + 20 + 30) * 1024L));
     }

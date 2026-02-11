@@ -608,6 +608,9 @@ public class EsqlSession {
         if (metrics == null || statement.settings() == null) {
             return;
         }
+        // The Metrics class only registers counters for settings applicable to the current environment
+        // (e.g., snapshot-only settings are not registered in non-snapshot builds).
+        // incSetting() silently ignores settings that don't have a registered counter.
         for (QuerySetting setting : statement.settings()) {
             metrics.incSetting(setting.name());
         }

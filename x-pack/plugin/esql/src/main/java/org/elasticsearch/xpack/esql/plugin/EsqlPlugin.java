@@ -209,7 +209,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
-                extraCheckers
+                extraCheckers,
+                settings
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

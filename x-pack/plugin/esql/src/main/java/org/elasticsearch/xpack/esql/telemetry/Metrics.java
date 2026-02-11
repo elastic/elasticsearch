@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -54,7 +57,24 @@ public class Metrics {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<Class<?>, String> classToFunctionName;
 
-    public Metrics(EsqlFunctionRegistry functionRegistry) {
+    /**
+     * Creates a Metrics instance for production use.
+     * Settings metrics are filtered based on the current build type (snapshot vs release)
+     * and deployment mode (serverless vs stateful).
+     */
+    public Metrics(EsqlFunctionRegistry functionRegistry, Settings settings) {
+        this(functionRegistry, Build.current().isSnapshot(), new CrossProjectModeDecider(settings).crossProjectEnabled());
+    }
+
+    /**
+     * Creates a Metrics instance with explicit environment flags.
+     * This constructor is primarily for testing purposes.
+     *
+     * @param functionRegistry the function registry
+     * @param isSnapshot whether this is a snapshot build
+     * @param isServerless whether cross-project search is enabled (serverless mode)
+     */
+    public Metrics(EsqlFunctionRegistry functionRegistry, boolean isSnapshot, boolean isServerless) {
         this.functionRegistry = functionRegistry.snapshotRegistry();
         this.classToFunctionName = initClassToFunctionType();
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
@@ -74,8 +94,19 @@ public class Metrics {
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
 
+        // Only register settings metrics for settings that are applicable to the current environment
         Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(QuerySettings.SETTINGS_BY_NAME.size());
-        for (String settingName : QuerySettings.SETTINGS_BY_NAME.keySet()) {
+        for (var entry : QuerySettings.SETTINGS_BY_NAME.entrySet()) {
+            String settingName = entry.getKey();
+            QuerySettings.QuerySettingDef<?> def = entry.getValue();
+            // Skip snapshot-only settings in non-snapshot builds
+            if (def.snapshotOnly() && isSnapshot == false) {
+                continue;
+            }
+            // Skip serverless-only settings in stateful (non-serverless) deployments
+            if (def.serverlessOnly() && isServerless == false) {
+                continue;
+            }
             sMap.put(settingName, new CounterMetric());
         }
         settingsMetrics = Collections.unmodifiableMap(sMap);

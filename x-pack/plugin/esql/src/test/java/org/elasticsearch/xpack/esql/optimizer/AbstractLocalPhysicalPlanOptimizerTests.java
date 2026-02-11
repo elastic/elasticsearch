@@ -131,7 +131,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
                 enrichResolution,
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), new XPackLicenseState(() -> 0L))
         );
     }
 
@@ -148,7 +148,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
                 new EnrichResolution(),
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), new XPackLicenseState(() -> 0L))
         );
     }
 

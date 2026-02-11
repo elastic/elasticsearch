@@ -1,12 +1,7 @@
-config:
-  allow-labels: test-ipv6
-  skip-labels:
-    - ">test-mute"
 steps:
   - group: ipv6-tests
     steps:
       - label: "{{matrix.GRADLE_TASK}} / ipv6-tests"
-        key: "ipv6-tests"
         command: .ci/scripts/run-gradle.sh --continue -Djava.net.preferIPv6Addresses=true -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints {{matrix.GRADLE_TASK}}
         timeout_in_minutes: 300
         agents:

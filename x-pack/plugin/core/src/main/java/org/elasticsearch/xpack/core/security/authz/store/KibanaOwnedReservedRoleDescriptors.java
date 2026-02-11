@@ -86,6 +86,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,
                 "grant_api_key",
+                "clone_api_key",
                 "manage_own_api_key",
                 GetBuiltinPrivilegesAction.NAME,
                 "delegate_pki",

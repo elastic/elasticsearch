@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyR
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
@@ -136,7 +137,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -144,6 +144,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -158,6 +159,9 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService implements Closeable {
+
+    /** Reserved metadata key set on cloned API keys to record the source key id. */
+    public static final String CLONED_FROM_RESERVED_METADATA_KEY = "_cloned_from";
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
@@ -629,6 +633,118 @@ public class ApiKeyService implements Closeable {
         }));
     }
 
+    /**
+     * Clones an API key: validates the source credential, then creates a new key with the source's role descriptors
+     * and creator, with a new name, id, and optional expiration/metadata.
+     */
+    public void cloneApiKey(CloneApiKeyRequest request, ApiKeyCredentials credentials, ActionListener<CreateApiKeyResponse> listener) {
+        ensureEnabled();
+        validateCloneableApiKeyAndGetDoc(threadPool.getThreadContext(), credentials, listener.delegateFailureAndWrap((l, sourceDoc) -> {
+            credentials.close();
+            createApiKeyFromClone(request, sourceDoc, credentials.getId(), l);
+        }));
+    }
+
+    private void createApiKeyFromClone(
+        CloneApiKeyRequest request,
+        ApiKeyDoc sourceDoc,
+        String sourceId,
+        ActionListener<CreateApiKeyResponse> listener
+    ) {
+        final Instant created = clock.instant();
+        final TimeValue requestExpiration = request.getExpiration();
+        final Instant expiration;
+        if (requestExpiration == null) {
+            if (sourceDoc.expirationTime == -1) {
+                expiration = null;
+            } else {
+                expiration = Instant.ofEpochMilli(sourceDoc.expirationTime);
+            }
+        } else if (requestExpiration.equals(TimeValue.MINUS_ONE)) {
+            expiration = null;
+        } else {
+            expiration = getApiKeyExpiration(created, requestExpiration);
+        }
+
+        Map<String, Object> metadata;
+        if (request.getMetadata() != null) {
+            metadata = new HashMap<>(request.getMetadata());
+        } else {
+            metadata = sourceDoc.metadataFlattened != null
+                ? new HashMap<>(XContentHelper.convertToMap(sourceDoc.metadataFlattened, false, XContentType.JSON).v2())
+                : new HashMap<>();
+        }
+        metadata.put(CLONED_FROM_RESERVED_METADATA_KEY, sourceId);
+
+        final List<RoleDescriptor> roleDescriptors = parseRoleDescriptorsBytes(
+            sourceId,
+            sourceDoc.roleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.ASSIGNED
+        );
+        final List<RoleDescriptor> limitedByRoleDescriptors = parseRoleDescriptorsBytes(
+            sourceId,
+            sourceDoc.limitedByRoleDescriptorsBytes,
+            RoleReference.ApiKeyRoleType.LIMITED_BY
+        );
+
+        final String newId = request.getId();
+        final SecureString apiKey = getBase64SecureRandomString(API_KEY_SECRET_NUM_BYTES);
+
+        computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
+            try (
+                XContentBuilder builder = newDocument(
+                    apiKeyHashChars,
+                    request.getName(),
+                    sourceDoc.creator,
+                    limitedByRoleDescriptors,
+                    created,
+                    expiration,
+                    roleDescriptors,
+                    sourceDoc.type,
+                    ApiKey.CURRENT_API_KEY_VERSION,
+                    metadata,
+                    sourceDoc.certificateIdentity
+                )
+            ) {
+                final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+                bulkRequestBuilder.add(
+                    client.prepareIndex(SECURITY_MAIN_ALIAS)
+                        .setSource(builder)
+                        .setId(newId)
+                        .setOpType(DocWriteRequest.OpType.CREATE)
+                        .request()
+                );
+                bulkRequestBuilder.setRefreshPolicy(request.getRefreshPolicy());
+                final BulkRequest bulkRequest = bulkRequestBuilder.request();
+
+                securityIndex.forCurrentProject()
+                    .prepareIndexIfNeededThenExecute(
+                        listener::onFailure,
+                        () -> executeAsyncWithOrigin(
+                            client,
+                            SECURITY_ORIGIN,
+                            TransportBulkAction.TYPE,
+                            bulkRequest,
+                            TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                                assert newId.equals(indexResponse.getId());
+                                assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                if (apiKeyAuthCache != null) {
+                                    final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                    listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                    apiKeyAuthCache.put(newId, listenableFuture);
+                                }
+                                listener.onResponse(new CreateApiKeyResponse(request.getName(), newId, apiKey, expiration));
+                            }, listener::onFailure))
+                        )
+                    );
+            } catch (IOException e) {
+                listener.onFailure(e);
+            } finally {
+                Arrays.fill(apiKeyHashChars, (char) 0);
+            }
+        }));
+    }
+
     private String getCertificateIdentityFromCreateRequest(final AbstractCreateApiKeyRequest request) {
         String certificateIdentityString = null;
         if (request instanceof CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest) {
@@ -856,6 +972,34 @@ public class ApiKeyService implements Closeable {
         @Nullable Map<String, Object> metadata,
         @Nullable String certificateIdentity
     ) throws IOException {
+        return newDocument(
+            apiKeyHashChars,
+            name,
+            creatorMapFromAuthentication(authentication),
+            userRoleDescriptors,
+            created,
+            expiration,
+            keyRoleDescriptors,
+            type,
+            version,
+            metadata,
+            certificateIdentity
+        );
+    }
+
+    static XContentBuilder newDocument(
+        char[] apiKeyHashChars,
+        String name,
+        Map<String, Object> creator,
+        Collection<RoleDescriptor> userRoleDescriptors,
+        Instant created,
+        Instant expiration,
+        Collection<RoleDescriptor> keyRoleDescriptors,
+        ApiKey.Type type,
+        ApiKey.Version version,
+        @Nullable Map<String, Object> metadata,
+        @Nullable String certificateIdentity
+    ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
@@ -865,7 +1009,7 @@ public class ApiKeyService implements Closeable {
             .field("api_key_invalidated", false);
 
         addApiKeyHash(builder, apiKeyHashChars);
-        addRoleDescriptors(builder, keyRoleDescriptors);
+        addAssignedRoleDescriptors(builder, keyRoleDescriptors);
         addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
         builder.field("name", name).field("version", version.version()).field("metadata_flattened", metadata);
@@ -873,7 +1017,7 @@ public class ApiKeyService implements Closeable {
         if (certificateIdentity != null) {
             builder.field("certificate_identity", certificateIdentity);
         }
-        addCreator(builder, authentication);
+        builder.field("creator", creator);
 
         return builder.endObject();
     }
@@ -924,7 +1068,7 @@ public class ApiKeyService implements Closeable {
 
         if (keyRoles != null) {
             logger.trace(() -> format("Building API key doc with updated role descriptors [%s]", keyRoles));
-            addRoleDescriptors(builder, keyRoles);
+            addAssignedRoleDescriptors(builder, keyRoles);
         } else {
             assert currentApiKeyDoc.roleDescriptorsBytes != null : "Role descriptors for [" + apiKeyId + "] are null";
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
@@ -1087,42 +1231,26 @@ public class ApiKeyService implements Closeable {
         assert credentials != null : "api key credentials must not be null";
         loadApiKeyAndValidateCredentials(ctx, credentials, ActionListener.wrap(response -> {
             credentials.close();
-            listener.onResponse(response);
+            listener.onResponse(response.map(Tuple::v1));
         }, e -> {
             credentials.close();
             listener.onFailure(e);
         }));
     }
 
-    void loadApiKeyAndValidateCredentials(
-        ThreadContext ctx,
-        ApiKeyCredentials credentials,
-        ActionListener<AuthenticationResult<User>> listener
-    ) {
+    /**
+     * Loads the API key document by id. Uses cache when available. On success passes the doc to the listener;
+     * on not-found or error calls listener.onFailure.
+     */
+    private void loadApiKeyDoc(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<ApiKeyDoc>> listener) {
         final String docId = credentials.getId();
-
-        Consumer<ApiKeyDoc> validator = apiKeyDoc -> validateApiKeyCredentials(
-            docId,
-            apiKeyDoc,
-            credentials,
-            clock,
-            listener.delegateResponse((l, e) -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
-                    l.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
-                } else {
-                    l.onFailure(e);
-                }
-            })
-        );
-
         final long invalidationCount;
         if (apiKeyDocCache != null) {
             ApiKeyDoc existing = apiKeyDocCache.get(docId);
             if (existing != null) {
-                validator.accept(existing);
+                listener.onResponse(AuthenticationResult.success(existing));
                 return;
             }
-            // API key doc not found in cache, take a record of the current invalidation count to prepare for caching
             invalidationCount = apiKeyDocCache.getInvalidationCount();
         } else {
             invalidationCount = -1;
@@ -1144,7 +1272,7 @@ public class ApiKeyService implements Closeable {
                 if (invalidationCount != -1) {
                     apiKeyDocCache.putIfNoInvalidationSince(docId, apiKeyDoc, invalidationCount);
                 }
-                validator.accept(apiKeyDoc);
+                listener.onResponse(AuthenticationResult.success(apiKeyDoc));
             } else {
                 if (apiKeyAuthCache != null) {
                     apiKeyAuthCache.invalidate(docId);
@@ -1160,6 +1288,41 @@ public class ApiKeyService implements Closeable {
                 );
             }
         }), client::get);
+    }
+
+    /**
+     * Loads the API key doc and validates credentials.
+     */
+    void loadApiKeyAndValidateCredentials(
+        ThreadContext ctx,
+        ApiKeyCredentials credentials,
+        ActionListener<AuthenticationResult<Tuple<User, ApiKeyDoc>>> listener
+    ) {
+        final String docId = credentials.getId();
+        loadApiKeyDoc(ctx, credentials, listener.delegateFailure((ignore, docResult) -> {
+            if (docResult.isAuthenticated()) {
+                final ApiKeyDoc apiKeyDoc = docResult.getValue();
+                validateApiKeyCredentials(
+                    docId,
+                    apiKeyDoc,
+                    credentials,
+                    clock,
+                    ActionListener.wrap(
+                        userResult -> listener.onResponse(userResult.map(user -> tuple(user, apiKeyDoc))),
+                        // Thread pool rejection means the crypto pool is full, which terminates auth rather than failing exceptionally
+                        e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                                listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    )
+                );
+            } else {
+                listener.onResponse(docResult.map(doc -> null));
+            }
+        }));
     }
 
     public List<RoleDescriptor> parseRoleDescriptors(
@@ -1368,6 +1531,20 @@ public class ApiKeyService implements Closeable {
         }
     }
 
+    void validateCloneableApiKeyAndGetDoc(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<ApiKeyDoc> listener) {
+        if (credentials.getExpectedType() != ApiKey.Type.REST) {
+            listener.onFailure(new IllegalArgumentException("only REST API keys can be cloned"));
+            return;
+        }
+        loadApiKeyAndValidateCredentials(ctx, credentials, listener.map(result -> {
+            if (result.isAuthenticated()) {
+                return result.getValue().v2();
+            } else {
+                throw new ElasticsearchSecurityException(result.getMessage(), result.getException());
+            }
+        }));
+    }
+
     // pkg private for testing
     CachedApiKeyHashResult getFromCache(String id) {
         return apiKeyAuthCache == null ? null : apiKeyAuthCache.get(id).result();
@@ -1484,7 +1661,7 @@ public class ApiKeyService implements Closeable {
         return Pattern.compile(certificateIdentityPattern);
     }
 
-    ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {
+    public ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {
         if (false == isEnabled()) {
             return null;
         }
@@ -2134,8 +2311,10 @@ public class ApiKeyService implements Closeable {
         clearApiKeyDocCache(responseBuilder.build(), listener);
     }
 
-    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> limitedByRoleDescriptors)
-        throws IOException {
+    private static void addLimitedByRoleDescriptors(
+        final XContentBuilder builder,
+        final Collection<RoleDescriptor> limitedByRoleDescriptors
+    ) throws IOException {
         assert limitedByRoleDescriptors != null;
         builder.startObject("limited_by_role_descriptors");
         for (RoleDescriptor descriptor : limitedByRoleDescriptors) {
@@ -2156,26 +2335,34 @@ public class ApiKeyService implements Closeable {
         }
     }
 
-    private static void addCreator(final XContentBuilder builder, final Authentication authentication) throws IOException {
+    /**
+     * Builds the creator map for storage in a {@link ApiKeyDoc}
+     */
+    private static Map<String, Object> creatorMapFromAuthentication(Authentication authentication) {
         final var user = authentication.getEffectiveSubject().getUser();
         final var sourceRealm = authentication.getEffectiveSubject().getRealm();
-        builder.startObject("creator")
-            .field("principal", user.principal())
-            .field("full_name", user.fullName())
-            .field("email", user.email())
-            .field("metadata", user.metadata())
-            .field("realm", sourceRealm.getName())
-            .field("realm_type", sourceRealm.getType());
+        final Map<String, Object> creator = new HashMap<>();
+        creator.put("principal", user.principal());
+        creator.put("full_name", user.fullName());
+        creator.put("email", user.email());
+        creator.put("metadata", user.metadata());
+        creator.put("realm", sourceRealm.getName());
+        creator.put("realm_type", sourceRealm.getType());
         if (sourceRealm.getDomain() != null) {
-            builder.field("realm_domain", sourceRealm.getDomain());
+            creator.put("realm_domain", sourceRealm.getDomain());
         }
-        builder.endObject();
+        return creator;
     }
 
-    private static void addRoleDescriptors(final XContentBuilder builder, final List<RoleDescriptor> keyRoles) throws IOException {
+    private static void addCreator(final XContentBuilder builder, final Authentication authentication) throws IOException {
+        builder.field("creator", creatorMapFromAuthentication(authentication));
+    }
+
+    private static void addAssignedRoleDescriptors(final XContentBuilder builder, final Collection<RoleDescriptor> apiKeyRoles)
+        throws IOException {
         builder.startObject("role_descriptors");
-        if (keyRoles != null && keyRoles.isEmpty() == false) {
-            for (RoleDescriptor descriptor : keyRoles) {
+        if (apiKeyRoles != null && apiKeyRoles.isEmpty() == false) {
+            for (RoleDescriptor descriptor : apiKeyRoles) {
                 builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
             }
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -227,6 +228,45 @@ public final class Validation {
             }
             if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {
                 return new Error("Role [" + roleName + "] is reserved and may not be used.");
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Validation helpers for API key create and clone requests.
+     */
+    public static final class ApiKey {
+
+        public static final int MAX_NAME_LENGTH = 256;
+
+        private ApiKey() {}
+
+        /**
+         * Validates API key name. Returns an error if invalid, null if valid.
+         */
+        public static Error validateName(String name) {
+            if (Strings.isNullOrEmpty(name)) {
+                return new Error("api key name is required");
+            }
+            if (name.length() > MAX_NAME_LENGTH) {
+                return new Error("api key name may not be more than 256 characters long");
+            }
+            if (name.equals(name.trim()) == false) {
+                return new Error("api key name may not begin or end with whitespace");
+            }
+            if (name.startsWith("_")) {
+                return new Error("api key name may not begin with an underscore");
+            }
+            return null;
+        }
+
+        /**
+         * Validates API key metadata. Returns an error if metadata contains reserved keys, null if valid or metadata is null.
+         */
+        public static Error validateMetadata(Map<String, Object> metadata) {
+            if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
+                return new Error("API key metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]");
             }
             return null;
         }

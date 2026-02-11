@@ -148,6 +148,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -461,6 +462,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // API keys
         assertThat(kibanaRole.cluster().check(InvalidateApiKeyAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(GrantApiKeyAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(CloneApiKeyAction.NAME, request, authentication), is(true));
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, createApiKeyRequest, authentication), is(true));
         // Can only get and query its own API keys

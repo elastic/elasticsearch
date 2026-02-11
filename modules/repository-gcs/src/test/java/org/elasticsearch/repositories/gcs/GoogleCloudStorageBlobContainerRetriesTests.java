@@ -77,10 +77,6 @@ import java.util.OptionalInt;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -682,7 +678,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         );
         final byte[] blobContents = randomByteArrayOfLength(1024);
         final int incompleteLength = 10;
-        final CountDownLatch haveSentSomeContents = new CountDownLatch(1);
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_while_store_closes"), exchange -> {
             try {
                 Streams.readFully(exchange.getRequestBody());
@@ -699,28 +694,17 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     addSuccessfulDownloadHeaders(exchange, blobContents, requestedLength);
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
                     exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
-                    haveSentSomeContents.countDown();
+                } else {
+                    fail("unexpected request method: " + exchange.getRequestMethod());
                 }
             } finally {
                 exchange.close();
+                // Close the blob store once we've sent the first chunk
+                blobContainer.getBlobStore().close();
             }
         });
 
-        try (ExecutorService executorService = Executors.newSingleThreadExecutor()) {
-            final var downloadFuture = executorService.submit(() -> {
-                try (
-                    InputStream readBlobWhileStoreCloses = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes")
-                ) {
-                    Streams.consumeFully(readBlobWhileStoreCloses);
-                } catch (IOException e) {
-                    fail(e);
-                }
-            });
-            safeAwait(haveSentSomeContents);
-            blobContainer.getBlobStore().close();
-            ExecutionException executionException = assertThrows(ExecutionException.class, downloadFuture::get);
-            assertNotNull(ExceptionsHelper.unwrap(executionException, AlreadyClosedException.class));
-        }
+        assertThrows(AlreadyClosedException.class, () -> blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"));
     }
 
     private HttpHandler safeHandler(HttpHandler handler) {

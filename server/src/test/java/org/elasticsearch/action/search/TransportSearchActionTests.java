@@ -1089,11 +1089,13 @@ public class TransportSearchActionTests extends ESTestCase {
 
             TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            TaskId parentTaskId = new TaskId("n", 1);
             {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -1127,6 +1129,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     "index_not_found",
                     null,
@@ -1183,6 +1186,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> false);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -1217,6 +1221,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -1267,6 +1272,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,

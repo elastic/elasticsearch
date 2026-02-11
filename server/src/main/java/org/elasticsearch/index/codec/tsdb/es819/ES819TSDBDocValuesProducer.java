@@ -246,6 +246,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         boolean toInt,
                         boolean binaryMultiValuedFormat
                     ) throws IOException {
+                        if (docs.mayContainDuplicates()) {
+                            // isCompressed assumes there aren't duplicates
+                            return null;
+                        }
+
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(docs.count() - 1);
@@ -452,6 +457,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     boolean toInt,
                     boolean binaryMultiValuedFormat
                 ) throws IOException {
+                    if (docs.mayContainDuplicates()) {
+                        // isCompressed assumes there aren't duplicates
+                        return null;
+                    }
+
                     int count = docs.count() - offset;
                     int firstDocId = docs.get(offset);
                     int lastDocId = docs.get(docs.count() - 1);
@@ -817,14 +827,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
             throws IOException {
             int count = docs.count() - offset;
-            try (var builder = factory.ints(count)) {
+            try (var builder = factory.singletonInts(count)) {
+                int countIndex = 0;
+                int[] counts = new int[count];
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     boolean advance = advanceExact(doc);
                     assert advance;
-                    // TODO: look into bulk appending lengths to builder if docs is dense
-                    builder.appendInt(getLength());
+                    counts[countIndex++] = getLength();
                 }
+                builder.appendInts(counts, 0, countIndex);
                 return builder.build();
             }
         }
@@ -2103,6 +2115,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 BlockLoader.Block tryRead(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    if (docs.mayContainDuplicates()) {
+                        // isCompressed assumes there aren't duplicates
+                        return null;
+                    }
                     final int docsCount = docs.count();
                     doc = docs.get(docsCount - 1);
                     for (int i = offset; i < docsCount;) {

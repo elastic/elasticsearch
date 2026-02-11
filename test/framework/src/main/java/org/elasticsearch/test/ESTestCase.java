@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -163,6 +164,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -527,6 +529,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
+
+    @ClassRule
+    public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -2244,30 +2249,56 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
     }
 
+    protected static final float DEFAULT_DELTA = 1e-6f;
+
     /**
      * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
      * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function combines this with a separate absolute delta {@link ESTestCase#DEFAULT_DELTA}; numbers are still considered equal if
+     * they differ less than one *or* the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers
+     * is 0.
      *
      * @param expected      float array with expected values.
-     * @param actual        float array with actual values
+     * @param actual        float array with actual values.
      * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
-     *                      for which both numbers are still considered equal
+     *                      for which both numbers are still considered equal.
      */
     public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent) {
-        assertArrayEqualsPercent(null, expected, actual, deltaPercent);
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent, DEFAULT_DELTA);
     }
 
     /**
      * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
      * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function also accepts a separate absolute delta; numbers are still considered equal if they differ less than one *or*
+     * the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
+     * want to use an absolute delta.
      *
-     * @param message       the identifying message for the AssertionError
      * @param expected      float array with expected values.
-     * @param actual        float array with actual values
+     * @param actual        float array with actual values.
      * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
-     *                      for which both numbers are still considered equal
+     *                      for which both numbers are still considered equal.
+     * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
      */
-    public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent) {
+    public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent, absoluteDelta);
+    }
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function also accepts a separate absolute delta; numbers are still considered equal if they differ less than one *or*
+     * the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
+     *  want to use an absolute delta.
+     *
+     * @param message       the identifying message for the AssertionError.
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values.
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal.
+     * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
+     */
+    public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {
         String header = message == null || message.isEmpty() ? "" : message + ": ";
 
         if (expected == null) {
@@ -2282,15 +2313,17 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         for (int i = 0; i < expected.length; i++) {
             var expectedValue = expected[i];
-            var actualDelta = Math.abs(expectedValue - actual[i]) - (expectedValue * deltaPercent);
+            var actualValue = actual[i];
+            var error = Math.max(expectedValue * deltaPercent, absoluteDelta);
+            var actualDelta = Math.abs(expectedValue - actualValue) - error;
             if (actualDelta > 0) {
                 fail(
                     Strings.format(
-                        "%sarrays first differed at element [%d]; <%f> and <%f> differed by <%f> (more than %f%%)",
+                        "%sarrays first differed at element [%d]; <%e> and <%e> differed by <%e> (more than %f%%)",
                         header,
                         i,
                         expectedValue,
-                        actual[i],
+                        actualValue,
                         actualDelta,
                         (deltaPercent * 100)
                     )

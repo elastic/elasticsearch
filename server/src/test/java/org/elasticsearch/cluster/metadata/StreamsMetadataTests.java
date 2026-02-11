@@ -28,11 +28,16 @@ public class StreamsMetadataTests extends AbstractChunkedSerializingTestCase<Str
 
     @Override
     protected StreamsMetadata createTestInstance() {
-        return new StreamsMetadata(randomBoolean());
+        return new StreamsMetadata(randomBoolean(), randomBoolean(), randomBoolean());
     }
 
     @Override
     protected StreamsMetadata mutateInstance(StreamsMetadata instance) throws IOException {
-        return new StreamsMetadata(instance.logsEnabled == false);
+        return switch (between(0, 2)) {
+            case 0 -> new StreamsMetadata(instance.logsEnabled == false, instance.logsECSEnabled, instance.logsOTelEnabled);
+            case 1 -> new StreamsMetadata(instance.logsEnabled, instance.logsECSEnabled == false, instance.logsOTelEnabled);
+            case 2 -> new StreamsMetadata(instance.logsEnabled, instance.logsECSEnabled, instance.logsOTelEnabled == false);
+            default -> throw new IllegalArgumentException("Illegal randomisation branch");
+        };
     }
 }

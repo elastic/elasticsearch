@@ -38,6 +38,6 @@ public class MixedbreadEmbeddingsModelCreator implements ModelCreator<Mixedbread
 
     @Override
     public MixedbreadEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new MixedbreadEmbeddingsModel(config, secrets, null);
+        return new MixedbreadEmbeddingsModel(config, secrets);
     }
 }

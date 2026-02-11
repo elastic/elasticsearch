@@ -95,8 +95,7 @@ public class MixedbreadEmbeddingsModel extends MixedbreadModel {
                 taskSettings,
                 chunkingSettings
             ),
-            new ModelSecrets(secretSettings),
-            null
+            new ModelSecrets(secretSettings)
         );
     }
 
@@ -105,9 +104,8 @@ public class MixedbreadEmbeddingsModel extends MixedbreadModel {
      *
      * @param modelConfigurations the model configurations
      * @param modelSecrets the secret settings for the model
-     * @param uri the URI of the Mixedbread service
      */
-    public MixedbreadEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets, @Nullable String uri) {
+    public MixedbreadEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets);
     }
 

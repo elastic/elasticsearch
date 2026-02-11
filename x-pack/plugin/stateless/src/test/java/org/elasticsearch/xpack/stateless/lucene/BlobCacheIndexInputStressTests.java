@@ -167,7 +167,11 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
                     fileName,
                     randomIOContext(),
                     new CacheFileReader(
-                        sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, compoundFileName), allBytes.length),
+                        sharedBlobCacheService.getCacheFile(
+                            new FileCacheKey(shardId, primaryTerm, compoundFileName),
+                            allBytes.length,
+                            SharedBlobCacheService.CacheMissHandler.NOOP
+                        ),
                         new ObjectStoreCacheBlobReader(
                             TestUtils.singleBlobContainer(fileName, allBytes),
                             fileName,

@@ -125,7 +125,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     fileName,
                     randomIOContext(),
                     new CacheFileReader(
-                        sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
+                        sharedBlobCacheService.getCacheFile(
+                            new FileCacheKey(shardId, primaryTerm, fileName),
+                            input.length,
+                            SharedBlobCacheService.CacheMissHandler.NOOP
+                        ),
                         createBlobReader(fileName, input, sharedBlobCacheService),
                         createBlobFileRanges(primaryTerm, 0L, 0, input.length),
                         null,
@@ -221,7 +225,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 fileName,
                 randomIOContext(),
                 new CacheFileReader(
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, termAndGen.primaryTerm(), fileName), input.length),
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, termAndGen.primaryTerm(), fileName),
+                        input.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
                     switchingReader,
                     createBlobFileRanges(termAndGen.primaryTerm(), termAndGen.generation(), 0, input.length),
                     null,
@@ -256,7 +264,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 fileName,
                 randomIOContext(),
                 new CacheFileReader(
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, primaryTerm, fileName),
+                        input.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
                     createBlobFileRanges(primaryTerm, 0L, 0, input.length),
                     null,
@@ -359,7 +371,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     fileName,
                     randomIOContext(),
                     new CacheFileReader(
-                        sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), pos + fileLength),
+                        sharedBlobCacheService.getCacheFile(
+                            new FileCacheKey(shardId, primaryTerm, blobName),
+                            pos + fileLength,
+                            SharedBlobCacheService.CacheMissHandler.NOOP
+                        ),
                         cacheBlobReader,
                         createBlobFileRanges(primaryTerm, generation, pos, fileLength),
                         null,
@@ -381,7 +397,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 "everything",
                 randomIOContext(),
                 new CacheFileReader(
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, blobName), data.length),
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, primaryTerm, blobName),
+                        data.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
                     cacheBlobReader,
                     createBlobFileRanges(primaryTerm, generation, 0, data.length),
                     null,
@@ -567,7 +587,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 fileName,
                 randomIOContext(),
                 new CacheFileReader(
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, primaryTerm, fileName),
+                        input.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
                     createBlobReader(fileName, input, sharedBlobCacheService),
                     createBlobFileRanges(primaryTerm, 0L, 0, input.length),
                     null,

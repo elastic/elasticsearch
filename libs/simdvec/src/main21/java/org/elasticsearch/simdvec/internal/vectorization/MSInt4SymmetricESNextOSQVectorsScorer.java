@@ -409,7 +409,12 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_128.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, rawMemorySegment(), offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var ax = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES_128,
+                rawMemorySegment(),
+                offset + i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN
+            );
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 rawMemorySegment(),
@@ -501,7 +506,12 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_256.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, rawMemorySegment(), offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var ax = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES_256,
+                rawMemorySegment(),
+                offset + i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN
+            );
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 rawMemorySegment(),

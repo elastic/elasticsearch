@@ -291,7 +291,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     public void testWriteLoadDeciderShouldPreventBalancerMovingShardsBack() {
         final var indexName = randomIdentifier();
         final int numThreads = randomIntBetween(1, 10);
-        final float highUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final float highUtilizationHotspotThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final float highUtilizationBalanceThreshold = randomFloatBetween(0.5f, 0.9f, true);
         final long highLatencyThreshold = randomLongBetween(1000, 10000);
         final var settings = Settings.builder()
             .put(
@@ -299,8 +300,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
+                highUtilizationHotspotThreshold
+            )
+            .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_THRESHOLD_SETTING.getKey(),
-                highUtilizationThreshold
+                highUtilizationBalanceThreshold
             )
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
@@ -322,7 +327,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             ThreadPool.Names.WRITE,
                             new ThreadPoolUsageStats(
                                 numThreads,
-                                randomFloatBetween(highUtilizationThreshold, 1.1f, false),
+                                randomFloatBetween(highUtilizationHotspotThreshold, 1.1f, false),
                                 randomLongBetween(highLatencyThreshold, highLatencyThreshold * 2)
                             )
                         )
@@ -334,7 +339,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             ThreadPool.Names.WRITE,
                             new ThreadPoolUsageStats(
                                 numThreads,
-                                randomFloatBetween(0.0f, highUtilizationThreshold / 2, true),
+                                randomFloatBetween(0.0f, highUtilizationBalanceThreshold / 2, true),
                                 randomLongBetween(0, highLatencyThreshold / 2)
                             )
                         )

@@ -29,7 +29,6 @@ import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -143,7 +142,8 @@ public class WriteLoadConstraintMonitor {
             totalIngestNodes++;
             if (WriteLoadConstraintDecider.nodeIsHotspotting(
                 usageStats,
-                writeLoadConstraintSettings.getQueueLatencyThreshold()
+                writeLoadConstraintSettings.getQueueLatencyThreshold(),
+                writeLoadConstraintSettings.getHighUtilizationHotspotThreshold()
             )) {
                 writeNodesHotspotting.add(NodeIdName.nodeIdName(node));
             } else {
@@ -177,7 +177,8 @@ public class WriteLoadConstraintMonitor {
                 logger.debug(
                     """
                         Nodes [{}] are hot-spotting, of {} total ingest nodes. Reroute for hot-spotting {}. \
-                        Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
+                        Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}] and the \
+                        utilization threshold is [{}]. Triggering reroute.
                         """,
                     nodeSummary(writeNodesHotspotting),
                     totalIngestNodes,
@@ -185,7 +186,8 @@ public class WriteLoadConstraintMonitor {
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
                     nodeSummary(lastHotspotNodes),
-                    writeLoadConstraintSettings.getQueueLatencyThreshold()
+                    writeLoadConstraintSettings.getQueueLatencyThreshold(),
+                    writeLoadConstraintSettings.getHighUtilizationHotspotThreshold()
                 );
             }
             final String reason = "hot-spotting detected by write load constraint monitor";

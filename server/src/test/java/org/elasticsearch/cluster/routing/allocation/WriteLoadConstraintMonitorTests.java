@@ -208,7 +208,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     "don't reroute when all nodes are hot-spotting",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "Nodes * are above the queue latency threshold, but there are no write nodes below the threshold. "
+                    "Nodes * are hotspotting, but there are no write nodes below the threshold. "
                         + "Cannot rebalance shards."
                 )
             );
@@ -318,7 +318,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                             entry.getValue().threadPoolUsageStatsMap(),
                             tpStats -> new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                                 tpStats.totalThreadPoolThreads(),
-                                tpStats.averageThreadPoolUtilization(),
+                                randomFloatBetween(testState.highUtilizationThresholdPercent, 1.2f, true),
                                 testState.latencyThresholdMillis + randomLongBetween(1, 100_000)
                             )
                         )
@@ -676,6 +676,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         NodeUsageStatsForThreadPools nodeUsageStats,
         long latencyThresholdMillis
     ) {
+        // this?
         final var nodeRoles = clusterState.getNodes().get(nodeId).getRoles();
         return nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) == false
             && nodeRoles.contains(DiscoveryNodeRole.ML_ROLE) == false
@@ -788,6 +789,10 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     highUtilizationThresholdPercent + "%"
                 )
                 .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
+                    highUtilizationThresholdPercent + "%"
+                )
+                .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING.getKey(),
                     randomTimeValue(1, 30, TimeUnit.SECONDS)
                 )
@@ -834,6 +839,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         assert queueLatencyThresholdMillis > 0 : "queue latency threshold must be positive";
         final Set<String> hotspotNodesSet = new HashSet<>(hotspotNodes);
         final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
+        final float minRatioForHotspot = highUtilizationThresholdPercent / 100.0f;
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(state.nodes().stream().collect(Collectors.toMap(DiscoveryNode::getId, node -> {
                 if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) || node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
@@ -848,7 +854,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                             ThreadPool.Names.WRITE,
                             new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                                 randomNonNegativeInt(),
-                                randomFloatBetween(0f, 1f, true),
+                                randomFloatBetween(minRatioForHotspot, 1.1f, true),
                                 randomLongBetween(queueLatencyThresholdMillis + 1, queueLatencyThresholdMillis * 2)
                             )
                         )
@@ -874,6 +880,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         return clusterInfo;
     }
 
+    // need to add another field for balance vs hotspot threshold
     private record TestState(
         long latencyThresholdMillis,
         int highUtilizationThresholdPercent,

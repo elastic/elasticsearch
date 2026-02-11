@@ -722,6 +722,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 utilizationThresholdPercent + "%"
             )
             .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
+                utilizationThresholdPercent + "%"
+            )
+            .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(queueLatencyThresholdMillis)
             )

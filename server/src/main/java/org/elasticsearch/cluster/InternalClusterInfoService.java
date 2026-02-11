@@ -487,7 +487,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             });
             final Set<String> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingSet(
                 nodeThreadPoolUsageStatsPerNode,
-                writeLoadConstraintSettings.getQueueLatencyThreshold()
+                writeLoadConstraintSettings.getQueueLatencyThreshold(),
+                writeLoadConstraintSettings.getHighUtilizationHotspotThreshold()
             );
 
             final var newClusterInfo = new ClusterInfo(
@@ -509,13 +510,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private static Set<String> buildNodeIdsWriteLoadHotspottingSet(
             Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode,
-            TimeValue queueLatencyThreshold
+            TimeValue hotspotQueueLatencyThreshold,
+            double hotspotUtilizationThreshold
         ) {
             final Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(nodeThreadPoolUsageStatsPerNode.size());
             nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeUsageStats) -> {
                 if (WriteLoadConstraintDecider.nodeIsHotspotting(
                     nodeUsageStats,
-                    queueLatencyThreshold
+                    hotspotQueueLatencyThreshold,
+                    hotspotUtilizationThreshold
                 )) {
                     nodeIdsWriteLoadHotspotting.add(nodeId);
                 }

@@ -1364,10 +1364,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Some integration tests have the _source disabled, in which case we cannot compare the _source
         final var sourceEnabled = mapperService.mappingLookup().isSourceEnabled();
 
-        final var sourceLoader=  mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
-        final TriFunction<BytesReference, LeafReaderContext, Integer, BytesReference> forceLoadingSource =
-            (src, leaf, segmentDocID) -> {
+        final TriFunction<BytesReference, LeafReaderContext, Integer, BytesReference> forceLoadingSource = (src, leaf, segmentDocID) -> {
             if (src != null || sourceEnabled == false) {
                 return src;
             }
@@ -1375,9 +1374,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 assert false : "test";
                 var leafLoader = storedFieldLoader.getLoader(leaf, null);
                 leafLoader.advanceTo(segmentDocID);
-                return sourceLoader.leaf(leaf.reader(), new int[]{segmentDocID})
-                    .source(leafLoader, segmentDocID)
-                    .internalSourceRef();
+                return sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID }).source(leafLoader, segmentDocID).internalSourceRef();
             } catch (IOException ioe) {
                 throw new AssertionError(ioe);
             }

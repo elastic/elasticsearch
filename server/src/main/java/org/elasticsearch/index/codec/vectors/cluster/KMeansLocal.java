@@ -27,6 +27,8 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
  */
 abstract class KMeansLocal {
 
+    private static final IntToIntFunction IDENTITY_INT_TO_INT = i -> i;
+
     // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
     // For vectors that are closer than this distance to the centroid don't get spilled because they are well represented
     // by the centroid itself. In many cases, it indicates a degenerated distribution, e.g the cluster is composed of the
@@ -402,7 +404,7 @@ abstract class KMeansLocal {
             Arrays.fill(assignments, 0);
             return;
         }
-        IntToIntFunction translateOrd = i -> i;
+        IntToIntFunction translateOrd = IDENTITY_INT_TO_INT;
         FloatVectorValues sampledVectors = vectors;
         if (sampleSize < n) {
             sampledVectors = FloatVectorValuesSlice.createRandomSlice(vectors, sampleSize, 42L);
@@ -426,8 +428,8 @@ abstract class KMeansLocal {
         // If we were sampled, do a once over the full set of vectors to finalize the centroids
         if (sampleSize < n || maxIterations == 0) {
             // No ordinal translation needed here, we are using the full set of vectors
-            if (stepLloyd(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods)) {
-                updateCentroids(sampledVectors, translateOrd, centroids, centroidChangedSlices, centroidCounts, assignments);
+            if (stepLloyd(vectors, IDENTITY_INT_TO_INT, centroids, centroidChangedSlices, assignments, neighborhoods)) {
+                updateCentroids(vectors, IDENTITY_INT_TO_INT, centroids, centroidChangedSlices, centroidCounts, assignments);
             }
         }
     }

@@ -10,9 +10,8 @@ package fixture.aws.ec2;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.junit.rules.ExternalResource;
-
 import org.elasticsearch.common.network.InetAddresses;
+import org.junit.rules.ExternalResource;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;

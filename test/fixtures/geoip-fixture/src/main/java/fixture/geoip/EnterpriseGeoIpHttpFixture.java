@@ -11,9 +11,9 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.network.InetAddresses;
 import org.junit.rules.ExternalResource;
 
 import java.io.InputStream;

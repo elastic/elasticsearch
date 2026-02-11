@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -775,8 +776,12 @@ public class SnapshotStressTestsHelper {
                                 @Override
                                 public void onFailure(Exception e) {
                                     final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                    if (cause instanceof SnapshotException
-                                        && Regex.simpleMatch("*" + cloneName + "*Snapshot was aborted by deletion", cause.getMessage())) {
+                                    if (abortRunnable != NO_OP_RUNNABLE
+                                        && cause instanceof SnapshotException
+                                        && Regex.simpleMatch(
+                                            "*" + cloneName + "*" + SnapshotsInProgress.ABORTED_FAILURE_TEXT,
+                                            cause.getMessage()
+                                        )) {
                                         logger.info("--> clone was aborted before it is fully populated");
                                         startCloner();
                                     } else {

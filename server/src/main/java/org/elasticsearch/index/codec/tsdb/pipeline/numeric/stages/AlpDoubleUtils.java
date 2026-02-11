@@ -128,7 +128,7 @@ final class AlpDoubleUtils {
         if (bestE == 0 && bestF == 0) {
             return true;
         }
-        if (Math.abs(bestE) <= 1 && bestF <= 1) {
+        if (bestE <= 1 && bestF <= 1) {
             return isAlpNarrower(values, valueCount, bestE, bestF) == false;
         }
         return false;

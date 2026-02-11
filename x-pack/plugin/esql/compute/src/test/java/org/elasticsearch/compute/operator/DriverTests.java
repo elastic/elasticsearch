@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,7 +33,9 @@ import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -247,6 +251,62 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    public void testServerErrorsAreLoggedAsError() {
+        DriverContext driverContext = driverContext();
+        Driver driver = createFailingDriver(driverContext, new IllegalStateException("simulated compute bug"));
+        try {
+            MockLog.assertThatLogger(
+                () -> expectThrows(
+                    IllegalStateException.class,
+                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
+                ),
+                Driver.class,
+                new MockLog.SeenEventExpectation(
+                    "server failures should be logged at error",
+                    Driver.class.getCanonicalName(),
+                    Level.ERROR,
+                    "*Error running driver [test-task]*"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "server failures should not be logged at warn",
+                    Driver.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Error running driver [test-task]*"
+                )
+            );
+        } finally {
+            driver.close();
+        }
+    }
+
+    public void testClientErrorsAreNotLoggedAsWarnOrError() {
+        DriverContext driverContext = driverContext();
+        Driver driver = createFailingDriver(driverContext, new ElasticsearchStatusException("bad request", RestStatus.BAD_REQUEST));
+        try {
+            MockLog.assertThatLogger(
+                () -> expectThrows(
+                    ElasticsearchStatusException.class,
+                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
+                ),
+                Driver.class,
+                new MockLog.UnseenEventExpectation(
+                    "client failures should not be logged at warn",
+                    Driver.class.getCanonicalName(),
+                    Level.WARN,
+                    "*running driver [test-task]*"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "client failures should not be logged at error",
+                    Driver.class.getCanonicalName(),
+                    Level.ERROR,
+                    "*running driver [test-task]*"
+                )
+            );
+        } finally {
+            driver.close();
+        }
+    }
+
     private static Driver createDriver(
         long startEpoch,
         long startNanos,
@@ -269,6 +329,25 @@ public class DriverTests extends ESTestCase {
             new TestResultPageSinkOperator(outPages::add),
             statusInterval,
             () -> {}
+        );
+    }
+
+    private static Driver createFailingDriver(DriverContext driverContext, RuntimeException failure) {
+        return TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(List.of(new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1))).iterator()),
+            List.of(new AbstractPageMappingOperator() {
+                @Override
+                protected Page process(Page page) {
+                    throw failure;
+                }
+
+                @Override
+                public String toString() {
+                    return "failing_operator";
+                }
+            }),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
         );
     }
 

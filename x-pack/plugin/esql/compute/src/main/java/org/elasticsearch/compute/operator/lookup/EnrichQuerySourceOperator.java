@@ -146,7 +146,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             if (indexReader.leaves().size() > 1) {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             }
-            if (queryList.getBulkQueryList() != null) {
+            if (queryList.getBulkKeywordLookup() != null) {
                 return processBulkQueries(inputPage, positionsBuilder, segmentsBuilder, docsBuilder);
             }
             int totalMatches = 0;
@@ -196,28 +196,31 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         }
     }
 
-    private Page processBulkQueries(Page inputPage,
-                                    IntVector.Builder positionsBuilder,
-                                    IntVector.Builder segmentsBuilder,
-                                    IntVector.Builder docsBuilder
+    private Page processBulkQueries(
+        Page inputPage,
+        IntVector.Builder positionsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder docsBuilder
     ) throws IOException {
         queryPosition++;
-        BulkKeywordQueryList bulkQueryList = queryList.getBulkQueryList();
+        BulkKeywordLookup bulkKeywordLookup = queryList.getBulkKeywordLookup();
         int totalMatches = 0;
-        bulkQueryList.initializeCaches(indexReader);
+        bulkKeywordLookup.initializeCaches(indexReader);
         while (queryPosition < queryList.getPositionCount(inputPage)) {
-            int matches = bulkQueryList.processQuery(
-                    inputPage,
-                    queryPosition,
-                    indexReader,
-                    docsBuilder,
-                    segmentsBuilder,
-                    positionsBuilder
+            int matches = bulkKeywordLookup.processQuery(
+                inputPage,
+                queryPosition,
+                indexReader,
+                docsBuilder,
+                segmentsBuilder,
+                positionsBuilder
             );
             totalMatches += matches;
             queryPosition++;
         }
-        return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
+        final Page result = buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
+
+        return result;
     }
 
     Page buildPage(int positions, IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {

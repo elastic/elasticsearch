@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
@@ -31,13 +33,17 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -133,14 +139,23 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         MapperService mapper = createMapperService(mapping(setup::mapping));
         IndexWriterConfig config = new IndexWriterConfig();
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
-        config.setCodec(
-            new PerFieldMapperCodec(
-                Zstd814StoredFieldsFormat.Mode.BEST_SPEED,
-                mapper,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                threadPool
-            )
-        );
+        final Codec codec = new Elasticsearch92Lucene103Codec() {
+
+            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+                ESTestCase.randomIntBetween(2, 4096),
+                ESTestCase.randomIntBetween(1, 512),
+                random().nextBoolean(),
+                BinaryDVCompressionMode.NO_COMPRESS,
+                true
+            );
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return docValuesFormat;
+            }
+        };
+
+        config.setCodec(codec);
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d, config)) {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
@@ -310,11 +325,20 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     }
                 }
                 case DOC_VALUES_ONLY -> {
+                    /*
                     fields.add(switch (v) {
                         case Double n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
                         case Float n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
                         case Number n -> new SortedNumericDocValuesField("foo", n.longValue());
                         case String s -> new SortedSetDocValuesField("foo", new BytesRef(s));
+                        default -> throw new UnsupportedOperationException();
+                    });
+                     */
+                    fields.add(switch (v) {
+                        case Double n -> SortedNumericDocValuesField.indexedField("foo", NumericUtils.doubleToSortableLong(n));
+                        case Float n -> SortedNumericDocValuesField.indexedField("foo", NumericUtils.doubleToSortableLong(n));
+                        case Number n -> SortedNumericDocValuesField.indexedField("foo", n.longValue());
+                        case String s -> SortedSetDocValuesField.indexedField("foo", new BytesRef(s));
                         default -> throw new UnsupportedOperationException();
                     });
                 }

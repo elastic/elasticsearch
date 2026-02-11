@@ -228,12 +228,6 @@ public final class SingleValueMatchQuery extends Query {
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
-                if (singleton != null) {
-                    singleton.nextDoc();
-                    if (singleton.docIDRunEnd() == maxDoc) {
-                        continue;
-                    }
-                }
                 // TODO: check doc values skippers
                 DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldData.getFieldName());
                 if (skipper == null) {
@@ -241,6 +235,12 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 if (skipper instanceof EsDocValueSkipper esDocValueSkipper) {
                     throw new UnsupportedOperationException("********* yay, we got here");
+                }
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
                 final PointValues points = reader.getPointValues(fieldData.getFieldName());
                 if (points != null && points.getDocCount() == maxDoc && points.size() == points.getDocCount()) {
@@ -249,12 +249,6 @@ public final class SingleValueMatchQuery extends Query {
                 return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
                 SortedDocValues singleton = DocValues.unwrapSingleton(reader.getSortedSetDocValues(fieldData.getFieldName()));
-                if (singleton != null) {
-                    singleton.nextDoc();
-                    if (singleton.docIDRunEnd() == maxDoc) {
-                        continue;
-                    }
-                }
                 // TODO: check doc values skippers
                 DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldData.getFieldName());
                 if (skipper == null) {
@@ -262,6 +256,12 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 if (skipper instanceof EsDocValueSkipper esDocValueSkipper) {
                     throw new UnsupportedOperationException("********* yay, we got here");
+                }
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
                 Terms terms = reader.terms(fieldData.getFieldName());
                 if (terms != null && terms.getDocCount() == maxDoc && terms.getSumDocFreq() == terms.getDocCount()) {

@@ -28,13 +28,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 
 import java.util.Map;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE;
 
 /**
  * An IndexEventListener to retrieve state from other shard copies
@@ -102,6 +102,12 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                     return;
                 }
 
+                if (SHARD_HAS_MOVED_RESPONSE.equals(response)) {
+                    collector.shardMoved();
+                    logger.trace("shard was moved before searcher could be acquired for shard [{}]", indexShard.shardId());
+                    return;
+                }
+
                 long lastSearcherAcquiredTime = response.getLastSearcherAcquiredTime();
 
                 var attributes = Map.<String, Object>of("es_search_last_searcher_acquired_greater_zero", lastSearcherAcquiredTime > 0);
@@ -120,16 +126,11 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                             return null;
                         });
                     }
-                }, e -> { logger.error("error trying to set last acquired searcher data for shard [" + indexShard.shardId() + "]", e); }));
+                }, e -> { logger.warn("could not set last acquired searcher data for shard [" + indexShard.shardId() + "]", e); }));
 
             }, e -> {
-                if (e instanceof ShardNotFoundException exc) {
-                    logger.trace("shard was moved before searcher could be acquired for shard [{}]", exc.getShardId());
-                    collector.shardMoved();
-                } else {
-                    logger.error("error retrieving search shard information data for shard [" + indexShard.shardId() + "]", e);
-                    collector.recordError();
-                }
+                logger.warn("could not retrieve search shard information data for shard [" + indexShard.shardId() + "]", e);
+                collector.recordError();
             }));
 
             return null;

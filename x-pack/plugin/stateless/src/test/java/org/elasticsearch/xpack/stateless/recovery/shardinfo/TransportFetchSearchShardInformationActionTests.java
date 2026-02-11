@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -67,8 +66,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -116,9 +115,10 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         when(indicesService.getShardOrNull(shardId)).thenReturn(null);
 
         TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request("abc", shardId);
-        action.shardOperation(request, ActionListener.wrap(response -> fail("should not be here"), e -> {
-            assertThat(e, instanceOf(ShardNotFoundException.class));
-        }));
+        action.shardOperation(
+            request,
+            ActionListener.wrap(response -> { assertThat(response, equalTo(SHARD_HAS_MOVED_RESPONSE)); }, e -> fail("should not happen"))
+        );
     }
 
     public void testShardOperation() {

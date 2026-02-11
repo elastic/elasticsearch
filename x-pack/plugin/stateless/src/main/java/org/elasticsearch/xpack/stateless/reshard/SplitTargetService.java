@@ -337,7 +337,8 @@ public class SplitTargetService {
             {
                 put(State.Clone.class, Set.of(State.Clone.class));
                 put(State.WaitingForHandoff.class, Set.of(State.Clone.class));
-                put(State.HandoffReceived.class, Set.of(State.WaitingForHandoff.class));
+                // Target can receive multiple HANDOFF requests due to retries by source shard
+                put(State.HandoffReceived.class, Set.of(State.WaitingForHandoff.class, State.HandoffReceived.class));
                 put(State.StartSplitRpcComplete.class, Set.of(State.HandoffReceived.class));
                 put(State.Handoff.class, Set.of(State.StartSplitRpcComplete.class, State.RecoveringInHandoff.class));
                 put(State.SearchShardsOnline.class, Set.of(State.Handoff.class));
@@ -415,7 +416,8 @@ public class SplitTargetService {
         }
 
         void acceptHandoff(Split splitFromRequest, ActionListener<Void> handoffRpcListener) {
-            if (currentState instanceof State.WaitingForHandoff == false) {
+            // Due to retries from the source shard, we have to relax this check
+            if (currentState instanceof State.WaitingForHandoff == false && currentState instanceof State.HandoffReceived == false) {
                 throw new IllegalStateException("Received an unexpected handoff request from the source shard");
             }
 
@@ -423,7 +425,6 @@ public class SplitTargetService {
                 logger.debug("Received a stale split handoff request: {}", splitFromRequest);
                 throw new IllegalStateException("Received a stale split handoff request for shard " + splitFromRequest.shardId());
             }
-
             advance(new State.HandoffReceived(handoffRpcListener));
         }
 
@@ -449,7 +450,8 @@ public class SplitTargetService {
                 split.targetPrimaryTerm
             );
             // Result of this operation does not directly change the state.
-            // Instead, once the source shard receives a successful response to the handoff request
+            // Instead, once the source shard receives a successful response to the start split request
+            // (see #initiateSplitWithSourceShard)
             // it completes the start split request initiated in State.Clone and that advances the state of the state machine.
             // Because of that we can simply use handoffRpcListener here.
             // We could model this as an explicit state, but it doesn't really improve anything.
@@ -730,9 +732,9 @@ public class SplitTargetService {
                 // We are fairly aggressive because the refresh is blocked at this point.
                 TimeValue.timeValueMillis(200), // initialDelay
                 TimeValue.timeValueSeconds(1), // maxDelayBound
-                ///  See [RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT].
+                /// See [RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT].
                 splitStateAppliedTimeout, // timeoutValue
-                ///  See [#onFinished()].
+                /// See [#onFinished()].
                 ActionListener.noop(),
                 clusterService.threadPool().generic()
             );

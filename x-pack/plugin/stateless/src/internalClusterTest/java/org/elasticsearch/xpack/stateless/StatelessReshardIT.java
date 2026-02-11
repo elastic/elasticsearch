@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
@@ -49,8 +50,10 @@ import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -88,7 +91,9 @@ import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -1966,7 +1971,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         MockLog.assertThatLogger(() -> {
             // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
-            // has advanced.
+            // has advanced. The target primary term will also advance because the target recovery fails and starts a new recovery.
+            // Hence the exact debug message in ReshardIndexService is ambiguous.
             handoffLatch.countDown();
             waitForReshardCompletion(indexName);
         },
@@ -1975,7 +1981,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 "split handoff failed",
                 ReshardIndexService.class.getCanonicalName(),
                 Level.DEBUG,
-                ".*\\[" + indexName + "\\]\\[1\\] cannot transition target state \\[HANDOFF\\] because source primary term advanced \\[.*"
+                ".*\\[" + indexName + "\\]\\[1\\] cannot transition target state \\[HANDOFF\\] because .* primary term advanced \\[.*"
             )
         );
 
@@ -2075,6 +2081,154 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
 
         // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
+        ensureGreen(indexName);
+    }
+
+    public void testSourceWillHandleHandoffFailure() throws Exception {
+        String masterNode = startMasterOnlyNode();
+        String sourceNode = startIndexNode();
+        // We need 2 search nodes after resharding to get a green cluster state. This is because we limit number of shards
+        // per node to 1 so that source and target shards go to different nodes.
+        startSearchNodes(2);
+        ensureStableCluster(4);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        // Prepare routing for the post-split index so we can send a doc to the target shard
+        final Index index = resolveIndex(indexName);
+        final IndexMetadata currentIndexMetadata = indexMetadata(clusterService().state(), index);
+        final IndexMetadata indexMetadataPostSplit = IndexMetadata.builder(currentIndexMetadata).reshardAddShards(2).build();
+        final IndexRouting indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+        // Find a doc ID that will route to shard 1 (the target shard) after the split
+        final String sourceShardRoutingValue = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        final String targetShardRoutingValue = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+
+        // Index to setup and apply mappings.
+        client(sourceNode).prepareIndex(indexName).setRouting(sourceShardRoutingValue).setSource("field", "value_target").get();
+
+        // Start the second index node which will host the target shard
+        String targetNode = startIndexNode();
+        ensureStableCluster(5);
+
+        MockTransportService sourceTransport = MockTransportService.getInstance(sourceNode);
+        MockTransportService targetTransport = MockTransportService.getInstance(targetNode);
+
+        CountDownLatch handoffFailedLatch = new CountDownLatch(1);
+
+        // 1) Block cluster state updates on the source node so it never sees the HANDOFF transition.
+        // We set this up before the HANDOFF RPC is sent. We use the pattern from
+        // StatelessIntermediateReshardRoutingIT: block when the source is about to send the HANDOFF request.
+        AtomicBoolean addOnce = new AtomicBoolean(true);
+        sourceTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME.equals(action) && addOnce.compareAndSet(true, false)) {
+                // Before the HANDOFF RPC is sent, block cluster state publications on the source node.
+                // This ensures the source never observes the target transitioning to HANDOFF.
+                sourceTransport.addRequestHandlingBehavior(
+                    PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                    (handler, req, channel, task) -> {
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+                        channel.sendResponse(new IllegalStateException("cluster state updates blocked on source"));
+                    }
+                );
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // 2) On the target node, intercept the HANDOFF request handler.
+        // Let the handler process the request normally (which will update cluster state to HANDOFF),
+        // but wrap the channel so the response sent back to the source is an error.
+        targetTransport.addRequestHandlingBehavior(
+            TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                // Wrap the channel: convert success responses to errors
+                TransportChannel failingChannel = new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        // The target has processed the handoff and updated cluster state to HANDOFF.
+                        // But we simulate a network failure by sending an error back to the source.
+                        channel.sendResponse(new ElasticsearchException("simulated handoff ACK failure"));
+                        handoffFailedLatch.countDown();
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        assert false : "we did not expect an exception on target";
+                        channel.sendResponse(exception);
+                        handoffFailedLatch.countDown();
+                    }
+                };
+                // Process the request normally (triggers HANDOFF state update) but with the failing channel
+                handler.messageReceived(request, failingChannel, task);
+            }
+        );
+
+        // Start the reshard
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait for the handoff failure to have occurred
+        handoffFailedLatch.await();
+
+        try {
+            // At this point:
+            // - The target has transitioned to HANDOFF in the cluster state
+            // - The source received an error for the HANDOFF RPC and released permits
+            // - The source has NOT observed the HANDOFF state (cluster state publications are blocked)
+            // - The START_SPLIT RPC failed, so the target's state machine entered FailedInRecovery
+
+            // Now try to index a document that should route to the target shard (shard 1).
+            // The source has released permits and doesn't know about HANDOFF, so this document
+            // will be indexed into the source shard only (not forwarded to the target).
+            // This demonstrates the bug: the source should not release permits until it observes HANDOFF.
+            Thread thread = new Thread(
+                () -> client(sourceNode).prepareIndex(indexName)
+                    .setRouting(targetShardRoutingValue)
+                    .setSource("field", "value_target")
+                    .get()
+            );
+            thread.start();
+
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+            // Clean up transport rules to allow recovery to proceed
+            sourceTransport.clearAllRules();
+            targetTransport.clearAllRules();
+
+            thread.join();
+
+            // Without correct HANDOFF handling on the source shard, the document meant for the target shard also ends up being indexed
+            // to the source shard post HANDOFF.
+            assertShardDocCountEquals(new ShardId(index, 0), 1);
+            assertShardDocCountEquals(new ShardId(index, 1), 1);
+        } finally {
+            // Perform a trivial cluster state update to ensure that failed updates are suddenly propagated to formerly isolated node.
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                .submitUnbatchedStateUpdateTask("trivial cluster state update", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState).build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail(e);
+                    }
+                });
+        }
+
+        // The system should eventually recover:
+        // - The target shard's recovery failed, so it will be reassigned
+        // - On next recovery, the target sees HANDOFF state and starts from RecoveringInHandoff
+        // - The state machine proceeds: Handoff -> SearchShardsOnline -> Split -> Done
+        waitForReshardCompletion(indexName);
         ensureGreen(indexName);
     }
 

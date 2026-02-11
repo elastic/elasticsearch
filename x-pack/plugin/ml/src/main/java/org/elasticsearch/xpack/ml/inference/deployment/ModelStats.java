@@ -26,5 +26,5 @@ public record ModelStats(
     long throughputLastPeriod,
     Double avgInferenceTimeLastPeriod,
     long cacheHitCountLastPeriod,
-    Long avgInferenceProcessRssMemory
+    Long avgInferenceProcessMemoryRssBytes
 ) {}

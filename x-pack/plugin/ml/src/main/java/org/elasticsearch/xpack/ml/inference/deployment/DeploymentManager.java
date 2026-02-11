@@ -131,7 +131,7 @@ public class DeploymentManager {
                 recentStats.requestsProcessed(),
                 recentStats.avgInferenceTime(),
                 recentStats.cacheHitCount(),
-                Math.round(stats.inferenceProcessRssStats().getAverage())
+                Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage())
             );
         });
     }

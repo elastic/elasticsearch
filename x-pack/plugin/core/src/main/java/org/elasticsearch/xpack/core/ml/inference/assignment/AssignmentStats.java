@@ -49,7 +49,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final long throughputLastPeriod;
         private final Double avgInferenceTimeLastPeriod;
         private final Long cacheHitCountLastPeriod;
-        private final Long avgInferenceProcessRssMemory;
+        private final Long avgInferenceProcessMemoryRssBytes;
 
         public static AssignmentStats.NodeStats forStartedState(
             DiscoveryNode node,
@@ -69,7 +69,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long throughputLastPeriod,
             Double avgInferenceTimeLastPeriod,
             long cacheHitCountLastPeriod,
-            Long avgInferenceProcessRssMemory
+            Long avgInferenceProcessMemoryRssBytes
         ) {
             return new AssignmentStats.NodeStats(
                 node,
@@ -90,7 +90,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 throughputLastPeriod,
                 avgInferenceTimeLastPeriod,
                 cacheHitCountLastPeriod,
-                avgInferenceProcessRssMemory
+                avgInferenceProcessMemoryRssBytes
             );
         }
 
@@ -137,7 +137,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long throughputLastPeriod,
             Double avgInferenceTimeLastPeriod,
             Long cacheHitCountLastPeriod,
-            Long avgInferenceProcessRssMemory
+            Long avgInferenceProcessMemoryRssBytes
         ) {
             this.node = node;
             this.inferenceCount = inferenceCount;
@@ -157,7 +157,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.throughputLastPeriod = throughputLastPeriod;
             this.avgInferenceTimeLastPeriod = avgInferenceTimeLastPeriod;
             this.cacheHitCountLastPeriod = cacheHitCountLastPeriod;
-            this.avgInferenceProcessRssMemory = avgInferenceProcessRssMemory;
+            this.avgInferenceProcessMemoryRssBytes = avgInferenceProcessMemoryRssBytes;
 
             // if lastAccess time is null there have been no inferences
             assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
@@ -183,9 +183,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.cacheHitCountLastPeriod = in.readOptionalVLong();
             this.avgInferenceTimeExcludingCacheHit = in.readOptionalDouble();
             if (in.getTransportVersion().supports(MEMORY_STAT_TRANSPORT_VERSION)) {
-                this.avgInferenceProcessRssMemory = in.readOptionalVLong();
+                this.avgInferenceProcessMemoryRssBytes = in.readOptionalVLong();
             } else {
-                this.avgInferenceProcessRssMemory = null;
+                this.avgInferenceProcessMemoryRssBytes = null;
             }
 
         }
@@ -282,8 +282,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 if (avgInferenceTimeExcludingCacheHit != null) {
                     builder.field("average_inference_time_ms_excluding_cache_hits", avgInferenceTimeExcludingCacheHit);
                 }
-                if (avgInferenceProcessRssMemory != null) {
-                    builder.field("average_inference_process_rss_memory", avgInferenceProcessRssMemory);
+                if (avgInferenceProcessMemoryRssBytes != null) {
+                    builder.field("average_inference_process_memory_rss_bytes", avgInferenceProcessMemoryRssBytes);
                 }
             }
             if (cacheHitCount != null) {
@@ -347,7 +347,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             out.writeOptionalVLong(cacheHitCountLastPeriod);
             out.writeOptionalDouble(avgInferenceTimeExcludingCacheHit);
             if (out.getTransportVersion().supports(MEMORY_STAT_TRANSPORT_VERSION)) {
-                out.writeOptionalVLong(avgInferenceProcessRssMemory);
+                out.writeOptionalVLong(avgInferenceProcessMemoryRssBytes);
             }
         }
 
@@ -374,7 +374,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 && Objects.equals(throughputLastPeriod, that.throughputLastPeriod)
                 && Objects.equals(avgInferenceTimeLastPeriod, that.avgInferenceTimeLastPeriod)
                 && Objects.equals(cacheHitCountLastPeriod, that.cacheHitCountLastPeriod)
-                && Objects.equals(avgInferenceProcessRssMemory, that.avgInferenceProcessRssMemory);
+                && Objects.equals(avgInferenceProcessMemoryRssBytes, that.avgInferenceProcessMemoryRssBytes);
         }
 
         @Override
@@ -398,7 +398,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 throughputLastPeriod,
                 avgInferenceTimeLastPeriod,
                 cacheHitCountLastPeriod,
-                avgInferenceProcessRssMemory
+                avgInferenceProcessMemoryRssBytes
             );
         }
     }

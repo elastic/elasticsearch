@@ -40,7 +40,7 @@ public class PyTorchResultProcessor {
         LongSummaryStatistics timingStats,
         LongSummaryStatistics timingStatsExcludingCacheHits,
         int errorCount,
-        LongSummaryStatistics inferenceProcessRssStats,
+        LongSummaryStatistics inferenceProcessMemoryRssBytesStats,
         long cacheHitCount,
         int numberOfPendingResults,
         Instant lastUsed,
@@ -58,7 +58,7 @@ public class PyTorchResultProcessor {
     private final LongSummaryStatistics timingStats;
     private final LongSummaryStatistics timingStatsExcludingCacheHits;
     private int errorCount;
-    private final LongSummaryStatistics inferenceProcessRssStats;
+    private final LongSummaryStatistics inferenceProcessMemoryRssBytesStats;
     private long cacheHitCount;
     private long peakThroughput;
 
@@ -80,7 +80,7 @@ public class PyTorchResultProcessor {
         this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
         this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
-        this.inferenceProcessRssStats = new LongSummaryStatistics();
+        this.inferenceProcessMemoryRssBytesStats = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
         this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
         this.currentTimeMsSupplier = currentTimeSupplier;
@@ -259,7 +259,7 @@ public class PyTorchResultProcessor {
             cloneSummaryStats(timingStats),
             cloneSummaryStats(timingStatsExcludingCacheHits),
             errorCount,
-            cloneSummaryStats(inferenceProcessRssStats),
+            cloneSummaryStats(inferenceProcessMemoryRssBytesStats),
             cacheHitCount,
             pendingResults.size(),
             lastResultTimeMs > 0 ? Instant.ofEpochMilli(lastResultTimeMs) : null,
@@ -282,7 +282,7 @@ public class PyTorchResultProcessor {
         timingStats.accept(timeMs);
 
         if (result.processStats() != null) {
-            this.inferenceProcessRssStats.accept(result.processStats().memoryRss());
+            this.inferenceProcessMemoryRssBytesStats.accept(result.processStats().memoryRss());
         }
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();

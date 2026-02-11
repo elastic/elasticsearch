@@ -90,8 +90,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 inferenceId,
                 inferenceText,
                 minScore,
-                failuresAllowed(),
-                null
+                failuresAllowed()
             ) {
                 @Override
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -264,7 +263,10 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
         );
         assertThat(ex.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(ex.getDetailedMessage(), containsString("Reranker input document count and returned score count mismatch"));
+        assertThat(
+            ex.getDetailedMessage(),
+            containsString("Expected ranked doc size to be 5, got 4. Is the reranker service using an unreported top N task setting?")
+        );
     }
 
     private static Matcher<SearchHit> searchHitWith(int expectedRank, float expectedScore, String expectedText) {

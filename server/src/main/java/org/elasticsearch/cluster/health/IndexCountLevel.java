@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.health;
 
 public enum IndexCountLevel {
-
+    NOT_EVALUATED("The index count level was not computed. For Internal Use Only."),
     PASS(""),
     NUDGE(
         "To ensure the best performance, we recommend grouping related data into fewer, "

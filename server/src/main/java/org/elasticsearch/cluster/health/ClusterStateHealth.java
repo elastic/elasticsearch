@@ -67,6 +67,34 @@ public final class ClusterStateHealth implements Writeable {
     }
 
     /**
+     * A conscious design decision was made to exclude {@link org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction}
+     * and {@link org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateNodeRemovalAction} from inspecting this
+     * categorized index count level, for the following reasons:
+     * 1. While a high index count may increase the workload for cluster coordination, it does not constitute an immediate critical health
+     * issue.
+     * 2. This categorized index count level is intended primarily for user-facing applications like Kibana to communicate the current
+     * index state. It is not involved in evaluating cluster health.
+     *
+     * @param clusterState The current cluster state. Must not be null.
+     * @param concreteAllIndices An array of index names to consider. Must not be null but may be empty.
+     * @param projectId The project id that should be used to access project-specific data from the cluster state. Must not be null.
+     */
+    public ClusterStateHealth(
+        final ClusterState clusterState,
+        final String[] concreteAllIndices,
+        final ProjectId projectId
+    ) {
+        this(
+            clusterState.metadata().getProject(projectId),
+            clusterState.routingTable(projectId),
+            clusterState.nodes(),
+            clusterState.blocks(),
+            concreteAllIndices,
+            IndexCountLevel.NOT_EVALUATED
+        );
+    }
+
+    /**
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and the provided index names.
      *
      * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
@@ -153,6 +181,36 @@ public final class ClusterStateHealth implements Writeable {
         activeShardsPercent = in.readDouble();
         unassignedPrimaryShards = in.readVInt();
         indexCountLevel = in.readEnum(IndexCountLevel.class);
+    }
+
+
+    public ClusterStateHealth(
+        int activePrimaryShards,
+        int activeShards,
+        int relocatingShards,
+        int initializingShards,
+        int unassignedShards,
+        int unassignedPrimaryShards,
+        int numberOfNodes,
+        int numberOfDataNodes,
+        double activeShardsPercent,
+        ClusterHealthStatus status,
+        Map<String, ClusterIndexHealth> indices
+    ) {
+        this(
+            activePrimaryShards,
+            activeShards,
+            relocatingShards,
+            initializingShards,
+            unassignedShards,
+            unassignedPrimaryShards,
+            numberOfNodes,
+            numberOfDataNodes,
+            activeShardsPercent,
+            status,
+            indices,
+            IndexCountLevel.NOT_EVALUATED
+        );
     }
 
     /**

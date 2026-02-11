@@ -85,7 +85,30 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
             -1,
             -1,
             TimeValue.timeValueHours(0),
-            IndexCountLevel.PASS
+            IndexCountLevel.NOT_EVALUATED
+        );
+    }
+
+    public ClusterHealthResponse(
+        String clusterName,
+        String[] concreteIndices,
+        ClusterState clusterState,
+        ProjectId projectId,
+        int numberOfPendingTasks,
+        int numberOfInFlightFetch,
+        int delayedUnassignedShards,
+        TimeValue taskMaxWaitingTime
+    ) {
+        this(
+            clusterName,
+            concreteIndices,
+            clusterState,
+            projectId,
+            numberOfPendingTasks,
+            numberOfInFlightFetch,
+            delayedUnassignedShards,
+            taskMaxWaitingTime,
+            IndexCountLevel.NOT_EVALUATED
         );
     }
 

@@ -148,7 +148,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected final BigArrays bigArrays;
     protected final LocalCircuitBreaker.SizeSettings localBreakerSettings;
     protected final ProjectResolver projectResolver;
-    private final PlannerSettings.Holder plannerSettings;
+    protected final PlannerSettings.Holder plannerSettings;
     /**
      * Should output {@link Page pages} be combined into a single resulting page?
      * If this is {@code true} we'll run a {@link MergePositionsOperator} to merge

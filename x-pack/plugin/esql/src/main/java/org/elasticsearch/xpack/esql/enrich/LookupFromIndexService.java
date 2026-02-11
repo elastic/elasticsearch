@@ -441,6 +441,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         CancellableTask task,
         ActionListener<List<Page>> listener
     ) {
+        PlannerSettings plannerSettings = this.plannerSettings.get();
         // Early exit for null input blocks
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
             Block inputBlock = request.inputPage.getBlock(j);
@@ -452,7 +453,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            LocalExecutionPlanner.PhysicalOperation physicalOperation = buildOperatorFactories(request);
+            LocalExecutionPlanner.PhysicalOperation physicalOperation = buildOperatorFactories(plannerSettings, request);
 
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release());
@@ -490,9 +491,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
      * The factories do not refer to any input data,
      * so they can be reused across multiple calls with different input pages.
      */
-    private LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(TransportRequest request) throws IOException {
+    private LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(PlannerSettings plannerSettings, TransportRequest request)
+        throws IOException {
         PhysicalPlan physicalPlan = createLookupPhysicalPlan(request);
-        return executionPlanner.buildOperatorFactories(request, physicalPlan, BlockOptimization.NONE);
+        return executionPlanner.buildOperatorFactories(plannerSettings, request, physicalPlan, BlockOptimization.NONE);
     }
 
     /**

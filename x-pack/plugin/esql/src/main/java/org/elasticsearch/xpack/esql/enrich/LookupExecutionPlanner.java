@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -155,7 +156,6 @@ public class LookupExecutionPlanner {
     private final BigArrays bigArrays;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
-
     public LookupExecutionPlanner(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this.blockFactory = blockFactory;
         this.bigArrays = bigArrays;
@@ -166,11 +166,12 @@ public class LookupExecutionPlanner {
      * Creates a PhysicalOperation with operator factories, matching LocalExecutionPlanner's pattern.
      */
     public PhysicalOperation buildOperatorFactories(
+        PlannerSettings plannerSettings,
         AbstractLookupService.TransportRequest request,
         PhysicalPlan physicalPlan,
         BlockOptimization blockOptimization
     ) throws IOException {
-        return planLookupNode(physicalPlan, request, blockOptimization);
+        return planLookupNode(plannerSettings, physicalPlan, request, blockOptimization);
     }
 
     /**
@@ -237,13 +238,14 @@ public class LookupExecutionPlanner {
      * Recursively plans a PhysicalPlan node into a PhysicalOperation, processing children first.
      */
     private PhysicalOperation planLookupNode(
+        PlannerSettings plannerSettings,
         PhysicalPlan node,
         AbstractLookupService.TransportRequest request,
         BlockOptimization optimizationState
     ) throws IOException {
         PhysicalOperation source;
         if (node instanceof UnaryExec unaryExec) {
-            source = planLookupNode(unaryExec.child(), request, optimizationState);
+            source = planLookupNode(plannerSettings, unaryExec.child(), request, optimizationState);
         } else {
             // there could be a leaf node such as ParameterizedQueryExec
             source = null;
@@ -253,7 +255,7 @@ public class LookupExecutionPlanner {
         if (node instanceof ParameterizedQueryExec parameterizedQueryExec) {
             return planParameterizedQueryExec(parameterizedQueryExec, optimizationState);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
-            return planFieldExtractExec(fieldExtractExec, source);
+            return planFieldExtractExec(plannerSettings, fieldExtractExec, source);
         } else if (node instanceof ProjectExec projectExec) {
             return planProjectExec(projectExec, source);
         } else if (node instanceof OutputExec outputExec) {
@@ -280,7 +282,11 @@ public class LookupExecutionPlanner {
         );
     }
 
-    private PhysicalOperation planFieldExtractExec(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+    private PhysicalOperation planFieldExtractExec(
+        PlannerSettings plannerSettings,
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source
+    ) {
         List<Attribute> attributesToExtract = fieldExtractExec.attributesToExtract();
 
         Layout.Builder layoutBuilder = new Layout.Builder();
@@ -312,6 +318,8 @@ public class LookupExecutionPlanner {
                         extractField.dataType() == DataType.UNSUPPORTED,
                         MappedFieldType.FieldExtractPreference.NONE,
                         null,
+                        plannerSettings.blockLoaderSizeOrdinals(),
+                        plannerSettings.blockLoaderSizeScript()
 
                     );
                     fields.add(

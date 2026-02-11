@@ -17,6 +17,7 @@
 
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.LatchedActionListener;
@@ -34,7 +35,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -42,8 +42,10 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.junit.After;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
@@ -63,8 +65,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SearchShardInformationIndexListenerTests extends ESTestCase {
@@ -96,10 +100,29 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     private final CountDownLatch latch = new CountDownLatch(1);
     private final LatchedActionListener<Void> latchedActionListener = new LatchedActionListener<>(ActionListener.noop(), latch);
     private final Client client = mock(Client.class);
+    private MockLog mockLog;
+
+    @Before
+    public void setupMockLogger() {
+        mockLog = MockLog.capture("org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener");
+
+        // ensure no error log messages have been run
+        MockLog.UnseenEventExpectation noErrorLogExpectation = new MockLog.UnseenEventExpectation(
+            "no ERROR",
+            "org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener",
+            Level.ERROR,
+            "*"
+        );
+        mockLog.addExpectation(noErrorLogExpectation);
+    }
 
     @After
-    public void ensureLatchedListenerWasCalled() {
+    public void ensureAfter() {
+        // ensure listener was called
         assertThat(latch.getCount(), equalTo(0L));
+
+        mockLog.assertAllExpectationsMatched();
+        mockLog.close();
     }
 
     public void testShardIdIsPassed() {
@@ -196,6 +219,41 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertMetrics(1, 0);
     }
 
+    public void testResponseListenerFailure() {
+        IndexShard indexShard = mock(IndexShard.class);
+        ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(indexShard.shardId()).thenReturn(shardId);
+
+        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
+            client,
+            collector,
+            clusterSettings,
+            System::currentTimeMillis
+        );
+
+        listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+
+        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
+            ActionListener.class
+        );
+        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
+        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
+
+        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
+            .getValue();
+        assertThat(request.getShardId(), equalTo(shardId));
+
+        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+
+        reset(indexShard);
+        responseListener.onFailure(new RuntimeException("any error"));
+        verify(indexShard, times(1)).shardId();
+        verifyNoMoreInteractions(indexShard);
+    }
+
     public void testNoSettingWhenIndexShardIsClosed() {
         IndexShard indexShard = mock(IndexShard.class);
         ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
@@ -238,6 +296,50 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         verify(indexShard, never()).tryWithEngineOrNull(any());
 
         assertMetrics(1, 0);
+    }
+
+    public void testNoSettingWhenEngineListenerFails() {
+        IndexShard indexShard = mock(IndexShard.class);
+        ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(indexShard.shardId()).thenReturn(shardId);
+
+        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
+            client,
+            collector,
+            clusterSettings,
+            System::currentTimeMillis
+        );
+
+        listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+
+        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
+            ActionListener.class
+        );
+        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
+        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
+
+        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
+            .getValue();
+        assertThat(request.getShardId(), equalTo(shardId));
+
+        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+
+        reset(indexShard);
+        when(indexShard.state()).thenReturn(IndexShardState.CLOSED);
+        responseListener.onResponse(new TransportFetchSearchShardInformationAction.Response(123));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<Void>> voidListenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        verify(indexShard).waitForEngineOrClosedShard(voidListenerCaptor.capture());
+        ActionListener<Void> voidActionListener = voidListenerCaptor.getValue();
+
+        reset(indexShard);
+        voidActionListener.onFailure(new RuntimeException("test exception"));
+        verify(indexShard, times(1)).shardId();
+        verifyNoMoreInteractions(indexShard);
     }
 
     public void testSearchEngineLastSearcherAcquiredTimeIsSet() {
@@ -392,8 +494,9 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
 
         reset(indexShard);
-        responseListener.onFailure(new ShardNotFoundException(shardId));
-        verifyNoInteractions(indexShard);
+        responseListener.onResponse(TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE);
+        verify(indexShard, times(1)).shardId();
+        verifyNoMoreInteractions(indexShard);
 
         List<Measurement> measurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, SearchShardInformationMetricsCollector.REQUESTS_SHARD_MOVED_TOTAL);

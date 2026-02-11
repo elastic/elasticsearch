@@ -17,24 +17,26 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
-import java.util.function.IntFunction;
+import java.util.function.BiFunction;
 
 public class BulkKeywordQueryList {
     private final MappedFieldType rightFieldType;
+    private final int channelOffset;
     private final SearchExecutionContext context;
-    private final BytesRefBlock block;
     private final ClusterService clusterService;
     private final AliasFilter aliasFilter;
     private final Warnings warnings;
     private final String fieldName;
-    private final IntFunction<Object> blockValueReader;
+    private final BiFunction<Block, Integer, Object> blockValueReader;
 
     private TermsEnum[] termsEnumCache = null;
     private PostingsEnum[] postingsCache = null;
@@ -42,21 +44,21 @@ public class BulkKeywordQueryList {
 
     public BulkKeywordQueryList(
         MappedFieldType rightFieldType,
+        ElementType leftElementType,
         SearchExecutionContext context,
-        Block block,
+        int channelOffset,
         ClusterService clusterService,
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
         this.rightFieldType = rightFieldType;
         this.context = context;
-        this.block = (BytesRefBlock) block;
+        this.channelOffset = channelOffset;
         this.clusterService = clusterService;
         this.aliasFilter = aliasFilter;
         this.warnings = warnings;
         this.fieldName = rightFieldType.name();
-        this.blockValueReader = QueryList.createBlockValueReader(block);
-
+        this.blockValueReader = QueryList.createBlockValueReaderForType(leftElementType);
     }
 
     /**
@@ -65,6 +67,7 @@ public class BulkKeywordQueryList {
      * the inverted index using TermsEnum and PostingsEnum for maximum performance.
      */
     public int processQuery(
+        Page inputPage,
         int position,
         IndexReader indexReader,
         IntVector.Builder docsBuilder,
@@ -72,12 +75,13 @@ public class BulkKeywordQueryList {
         IntVector.Builder positionsBuilder
     ) {
         try {
+            final BytesRefBlock block = inputPage.getBlock(channelOffset);
             final int valueCount = block.getValueCount(position);
             if (valueCount != 1) {
                 return 0; // Skip multi-value positions and null positions
             }
             final int firstValueIndex = block.getFirstValueIndex(position);
-            BytesRef termBytes = block.getBytesRef(firstValueIndex, scratch);
+            final BytesRef termBytes = block.getBytesRef(firstValueIndex, scratch);
             int totalMatches = 0;
             for (LeafReaderContext leafContext : indexReader.leaves()) {
                 int leafOrd = leafContext.ord;
@@ -116,7 +120,8 @@ public class BulkKeywordQueryList {
         }
     }
 
-    public int getPositionCount() {
+    public int getPositionCount(Page inputPage) {
+        final Block block = inputPage.getBlock(channelOffset);
         return block.getPositionCount();
     }
 
@@ -126,7 +131,7 @@ public class BulkKeywordQueryList {
      */
     public void initializeCaches(IndexReader indexReader) throws IOException {
         if (termsEnumCache == null) {
-            int numLeaves = indexReader.leaves().size();
+            final int numLeaves = indexReader.leaves().size();
             termsEnumCache = new TermsEnum[numLeaves];
             postingsCache = new PostingsEnum[numLeaves];
 

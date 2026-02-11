@@ -186,7 +186,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
         static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
-        protected final MemorySegment memorySegment;
+        private final MemorySegment memorySegment;
         protected final IndexInput in;
         protected final int length;
         protected final int dimensions;
@@ -211,6 +211,16 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             this.dimensions = dimensions;
             this.memorySegment = segment;
             this.bulkSize = bulkSize;
+        }
+
+        /**
+         * Returns the raw backing memory segment, or null if not available.
+         * Prefer {@code getMemorySegment()} where available, which handles
+         * ref-counting for eviction safety. Only use this method when the
+         * segment is known to be long-lived (e.g. whole-file mmap).
+         */
+        protected MemorySegment rawMemorySegment() {
+            return memorySegment;
         }
 
         abstract long quantizeScore(byte[] q) throws IOException;

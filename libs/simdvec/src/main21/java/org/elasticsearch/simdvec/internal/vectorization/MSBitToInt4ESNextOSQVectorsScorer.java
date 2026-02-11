@@ -86,9 +86,9 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
      * The caller must close the returned {@link SegmentSlice} when done.
      */
     private SegmentSlice getMemorySegment(long length) throws IOException {
-        if (memorySegment != null) {
+        if (rawMemorySegment() != null) {
             long offset = in.getFilePointer();
-            MemorySegment seg = memorySegment.asSlice(offset, length);
+            MemorySegment seg = rawMemorySegment().asSlice(offset, length);
             in.skipBytes(length);
             return new SegmentSlice(seg, null);
         }

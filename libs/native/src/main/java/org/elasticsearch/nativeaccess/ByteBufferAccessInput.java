@@ -9,27 +9,27 @@
 
 package org.elasticsearch.nativeaccess;
 
-import java.nio.ByteBuffer;
-
 /**
  * An optional interface that an IndexInput can implement to provide direct
- * access to the underlying data as a {@link ByteBuffer}. This enables
+ * access to the underlying data as a {@link java.nio.ByteBuffer}. This enables
  * zero-copy access to memory-mapped data for SIMD-accelerated vector scoring.
  *
- * <p>Implementations should return a read-only ByteBuffer slice of the
- * underlying mapped memory when available, or {@code null} when direct
+ * <p>Implementations should return a read-only ByteBuffer slice wrapped in a
+ * {@link CloseableByteBuffer} when available, or {@code null} when direct
  * access is not possible (e.g., data not cached, spans multiple regions,
- * or not memory-mapped).
+ * or not memory-mapped). Callers must close the returned {@link CloseableByteBuffer}
+ * when they are done with it to release the underlying resources.
  */
 public interface ByteBufferAccessInput {
 
     /**
-     * Returns a read-only ByteBuffer slice for the given range, or {@code null}
-     * if direct access is not available.
+     * Returns a {@link CloseableByteBuffer} wrapping a read-only ByteBuffer slice
+     * for the given range, or {@code null} if direct access is not available.
+     * The caller is responsible for closing the returned buffer.
      *
      * @param offset the byte offset within the input
      * @param length the number of bytes requested
-     * @return a read-only ByteBuffer positioned at the start of the data, or null
+     * @return a CloseableByteBuffer positioned at the start of the data, or null
      */
-    ByteBuffer byteBufferSliceOrNull(long offset, long length);
+    CloseableByteBuffer byteBufferSliceOrNull(long offset, long length);
 }

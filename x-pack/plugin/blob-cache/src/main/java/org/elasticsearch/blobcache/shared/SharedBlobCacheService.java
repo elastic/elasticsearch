@@ -43,6 +43,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1048,15 +1049,29 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         /**
          * Optimistically try to get a direct ByteBuffer slice from the region.
-         * @return a read-only ByteBuffer slice, or null if not available (evicted, not mmap'd, etc.)
+         * The returned {@link CloseableByteBuffer} holds a reference to this region,
+         * preventing eviction while the buffer is in use. The caller must close it
+         * when done.
+         * @return a CloseableByteBuffer wrapping a read-only ByteBuffer slice, or null if not available
          */
-        ByteBuffer tryGetByteBufferSlice(long offset, int length) {
+        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
             SharedBytes.IO ioRef = nonVolatileIO();
-            if (ioRef != null) {
+            if (ioRef != null && tryIncRef()) {
                 ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
                 if (slice != null && isEvicted() == false) {
-                    return slice;  // TODO: how to I retain a reference count that needs to be later released.
+                    return new CloseableByteBuffer() {
+                        @Override
+                        public ByteBuffer buffer() {
+                            return slice;
+                        }
+
+                        @Override
+                        public void close() {
+                            CacheFileRegion.this.decRef();
+                        }
+                    };
                 }
+                decRef();
             }
             return null;
         }
@@ -1359,7 +1374,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return res;
         }
 
-        public ByteBuffer tryGetByteBufferSlice(long offset, int length) {
+        public CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
             final long end = offset + length;
@@ -1377,7 +1392,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return null;
             }
-            ByteBuffer slice = region.tryGetByteBufferSlice(offset, length);
+            CloseableByteBuffer slice = region.tryGetByteBufferSlice(offset, length);
             if (slice != null) {
                 lastAccessedRegion = fileRegion;
             }

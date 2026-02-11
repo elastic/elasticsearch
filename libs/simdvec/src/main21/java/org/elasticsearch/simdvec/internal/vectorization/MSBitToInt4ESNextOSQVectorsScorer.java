@@ -19,12 +19,12 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.ByteBufferAccessInput;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
@@ -37,6 +37,9 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+
+    // TODO: remove this, replace with eager close once use has finished
+    private CloseableByteBuffer currentByteBufferSlice;
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
@@ -84,10 +87,17 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         // try direct ByteBuffer access (e.g., from blob cache mmap'd regions)
         if (in instanceof ByteBufferAccessInput bbai) {
             long offset = in.getFilePointer();
-            ByteBuffer bb = bbai.byteBufferSliceOrNull(offset, length);
-            if (bb != null) {
+            CloseableByteBuffer cbb = bbai.byteBufferSliceOrNull(offset, length);
+            if (cbb != null) {
+                // Release the previous slice (if any) before storing the new one.
+                // This keeps the ref count elevated on the cache region while the
+                // derived MemorySegment is in use.
+                if (currentByteBufferSlice != null) {
+                    currentByteBufferSlice.close();
+                }
+                currentByteBufferSlice = cbb;
                 in.skipBytes(length);
-                return MemorySegment.ofBuffer(bb);
+                return MemorySegment.ofBuffer(cbb.buffer());
             }
         }
         return copyOnHeap(in, Math.toIntExact(length));

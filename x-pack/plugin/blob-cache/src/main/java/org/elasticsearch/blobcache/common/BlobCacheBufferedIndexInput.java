@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.nativeaccess.ByteBufferAccessInput;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -393,7 +394,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     }
 
     @Override
-    public ByteBuffer byteBufferSliceOrNull(long offset, long length) {
+    public CloseableByteBuffer byteBufferSliceOrNull(long offset, long length) {
         return null;
     }
 

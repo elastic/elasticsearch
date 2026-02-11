@@ -18,6 +18,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
@@ -106,7 +107,7 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public ByteBuffer byteBufferSliceOrNull(long offset, long length) {
+    public CloseableByteBuffer byteBufferSliceOrNull(long offset, long length) {
         final long absoluteOffset = offset + this.offset;
         return cacheFile.tryGetByteBufferSlice(absoluteOffset, Math.toIntExact(length));
     }

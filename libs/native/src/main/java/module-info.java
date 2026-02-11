@@ -22,7 +22,8 @@ module org.elasticsearch.nativeaccess {
             org.elasticsearch.blobcache,
             org.elasticsearch.searchablesnapshots,
             org.elasticsearch.simdvec,
-            org.elasticsearch.systemd;
+            org.elasticsearch.systemd,
+            org.elasticsearch.xpack.stateles;
 
     uses NativeLibraryProvider;
 

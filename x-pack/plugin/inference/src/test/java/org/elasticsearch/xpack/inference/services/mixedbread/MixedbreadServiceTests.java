@@ -88,7 +88,6 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
     public static final Boolean RETURN_DOCUMENTS_TRUE = true;
     public static final Boolean RETURN_DOCUMENTS_FALSE = false;
     public static final String DEFAULT_RERANK_URL = "https://api.mixedbread.com/v1/reranking";
-    public static final String CUSTOM_URL = "https://custom.url.com/v1/rerank";
 
     private static final String INFERENCE_ID_VALUE = "id";
     private static final String MODEL_NAME_VALUE = "modelName";
@@ -191,17 +190,6 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-        if (Objects.requireNonNull(taskType) == RERANK) {
-            assertRerankModel(model, modelIncludesSecrets);
-        } else {
-            fail("unexpected task type [" + taskType + "]");
-        }
-    }
-
-    @Override
-    public void testParseRequestConfig_CreatesACompletionModel() {}
-
-    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets, ConfigurationParseContext parseContext) {
         if (Objects.requireNonNull(taskType) == RERANK) {
             assertRerankModel(model, modelIncludesSecrets);
         } else {

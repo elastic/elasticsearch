@@ -61,15 +61,17 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
 
-    private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
-        // Windows size.
-        // The v1 models: 512
-        // The v2 models: at least 8k
-        // https://www.mixedbread.com/docs/models/reranking/mxbai-rerank-large-v1
+    /**
+     * {@link #rerankerWindowSize(String modelId)} method returns the size in words, not in tokens, so we'll need to translate
+     * tokens to words by multiplying by 0.75 and rounding down
 
-        // rerankerWindowSize() method returns the size in words, not in tokens, so we'll need to translate
-        // tokens to words by multiplying by 0.75 and rounding down
-        // https://github.com/elastic/elasticsearch/pull/132169
+     * The context window size for v1 models is 512 tokens / 300 words
+     * For v2 models it is from 8k / 5500 words to 32k / 22000 words
+     * <a href="https://github.com/elastic/elasticsearch/pull/132169">tokens to words conversion reference</a>
+     */
+    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 22000;
+
+    private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
         "mixedbread-ai/mxbai-rerank-xsmall-v1",
         300,
         "mixedbread-ai/mxbai-rerank-base-v1",
@@ -77,13 +79,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         "mixedbread-ai/mxbai-rerank-large-v1",
         300
     );
-
-    /**
-     * Apart from v1 all other models have a context length of up to 32k.
-     * <a href="https://github.com/elastic/elasticsearch/pull/132169#issue-3276542497">Here</a>
-     * 8k tokens were converted into 5500 words, that's why the default window size is set to 22000
-     */
-    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 22000;
 
     private static final Map<TaskType, ModelCreator<? extends MixedbreadModel>> MODEL_CREATORS = Map.of(
         TaskType.RERANK,

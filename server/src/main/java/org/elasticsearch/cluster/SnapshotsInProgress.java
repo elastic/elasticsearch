@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -1215,14 +1214,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * In the special case where this instance has not yet made any progress on any shard this method just returns
          * {@code null} since no abort is needed and the snapshot can simply be removed from the cluster state outright.
          *
-         * @param statusUpdater Async updater to update shard snapshot status on the master
-         *
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort(AsyncStatusUpdater statusUpdater) {
+        public Entry abort() {
             if (isClone()) {
-                return abortClone(statusUpdater);
+                return abortClone();
             }
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
@@ -1260,7 +1257,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             );
         }
 
-        private Entry abortClone(AsyncStatusUpdater statusUpdater) {
+        private Entry abortClone() {
             final Map<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = new HashMap<>();
             boolean allQueued = true;
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : shardStatusByRepoShardId.entrySet()) {
@@ -1268,26 +1265,25 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    if (nodeId == null) {
-                        status = new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), "aborted by snapshot deletion");
-                    } else {
-                        // The clone is running, submit a request to master to FAIL it.
-                        // It may race with SUCCESS. That's OK, we can take either final state.
-                        statusUpdater.sendUpdate(
-                            snapshot,
-                            null,
-                            shardEntry.getKey(),
-                            new ShardSnapshotStatus(nodeId, ShardState.FAILED, status.generation(), "aborted by snapshot deletion"),
-                            ActionListener.noop()
-                        );
-                    }
+                    final var newState = nodeId == null ? ShardState.FAILED : ShardState.ABORTED;
+                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
                 }
                 clonesBuilder.put(shardEntry.getKey(), status);
             }
             if (allQueued) {
                 return null;
             }
-            return withClones(clonesBuilder);
+            return Entry.createClone(
+                snapshot,
+                completed(clonesBuilder.values()) ? (hasFailures(clonesBuilder) ? State.FAILED : State.SUCCESS) : State.ABORTED,
+                indices,
+                startTime,
+                repositoryStateId,
+                failure,
+                version,
+                source,
+                clonesBuilder
+            );
         }
 
         /**
@@ -2029,20 +2025,5 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 positionDiff.writeTo(out);
             }
         }
-    }
-
-    /**
-     * Updater that updates a shard snapshot's status asynchronously
-     */
-    @FunctionalInterface
-    public interface AsyncStatusUpdater {
-
-        void sendUpdate(
-            Snapshot snapshot,
-            @Nullable ShardId shardId,
-            RepositoryShardId repositoryShardId,
-            ShardSnapshotStatus status,
-            ActionListener<Void> listener
-        );
     }
 }

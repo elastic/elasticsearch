@@ -658,12 +658,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final IndexId index = shardId.index();
         final int shardNum = shardId.shardId();
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        ensureCloneNotAborted(target, shardId);
         executor.execute(ActionRunnable.supply(listener, () -> {
             final long startTime = threadPool.absoluteTimeInMillis();
             final BlobContainer shardContainer = shardContainer(index, shardNum);
             final BlobStoreIndexShardSnapshots existingSnapshots;
             final ShardGeneration newGen;
             final ShardGeneration existingShardGen;
+            ensureCloneNotAborted(target, shardId);
             if (shardGeneration == null) {
                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
                     shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet(),
@@ -725,6 +727,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "]. A snapshot by that name already exists for this shard."
                 );
             }
+            ensureCloneNotAborted(target, shardId);
             final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
             logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
             INDEX_SHARD_SNAPSHOT_FORMAT.write(
@@ -745,6 +748,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 getSegmentInfoFileCount(sourceMeta.indexFiles())
             );
         }));
+    }
+
+    private void ensureCloneNotAborted(SnapshotId snapshotId, RepositoryShardId repoShardId) {
+        final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+        final var cloneEntry = snapshotsInProgress.asStream()
+            .filter(entry -> entry.isClone() && entry.snapshot().getSnapshotId().equals(snapshotId))
+            .findFirst()
+            .orElse(null);
+
+        assert cloneEntry != null : "clone entry [" + snapshotId + "] not found in " + snapshotsInProgress;
+
+        final var shardSnapshotStatus = cloneEntry.shardSnapshotStatusByRepoShardId().get(repoShardId);
+        assert shardSnapshotStatus != null;
+        if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED) {
+            throw new AbortedSnapshotException();
+        }
     }
 
     private static int getSegmentInfoFileCount(List<BlobStoreIndexShardSnapshot.FileInfo> indexFiles) {

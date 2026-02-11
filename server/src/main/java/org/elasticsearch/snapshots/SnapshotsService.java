@@ -543,12 +543,24 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final SnapshotId sourceSnapshot = updatedEntry.source();
                         for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> indexClone : updatedEntry.shardSnapshotStatusByRepoShardId()
                             .entrySet()) {
-                            final ShardSnapshotStatus shardStatusBefore = indexClone.getValue();
-                            if (shardStatusBefore.state() != ShardState.INIT) {
-                                continue;
-                            }
                             final RepositoryShardId repoShardId = indexClone.getKey();
-                            runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
+                            final ShardSnapshotStatus shardStatusBefore = indexClone.getValue();
+                            if (shardStatusBefore.state() == ShardState.INIT) {
+                                runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
+                            } else if (shardStatusBefore.state() == ShardState.ABORTED) {
+                                createAndSubmitRequestToUpdateSnapshotState(
+                                    target,
+                                    null,
+                                    repoShardId,
+                                    new ShardSnapshotStatus(
+                                        shardStatusBefore.nodeId(),
+                                        ShardState.FAILED,
+                                        shardStatusBefore.generation(),
+                                        shardStatusBefore.reason()
+                                    ),
+                                    failedCloneUpdateListener(sourceSnapshot, target.getSnapshotId(), repoShardId)
+                                );
+                            }
                         }
                     } else {
                         // The clone maybe deleted before it is fully populated. Or it could be an extremely unlikely corner case
@@ -616,24 +628,27 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             "failed to clone shard snapshot"
                         ),
                         ActionListener.runBefore(
-                            ActionListener.wrap(
-                                v -> logger.trace(
-                                    "Marked [{}] as failed clone from [{}] to [{}]",
-                                    repoShardId,
-                                    sourceSnapshot,
-                                    targetSnapshot
-                                ),
-                                ex -> {
-                                    logger.warn("Cluster state update after failed shard clone [{}] failed", repoShardId);
-                                    failAllListenersOnMasterFailOver(ex);
-                                }
-                            ),
+                            failedCloneUpdateListener(sourceSnapshot, targetSnapshot, repoShardId),
                             () -> currentlyCloning.remove(repoShardId)
                         )
                     )
                 )
             );
         }
+    }
+
+    private ActionListener<Void> failedCloneUpdateListener(
+        SnapshotId sourceSnapshot,
+        SnapshotId targetSnapshot,
+        RepositoryShardId repoShardId
+    ) {
+        return ActionListener.wrap(
+            v -> logger.trace("Marked [{}] as failed clone from [{}] to [{}]", repoShardId, sourceSnapshot, targetSnapshot),
+            ex -> {
+                logger.warn("Cluster state update after failed shard clone [{}] failed", repoShardId);
+                failAllListenersOnMasterFailOver(ex);
+            }
+        );
     }
 
     // This limit is intentionally cluster wide across all projects
@@ -1583,9 +1598,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         if (existing.state() == SnapshotsInProgress.State.STARTED
                             && snapshotIdsRequiringCleanup.contains(existing.snapshot().getSnapshotId())) {
                             // snapshot is started - mark every non completed shard as aborted
-                            final SnapshotsInProgress.Entry abortedEntry = existing.abort(
-                                SnapshotsService.this::createAndSubmitRequestToUpdateSnapshotState
-                            );
+                            final SnapshotsInProgress.Entry abortedEntry = existing.abort();
                             if (abortedEntry == null) {
                                 // No work has been done for this snapshot yet so we remove it from the cluster state directly
                                 final Snapshot existingNotYetStartedSnapshot = existing.snapshot();
@@ -2886,6 +2899,19 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             clone.getValue(),
                             clone.getKey(),
                             repositoriesService.repository(entry.projectId(), entry.repository())
+                        );
+                    } else if (clone.getValue().state() == ShardState.ABORTED) {
+                        createAndSubmitRequestToUpdateSnapshotState(
+                            entry.snapshot(),
+                            null,
+                            clone.getKey(),
+                            new ShardSnapshotStatus(
+                                clone.getValue().nodeId(),
+                                ShardState.FAILED,
+                                clone.getValue().generation(),
+                                clone.getValue().reason()
+                            ),
+                            failedCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
                         );
                     }
                 }

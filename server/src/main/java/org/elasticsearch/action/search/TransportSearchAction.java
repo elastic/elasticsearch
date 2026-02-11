@@ -702,11 +702,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static void openPIT(Client client, SearchRequest request, long keepAliveMillis, ActionListener<OpenPointInTimeResponse> listener) {
         ResolvedIndexExpressions resolvedIndexExpressions = request.getResolvedIndexExpressions();
+
+        /*
+         * At this point, request.indices() holds indices that are already expanded/rewritten by the Security Action Filter.
+         * Using these indices again for the PIT request would make it look as if the qualified index expression(s) were
+         * specified by the user. They then show up in `ResolvedIndexExpressions`, which can trip the subsequent
+         * `CrossProjectIndexResolutionValidator#validate()` since the PIT request is CPS compatible and goes through the
+         * SAF. To prevent that from happening, we negate the previous SAF by using the indices that the user originally
+         * specified.
+         */
         String[] indices;
         if (resolvedIndexExpressions == null) {
             indices = request.indices();
         } else {
-            indices = request.getResolvedIndexExpressions().getLocalIndicesList().toArray(new String[0]);
+            indices = resolvedIndexExpressions.getLocalIndicesList().toArray(new String[0]);
         }
 
         OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())

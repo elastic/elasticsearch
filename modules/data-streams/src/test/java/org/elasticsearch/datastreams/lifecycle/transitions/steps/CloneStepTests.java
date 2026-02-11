@@ -172,20 +172,8 @@ public class CloneStepTests extends ESTestCase {
 
     public void testExecuteDeletesExistingCloneAndRetriesClone() {
         // Create a clone index that was created more than 12 hours ago (stuck)
-        long currentTime = System.currentTimeMillis();
-        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
-
         String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
-
-        // Pre-populate the deduplicator to simulate a stuck in-progress request
-        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
-        deduplicator.executeOnce(
-            Tuple.tuple(projectId, cloneRequest),
-            ActionListener.noop(),
-            (req, listener) -> {} // Don't actually execute, just track as in-progress
-        );
-
+        ProjectState projectState = setupStuckCloneScenario(13);
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -247,21 +235,7 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testDeleteCloneSuccessfully() {
-        // Create a clone index that was created more than 12 hours ago (stuck)
-        long currentTime = System.currentTimeMillis();
-        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
-
-        String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
-
-        // Pre-populate the deduplicator to simulate a stuck in-progress request
-        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
-        deduplicator.executeOnce(
-            Tuple.tuple(projectId, cloneRequest),
-            ActionListener.noop(),
-            (req, listener) -> {} // Don't actually execute, just track as in-progress
-        );
-
+        ProjectState projectState = setupStuckCloneScenario(13);
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -272,21 +246,7 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testDeleteCloneWithFailure() {
-        // Create a clone index that was created more than 12 hours ago (stuck)
-        long currentTime = System.currentTimeMillis();
-        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
-
-        String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
-
-        // Pre-populate the deduplicator to simulate a stuck in-progress request
-        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
-        deduplicator.executeOnce(
-            Tuple.tuple(projectId, cloneRequest),
-            ActionListener.noop(),
-            (req, listener) -> {} // Don't actually execute, just track as in-progress
-        );
-
+        ProjectState projectState = setupStuckCloneScenario(13);
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -298,20 +258,7 @@ public class CloneStepTests extends ESTestCase {
 
     public void testExecuteWaitsWhenCloneIsInProgressAndNotTimedOut() {
         // Create a clone index that was created less than 12 hours ago
-        long currentTime = System.currentTimeMillis();
-        long creationTime = currentTime - TimeValue.timeValueHours(6).millis(); // 6 hours ago
-
-        String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
-
-        // Pre-populate the deduplicator to simulate an in-progress request
-        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
-        deduplicator.executeOnce(
-            Tuple.tuple(projectId, cloneRequest),
-            ActionListener.noop(),
-            (req, listener) -> {} // Don't actually execute, just track
-        );
-
+        ProjectState projectState = setupStuckCloneScenario(6);
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
 
@@ -323,20 +270,8 @@ public class CloneStepTests extends ESTestCase {
 
     public void testExecuteDeletesCloneWhenStuckForOver12Hours() {
         // Create a clone index that was created more than 12 hours ago
-        long currentTime = System.currentTimeMillis();
-        long creationTime = currentTime - TimeValue.timeValueHours(13).millis(); // 13 hours ago
-
         String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
-
-        // Pre-populate the deduplicator to simulate a stuck in-progress request
-        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
-        deduplicator.executeOnce(
-            Tuple.tuple(projectId, cloneRequest),
-            ActionListener.noop(),
-            (req, listener) -> {} // Don't actually execute, just track
-        );
-
+        ProjectState projectState = setupStuckCloneScenario(13);
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
 
@@ -381,20 +316,8 @@ public class CloneStepTests extends ESTestCase {
 
     public void testExecuteCreatesNewCloneAfterTimeoutAndCleanup() {
         // Test the full cycle: stuck clone gets deleted, then a new one is created on next run
-        long currentTime = System.currentTimeMillis();
-        long creationTime = currentTime - TimeValue.timeValueHours(14).millis(); // 14 hours ago
-
         String cloneIndexName = generateExpectedCloneName(indexName);
-        ProjectState projectStateWithOldClone = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
-
-        // Pre-populate the deduplicator to simulate a stuck in-progress request
-        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
-        deduplicator.executeOnce(
-            Tuple.tuple(projectId, cloneRequest),
-            ActionListener.noop(),
-            (req, listener) -> {} // Don't actually execute, just track as in-progress
-        );
-
+        ProjectState projectStateWithOldClone = setupStuckCloneScenario(14);
         DlmStepContext stepContext = createStepContext(projectStateWithOldClone);
         cloneStep.execute(stepContext);
 
@@ -624,5 +547,31 @@ public class CloneStepTests extends ESTestCase {
             sourceIndex,
             targetIndex
         );
+    }
+
+    /**
+     * Helper method to create a stuck clone scenario where:
+     * - A clone index exists with the specified age in hours
+     * - The clone request is registered in the deduplicator (simulating in-progress request)
+     *
+     * @param hoursAgo Number of hours ago the clone was created
+     * @return ProjectState with the stuck clone index
+     */
+    private ProjectState setupStuckCloneScenario(int hoursAgo) {
+        long currentTime = System.currentTimeMillis();
+        long creationTime = currentTime - TimeValue.timeValueHours(hoursAgo).millis();
+
+        String cloneIndexName = generateExpectedCloneName(indexName);
+        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+
+        // Pre-populate the deduplicator to simulate a stuck in-progress request
+        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        deduplicator.executeOnce(
+            Tuple.tuple(projectId, cloneRequest),
+            ActionListener.noop(),
+            (req, listener) -> {} // Don't actually execute, just track as in-progress
+        );
+
+        return projectState;
     }
 }

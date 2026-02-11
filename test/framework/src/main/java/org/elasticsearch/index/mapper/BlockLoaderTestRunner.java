@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test helper for {@link BlockLoader}. Run it like:
  * <pre>{@code
- *  BlockLoaderTestRunner runner = new BlockLoaderTestRunner();
+ *  BlockLoaderTestRunner runner = new BlockLoaderTestRunner(params);
  *  runner.mapperService(createMapperService...);
  *  runner.fieldName("field").document(Map.of("field", 1));
  *  runner.run(1);
@@ -63,27 +63,42 @@ public class BlockLoaderTestRunner {
         this.params = params;
     }
 
+    /**
+     * Allow dummy documents in test index. This defaults to {@code false} but many callers
+     * are fine with these and call this.
+     */
     public BlockLoaderTestRunner allowDummyDocs() {
         this.allowDummyDocs = true;
         return this;
     }
 
+    /**
+     * Set the {@link MapperService} to use for the test. This must be provided before
+     * calling {@link #run}.
+     */
     public BlockLoaderTestRunner mapperService(MapperService mapperService) {
         this.mapperService = mapperService;
         return this;
     }
 
+    /**
+     * The name of the field to load. The test sends this to {@link MapperService#fieldType}.
+     */
     public String fieldName() {
         return fieldName;
     }
 
+    /**
+     * Set the name of the field to load. The test sends this to {@link MapperService#fieldType}.
+     * This is required before calling {@link #run}
+     */
     public BlockLoaderTestRunner fieldName(String fieldName) {
         this.fieldName = fieldName;
         return this;
     }
 
     /**
-     * Configuration a non-standard matcher. The default matcher is usually fine and
+     * Configuration a non-standard matcher. The default matcher is usually fine, and
      * you often don't have to call this.
      */
     public BlockLoaderTestRunner matcher(ResultMatcher matcher) {
@@ -125,7 +140,8 @@ public class BlockLoaderTestRunner {
     }
 
     /**
-     * The document to be parsed as a {@link Map}.
+     * The document to be parsed as a {@link Map}. This will only work if the document
+     * was set with {@link #document(Map)}.
      */
     public Map<String, Object> mapDoc() {
         if (mapDoc == null) {
@@ -135,14 +151,16 @@ public class BlockLoaderTestRunner {
     }
 
     /**
-     * Set the document to be parsed.
+     * Set the document to be parsed. A method with this name must be called before
+     * calling {@link #run}.
      */
     public void document(Map<String, Object> doc) throws IOException {
         this.mapDoc = doc;
     }
 
     /**
-     * Set the document to be parsed.
+     * Set the document to be parsed. A method with this name must be called before
+     * calling {@link #run}.
      */
     public void document(ParsedDocument doc) throws IOException {
         this.doc = doc;

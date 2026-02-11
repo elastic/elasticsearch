@@ -722,7 +722,9 @@ class DownsampleShardIndexer {
                 downsampler.reset();
             }
             // We need to clear the extra data points
-            counterResetDataPoints.reset();
+            if (counterResetDataPoints != null) {
+                counterResetDataPoints.reset();
+            }
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",

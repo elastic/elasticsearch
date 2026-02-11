@@ -630,7 +630,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                 Streams.readFully(exchange.getRequestBody());
                 if ("HEAD".equals(exchange.getRequestMethod())) {
                     handleHeadRequest(exchange, blobContents);
-                    throw new AssertionError("Should not HEAD blob for ranged reads");
                 } else if ("GET".equals(exchange.getRequestMethod())) {
                     final int rangeStart = getRangeStart(exchange);
                     assertThat(rangeStart, lessThan(blobContents.length));

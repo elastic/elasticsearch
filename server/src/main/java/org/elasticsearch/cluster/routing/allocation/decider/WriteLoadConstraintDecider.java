@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -46,6 +47,19 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             logCanRemainMessage.setMinInterval(timeValue);
             logCanAllocateMessage.setMinInterval(timeValue);
         });
+    }
+
+    /**
+     * @return Whether a node is currently hotspotting, given the threshold criteria for queue latency and utilization
+     */
+    public static boolean nodeIsHotspotting(
+        NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools,
+        TimeValue hotspotQueueLatencyThreshold
+    ) {
+        assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
+        assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE) != null;
+        var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+        return nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= hotspotQueueLatencyThreshold.millis();
     }
 
     @Override
@@ -146,11 +160,15 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "The node has no write load estimate. Decider takes no action.");
         }
 
-        assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
-        assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE) != null;
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
         var nodeWriteThreadPoolQueueLatencyThreshold = writeLoadConstraintSettings.getQueueLatencyThreshold();
-        if (nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= nodeWriteThreadPoolQueueLatencyThreshold.millis()) {
+
+        final boolean nodeIsHotspotting = nodeIsHotspotting(
+            nodeUsageStatsForThreadPools,
+            nodeWriteThreadPoolQueueLatencyThreshold
+        );
+
+        if (nodeIsHotspotting) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                 final String explain = Strings.format(

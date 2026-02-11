@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
@@ -140,10 +141,10 @@ public class WriteLoadConstraintMonitor {
                 continue;
             }
             totalIngestNodes++;
-            final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = usageStats.threadPoolUsageStatsMap()
-                .get(ThreadPool.Names.WRITE);
-            assert writeThreadPoolStats != null : "Write thread pool is not publishing usage stats for node [" + nodeId + "]";
-            if (writeThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= writeLoadConstraintSettings.getQueueLatencyThreshold().millis()) {
+            if (WriteLoadConstraintDecider.nodeIsHotspotting(
+                usageStats,
+                writeLoadConstraintSettings.getQueueLatencyThreshold()
+            )) {
                 writeNodesExceedingQueueLatencyThreshold.add(NodeIdName.nodeIdName(node));
             } else {
                 haveWriteNodesBelowQueueLatencyThreshold = true;

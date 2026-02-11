@@ -110,7 +110,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         IndexFieldData<?> fieldData,
         DownsampleConfig.SamplingMethod samplingMethod
     ) {
-        assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType)
+        assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType) == false
             : "Aggregate metric double should be handled by a dedicated downsampler";
         if (TDigestHistogramFieldDownsampler.supportsFieldType(fieldType)) {
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);

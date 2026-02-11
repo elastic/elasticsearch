@@ -216,24 +216,24 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
             var metricSubField = metricField.getValue();
             if (context.fieldExistsInIndex(metricSubField.name())) {
                 IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
-                if (aggMetricFieldType.getMetricType() != null) {
-                    if (samplingMethod != DownsampleConfig.SamplingMethod.LAST_VALUE) {
-                        // If the field is an aggregate_metric_double field, we should use the correct subfields
-                        // for each aggregation. This is a downsample-of-downsample case
-                        downsamplers.add(new AggregateMetricDoubleFieldDownsampler.Aggregate(aggMetricFieldType.name(), metric, fieldData));
-                    } else {
-                        downsamplers.add(
-                            new AggregateMetricDoubleFieldDownsampler.LastValue(aggMetricFieldType.name(), metric, fieldData, false)
-                        );
-                    }
-                } else {
-                    // If a field is not a metric, we downsample it as a label
-                    downsamplers.add(
-                        new AggregateMetricDoubleFieldDownsampler.LastValue(aggMetricFieldType.name(), metric, fieldData, true)
-                    );
-                }
+                downsamplers.add(create(aggMetricFieldType, metric, fieldData, samplingMethod));
             }
         }
         return downsamplers;
+    }
+
+    private static AggregateMetricDoubleFieldDownsampler create(
+        AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType fieldType,
+        AggregateMetricDoubleFieldMapper.Metric metric,
+        IndexFieldData<?> fieldData,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
+        if (fieldType.getMetricType() == null) {
+            return new AggregateMetricDoubleFieldDownsampler.LastValue(fieldType.name(), metric, fieldData, true);
+        }
+        return switch (samplingMethod) {
+            case AGGREGATE -> new AggregateMetricDoubleFieldDownsampler.Aggregate(fieldType.name(), metric, fieldData);
+            case LAST_VALUE -> new AggregateMetricDoubleFieldDownsampler.LastValue(fieldType.name(), metric, fieldData, false);
+        };
     }
 }

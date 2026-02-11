@@ -12,23 +12,20 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.operator.blocksource.FloatArrayBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.DenseVectorFloatBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
 
-/**
- * Tests for {@link SumDenseVectorAggregatorFunction}.
- */
 public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     private static final int VECTOR_DIMENSIONS = 3;
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new FloatArrayBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToObj(l -> randomVector(VECTOR_DIMENSIONS)));
+        return new DenseVectorFloatBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToObj(l -> randomVector(VECTOR_DIMENSIONS)));
     }
 
     private float[] randomVector(int dimensions) {

@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.operator.blocksource.LongFloatArrayTupleBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongDenseVectorFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -23,16 +23,13 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
 
-/**
- * Tests for {@link SumDenseVectorGroupingAggregatorFunction}.
- */
 public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     private static final int VECTOR_DIMENSIONS = 3;
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
-        return new LongFloatArrayTupleBlockSourceOperator(
+        return new LongDenseVectorFloatTupleBlockSourceOperator(
             blockFactory,
             LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomVector(VECTOR_DIMENSIONS)))
         );
@@ -63,7 +60,6 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
         return false;
     }
 
-    @Override
     protected void appendNullGroupValue(ElementType elementType, Block.Builder builder, int blockId) {
         // Dense vectors are multi-valued float positions; the default single randomFloat()
         // would create a 1-dimensional vector that conflicts with the expected dimensions.

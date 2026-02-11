@@ -17,17 +17,17 @@ import java.util.stream.Stream;
  * A source operator whose output is the given float array values. This operator produces pages
  * containing a single FloatBlock where each position is a multi-valued entry representing a dense vector.
  */
-public class FloatArrayBlockSourceOperator extends AbstractBlockSourceOperator {
+public class DenseVectorFloatBlockSourceOperator extends AbstractBlockSourceOperator {
 
     private static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final List<float[]> values;
 
-    public FloatArrayBlockSourceOperator(BlockFactory blockFactory, Stream<float[]> values) {
+    public DenseVectorFloatBlockSourceOperator(BlockFactory blockFactory, Stream<float[]> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public FloatArrayBlockSourceOperator(BlockFactory blockFactory, Stream<float[]> values, int maxPagePositions) {
+    public DenseVectorFloatBlockSourceOperator(BlockFactory blockFactory, Stream<float[]> values, int maxPagePositions) {
         super(blockFactory, maxPagePositions);
         this.values = values.toList();
     }

@@ -20,17 +20,17 @@ import java.util.stream.Stream;
  * - A LongBlock for the group id
  * - A FloatBlock with multiple values per position representing dense vectors
  */
-public class LongFloatArrayTupleBlockSourceOperator extends AbstractBlockSourceOperator {
+public class LongDenseVectorFloatTupleBlockSourceOperator extends AbstractBlockSourceOperator {
 
     private static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final List<Tuple<Long, float[]>> values;
 
-    public LongFloatArrayTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, float[]>> values) {
+    public LongDenseVectorFloatTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, float[]>> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongFloatArrayTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, float[]>> values, int maxPagePositions) {
+    public LongDenseVectorFloatTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, float[]>> values, int maxPagePositions) {
         super(blockFactory, maxPagePositions);
         this.values = values.toList();
     }

@@ -286,34 +286,25 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     super.appendNull(elementType, builder, blockId);
                 } else {
                     // Append a small random value to make sure we don't overflow on things like sums
-                    appendNullGroupValue(elementType, builder, blockId);
+                    append(builder, switch (elementType) {
+                        case BOOLEAN -> randomBoolean();
+                        case BYTES_REF -> {
+                            if (acceptedDataFormat() == DataFormat.IP) {
+                                yield new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            yield new BytesRef(randomAlphaOfLength(3));
+                        }
+                        case FLOAT -> randomFloat();
+                        case DOUBLE -> randomDouble();
+                        case INT -> 1;
+                        case LONG -> 1L;
+                        case EXPONENTIAL_HISTOGRAM -> BlockTestUtils.randomExponentialHistogram();
+                        case TDIGEST -> BlockTestUtils.randomTDigest();
+                        default -> throw new UnsupportedOperationException();
+                    });
                 }
             }
         };
-    }
-
-    /**
-     * Appends a value for the given element type and block when inserting rows with null group keys.
-     * Override this to customize the values appended for aggregators that require specific
-     * multi-valued formats (e.g., dense vectors which need multi-valued float positions).
-     */
-    protected void appendNullGroupValue(ElementType elementType, Block.Builder builder, int blockId) {
-        append(builder, switch (elementType) {
-            case BOOLEAN -> randomBoolean();
-            case BYTES_REF -> {
-                if (acceptedDataFormat() == DataFormat.IP) {
-                    yield new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                }
-                yield new BytesRef(randomAlphaOfLength(3));
-            }
-            case FLOAT -> randomFloat();
-            case DOUBLE -> randomDouble();
-            case INT -> 1;
-            case LONG -> 1L;
-            case EXPONENTIAL_HISTOGRAM -> BlockTestUtils.randomExponentialHistogram();
-            case TDIGEST -> BlockTestUtils.randomTDigest();
-            default -> throw new UnsupportedOperationException();
-        });
     }
 
     public final void testNullValues() {

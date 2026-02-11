@@ -73,6 +73,7 @@ import java.util.stream.Stream;
 public class AggregatorBenchmark {
     static final int BLOCK_LENGTH = 8 * 1024;
     private static final int OP_COUNT = 1024;
+    private static final int GROUPS = 5;
     private static final int TOP_N_LIMIT = 3;
 
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
@@ -128,13 +129,7 @@ public class AggregatorBenchmark {
                 for (String op : AggregatorBenchmark.class.getField("op").getAnnotationsByType(Param.class)[0].value()) {
                     for (String blockType : AggregatorBenchmark.class.getField("blockType").getAnnotationsByType(Param.class)[0].value()) {
                         for (String filter : AggregatorBenchmark.class.getField("filter").getAnnotationsByType(Param.class)[0].value()) {
-                            for (String groups : AggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0]
-                                .value()) {
-                                for (String distinctPerGroup : AggregatorBenchmark.class.getField("distinctPerGroup")
-                                    .getAnnotationsByType(Param.class)[0].value()) {
-                                    run(grouping, op, blockType, filter, Integer.parseInt(groups), Integer.parseInt(distinctPerGroup), 10);
-                                }
-                            }
+                            run(grouping, op, blockType, filter, 10);
                         }
                     }
                 }
@@ -170,13 +165,6 @@ public class AggregatorBenchmark {
 
     @Param({ NONE, CONSTANT_TRUE, ALL_TRUE, HALF_TRUE, CONSTANT_FALSE })
     public String filter;
-
-    @Param({ "5" })
-    public int groups;
-
-    // Only used for count_distinct; 0 keeps the legacy full-distinct pattern.
-    @Param({ "0" })
-    public int distinctPerGroup;
 
     private static Operator operator(DriverContext driverContext, String grouping, String op, String dataType, String filter) {
         if (grouping.equals(NONE)) {
@@ -254,55 +242,50 @@ public class AggregatorBenchmark {
         String filter,
         String dataType,
         Page page,
-        int opCount,
-        int dataGroupCount,
-        int distinctPerGroup
+        int opCount
     ) {
         if (filter.equals(CONSTANT_FALSE) || filter.equals(HALF_TRUE)) {
             // We don't verify these because it's hard to get the right answer.
             return;
         }
         String prefix = String.format("[%s][%s][%s] ", grouping, op, blockType);
-        if (grouping.equals(NONE)) {
-            checkUngrouped(prefix, op, dataType, page, opCount, distinctPerGroup);
+        if (grouping.equals("none")) {
+            checkUngrouped(prefix, op, dataType, page, opCount);
             return;
         }
-        checkGrouped(prefix, grouping, op, dataType, page, opCount, dataGroupCount, distinctPerGroup);
+        checkGrouped(prefix, grouping, op, dataType, page, opCount);
     }
 
-    private static void checkGrouped(
-        String prefix,
-        String grouping,
-        String op,
-        String dataType,
-        Page page,
-        int opCount,
-        int dataGroupCount,
-        int distinctPerGroup
-    ) {
+    private static void checkGrouped(String prefix, String grouping, String op, String dataType, Page page, int opCount) {
         switch (grouping) {
             case TWO_LONGS -> {
-                checkGroupingBlock(prefix, LONGS, page.getBlock(0), dataGroupCount);
-                checkGroupingBlock(prefix, LONGS, page.getBlock(1), dataGroupCount);
+                checkGroupingBlock(prefix, LONGS, page.getBlock(0));
+                checkGroupingBlock(prefix, LONGS, page.getBlock(1));
             }
             case TWO_BYTES_REFS, TWO_ORDINALS -> {
-                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(0), dataGroupCount);
-                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1), dataGroupCount);
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(0));
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
             case LONGS_AND_BYTES_REFS -> {
-                checkGroupingBlock(prefix, LONGS, page.getBlock(0), dataGroupCount);
-                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1), dataGroupCount);
+                checkGroupingBlock(prefix, LONGS, page.getBlock(0));
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
             case TWO_LONGS_AND_BYTES_REFS -> {
-                checkGroupingBlock(prefix, LONGS, page.getBlock(0), dataGroupCount);
-                checkGroupingBlock(prefix, LONGS, page.getBlock(1), dataGroupCount);
-                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(2), dataGroupCount);
+                checkGroupingBlock(prefix, LONGS, page.getBlock(0));
+                checkGroupingBlock(prefix, LONGS, page.getBlock(1));
+                checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(2));
             }
-            default -> checkGroupingBlock(prefix, grouping, page.getBlock(0), dataGroupCount);
+            default -> checkGroupingBlock(prefix, grouping, page.getBlock(0));
         }
         Block values = page.getBlock(page.getBlockCount() - 1);
-        int groups = dataGroupCount;
-        int availableGroups = availableGroups(grouping, dataGroupCount);
+        int groups = switch (grouping) {
+            case BOOLEANS -> 2;
+            default -> GROUPS;
+        };
+        int availableGroups = switch (grouping) {
+            case TOP_N_LONGS -> TOP_N_LIMIT;
+            default -> groups;
+        };
         switch (op) {
             case AVG -> {
                 DoubleBlock dValues = (DoubleBlock) values;
@@ -329,7 +312,8 @@ public class AggregatorBenchmark {
             case COUNT_DISTINCT -> {
                 LongBlock lValues = (LongBlock) values;
                 for (int g = 0; g < availableGroups; g++) {
-                    long expected = expectedDistinctCount(g, groups, distinctPerGroup);
+                    long group = g;
+                    long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).distinct().count();
                     long count = lValues.getLong(g);
                     // count should be within 10% from the expected value
                     if (count < expected * 0.9 || count > expected * 1.1) {
@@ -412,57 +396,11 @@ public class AggregatorBenchmark {
         }
     }
 
-    private static int dataGroupCount(String grouping, int groupCount) {
-        int normalized = Math.max(1, groupCount);
-        return switch (grouping) {
-            case NONE -> 1;
-            case BOOLEANS -> 2;
-            default -> normalized;
-        };
-    }
-
-    private static int availableGroups(String grouping, int groupCount) {
-        int normalized = Math.max(1, groupCount);
-        int populatedGroups = Math.min(normalized, BLOCK_LENGTH);
-        return switch (grouping) {
-            case TOP_N_LONGS -> Math.min(TOP_N_LIMIT, populatedGroups);
-            default -> populatedGroups;
-        };
-    }
-
-    private static long expectedDistinctCount(int group, int groupCount, int distinctPerGroup) {
-        int values = valuesForGroup(group, groupCount);
-        if (distinctPerGroup > 0) {
-            return Math.min(distinctPerGroup, values);
-        }
-        return values;
-    }
-
-    private static int valuesForGroup(int group, int groupCount) {
-        int base = BLOCK_LENGTH / groupCount;
-        int remainder = BLOCK_LENGTH % groupCount;
-        return base + (group < remainder ? 1 : 0);
-    }
-
-    private static boolean useDistinctPerGroup(String op, int distinctPerGroup) {
-        return op.equals(COUNT_DISTINCT) && distinctPerGroup > 0;
-    }
-
-    private static long distinctValue(int index, int groupCount, int distinctPerGroup) {
-        if (distinctPerGroup <= 0) {
-            return index;
-        }
-        int normalized = Math.max(1, groupCount);
-        int ordinalInGroup = index / normalized;
-        return ordinalInGroup % distinctPerGroup;
-    }
-
-    private static void checkGroupingBlock(String prefix, String grouping, Block block, int groupCount) {
-        int availableGroups = availableGroups(grouping, groupCount);
+    private static void checkGroupingBlock(String prefix, String grouping, Block block) {
         switch (grouping) {
             case LONGS -> {
                 LongBlock groups = (LongBlock) block;
-                for (int g = 0; g < availableGroups; g++) {
+                for (int g = 0; g < GROUPS; g++) {
                     if (groups.getLong(g) != (long) g) {
                         throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getLong(g) + "]");
                     }
@@ -470,7 +408,7 @@ public class AggregatorBenchmark {
             }
             case TOP_N_LONGS -> {
                 LongBlock groups = (LongBlock) block;
-                for (int g = 0; g < availableGroups; g++) {
+                for (int g = 0; g < TOP_N_LIMIT; g++) {
                     if (groups.getLong(g) != (long) g) {
                         throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getLong(g) + "]");
                     }
@@ -478,7 +416,7 @@ public class AggregatorBenchmark {
             }
             case INTS -> {
                 IntBlock groups = (IntBlock) block;
-                for (int g = 0; g < availableGroups; g++) {
+                for (int g = 0; g < GROUPS; g++) {
                     if (groups.getInt(g) != g) {
                         throw new AssertionError(prefix + "bad group expected [" + g + "] but was [" + groups.getInt(g) + "]");
                     }
@@ -486,7 +424,7 @@ public class AggregatorBenchmark {
             }
             case DOUBLES -> {
                 DoubleBlock groups = (DoubleBlock) block;
-                for (int g = 0; g < availableGroups; g++) {
+                for (int g = 0; g < GROUPS; g++) {
                     if (groups.getDouble(g) != (double) g) {
                         throw new AssertionError(prefix + "bad group expected [" + (double) g + "] but was [" + groups.getDouble(g) + "]");
                     }
@@ -503,7 +441,7 @@ public class AggregatorBenchmark {
             }
             case BYTES_REFS, ORDINALS -> {
                 BytesRefBlock groups = (BytesRefBlock) block;
-                for (int g = 0; g < availableGroups; g++) {
+                for (int g = 0; g < GROUPS; g++) {
                     if (false == groups.getBytesRef(g, new BytesRef()).equals(bytesGroup(g))) {
                         throw new AssertionError(
                             prefix + "bad group expected [" + bytesGroup(g) + "] but was [" + groups.getBytesRef(g, new BytesRef()) + "]"
@@ -515,7 +453,7 @@ public class AggregatorBenchmark {
         }
     }
 
-    private static void checkUngrouped(String prefix, String op, String dataType, Page page, int opCount, int distinctPerGroup) {
+    private static void checkUngrouped(String prefix, String op, String dataType, Page page, int opCount) {
         Block block = page.getBlock(0);
         switch (op) {
             case AVG -> {
@@ -534,7 +472,7 @@ public class AggregatorBenchmark {
             }
             case COUNT_DISTINCT -> {
                 LongBlock lBlock = (LongBlock) block;
-                long expected = expectedDistinctCount(0, 1, distinctPerGroup);
+                long expected = BLOCK_LENGTH;
                 long count = lBlock.getLong(0);
                 // count should be within 10% from the expected value
                 if (count < expected * 0.9 || count > expected * 1.1) {
@@ -578,40 +516,22 @@ public class AggregatorBenchmark {
         }
     }
 
-    private static Page page(
-        BlockFactory blockFactory,
-        String grouping,
-        String blockType,
-        String op,
-        int groupCount,
-        int distinctPerGroup
-    ) {
-        Block dataBlock = dataBlock(blockFactory, blockType, op, groupCount, distinctPerGroup);
+    private static Page page(BlockFactory blockFactory, String grouping, String blockType) {
+        Block dataBlock = dataBlock(blockFactory, blockType);
         if (grouping.equals(NONE)) {
             return new Page(dataBlock);
         }
-        List<Block> blocks = groupingBlocks(grouping, blockType, groupCount);
+        List<Block> blocks = groupingBlocks(grouping, blockType);
         return new Page(Stream.concat(blocks.stream(), Stream.of(dataBlock)).toArray(Block[]::new));
     }
 
-    private static Block dataBlock(BlockFactory blockFactory, String blockType, String op, int groupCount, int distinctPerGroup) {
-        boolean limitDistinct = useDistinctPerGroup(op, distinctPerGroup);
+    private static Block dataBlock(BlockFactory blockFactory, String blockType) {
         return switch (blockType) {
-            case VECTOR_LONGS -> {
-                long[] values = new long[BLOCK_LENGTH];
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    values[i] = limitDistinct ? distinctValue(i, groupCount, distinctPerGroup) : i;
-                }
-                yield blockFactory.newLongArrayVector(values, BLOCK_LENGTH).asBlock();
-            }
-            case VECTOR_DOUBLES -> {
-                double[] values = new double[BLOCK_LENGTH];
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long value = limitDistinct ? distinctValue(i, groupCount, distinctPerGroup) : i;
-                    values[i] = (double) value;
-                }
-                yield blockFactory.newDoubleArrayVector(values, BLOCK_LENGTH).asBlock();
-            }
+            case VECTOR_LONGS -> blockFactory.newLongArrayVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
+            case VECTOR_DOUBLES -> blockFactory.newDoubleArrayVector(
+                LongStream.range(0, BLOCK_LENGTH).mapToDouble(l -> Long.valueOf(l).doubleValue()).toArray(),
+                BLOCK_LENGTH
+            ).asBlock();
             case MULTIVALUED_LONGS -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 builder.beginPositionEntry();
@@ -628,7 +548,7 @@ public class AggregatorBenchmark {
             case HALF_NULL_LONGS -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendLong(limitDistinct ? distinctValue(i, groupCount, distinctPerGroup) : i);
+                    builder.appendLong(i);
                     builder.appendNull();
                 }
                 yield builder.build();
@@ -636,8 +556,7 @@ public class AggregatorBenchmark {
             case HALF_NULL_DOUBLES -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    double value = limitDistinct ? distinctValue(i, groupCount, distinctPerGroup) : i;
-                    builder.appendDouble(value);
+                    builder.appendDouble(i);
                     builder.appendNull();
                 }
                 yield builder.build();
@@ -646,28 +565,22 @@ public class AggregatorBenchmark {
         };
     }
 
-    private static List<Block> groupingBlocks(String grouping, String blockType, int groupCount) {
+    private static List<Block> groupingBlocks(String grouping, String blockType) {
         return switch (grouping) {
-            case TWO_LONGS -> List.of(groupingBlock(LONGS, blockType, groupCount), groupingBlock(LONGS, blockType, groupCount));
-            case TWO_BYTES_REFS -> List.of(
-                groupingBlock(BYTES_REFS, blockType, groupCount),
-                groupingBlock(BYTES_REFS, blockType, groupCount)
-            );
-            case TWO_ORDINALS -> List.of(groupingBlock(ORDINALS, blockType, groupCount), groupingBlock(ORDINALS, blockType, groupCount));
-            case LONGS_AND_BYTES_REFS -> List.of(
-                groupingBlock(LONGS, blockType, groupCount),
-                groupingBlock(BYTES_REFS, blockType, groupCount)
-            );
+            case TWO_LONGS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(LONGS, blockType));
+            case TWO_BYTES_REFS -> List.of(groupingBlock(BYTES_REFS, blockType), groupingBlock(BYTES_REFS, blockType));
+            case TWO_ORDINALS -> List.of(groupingBlock(ORDINALS, blockType), groupingBlock(ORDINALS, blockType));
+            case LONGS_AND_BYTES_REFS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(BYTES_REFS, blockType));
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
-                groupingBlock(LONGS, blockType, groupCount),
-                groupingBlock(LONGS, blockType, groupCount),
-                groupingBlock(BYTES_REFS, blockType, groupCount)
+                groupingBlock(LONGS, blockType),
+                groupingBlock(LONGS, blockType),
+                groupingBlock(BYTES_REFS, blockType)
             );
-            default -> List.of(groupingBlock(grouping, blockType, groupCount));
+            default -> List.of(groupingBlock(grouping, blockType));
         };
     }
 
-    private static Block groupingBlock(String grouping, String blockType, int groupCount) {
+    private static Block groupingBlock(String grouping, String blockType) {
         int valuesPerGroup = switch (blockType) {
             case VECTOR_LONGS, VECTOR_DOUBLES -> 1;
             case HALF_NULL_LONGS, HALF_NULL_DOUBLES -> 2;
@@ -678,7 +591,7 @@ public class AggregatorBenchmark {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
-                        builder.appendLong(i % groupCount);
+                        builder.appendLong(i % GROUPS);
                     }
                 }
                 yield builder.build();
@@ -687,7 +600,7 @@ public class AggregatorBenchmark {
                 var builder = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
-                        builder.appendInt(i % groupCount);
+                        builder.appendInt(i % GROUPS);
                     }
                 }
                 yield builder.build();
@@ -696,7 +609,7 @@ public class AggregatorBenchmark {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
-                        builder.appendDouble(i % groupCount);
+                        builder.appendDouble(i % GROUPS);
                     }
                 }
                 yield builder.build();
@@ -714,7 +627,7 @@ public class AggregatorBenchmark {
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
-                        builder.appendBytesRef(bytesGroup(i % groupCount));
+                        builder.appendBytesRef(bytesGroup(i % GROUPS));
                     }
                 }
                 yield builder.build();
@@ -723,11 +636,11 @@ public class AggregatorBenchmark {
                 IntVector.Builder ordinals = blockFactory.newIntVectorBuilder(BLOCK_LENGTH * valuesPerGroup);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
-                        ordinals.appendInt(i % groupCount);
+                        ordinals.appendInt(i % GROUPS);
                     }
                 }
                 BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH * valuesPerGroup);
-                for (int i = 0; i < groupCount; i++) {
+                for (int i = 0; i < GROUPS; i++) {
                     bytes.appendBytesRef(bytesGroup(i));
                 }
                 yield new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock();
@@ -743,7 +656,7 @@ public class AggregatorBenchmark {
             case 2 -> "chicken";
             case 3 -> "pig";
             case 4 -> "cow";
-            default -> "group-" + group;
+            default -> throw new UnsupportedOperationException("can't handle [" + group + "]");
         });
     }
 
@@ -800,10 +713,10 @@ public class AggregatorBenchmark {
     @Benchmark
     @OperationsPerInvocation(OP_COUNT * BLOCK_LENGTH)
     public void run() {
-        run(grouping, op, blockType, filter, groups, distinctPerGroup, OP_COUNT);
+        run(grouping, op, blockType, filter, OP_COUNT);
     }
 
-    private static void run(String grouping, String op, String blockType, String filter, int groups, int distinctPerGroup, int opCount) {
+    private static void run(String grouping, String op, String blockType, String filter, int opCount) {
         // System.err.printf("[%s][%s][%s][%s][%s]\n", grouping, op, blockType, filter, opCount);
         String dataType = switch (blockType) {
             case VECTOR_LONGS, HALF_NULL_LONGS -> LONGS;
@@ -812,14 +725,13 @@ public class AggregatorBenchmark {
         };
 
         DriverContext driverContext = driverContext();
-        int dataGroupCount = dataGroupCount(grouping, groups);
         try (Operator operator = operator(driverContext, grouping, op, dataType, filter)) {
-            Page page = page(driverContext.blockFactory(), grouping, blockType, op, dataGroupCount, distinctPerGroup);
+            Page page = page(driverContext.blockFactory(), grouping, blockType);
             for (int i = 0; i < opCount; i++) {
                 operator.addInput(page.shallowCopy());
             }
             operator.finish();
-            checkExpected(grouping, op, blockType, filter, dataType, operator.getOutput(), opCount, dataGroupCount, distinctPerGroup);
+            checkExpected(grouping, op, blockType, filter, dataType, operator.getOutput(), opCount);
         }
     }
 

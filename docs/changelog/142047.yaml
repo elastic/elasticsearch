@@ -1,5 +1,5 @@
 area: Compute Engine
 issues: []
 pr: 142047
-summary: Memory usage & pressure optimizations for HLL++
+summary: Dynamically grow hash in linear counting in HLL
 type: bug

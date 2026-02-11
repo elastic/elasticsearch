@@ -72,6 +72,7 @@ public class MetricValidator {
         "system.memory.*",
         "system.process.*",
         "jvm.fd.*",
+        "jvm.file_descriptor.*",
         "jvm.gc.*",
         "jvm.memory.*"
     );

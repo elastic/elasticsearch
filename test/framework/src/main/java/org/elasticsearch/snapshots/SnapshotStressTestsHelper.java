@@ -1134,7 +1134,6 @@ public class SnapshotStressTestsHelper {
         }
 
         private Runnable createAbortRunnable(boolean abortSnapshot, TrackedRepository trackedRepository, String snapshotName) {
-            final boolean isClone = snapshotName.contains("-clone-");
             final Runnable abortRunnable;
             if (abortSnapshot) {
                 try (TransferableReleasables abortReleasables = new TransferableReleasables()) {
@@ -1151,21 +1150,11 @@ public class SnapshotStressTestsHelper {
                     final Releasable abortReleasable = abortReleasables.transfer();
 
                     abortRunnable = mustSucceed(() -> {
-                        logger.info(
-                            "--> abort/delete {} [{}:{}] start",
-                            isClone ? "clone" : "snapshot",
-                            trackedRepository.repositoryName,
-                            snapshotName
-                        );
+                        logger.info("--> abort/delete snapshot [{}:{}] start", trackedRepository.repositoryName, snapshotName);
                         deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
                             @Override
                             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                logger.info(
-                                    "--> abort/delete {} [{}:{}] success",
-                                    isClone ? "clone" : "snapshot",
-                                    trackedRepository.repositoryName,
-                                    snapshotName
-                                );
+                                logger.info("--> abort/delete snapshot [{}:{}] success", trackedRepository.repositoryName, snapshotName);
                                 Releasables.close(abortReleasable);
                                 assertTrue(acknowledgedResponse.isAcknowledged());
                             }
@@ -1176,8 +1165,7 @@ public class SnapshotStressTestsHelper {
                                 if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
                                     // processed before the snapshot even started
                                     logger.info(
-                                        "--> abort/delete {} [{}:{}] got snapshot missing",
-                                        isClone ? "clone" : "snapshot",
+                                        "--> abort/delete snapshot [{}:{}] got snapshot missing",
                                         trackedRepository.repositoryName,
                                         snapshotName
                                     );

@@ -21,6 +21,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollectorManager;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
@@ -150,6 +151,18 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      */
     protected String overrideId(String id) {
         return id;
+    }
+
+    /**
+     * Allows test classes to override the source of documents with a null _source field.
+     *
+     * @param source the document source
+     * @param leaf the segment reader
+     * @param segmentDocID the document ID in the segment
+     * @return a non-null value for the document source
+     */
+    protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
+        return source;
     }
 
     /**

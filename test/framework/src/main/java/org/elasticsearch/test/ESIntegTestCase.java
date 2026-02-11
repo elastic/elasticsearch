@@ -17,6 +17,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
@@ -101,6 +102,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -150,8 +152,10 @@ import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -1356,8 +1360,29 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat("Method expects a non-NoOpEngine", engine, not(instanceOf(NoOpEngine.class)));
         assertThat("Method expects a non-NoOpEngine", engineConfig.getMapperService(), notNullValue());
 
-        // Some integration tests have the _source disabled and not stored, in which case we cannot compare the _source reliably
-        final var sourceEnabled = engineConfig.getMapperService().mappingLookup().isSourceEnabled();
+        final var mapperService = engineConfig.getMapperService();
+        // Some integration tests have the _source disabled, in which case we cannot compare the _source
+        final var sourceEnabled = mapperService.mappingLookup().isSourceEnabled();
+
+        final var sourceLoader=  mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
+        final TriFunction<BytesReference, LeafReaderContext, Integer, BytesReference> forceLoadingSource =
+            (src, leaf, segmentDocID) -> {
+            if (src != null || sourceEnabled == false) {
+                return src;
+            }
+            try {
+                assert false : "test";
+                var leafLoader = storedFieldLoader.getLoader(leaf, null);
+                leafLoader.advanceTo(segmentDocID);
+                return sourceLoader.leaf(leaf.reader(), new int[]{segmentDocID})
+                    .source(leafLoader, segmentDocID)
+                    .internalSourceRef();
+            } catch (IOException ioe) {
+                throw new AssertionError(ioe);
+            }
+        };
+
         // Some indices merge away the _id field
         final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
@@ -1367,7 +1392,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
                     snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                        engineConfig.getMapperService(),
+                        mapperService,
                         searcher,
                         SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
                         RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes(),
@@ -1396,10 +1421,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                 return NULL_ID; // Return a fake value to allow comparison
                             }
                         }
+
+                        @Override
+                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingSource.apply(source, leaf, segmentDocID);
+                        }
                     };
                 } else {
                     snapshot = new LuceneChangesSnapshot(
-                        engineConfig.getMapperService(),
+                        mapperService,
                         searcher,
                         SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
                         0L,
@@ -1427,6 +1457,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             } else {
                                 return NULL_ID; // Return a fake value to allow comparison
                             }
+                        }
+
+                        @Override
+                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingSource.apply(source, leaf, segmentDocID);
                         }
                     };
                 }

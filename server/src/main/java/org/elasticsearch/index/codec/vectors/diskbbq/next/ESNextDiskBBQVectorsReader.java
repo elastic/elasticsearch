@@ -22,6 +22,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -49,6 +50,7 @@ import java.util.Objects;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
 import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
+import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
@@ -169,6 +171,121 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             );
         }
         return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+    }
+
+    @Override
+    public float getBestCentroidScore(FieldInfo fieldInfo, float[] queryVector) throws IOException {
+        // ESNext format requires segment vector count to skip the doc-to-centroid lookup; use three-arg overload.
+        return getBestCentroidScore(fieldInfo, queryVector, -1);
+    }
+
+    @Override
+    public float getBestCentroidScore(FieldInfo fieldInfo, float[] queryVector, int segmentVectorCount) throws IOException {
+        if (segmentVectorCount < 0) {
+            return Float.NaN;
+        }
+        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        IndexInput centroids = fieldEntry.centroidSlice(ivfCentroids);
+        float[] targetQuery = queryVector.clone();
+        if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
+            VectorUtil.l2normalize(targetQuery);
+        }
+        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final int[] scratch = new int[targetQuery.length];
+        final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
+            targetQuery,
+            new float[targetQuery.length],
+            scratch,
+            (byte) 7,
+            fieldEntry.globalCentroid()
+        );
+        final byte[] quantized = new byte[targetQuery.length];
+        for (int i = 0; i < quantized.length; i++) {
+            quantized[i] = (byte) scratch[i];
+        }
+        int bulkSize = fieldEntry.getBulkSize();
+        int numCentroids = fieldEntry.numCentroids();
+        final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
+        final long sizeLookup = directWriterSizeOnDisk(segmentVectorCount, bitsRequired);
+        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(
+            centroids,
+            fieldInfo.getVectorDimension(),
+            bulkSize
+        );
+        centroids.seek(sizeLookup);
+        int numParents = centroids.readVInt();
+        final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Integer.BYTES;
+        final float[] scores = new float[bulkSize];
+
+        if (numParents == 0) {
+            final NeighborQueue neighborQueue = new NeighborQueue(numCentroids, true);
+            score(
+                neighborQueue,
+                numCentroids,
+                0,
+                scorer,
+                centroids,
+                centroidQuantizeSize,
+                quantized,
+                queryParams,
+                fieldEntry.globalCentroidDp(),
+                fieldInfo.getVectorSimilarityFunction(),
+                scores,
+                null,
+                bulkSize
+            );
+            return neighborQueue.size() > 0 ? neighborQueue.topScore() : Float.NEGATIVE_INFINITY;
+        }
+
+        // With-parent: score all parents, then all children of each parent, take global max
+        final long rawParentSize = (long) fieldInfo.getVectorDimension() * Float.BYTES;
+        final int maxChildrenSize = centroids.readVInt();
+        centroids.skipBytes(rawParentSize * numParents);
+        final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
+        score(
+            parentsQueue,
+            numParents,
+            0,
+            scorer,
+            centroids,
+            centroidQuantizeSize,
+            quantized,
+            queryParams,
+            fieldEntry.globalCentroidDp(),
+            fieldInfo.getVectorSimilarityFunction(),
+            scores,
+            null,
+            bulkSize
+        );
+        final long offset = centroids.getFilePointer();
+        final long childrenOffset = offset + (long) Long.BYTES * numParents;
+        final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
+        float maxScore = Float.NEGATIVE_INFINITY;
+        for (int p = 0; p < numParents; p++) {
+            populateOneChildrenGroup(
+                currentParentQueue,
+                centroids,
+                offset + 2L * Integer.BYTES * p,
+                childrenOffset,
+                centroidQuantizeSize,
+                fieldInfo,
+                scorer,
+                quantized,
+                queryParams,
+                fieldEntry.globalCentroidDp(),
+                scores,
+                null,
+                bulkSize
+            );
+            while (currentParentQueue.size() > 0) {
+                float score = currentParentQueue.topScore();
+                if (score > maxScore) {
+                    maxScore = score;
+                }
+                currentParentQueue.pop();
+            }
+        }
+        return maxScore;
     }
 
     @Override

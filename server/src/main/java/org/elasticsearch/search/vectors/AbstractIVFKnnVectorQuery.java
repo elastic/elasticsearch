@@ -270,51 +270,33 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     record SegmentMetadata(
         LeafReaderContext context,
         float globalCentroidScore,
+        float bestCentroidScore,         // max similarity of query to any centroid in this segment (NaN if unavailable)
         VectorSimilarityFunction similarityFunction,
         int vectorCount,
         int numCentroids,
-        float clusterVariance,           // cluster variance - lower is better
-        float averageClusterSize,        // density indicator - higher can be better
-        float maxClusterSize,           // outlier detection - abnormally large clusters may skew
+        float clusterVariance,           // cluster variance - lower is better (unused in affinity, kept for compatibility)
+        float averageClusterSize,        // density indicator (unused in affinity, kept for compatibility)
+        float maxClusterSize,            // outlier detection (unused in affinity, kept for compatibility)
         boolean isValid
     ) {}
 
     /**
-     * Calculate segment affinity using configurable weights
+     * Calculate segment affinity from query-segment relevance only.
+     * Uses best centroid score when available (max similarity to any centroid), else global centroid score.
+     * Affinity is max(0, score); segment size is applied in allocation, not here.
      */
-    private static float calculateSegmentAffinity(
-        SegmentMetadata metadata,
-        float maxGlobalCentroidScore,
-        int totalVectors) {
-        if (metadata.isValid() == false || Float.isNaN(metadata.globalCentroidScore) || metadata.similarityFunction() == null) {
+    private static float calculateSegmentAffinity(SegmentMetadata metadata, float maxAffinityScore) {
+        if (metadata.isValid() == false || metadata.similarityFunction() == null) {
             return 0f;
         }
-
-        // normalized global centroid score
-        float proximityScore = (metadata.globalCentroidScore / maxGlobalCentroidScore);
-        proximityScore = Math.max(0f, proximityScore);
-
-        // density score (average cluster size - logarithmic to prefer moderate density)
-        float densityScore = 0f;
-        if (metadata.averageClusterSize() > 0) {
-            // Use log to normalize density - very large clusters don't get exponentially higher scores
-            densityScore = (float) Math.log(metadata.averageClusterSize());
+        float score = Float.isNaN(metadata.bestCentroidScore()) ? metadata.globalCentroidScore() : metadata.bestCentroidScore();
+        if (Float.isNaN(score)) {
+            return 0f;
         }
-
-        // ratio of tot field vectors in this segment
-        float segmentWeight = (float) metadata.vectorCount / totalVectors;
-
-        // quality score (cluster variance - inverse to prefer balanced clusters)
-        float qualityScore = 0f;
-        if (metadata.clusterVariance() >= 0) {
-            qualityScore = 1.0f / (1.0f + metadata.clusterVariance());
+        if (maxAffinityScore <= 0f) {
+            return Math.max(0f, score);
         }
-
-        // normalize scores (simple min-max normalization based on expected ranges)
-        densityScore = Math.min(1.0f, densityScore / 10.0f); // TODO : normalize density score
-        qualityScore = Math.min(1.0f, qualityScore);
-
-        return (proximityScore + densityScore + qualityScore) * segmentWeight;
+        return Math.max(0f, score / maxAffinityScore);
     }
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
@@ -345,7 +327,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
 
             if (floatVectorValues == null || floatVectorValues.size() == 0) {
-                segmentMetadata.add(new SegmentMetadata(context, Float.NaN, null, 0, 0, 0f, 0f, 0f, false));
+                segmentMetadata.add(
+                    new SegmentMetadata(context, Float.NaN, Float.NaN, null, 0, 0, 0f, 0f, 0f, false)
+                );
                 continue;
             }
 
@@ -372,13 +356,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             );
                         }
 
-                        float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);
+                        float globalCentroidScore = similarityFunction.compare(queryVector, globalCentroid);
+                        float bestCentroidScore = reader.getBestCentroidScore(
+                            fieldInfo,
+                            queryVector,
+                            floatVectorValues.size()
+                        );
                         int numCentroids = reader.getNumCentroids(fieldInfo);
                         int vectorCount = floatVectorValues.size();
                         segmentMetadata.add(
                             new SegmentMetadata(
                                 context,
-                                centroidsScore,
+                                globalCentroidScore,
+                                bestCentroidScore,
                                 similarityFunction,
                                 vectorCount,
                                 numCentroids,
@@ -391,7 +381,20 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     }
                 }
             } else {
-                segmentMetadata.add(new SegmentMetadata(context, Float.NaN, null, floatVectorValues.size(), 0, 0f, 0f, 0f, false));
+                segmentMetadata.add(
+                    new SegmentMetadata(
+                        context,
+                        Float.NaN,
+                        Float.NaN,
+                        null,
+                        floatVectorValues.size(),
+                        0,
+                        0f,
+                        0f,
+                        0f,
+                        false
+                    )
+                );
             }
         }
 
@@ -399,7 +402,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     /**
-     * Calculate multi-criteria segment relevance scores using configurable weights
+     * Allocate visit ratio per segment so that total visits = baseVisitRatio * totalVectors.
+     * Segments with higher affinity get proportionally more budget; total budget is preserved.
      */
     private float[] allocateVisitedRatio(
         List<SegmentMetadata> segmentMetadata,
@@ -411,42 +415,59 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return new float[segmentMetadata.size()];
         }
 
-        float maxGlobalCentroidScore = segmentMetadata.stream()
-            .max((a, b) -> Float.compare(a.globalCentroidScore, b.globalCentroidScore))
-            .map(SegmentMetadata::globalCentroidScore)
-            .get();
+        float maxAffinityScore = Float.NEGATIVE_INFINITY;
+        for (SegmentMetadata m : segmentMetadata) {
+            if (m.isValid()) {
+                float s = Float.isNaN(m.bestCentroidScore()) ? m.globalCentroidScore() : m.bestCentroidScore();
+                if (Float.isNaN(s) == false && s > maxAffinityScore) {
+                    maxAffinityScore = s;
+                }
+            }
+        }
+        if (maxAffinityScore <= 0f) {
+            maxAffinityScore = 1f;
+        }
 
-        // calculate affinity scores for all valid segments
         float[] affinityScores = new float[segmentMetadata.size()];
         float totAffinity = 0f;
-        int validSegments = 0;
+        float reservedForFloor = 0f;
+        int positiveAffinityCount = 0;
 
         for (int i = 0; i < segmentMetadata.size(); i++) {
             SegmentMetadata metadata = segmentMetadata.get(i);
-            if (metadata.isValid()) {
-                float affinity = calculateSegmentAffinity(metadata, maxGlobalCentroidScore, totalVectors);
+            if (metadata.isValid() && metadata.vectorCount() > 0) {
+                float affinity = calculateSegmentAffinity(metadata, maxAffinityScore);
                 affinityScores[i] = Math.max(0f, affinity);
-                totAffinity += affinityScores[i];
-                validSegments++;
+                if (affinityScores[i] > 0f) {
+                    totAffinity += affinityScores[i];
+                    positiveAffinityCount++;
+                } else {
+                    reservedForFloor += 0.1f * baseVisitRatio * metadata.vectorCount();
+                }
             } else {
                 affinityScores[i] = 0f;
             }
         }
 
-        if (validSegments == 0 || totAffinity == 0f) {
-            // fallback to equal allocation
+        if (positiveAffinityCount == 0 || totAffinity == 0f) {
             return new float[segmentMetadata.size()];
         }
 
-        // distribute budget proportionally to affinity scores
+        float totalBudget = baseVisitRatio * totalVectors;
+        float remainingBudget = Math.max(0f, totalBudget - reservedForFloor);
+
         float[] segmentVisitRatios = new float[segmentMetadata.size()];
         for (int i = 0; i < segmentMetadata.size(); i++) {
+            int size = segmentMetadata.get(i).vectorCount();
+            if (size == 0) {
+                segmentVisitRatios[i] = 0f;
+                continue;
+            }
             if (affinityScores[i] > 0f) {
-                // allocate proportionally to affinity, ensuring total doesn't exceed base budget
-                segmentVisitRatios[i] = (affinityScores[i] / totAffinity) * baseVisitRatio * validSegments;
+                segmentVisitRatios[i] = (affinityScores[i] / totAffinity) * remainingBudget / size;
+                segmentVisitRatios[i] = Math.min(1f, segmentVisitRatios[i]);
             } else {
-                // give minimal allocation to non-relevant segments
-                segmentVisitRatios[i] = baseVisitRatio * 0.1f; // 10% of base allocation
+                segmentVisitRatios[i] = 0.1f * baseVisitRatio;
             }
         }
 

@@ -225,6 +225,35 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertNull(result);
     }
 
+    public void testSnippetsReturnedInScoringOrder() {
+        String highRelevance = "Elasticsearch is a powerful search engine. "
+            + "Elasticsearch supports full-text search and vector search. "
+            + "Many companies rely on Elasticsearch for their search infrastructure.";
+
+        String lowRelevance = "There are many search engines available today. "
+            + "Elasticsearch is one option among several alternatives. "
+            + "Choosing the right tool depends on your requirements.";
+
+        String noRelevance = "The weather today is sunny and warm. "
+            + "Perfect conditions for a walk in the park. "
+            + "The temperature is expected to reach 25 degrees.";
+
+        String query = "elasticsearch";
+
+        String combinedText = noRelevance + " " + highRelevance + " " + lowRelevance;
+
+        List<String> result = process(combinedText, query, 3, 50);
+
+        assertNotNull("Should return results for matching query", result);
+        assertFalse("Should have at least one result", result.isEmpty());
+
+        assertTrue(
+            "First snippet should be from the most relevant chunk (contains 'Elasticsearch' multiple times)",
+            result.get(0).toLowerCase().contains("elasticsearch")
+                && (result.get(0).contains("powerful") || result.get(0).contains("supports") || result.get(0).contains("companies"))
+        );
+    }
+
     private void verifySnippets(String query, Integer numSnippets, Integer numWords, int expectedNumChunksReturned) {
         int effectiveNumWords = numWords != null ? numWords : DEFAULT_WORD_SIZE;
         int effectiveNumSnippets = numSnippets != null ? numSnippets : DEFAULT_NUM_SNIPPETS;

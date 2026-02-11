@@ -427,7 +427,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testShardFailuresAbortRequest() throws Exception {
         SearchFailure shardFailure = new SearchFailure(new RuntimeException("test"));
-        PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(false, singletonList(shardFailure), 0, emptyList(), null);
+        PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(
+            false,
+            singletonList(shardFailure),
+            0,
+            emptyList(),
+            null
+        );
         simulateScrollResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 0, scrollResponse);
         BulkByScrollResponse response = listener.get();
         assertThat(response.getBulkFailures(), empty());
@@ -783,7 +789,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         for (int i = 0; i < numberOfHits; i++) {
             hits.add(new PaginatedHitSource.BasicHit("idx", "id-" + i, -1));
         }
-        final PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(false, emptyList(), hits.size(), hits, "scrollid");
+        final PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(
+            false,
+            emptyList(),
+            hits.size(),
+            hits,
+            "scrollid"
+        );
         final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
             new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
@@ -827,7 +839,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             hits.add(new PaginatedHitSource.BasicHit("idx", "id-" + i, -1));
         }
 
-        final PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(false, emptyList(), hits.size(), hits, "scrollid");
+        final PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(
+            false,
+            emptyList(),
+            hits.size(),
+            hits,
+            "scrollid"
+        );
         final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
             new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override

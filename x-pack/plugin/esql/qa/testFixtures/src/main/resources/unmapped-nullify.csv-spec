@@ -1,4 +1,4 @@
-simpleKeep
+keepUnmapped
 required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -10,6 +10,17 @@ foo:null
 null
 null
 null
+;
+
+keepMapped
+required_capability: date_nanos_type
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"; FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_MIN(nanos) | KEEP nanos; 
+
+nanos:date_nanos
+2023-03-23T12:15:03.360103847Z
+2023-01-23T13:55:01.543123456Z
 ;
 
 keepStar

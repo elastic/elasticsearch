@@ -83,15 +83,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (plan.childrenResolved() == false) {
             return plan;
         }
-
         var unresolved = collectUnresolved(plan);
         if (unresolved.isEmpty()) {
             return plan;
         }
         var unresolvedLinkedSet = unresolvedLinkedSet(unresolved);
-
         var transformed = load ? load(plan, unresolvedLinkedSet) : nullify(plan, unresolvedLinkedSet);
-
         return transformed.equals(plan) ? plan : refreshPlan(transformed, unresolved);
     }
 
@@ -282,7 +279,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     public static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
         List<UnresolvedAttribute> unresolved = new ArrayList<>();
         Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
-            if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false) {
+            if (ua.getClass() == UnresolvedAttribute.class && ua.customMessage()) {
                 unresolved.add(ua);
             }
         };

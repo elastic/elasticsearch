@@ -14,7 +14,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 

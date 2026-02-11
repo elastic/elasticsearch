@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
-import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.BlockLoader;

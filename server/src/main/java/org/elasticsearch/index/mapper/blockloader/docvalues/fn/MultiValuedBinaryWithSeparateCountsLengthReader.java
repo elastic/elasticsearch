@@ -26,7 +26,12 @@ public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends Bl
     private final NumericDocValues counts;
     private final BinaryDocValues values;
 
-    MultiValuedBinaryWithSeparateCountsLengthReader(CircuitBreaker breaker, Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
+    MultiValuedBinaryWithSeparateCountsLengthReader(
+        CircuitBreaker breaker,
+        Warnings warnings,
+        NumericDocValues counts,
+        BinaryDocValues values
+    ) {
         super(breaker);
         this.warnings = warnings;
         this.counts = counts;

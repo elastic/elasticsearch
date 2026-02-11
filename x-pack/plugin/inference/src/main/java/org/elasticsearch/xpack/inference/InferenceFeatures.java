@@ -59,6 +59,9 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING = new NodeFeature(
+        "text_similarity_reranker.comprehensive_top_n_handling"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -106,7 +109,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
                 ModelStats.SEMANTIC_TEXT_USAGE,
-                SEARCH_USAGE_EXTENDED_DATA
+                SEARCH_USAGE_EXTENDED_DATA,
+                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING
             )
         );
         testFeatures.addAll(getFeatures());

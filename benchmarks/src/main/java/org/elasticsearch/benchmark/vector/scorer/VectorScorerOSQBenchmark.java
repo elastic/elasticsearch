@@ -198,7 +198,7 @@ public class VectorScorerOSQBenchmark {
 
     @TearDown
     public void teardown() throws Exception {
-        IOUtils.close(scorer, input, directory);
+        IOUtils.close(input, directory);
         IOUtils.rm(tempDir);
     }
 

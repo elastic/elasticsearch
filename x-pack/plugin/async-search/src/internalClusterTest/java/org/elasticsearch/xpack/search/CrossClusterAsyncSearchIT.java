@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -16,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -1212,38 +1209,30 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @Repeat(iterations = 50)
     public void testGetResultIntermediateResultsFalseOnRunningSearchDoesNotIncludeIntermediateResultsCcsMrtFalse() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
-        System.out.println(testClusterInfo);
+
         SearchListenerPlugin.blockLocalQueryPhase();
         SearchListenerPlugin.blockRemoteQueryPhase();
+
+        // To ensure that we get reduced partial results, we'll allow both local and remote query phase to complete but block both local
+        // and remote fetch phases so that the search does not complete so we can retrieve the intermediate response with partial results
+        // from the query phase
         SearchListenerPlugin.blockLocalFetchPhase();
         SearchListenerPlugin.blockRemoteFetchPhase();
         SearchListenerPlugin.blockLocalQueryPhaseCompletion(localNumShards);
-        //SearchListenerPlugin.blockRemoteQueryPhaseCompletion(1);
 
-        AggregationBuilder agg = AggregationBuilders.histogram("histogram").field("@timestamp").interval(1000);
+        AggregationBuilder agg = AggregationBuilders.max("max").field("@timestamp");
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         request.setCcsMinimizeRoundtrips(false);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         request.setKeepOnCompletion(true);
         request.setBatchedReduceSize(2);
-        request.getSearchRequest()
-            .source(
-                new SearchSourceBuilder().query(
-                    new RangeQueryBuilder("@timestamp").gte(EARLIEST_TIMESTAMP).lte(LATEST_TIMESTAMP)
-                )
-                    .size(10)
-                    .fetchField("@timestamp")
-                    .fetchField("f")
-                    .aggregation(agg)
-            )
-            .setBatchedReduceSize(2);
+        request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10).aggregation(agg));
 
         final String responseId;
         final AsyncSearchResponse response = submitAsyncSearch(request);
@@ -1294,20 +1283,14 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             // Test that a response object for a partial response will be fleshed out with the intermediate response if requested
             assertTrue(localQueryDoneWithIntermediateResponse.isRunning());
             assertTrue(localQueryDoneWithIntermediateResponse.isPartial());
-            // With CCS minimize roundtrips=false, we might not have done a partial reduce yet, so we might not have any aggregations
-            //if (localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations() != null) {
-            //    System.out.println("had aggregations");
-                assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
-            /*} else {
-                System.out.println("did not have aggregations");
-            }*/
+            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations(), notNullValue());
+            assertThat(localQueryDoneWithIntermediateResponse.getSearchResponse().getAggregations().asList(), hasSize(1));
         } finally {
             localQueryDoneWithIntermediateResponse.decRef();
         }
 
         SearchListenerPlugin.allowLocalFetchPhase();
         SearchListenerPlugin.allowRemoteFetchPhase();
-        //SearchListenerPlugin.waitForRemoteQueryPhaseCompletion();
         waitForSearchTasksToFinish();
         final AsyncSearchResponse finishedResponse = getAsyncSearch(responseId, randomBoolean());
         try {
@@ -2259,7 +2242,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     private Map<String, Object> setupTwoClusters(int numShardsLocal, int numShardsRemote) {
         String localIndex = "local";
-        Settings localSettings = indexSettings(numShardsLocal, 0).build(); //randomIntBetween(0, 1)).build();
+        Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
         assertAcked(
             client(LOCAL_CLUSTER).admin()
                 .indices()
@@ -2319,14 +2302,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             client.prepareIndex(index).setSource("f", "v", "@timestamp", ts).get();
         }
         client.admin().indices().prepareRefresh(index).get();
-        IndicesStatsResponse statsResponse = client.admin().indices().prepareStats(index).clear().setDocs(true).get();
-        Map<Integer, Long> docsPerShard = new HashMap<>();
-        for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : statsResponse.getShards()) {
-            int shardId = shardStats.getShardRouting().id();
-            long docCount = shardStats.getStats().getDocs().getCount();
-            docsPerShard.put(shardId, docCount);
-        }
-        System.out.println("docs per shard: " + docsPerShard);
         return numDocs;
     }
 
@@ -2489,12 +2464,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
                 @Override
                 public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-                    System.out.println("on query phase " + searchContext.indexShard().shardId().getIndexName() + " " + searchContext.id());
                     if (localQueryPhaseCompleteLatch.get() != null && searchContext.indexShard().shardId().getIndexName().equals("local")) {
                         localQueryPhaseCompleteLatch.get().countDown();
-                    } else if (remoteQueryPhaseCompleteLatch.get() != null && searchContext.indexShard().shardId().getIndexName().equals("remote")) {
-                        remoteQueryPhaseCompleteLatch.get().countDown();
-                    }
+                    } else if (remoteQueryPhaseCompleteLatch.get() != null
+                        && searchContext.indexShard().shardId().getIndexName().equals("remote")) {
+                            remoteQueryPhaseCompleteLatch.get().countDown();
+                        }
                 }
 
                 @Override
@@ -2509,7 +2484,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
                 @Override
                 public void onPreFetchPhase(SearchContext searchContext) {
-                    System.out.println("on pre-fetch phase " + searchContext.indexShard().shardId().getIndexName() + " " + searchContext.id());
                     final CountDownLatch latch;
                     if (searchContext.indexShard().shardId().getIndexName().equals("remote")) {
                         latch = remoteFetchLatch.get();

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -24,7 +24,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
-
     @Override
     public String getName() {
         return "prometheus_remote_write_action";
@@ -50,12 +49,15 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         if (request.hasContent()) {
             String dataset = request.param("dataset", "generic");
             String namespace = request.param("namespace", "default");
-            BytesReference content = request.content().retain();
-            var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(content, dataset, namespace);
+            var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
+                request.content().retain(),
+                dataset,
+                namespace
+            );
             return channel -> client.execute(
                 PrometheusRemoteWriteTransportAction.TYPE,
                 transportRequest,
-                new RestResponseListener<>(channel) {
+                ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
                         if (r.getMessage() != null) {
@@ -63,7 +65,7 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                         }
                         return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                     }
-                }
+                })
             );
         }
 

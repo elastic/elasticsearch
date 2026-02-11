@@ -43,7 +43,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -84,6 +83,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
 
     private static final Logger logger = LogManager.getLogger(TransportFetchSearchShardInformationAction.class);
     static final Response NO_OTHER_SHARDS_FOUND_RESPONSE = new Response(-1);
+    static final Response SHARD_HAS_MOVED_RESPONSE = new Response(-2);
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
@@ -175,7 +175,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         ActionListener.completeWith(listener, () -> {
             IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
             if (indexShard == null) {
-                throw new ShardNotFoundException(request.getShardId());
+                return SHARD_HAS_MOVED_RESPONSE;
             }
 
             long lastSearcherAcquired = indexShard.tryWithEngineOrNull(engine -> {

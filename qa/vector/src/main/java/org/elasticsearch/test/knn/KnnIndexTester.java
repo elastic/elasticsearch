@@ -162,10 +162,8 @@ public class KnnIndexTester {
                     "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
                 );
             };
-            // Use flatVectorThreshold from config, or default to vectorPerCluster * 3 if not specified (-1)
-            int flatVectorThreshold = args.flatVectorThreshold() >= 0
-                ? args.flatVectorThreshold()
-                : args.ivfClusterSize() * ESNextDiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+            // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
+            int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),

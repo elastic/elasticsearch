@@ -82,7 +82,17 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
-    public static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
+    private static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
+
+    /**
+     * Returns the default flat index threshold for the given cluster size.
+     * @param configuredClusterSize the configured cluster size
+     * @return the default flat index threshold
+     */
+    public static int defaultFlatThreshold(int configuredClusterSize) {
+        return configuredClusterSize * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+    }
+
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
@@ -105,7 +115,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             null,
             1,
-            vectorPerCluster * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER
+            defaultFlatThreshold(vectorPerCluster)
         );
     }
 
@@ -124,7 +134,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             useDirectIO,
             mergingExecutorService,
             maxMergingWorkers,
-            vectorPerCluster * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER
+            defaultFlatThreshold(vectorPerCluster)
         );
     }
 
@@ -158,8 +168,10 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
                     + centroidsPerParentCluster
             );
         }
-        if (flatVectorThreshold < 0) {
-            throw new IllegalArgumentException("flatVectorThreshold must be >= 0, got: " + flatVectorThreshold);
+        if (flatVectorThreshold < -1) {
+            throw new IllegalArgumentException(
+                "flatVectorThreshold must be -1 (dynamic), 0 (disabled), or > 0, got: " + flatVectorThreshold
+            );
         }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -171,7 +183,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         this.useDirectIO = useDirectIO;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
-        this.flatVectorThreshold = flatVectorThreshold;
+        this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */

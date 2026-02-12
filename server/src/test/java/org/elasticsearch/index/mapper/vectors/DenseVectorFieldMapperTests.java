@@ -672,10 +672,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
             }
             assertEquals(ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
-            assertEquals(
-                ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER * ES920DiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER,
-                indexOptions.getFlatIndexThreshold()
-            );
+            assertEquals(-1, indexOptions.getFlatIndexThreshold());
             assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
@@ -687,7 +684,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.startObject("index_options");
                 b.field("type", "bbq_disk");
                 b.field("cluster_size", 1000);
-                b.field("flat_index_build_threshold", 1500);
+                b.field("flat_index_threshold", 1500);
                 b.field("default_visit_percentage", 5.0);
                 b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
                 b.endObject();

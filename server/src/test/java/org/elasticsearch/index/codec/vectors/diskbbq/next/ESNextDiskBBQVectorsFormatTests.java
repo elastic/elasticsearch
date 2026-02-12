@@ -78,9 +78,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         boolean disableFlatOnFlush = random().nextBoolean();
         if (rarely()) {
             int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush
-                ? 0
-                : vectorPerCluster * ESNextDiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 vectorPerCluster,
@@ -95,9 +93,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             );
         } else if (rarely()) {
             int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush
-                ? 0
-                : vectorPerCluster * ESNextDiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 vectorPerCluster,
@@ -113,9 +109,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         } else {
             // run with low numbers to force many clusters with parents
             int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
-            int flatVectorThreshold = disableFlatOnFlush
-                ? 0
-                : vectorPerCluster * ESNextDiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 vectorPerCluster,

@@ -1748,13 +1748,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
 
-                Object flatIndexBuildThresholdNode = indexOptionsMap.remove("flat_index_build_threshold");
-                int flatIndexThreshold = clusterSize * ES920DiskBBQVectorsFormat.DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+                Object flatIndexBuildThresholdNode = indexOptionsMap.remove("flat_index_threshold");
+                int flatIndexThreshold = -1;
                 if (flatIndexBuildThresholdNode != null) {
                     flatIndexThreshold = XContentMapValues.nodeIntegerValue(flatIndexBuildThresholdNode);
-                    if (flatIndexThreshold < 0) {
+                    if (flatIndexThreshold < -1) {
                         throw new IllegalArgumentException(
-                            "flat_index_build_threshold must be >= 0, got: " + flatIndexThreshold + " for field [" + fieldName + "]"
+                            "flat_index_threshold must be -1 (dynamic), 0 (disabled), or > 0, got: "
+                                + flatIndexThreshold
+                                + " for field ["
+                                + fieldName
+                                + "]"
                         );
                     }
                 }
@@ -2556,7 +2560,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.startObject();
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
-            builder.field("flat_index_build_threshold", flatIndexThreshold);
+            builder.field("flat_index_threshold", flatIndexThreshold);
             builder.field("default_visit_percentage", defaultVisitPercentage);
             if (onDiskRescore) {
                 builder.field("on_disk_rescore", true);

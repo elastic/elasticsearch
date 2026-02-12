@@ -47,6 +47,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 int clusterSize = diskbbq.getClusterSize();
                 boolean onDiskRescore = diskbbq.isOnDiskRescore();
                 boolean doPrecondition = diskbbq.doPrecondition();
+                int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
                 if (Build.current().isSnapshot()) {
                     return new ESNextDiskBBQVectorsFormat(
                         ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
@@ -57,7 +58,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         mergingExecutorService,
                         maxMergingWorkers,
                         doPrecondition,
-                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        flatIndexThreshold
                     );
                 }
                 return new ES920DiskBBQVectorsFormat(
@@ -66,7 +68,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                     elementType,
                     onDiskRescore,
                     mergingExecutorService,
-                    maxMergingWorkers
+                    maxMergingWorkers,
+                    flatIndexThreshold
                 );
             }
             return null;

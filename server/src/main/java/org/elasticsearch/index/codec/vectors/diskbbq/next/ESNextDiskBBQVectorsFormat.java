@@ -70,7 +70,17 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     );
 
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
-    public static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
+    private static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
+
+    /**
+     * Returns the default flat index threshold for the given cluster size.
+     * @param configuredClusterSize the configured cluster size
+     * @return the default flat index threshold
+     */
+    public static int defaultFlatThreshold(int configuredClusterSize) {
+        return configuredClusterSize * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+    }
+
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
@@ -242,7 +252,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             1,
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            vectorPerCluster * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER
+            defaultFlatThreshold(vectorPerCluster)
         );
     }
 
@@ -267,7 +277,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             maxMergingWorkers,
             doPrecondition,
             preconditioningBlockDimension,
-            vectorPerCluster * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER
+            defaultFlatThreshold(vectorPerCluster)
         );
     }
 
@@ -316,8 +326,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                     + preconditioningBlockDimension
             );
         }
-        if (flatVectorThreshold < 0) {
-            throw new IllegalArgumentException("flatVectorThreshold must be >= 0, got: " + flatVectorThreshold);
+        if (flatVectorThreshold < -1) {
+            throw new IllegalArgumentException(
+                "flatVectorThreshold must be -1 (dynamic), 0 (disabled), or > 0, got: " + flatVectorThreshold
+            );
         }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
@@ -332,7 +344,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.numMergeWorkers = maxMergingWorkers;
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
-        this.flatVectorThreshold = flatVectorThreshold;
+        this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */

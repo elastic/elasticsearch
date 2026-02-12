@@ -176,6 +176,7 @@ public class IndexShardSnapshotStatus {
         assert shardSnapshotResult != null;
         assert shardSnapshotResult.getGeneration() != null;
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
+            assert startTimeMillis != 0 : "startTimeMillis unexpectedly zero";
             this.totalTimeMillis = Math.max(0L, endTimeMillis - startTimeMillis);
             this.shardSnapshotResult.set(shardSnapshotResult);
             this.generation.set(shardSnapshotResult.getGeneration());

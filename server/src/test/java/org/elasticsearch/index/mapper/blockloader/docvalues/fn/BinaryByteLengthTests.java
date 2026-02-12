@@ -94,61 +94,57 @@ public class BinaryByteLengthTests extends ESTestCase {
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var lengthLoader = new ByteLengthFromBytesRefDocValuesBlockLoader(
-                    warnings,
-                    "field",
-                    MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE
-                );
+                var lengthLoader = new ByteLengthFromBytesRefDocValuesBlockLoader(warnings, "field");
 
-                var stringsReader = stringsLoader.reader(breaker, ctx);
-                var lengthReader = lengthLoader.reader(breaker, ctx);
-
-                if (multiValues) {
-                    assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts"));
-                } else {
-                    assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.SingleValued"));
-                }
-
-                BlockLoader.Docs docs = TestBlock.docs(ctx);
-                try (
-                    TestBlock strings = read(stringsLoader, stringsReader, docs);
-                    TestBlock codePoints = read(lengthLoader, lengthReader, docs);
-                ) {
-                    checkBlocks(strings, codePoints);
-                }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
-                warnings.warnings().clear();
-
-                stringsReader = stringsLoader.reader(breaker, ctx);
-                lengthReader = lengthLoader.reader(breaker, ctx);
-                for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-                    int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-                    for (int d = 0; d < docsArray.length; d++) {
-                        docsArray[d] = i + d;
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var lengthReader = lengthLoader.reader(breaker, ctx)) {
+                    if (multiValues) {
+                        assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts"));
+                    } else {
+                        assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.SingleValued"));
                     }
-                    docs = TestBlock.docs(docsArray);
+
+                    BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (
                         TestBlock strings = read(stringsLoader, stringsReader, docs);
                         TestBlock codePoints = read(lengthLoader, lengthReader, docs);
                     ) {
                         checkBlocks(strings, codePoints);
                     }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    warnings.warnings().clear();
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
+
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var lengthReader = lengthLoader.reader(breaker, ctx)) {
+                    for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                        int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                        for (int d = 0; d < docsArray.length; d++) {
+                            docsArray[d] = i + d;
+                        }
+                        BlockLoader.Docs docs = TestBlock.docs(docsArray);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock codePoints = read(lengthLoader, lengthReader, docs);
+                        ) {
+                            checkBlocks(strings, codePoints);
+                        }
+                    }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    warnings.warnings().clear();
+                }
+
                 // Testing fetching a single doc, which has a different code path
-                warnings.warnings().clear();
-                stringsReader = stringsLoader.reader(breaker, ctx);
-                lengthReader = lengthLoader.reader(breaker, ctx);
-                for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
-                    docs = TestBlock.docs(docId);
-                    try (
-                        TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock codePoints = read(lengthLoader, lengthReader, docs);
-                    ) {
-                        checkBlocks(strings, codePoints);
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var lengthReader = lengthLoader.reader(breaker, ctx)) {
+                    for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                        BlockLoader.Docs docs = TestBlock.docs(docId);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock codePoints = read(lengthLoader, lengthReader, docs);
+                        ) {
+                            checkBlocks(strings, codePoints);
+                        }
                     }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
             }
         }
     }

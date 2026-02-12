@@ -49,7 +49,6 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             usesBinaryDocValues
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
-
     }
 
     @Override
@@ -115,7 +114,7 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
 
             @Override
             public void close() {
-                // NOCOMMIT memory tracking here too
+                // TODO memory tracking here too
             }
 
             @Override

@@ -19,7 +19,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 
 import java.io.IOException;
 
@@ -31,12 +33,10 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
 public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
     private final Warnings warnings;
-    private final long byteSize;
 
-    public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName, ByteSizeValue byteSize) {
+    public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName) {
         this.warnings = warnings;
         this.fieldName = fieldName;
-        this.byteSize = byteSize.getBytes();
     }
 
     @Override
@@ -46,21 +46,31 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        if (values == null) {
-            return ConstantNull.READER;
-        }
+        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
+        long release = BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE;
+        try {
 
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-        if (countsSkipper.maxValue() == 1) {
-            // NOCOMMIT memory tracking
-            return new SingleValued(breaker, values);
-        }
+            BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+            if (values == null) {
+                return ConstantNull.READER;
+            }
 
-        NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-        return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, values);
+            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+            if (countsSkipper.maxValue() == 1) {
+                release = 0;
+                return new SingleValued(breaker, values);
+            }
+
+            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+            breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
+            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+            release = 0;
+            return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, values);
+        } finally {
+            breaker.addWithoutBreaking(-release);
+        }
     }
 
     private static final class SingleValued extends BlockDocValuesReader {
@@ -110,7 +120,7 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public void close() {
-            // NOCOMMIT memory tracking
+            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
         }
 
         @Override
@@ -132,7 +142,9 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public void close() {
-            // NOCOMMIT memory tracking
+            breaker.addWithoutBreaking(
+                -(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE)
+            );
         }
 
         @Override

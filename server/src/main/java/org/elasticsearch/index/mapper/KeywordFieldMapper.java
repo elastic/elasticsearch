@@ -874,8 +874,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return switch (cfg.function()) {
                     case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(
                         ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
-                        name(),
-                        blContext.ordinalsByteSize()
+                        name()
                     );
                     case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
                         ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),

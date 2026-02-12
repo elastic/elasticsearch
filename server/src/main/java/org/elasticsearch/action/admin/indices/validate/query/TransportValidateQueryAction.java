@@ -125,6 +125,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             Rewriteable.rewriteAndFetch(
                 request.query(),
                 searchService.getRewriteContext(timeProvider, resolvedIndices, null),
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
                 rewriteListener
             );
         }

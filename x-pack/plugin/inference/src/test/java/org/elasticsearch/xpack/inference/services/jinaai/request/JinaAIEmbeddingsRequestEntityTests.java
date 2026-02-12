@@ -20,6 +20,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.inference.InputType.INGEST;
 import static org.hamcrest.CoreMatchers.is;
 
 public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
@@ -27,7 +28,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
             InputType.INTERNAL_INGEST,
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
+            new JinaAIEmbeddingsTaskSettings(INGEST),
             "modelName",
             JinaAIEmbeddingType.FLOAT,
             512,
@@ -136,5 +137,47 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"modelName"}"""));
+    }
+
+    public void testXContent_DoesNotWriteTaskField_WhenModelDoesNotSupportSpecifiedInputType() throws IOException {
+        String textInput = "text input";
+        String modelName = "jina-clip-v2";
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of(textInput),
+            INGEST,
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            modelName,
+            null,
+            512,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is(Strings.format("""
+            {"input":["%s"],"model":"%s"}""", textInput, modelName)));
+    }
+
+    public void testXContent_DoesNotWriteTaskField_WhenModelDoesNotSupportSpecifiedInputType_InputTypeInTaskSettings() throws IOException {
+        String textInput = "text input";
+        String modelName = "jina-clip-v2";
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of(textInput),
+            null,
+            new JinaAIEmbeddingsTaskSettings(INGEST),
+            modelName,
+            null,
+            512,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is(Strings.format("""
+            {"input":["%s"],"model":"%s"}""", textInput, modelName)));
     }
 }

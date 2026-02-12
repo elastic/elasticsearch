@@ -544,6 +544,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     isExplain,
                     allowPartialSearchResults
                 ),
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 rewriteListener
             );
         }

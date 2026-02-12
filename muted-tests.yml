@@ -398,6 +398,27 @@ tests:
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142413
+- class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
+  method: testGenerateDefinitions
+  issue: https://github.com/elastic/elasticsearch/issues/142417
+- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
+  method: testInstantVectorExpectedWithGrouping
+  issue: https://github.com/elastic/elasticsearch/issues/142418
+- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
+  method: testRangeVectorExpected
+  issue: https://github.com/elastic/elasticsearch/issues/142419
+- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
+  method: testInstantVectorExpected
+  issue: https://github.com/elastic/elasticsearch/issues/142420
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/142422
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFieldDataStats
+  issue: https://github.com/elastic/elasticsearch/issues/142424
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/142426
 
 # Examples:
 #

@@ -11,8 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 
 /**
  * A {@link KnnCollector.Decorator} extending {@link HnswQueueSaturationCollector}

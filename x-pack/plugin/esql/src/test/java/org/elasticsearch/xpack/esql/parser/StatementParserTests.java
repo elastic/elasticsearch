@@ -5114,7 +5114,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-
     public void testNullDoubleParamsValue() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
         String error = "Query parameter [??f1] is null";
@@ -5130,7 +5129,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError("from test | " + command, List.of(paramAsConstant("f1", null)), error);
         }
     }
-    
+
     public void testUnclosedParenthesis() {
         String[] queries = {
             "row a = )",

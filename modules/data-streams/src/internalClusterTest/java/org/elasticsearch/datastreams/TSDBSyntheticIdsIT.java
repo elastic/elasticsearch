@@ -124,7 +124,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidIndexMode() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
         var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
 
@@ -150,7 +149,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidCodec() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
         internalCluster().startDataOnlyNode();
         var randomNonDefaultCodec = randomFrom(
@@ -184,7 +182,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testSyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0);
 
@@ -394,7 +391,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0);
 
@@ -508,8 +504,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoveredOperations() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         // ensure a couple of nodes to have some operations coordinated
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -740,8 +734,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoverOperationsFromLocalTranslog() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(
             dataStreamName,
@@ -1000,8 +992,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * Assert that we can still search by synthetic _id after restoring index from snapshot
      */
     public void testCreateSnapshot() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         // create index
         final var dataStreamName = randomIdentifier();
         int shards = randomIntBetween(1, 5);

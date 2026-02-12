@@ -134,7 +134,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             templateSettings.put("index.routing_path", "metricset");
         }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
@@ -334,7 +334,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             settingsBuilder.put("index.routing_path", "metricset");
         }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         request.indexTemplate(
@@ -385,7 +385,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
         {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset");
-            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            if (randomBoolean()) {
                 templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
             }
             var request = new TransportPutComposableIndexTemplateAction.Request("id1");
@@ -589,7 +589,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "my-ds";
         String reindexedDataStreamName = "my-reindexed-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
@@ -648,7 +648,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder()
             .put("index.mode", "time_series")
             .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         putTemplateRequest.indexTemplate(
@@ -732,7 +732,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     public void testDynamicStringDimensions() throws Exception {
         String dataStreamName = "my-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
@@ -798,7 +798,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     public void testDynamicDimensions() throws Exception {
         String dataStreamName = "my-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");

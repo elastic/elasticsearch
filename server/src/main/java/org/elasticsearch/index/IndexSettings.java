@@ -681,22 +681,9 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", false, new Setting.Validator<>() {
         @Override
-        public void validate(Boolean enabled) {
-            if (enabled) {
-                if (TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted when the feature flag is enabled.",
-                            SYNTHETIC_ID.getKey()
-                        )
-                    );
-                }
-            }
-        }
+        public void validate(Boolean enabled) {}
 
         @Override
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -1268,7 +1255,7 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
-        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        final var useSyntheticId = scopedSettings.get(SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(
@@ -1281,7 +1268,6 @@ public final class IndexSettings {
             );
         }
         if (useSyntheticId) {
-            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
             assert indexMetadata.useTimeSeriesSyntheticId();
             assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
             assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);

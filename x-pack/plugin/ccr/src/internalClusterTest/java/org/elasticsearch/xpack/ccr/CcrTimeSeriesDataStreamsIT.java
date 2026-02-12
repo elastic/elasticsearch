@@ -72,7 +72,6 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
     }
 
     public void testCrossClusterReplicationForTSDBWithSyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         executeTest(true);
     }
 

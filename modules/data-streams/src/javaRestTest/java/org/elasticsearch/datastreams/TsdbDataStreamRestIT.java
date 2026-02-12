@@ -16,7 +16,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -39,10 +38,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
-
-    static {
-        clusterConfig = config -> config.feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-    }
 
     private static final String COMPONENT_TEMPLATE = """
         {

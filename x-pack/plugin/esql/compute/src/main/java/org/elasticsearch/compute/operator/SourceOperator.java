@@ -31,6 +31,16 @@ public abstract class SourceOperator implements Operator {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        // Source operators should return false by default.
+        // Their data production is already gated by nextOp.needsInput() in the driver loop.
+        // If a source has data but downstream doesn't need it (e.g., blocked on async),
+        // we should wait, not busy-spin.
+        // Subclasses that buffer data internally may override this if needed.
+        return false;
+    }
+
     /**
      * A factory for creating source operators.
      */

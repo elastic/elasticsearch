@@ -1,7 +1,9 @@
+## ->]-[->[*'query-string-boolean-query-asciidoc:elastic:7.13-]->
+]->[-(->*'query-string-query.asciidoc>https://github.com/elastic/elasticsearch/tree/elastic:7.13')-]->
 [[query-dsl-query-string-query]]
 === Query string query
 ++++
-<titleabbrev>Query string</titleabbrev>
+->]->-[->*titleabbrev>Query->string</titleabbrev>][
 ++++
 
 Returns documents based on a provided query string, using a parser with a strict
@@ -513,7 +515,7 @@ Adding explicit operators forces each term to be considered as a separate clause
 
 The example above creates a boolean query:
 
-`((content:this | title:this) (content:that | title:that) (content:thus | title:thus))~2`
+`*((content:this | title:this) (content:that | title:that) (content:thus | title:thus))~2`
 
 that matches documents with at least two of the three "should" clauses, each of
 them made of the disjunction max over the fields for each term.

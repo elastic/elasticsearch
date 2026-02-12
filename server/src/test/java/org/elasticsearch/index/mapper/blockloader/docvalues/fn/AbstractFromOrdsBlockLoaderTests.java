@@ -66,7 +66,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
     protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
 
     public void test() throws IOException {
-        test(newLimitedBreaker(ByteSizeValue.ofMb(1)), r -> r);
+        test(newLimitedBreaker(ByteSizeValue.ofMb(5)), r -> r);
     }
 
     public void testWithCrankyBreaker() throws IOException {

@@ -380,9 +380,9 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private LookupFromIndexService lookupService(DriverContext mainContext) {
         boolean beCranky = mainContext.bigArrays().breakerService() instanceof CrankyCircuitBreakerService;
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
-        var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
-        builtInClusterSettings.addAll(PlannerSettings.allSettings());
+        var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registeredSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        registeredSettings.addAll(PlannerSettings.settings());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,
@@ -391,7 +391,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .build(),
-            new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
+            new ClusterSettings(Settings.EMPTY, registeredSettings)
         );
         IndicesService indicesService = mock(IndicesService.class);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
@@ -404,7 +404,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DriverContext ctx = beCranky ? crankyDriverContext() : driverContext();
         BigArrays bigArrays = ctx.bigArrays();
         BlockFactory blockFactory = ctx.blockFactory();
-        PlannerSettings plannerSettings = new PlannerSettings(clusterService);
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         return new LookupFromIndexService(
             clusterService,
             indicesService,

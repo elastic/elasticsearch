@@ -116,6 +116,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     private void testBlockLoader(CircuitBreaker breaker) throws IOException {
+        runner.breaker(breaker);
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
         var specification = buildSpecification(customDataSourceHandlers);
 
@@ -147,7 +148,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public void testBlockLoaderForFieldInObjectWithCranky() throws IOException {
         CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
         try {
-            testBlockLoader(cranky);
+            testBlockLoaderForFieldInObject(cranky);
             logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
         } catch (CircuitBreakingException e) {
             logger.info("Cranky breaker broke", e);
@@ -157,6 +158,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     @SuppressWarnings("unchecked")
     private void testBlockLoaderForFieldInObject(CircuitBreaker breaker) throws IOException {
+        runner.breaker(breaker);
         int depth = randomIntBetween(0, 3);
 
         Map<String, Template.Entry> currentLevel = new HashMap<>();
@@ -232,6 +234,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     private void testBlockLoaderOfMultiField(CircuitBreaker breaker) throws IOException {
+        runner.breaker(breaker);
         // We are going to have a parent field and a multi field of the same type in order to be sure we can index data.
         // Then we'll test block loader of the multi field.
         var template = new Template(Map.of("parent", new Template.Leaf("parent", fieldType)));

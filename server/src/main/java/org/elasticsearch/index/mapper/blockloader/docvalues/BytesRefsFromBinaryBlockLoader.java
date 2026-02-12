@@ -56,6 +56,7 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addWithoutBreaking(ESTIMATED_SIZE);
         BinaryDocValues docValues = docValuesSupplier.apply(context.reader());
         return createReader(breaker, ESTIMATED_SIZE, docValues);
     }

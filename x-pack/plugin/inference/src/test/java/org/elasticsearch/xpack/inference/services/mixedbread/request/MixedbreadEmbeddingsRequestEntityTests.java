@@ -26,7 +26,7 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc"),
             TestUtils.MODEL_ID,
             TestUtils.DIMENSIONS,
-            TestUtils.PROMPT,
+            TestUtils.PROMPT_INITIAL_VALUE,
             TestUtils.NORMALIZED,
             TestUtils.ENCODING_VALUE
         );
@@ -36,7 +36,7 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
                 "input": ["abc"],
                 "model": "model_id_value",
                 "dimensions": 3,
-                "prompt": "prompt_value",
+                "prompt": "prompt_initial_value",
                 "normalized": false,
                 "encoding_format": "float"
             }

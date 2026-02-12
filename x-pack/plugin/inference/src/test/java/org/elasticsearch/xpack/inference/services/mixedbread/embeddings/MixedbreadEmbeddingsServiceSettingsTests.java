@@ -42,8 +42,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             randomAlphaOfLengthOrNull(10),
             randomInt(10),
             randomAlphaOfLengthOrNull(10),
-            randomBoolean(),
-            randomAlphaOfLengthOrNull(10),
             randomFrom(SimilarityMeasure.values()),
             randomInt(10),
             rateLimitSettings
@@ -55,8 +53,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             TestUtils.MODEL_ID,
             TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
-            TestUtils.PROMPT,
-            TestUtils.NORMALIZED,
             TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,
             MAX_INPUT_TOKENS,
@@ -70,8 +66,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
                     "requests_per_minute": 2
                 },
                 "dimensions": 3,
-                "prompt": "prompt_value",
-                "normalized": false,
                 "encoding_format": "float",
                 "similarity": "cosine",
                 "max_input_tokens": 3
@@ -80,25 +74,14 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultUri_DefaultRateLimit() throws IOException {
-        var serviceSettings = new MixedbreadEmbeddingsServiceSettings(
-            TestUtils.MODEL_ID,
-            (URI) null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        var serviceSettings = new MixedbreadEmbeddingsServiceSettings(TestUtils.MODEL_ID, (URI) null, null, null, null, null, null);
         assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
             {
                 "model_id":"model_id_value",
                 "url": "https://api.mixedbread.com/v1/embeddings",
                 "rate_limit": {
                     "requests_per_minute": 100
-                },
-                "normalized": null
+                }
             }
             """));
     }
@@ -122,12 +105,10 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
     @Override
     protected MixedbreadEmbeddingsServiceSettings mutateInstance(MixedbreadEmbeddingsServiceSettings instance) throws IOException {
         var modelId = instance.modelId();
-        var prompt = instance.prompt();
         var rateLimitSettings = instance.rateLimitSettings();
-        switch (randomInt(2)) {
+        switch (randomInt(1)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
-            case 1 -> prompt = randomValueOtherThan(prompt, () -> randomAlphaOfLength(10));
-            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 1 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -135,8 +116,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             modelId,
             TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
-            prompt,
-            TestUtils.NORMALIZED,
             TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,
             MAX_INPUT_TOKENS,

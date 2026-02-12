@@ -173,8 +173,6 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
                 modelId,
                 url,
                 dimensions,
-                TestUtils.PROMPT,
-                TestUtils.NORMALIZED,
                 TestUtils.ENCODING_VALUE,
                 SimilarityMeasure.DOT_PRODUCT,
                 maxInputTokens,

@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -48,8 +47,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         .setPathSegments(MixedbreadUtils.VERSION_1, MixedbreadUtils.EMBEDDINGS_PATH);
 
     private final Integer dimensions;
-    private final String prompt;
-    private final Boolean normalized;
     private final String encodingFormat;
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
@@ -67,8 +64,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         var commonServiceSettings = extractMixedbreadCommonServiceSettings(map, context, validationException);
 
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var prompt = extractOptionalString(map, MixedbreadUtils.PROMPT_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var normalized = extractOptionalBoolean(map, MixedbreadUtils.NORMALIZED_FIELD, validationException);
         var encodingFormat = extractOptionalString(
             map,
             MixedbreadUtils.ENCODING_FORMAT_FIELD,
@@ -90,8 +85,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
             commonServiceSettings.model(),
             commonServiceSettings.uri(),
             dimensions,
-            prompt,
-            normalized,
             encodingFormat,
             similarity,
             maxInputTokens,
@@ -108,8 +101,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     public MixedbreadEmbeddingsServiceSettings(StreamInput in) throws IOException {
         super(in);
         this.dimensions = in.readOptionalVInt();
-        this.prompt = in.readOptionalString();
-        this.normalized = in.readOptionalBoolean();
         this.encodingFormat = in.readOptionalString();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
@@ -126,8 +117,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
      * @param modelId the model identifier
      * @param uri the URI of the Mixedbread service
      * @param dimensions the number of dimensions for the embeddings, can be null
-     * @param prompt the query text used to rank the provided documents by relevance, can be null
-     * @param normalized specifies whether to normalize the embeddings, can be null
      * @param encodingFormat specifies the encoding format of the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
@@ -137,8 +126,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         String modelId,
         @Nullable URI uri,
         @Nullable Integer dimensions,
-        @Nullable String prompt,
-        @Nullable Boolean normalized,
         @Nullable String encodingFormat,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
@@ -146,8 +133,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     ) {
         super(modelId, uri, rateLimitSettings);
         this.dimensions = dimensions;
-        this.prompt = prompt;
-        this.normalized = normalized;
         this.encodingFormat = encodingFormat;
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
@@ -167,24 +152,12 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         String modelId,
         @Nullable String url,
         @Nullable Integer dimensions,
-        @Nullable String prompt,
-        @Nullable Boolean normalized,
         @Nullable String encodingFormat,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(
-            modelId,
-            createOptionalUri(url),
-            dimensions,
-            prompt,
-            normalized,
-            encodingFormat,
-            similarity,
-            maxInputTokens,
-            rateLimitSettings
-        );
+        this(modelId, createOptionalUri(url), dimensions, encodingFormat, similarity, maxInputTokens, rateLimitSettings);
     }
 
     @Override
@@ -195,14 +168,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     @Override
     public Integer dimensions() {
         return this.dimensions;
-    }
-
-    public String prompt() {
-        return this.prompt;
-    }
-
-    public Boolean normalized() {
-        return this.normalized;
     }
 
     public String encodingFormat() {
@@ -241,8 +206,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalString(prompt);
-        out.writeOptionalBoolean(normalized);
         out.writeOptionalString(encodingFormat);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(maxInputTokens);
@@ -254,11 +217,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
         }
-        if (prompt != null) {
-            builder.field(MixedbreadUtils.PROMPT_FIELD, prompt);
-        }
-
-        builder.field(MixedbreadUtils.NORMALIZED_FIELD, normalized);
 
         if (encodingFormat != null) {
             builder.field(MixedbreadUtils.ENCODING_FORMAT_FIELD, encodingFormat);
@@ -280,8 +238,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(uri, that.uri)
             && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(prompt, that.prompt)
-            && Objects.equals(normalized, that.normalized)
             && Objects.equals(encodingFormat, that.encodingFormat)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity)
@@ -290,7 +246,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, dimensions, prompt, normalized, encodingFormat, maxInputTokens, similarity, rateLimitSettings);
+        return Objects.hash(modelId, uri, dimensions, encodingFormat, maxInputTokens, similarity, rateLimitSettings);
     }
 
 }

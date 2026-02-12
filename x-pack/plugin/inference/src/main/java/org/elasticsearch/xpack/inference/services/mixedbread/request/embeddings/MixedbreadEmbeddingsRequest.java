@@ -53,8 +53,8 @@ public class MixedbreadEmbeddingsRequest implements Request {
                     input,
                     model.getServiceSettings().modelId(),
                     model.getServiceSettings().dimensions(),
-                    model.getServiceSettings().prompt(),
-                    model.getServiceSettings().normalized(),
+                    model.getTaskSettings().getPrompt(),
+                    model.getTaskSettings().getNormalized(),
                     model.getServiceSettings().encodingFormat()
                 )
             ).getBytes(StandardCharsets.UTF_8)

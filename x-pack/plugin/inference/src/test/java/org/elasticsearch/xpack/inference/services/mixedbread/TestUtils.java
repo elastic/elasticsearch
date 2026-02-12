@@ -18,7 +18,6 @@ public final class TestUtils {
     public static final Boolean RETURN_DOCUMENTS_FALSE = false;
 
     public static final int DIMENSIONS = 3;
-    public static final String PROMPT = "prompt_value";
     public static final Boolean NORMALIZED = Boolean.FALSE;
     public static final String ENCODING_VALUE = "float";
 

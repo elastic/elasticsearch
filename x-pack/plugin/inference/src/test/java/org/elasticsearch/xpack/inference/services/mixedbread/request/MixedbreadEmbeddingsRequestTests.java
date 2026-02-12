@@ -32,12 +32,21 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
     public static final String QUERY = "query_value";
 
     public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
+        var request = createRequest(TestUtils.CUSTOM_URL, null, null);
+        var requestMap = getEntityAsMap(request);
+        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap.get("input"), is(List.of(INPUT)));
+        assertThat(requestMap.get("model"), is(TestUtils.MODEL_ID));
+        assertThat(requestMap.get("encoding_format"), is(TestUtils.ENCODING_VALUE));
+    }
+
+    public void testCreateRequest_WithAllFieldsSets() throws IOException {
         var request = createRequest(TestUtils.CUSTOM_URL, TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         var requestMap = getEntityAsMap(request);
         assertThat(requestMap, aMapWithSize(5));
         assertThat(requestMap.get("input"), is(List.of(INPUT)));
         assertThat(requestMap.get("model"), is(TestUtils.MODEL_ID));
-        assertThat(requestMap.get("prompt"), is(TestUtils.PROMPT));
+        assertThat(requestMap.get("prompt"), is(TestUtils.PROMPT_INITIAL_VALUE));
         assertThat(requestMap.get("normalized"), is(TestUtils.NORMALIZED));
         assertThat(requestMap.get("encoding_format"), is(TestUtils.ENCODING_VALUE));
     }

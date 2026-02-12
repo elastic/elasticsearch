@@ -556,6 +556,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
         if (type == CsvTestUtils.Type.DOUBLE) {
+            if (value instanceof String s && "NaN".equals(s)) {
+                return Double.NaN;
+            }
             return ((Number) value).doubleValue();
         }
         if (type == CsvTestUtils.Type.INTEGER) {

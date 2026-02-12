@@ -225,23 +225,20 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // E.g. scalar(sum by (cluster) (metric)))
         Expression scalarExpr = new Scalar(scalarFunc.source(), childResult.expression());
         if (containsAggregation(childResult.plan())) {
-            var aggAlias = new Alias(scalarExpr.source(), ctx.promqlCommand().valueColumnName(), scalarExpr);
-            var stepAttr = ctx.stepAttr();
-            LogicalPlan scalarAggregate = new Aggregate(
+            // plain Aggregate grouped by step only, collapsing all series into one value per step.
+            Attribute stepAttr = ctx.stepAttr();
+            Alias aggAlias = new Alias(scalarExpr.source(), ctx.promqlCommand().valueColumnName(), scalarExpr);
+            LogicalPlan aggregate = new Aggregate(
                 ctx.promqlCommand().source(),
                 childResult.plan(),
                 List.of(stepAttr),
                 List.of(aggAlias, stepAttr)
             );
-
-            Expression outputRef = getValueOutput(scalarAggregate);
-            return new TranslationResult(scalarAggregate, outputRef);
+            return new TranslationResult(aggregate, getValueOutput(aggregate));
         }
 
         LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), scalarFunc.output(), scalarExpr);
-        Expression outputRef = getValueOutput(timeSeriesAgg);
-        return new TranslationResult(timeSeriesAgg, outputRef);
-
+        return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg));
     }
 
     /**

@@ -571,6 +571,28 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(bucketAlias.id(), equalTo(step.id()));
     }
 
+    public void testScalarSumByCluster() {
+        var plan = planPromql("PROMQL index=k8s step=1h scalar(sum by (cluster) (network.bytes_in))");
+        logger.info("scalar plan:\n{}", plan);
+    }
+
+    public void testScalarRawMetric() {
+        String query = "PROMQL index=k8s step=1h scalar(network.bytes_in)";
+        query = query.replace("$now-1h", '"' + java.time.Instant.now().minus(1, java.time.temporal.ChronoUnit.HOURS).toString() + '"');
+        query = query.replace("$now", '"' + java.time.Instant.now().toString() + '"');
+        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        logger.info("analyzed plan:\n{}", analyzed);
+        try {
+            var optimized = logicalOptimizer.optimize(analyzed);
+            logger.info("optimized plan:\n{}", optimized);
+        } catch (Exception e) {
+            // Dump the plan after each batch by running them individually
+            var executor = logicalOptimizer;
+            logger.error("Optimization failed: {}", e.getMessage());
+            throw e;
+        }
+    }
+
     protected LogicalPlan planPromql(String query) {
         return planPromql(query, false);
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 
 import java.io.IOException;
@@ -67,19 +68,13 @@ public class Scalar extends AggregateFunction implements SurrogateExpression {
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        // Scalar can return Nan so its output is always double.
+        return DOUBLE;
     }
 
     @Override
     protected TypeResolution resolveType() {
-
-        return isType(
-            field(),
-            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || DataType.isCounter(dt),
-            sourceText(),
-            DEFAULT,
-            "numeric"
-        );
+        return isType(field(), dt -> dt.isNumeric() || DataType.isCounter(dt), sourceText(), DEFAULT, "numeric");
     }
 
     @Override
@@ -90,8 +85,8 @@ public class Scalar extends AggregateFunction implements SurrogateExpression {
         Count count = new Count(s, field, filter(), window());
         Max max = new Max(s, field, filter(), window());
         Literal one = new Literal(s, 1L, LONG);
-
         Literal nan = new Literal(s, Double.NaN, DOUBLE);
-        return new Case(s, new Equals(s, count, one), List.of(max, nan));
+
+        return new Case(s, new Equals(s, count, one), List.of(new ToDouble(s, max), nan));
     }
 }

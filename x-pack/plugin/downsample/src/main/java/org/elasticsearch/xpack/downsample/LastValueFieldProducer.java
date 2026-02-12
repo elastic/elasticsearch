@@ -14,7 +14,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHel
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;

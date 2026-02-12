@@ -25,7 +25,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
@@ -420,7 +420,7 @@ public class KnnIndexTester {
     }
 
     static void numSegments(Path indexPath, Results result) {
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
+        try (Directory dir = KnnIndexer.getDirectory(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);

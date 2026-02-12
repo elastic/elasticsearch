@@ -106,6 +106,7 @@ class KnnSearcher {
     private final VectorSimilarityFunction similarityFunction;
     private final VectorEncoding vectorEncoding;
     private final boolean doPrecondition;
+    private final boolean useSearchableSnapshot;
 
     KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
         this.docPath = testConfiguration.docVectors();
@@ -121,6 +122,7 @@ class KnnSearcher {
         }
         this.indexType = testConfiguration.indexType();
         this.doPrecondition = testConfiguration.doPrecondition();
+        this.useSearchableSnapshot = testConfiguration.useSearchableSnapshot();
     }
 
     void runSearch(KnnIndexTester.Results finalResults, SearchParameters searchParameters) throws IOException {
@@ -173,7 +175,7 @@ class KnnSearcher {
             );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
-            try (Directory dir = KnnIndexer.getDirectory(indexPath)) {
+            try (Directory dir = KnnIndexer.openReadDirectory(indexPath, useSearchableSnapshot)) {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     IndexSearcher searcher = searchParameters.searchThreads() > 1
                         ? new IndexSearcher(reader, executorService)

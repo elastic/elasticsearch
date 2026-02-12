@@ -252,6 +252,40 @@ class KnnIndexer {
         return dir;
     }
 
+    /**
+     * Opens a directory for reading. When {@code useSearchableSnapshot} is true, the data is
+     * read through a searchable snapshot backed directory, otherwise a regular filesystem
+     * directory is returned.
+     */
+    static Directory openReadDirectory(Path indexPath, boolean useSearchableSnapshot) throws IOException {
+        if (useSearchableSnapshot) {
+            Path workPath = indexPath.resolveSibling(indexPath.getFileName() + ".snap_work");
+            Files.createDirectories(workPath);
+            logger.info("Opening searchable snapshot directory for index at {} with work path {}", indexPath, workPath);
+            return openSearchableSnapshotDirectory(indexPath, workPath);
+        }
+        return getDirectory(indexPath);
+    }
+
+    /**
+     * Creates a directory backed by searchable snapshot infrastructure, wrapping an existing
+     * Lucene index on disk. Loaded via reflection because the factory resides in the
+     * searchable-snapshots test artifact (unnamed module) which cannot be directly referenced
+     * from this named module ({@code org.elasticsearch.test.knn}).
+     */
+    private static Directory openSearchableSnapshotDirectory(Path indexPath, Path workPath) throws IOException {
+        try {
+            Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory");
+            var method = factoryClass.getMethod("newDirectoryFromIndex", Path.class, Path.class);
+            return (Directory) method.invoke(null, indexPath, workPath);
+        } catch (Exception e) {
+            throw new IOException(
+                "Failed to create searchable snapshot directory. " + "Ensure the searchable-snapshots test artifact is on the classpath.",
+                e
+            );
+        }
+    }
+
     private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
         return (name, context) -> {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE) || name.endsWith(".cfs")) {

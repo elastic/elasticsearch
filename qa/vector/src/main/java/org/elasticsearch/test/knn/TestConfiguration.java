@@ -56,7 +56,8 @@ record TestConfiguration(
     int numMergeWorkers,
     boolean doPrecondition,
     int preconditioningBlockDims,
-    int secondaryClusterSize
+    int secondaryClusterSize,
+    boolean useSearchableSnapshot
 ) {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -94,6 +95,7 @@ record TestConfiguration(
     static final ParseField PRECONDITIONING_BLOCK_DIMS = new ParseField("preconditioning_block_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
+    static final ParseField USE_SEARCHABLE_SNAPSHOT_FIELD = new ParseField("use_searchable_snapshot");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -150,6 +152,7 @@ record TestConfiguration(
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareBoolean(Builder::setUseSearchableSnapshot, USE_SEARCHABLE_SNAPSHOT_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -206,6 +209,11 @@ record TestConfiguration(
                 "search_params",
                 "array[object]",
                 "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            ),
+            new ParameterHelp(
+                "use_searchable_snapshot",
+                "boolean",
+                "Read index data through a searchable snapshot directory instead of directly from the filesystem."
             )
         );
 
@@ -276,6 +284,7 @@ record TestConfiguration(
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
         private int secondaryClusterSize = -1;
+        private boolean useSearchableSnapshot = false;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -462,6 +471,11 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setUseSearchableSnapshot(boolean useSearchableSnapshot) {
+            this.useSearchableSnapshot = useSearchableSnapshot;
+            return this;
+        }
+
         public TestConfiguration build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -533,7 +547,8 @@ record TestConfiguration(
                 numMergeWorkers,
                 doPrecondition,
                 preconditioningBlockDims,
-                secondaryClusterSize
+                secondaryClusterSize,
+                useSearchableSnapshot
             );
         }
 
@@ -580,6 +595,7 @@ record TestConfiguration(
             if (searchParams != null) {
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
+            builder.field(USE_SEARCHABLE_SNAPSHOT_FIELD.getPreferredName(), useSearchableSnapshot);
             return builder.endObject();
         }
 

@@ -11,19 +11,24 @@ package org.elasticsearch.entitlement.config;
 
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
-/*
- * Example instrumentation for Class-File API introduced in Java 22+
- *
- * The class is only provided as an example to do version-specific instrumentation. The code below is commented out
- * so no actual instrumentation will be done.
- */
-public class ClassFileInstrumentation implements InstrumentationConfig {
+import java.util.List;
+
+public class MainInstrumentationProvider implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
-        // EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
-        // builder.on(ClassFile.class)
-        // .callingStatic(ClassFile::of)
-        // .enforce(Policies::createClassLoader)
-        // .elseThrowNotEntitled();
+        List.of(
+            new ClassLoaderInstrumentation(),
+            new FileInstrumentation(),
+            new FileStoreInstrumentation(),
+            new FileSystemProviderInstrumentation(),
+            new L10nInstrumentation(),
+            new NetworkInstrumentation(),
+            new PathInstrumentation(),
+            new SecurityInstrumentation(),
+            new SelectorProviderInstrumentation(),
+            new SystemInstrumentation(),
+            new ThreadInstrumentation(),
+            new Java21Instrumentation()
+        ).forEach(config -> config.init(registry));
     }
 }

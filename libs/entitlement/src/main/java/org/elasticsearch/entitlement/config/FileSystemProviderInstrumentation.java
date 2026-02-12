@@ -45,64 +45,70 @@ public class FileSystemProviderInstrumentation implements InstrumentationConfig 
                 .enforce(Policies::changeJvmGlobalState)
                 .elseThrowNotEntitled();
             rule.calling(FileSystemProvider::newInputStream, Path.class, OpenOption[].class)
-                .enforce((_, path) -> Policies.fileRead(path))
+                .enforce((provider, path) -> Policies.fileRead(path))
                 .elseThrowNotEntitled();
             rule.calling(FileSystemProvider::newOutputStream, Path.class, OpenOption[].class)
-                .enforce((_, path) -> Policies.fileWrite(path))
+                .enforce((provider, path) -> Policies.fileWrite(path))
                 .elseThrowNotEntitled();
             rule.calling(
                 FileSystemProvider::newFileChannel,
                 TypeToken.of(Path.class),
                 new TypeToken<Set<OpenOption>>() {},
                 TypeToken.of(FileAttribute[].class)
-            ).enforce((_, path, options) -> Policies.fileReadOrWrite(path, options)).elseThrowNotEntitled();
+            ).enforce((provider, path, options) -> Policies.fileReadOrWrite(path, options)).elseThrowNotEntitled();
             rule.calling(
                 FileSystemProvider::newAsynchronousFileChannel,
                 TypeToken.of(Path.class),
                 new TypeToken<Set<OpenOption>>() {},
                 TypeToken.of(ExecutorService.class),
                 TypeToken.of(FileAttribute[].class)
-            ).enforce((_, path, options) -> Policies.fileReadOrWrite(path, options)).elseThrowNotEntitled();
+            ).enforce((provider, path, options) -> Policies.fileReadOrWrite(path, options)).elseThrowNotEntitled();
             rule.calling(
                 FileSystemProvider::newByteChannel,
                 TypeToken.of(Path.class),
                 new TypeToken<Set<? extends OpenOption>>() {},
                 TypeToken.of(FileAttribute[].class)
-            ).enforce((_, path, options) -> Policies.fileReadOrWrite(path, options)).elseThrowNotEntitled();
+            ).enforce((provider, path, options) -> Policies.fileReadOrWrite(path, options)).elseThrowNotEntitled();
             rule.calling(
                 FileSystemProvider::newDirectoryStream,
                 TypeToken.of(Path.class),
                 new TypeToken<DirectoryStream.Filter<? super Path>>() {}
-            ).enforce((_, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
+            ).enforce((provider, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
             rule.callingVoid(FileSystemProvider::createDirectory, Path.class, FileAttribute[].class)
-                .enforce((_, path) -> Policies.fileWrite(path))
+                .enforce((provider, path) -> Policies.fileWrite(path))
                 .elseThrowNotEntitled();
             rule.callingVoid(FileSystemProvider::createSymbolicLink, Path.class, Path.class, FileAttribute[].class)
-                .enforce((_, link, target) -> Policies.fileWrite(link).and(Policies.fileRead(target)))
+                .enforce((provider, link, target) -> Policies.fileWrite(link).and(Policies.fileRead(target)))
                 .elseThrowNotEntitled();
             rule.callingVoid(FileSystemProvider::createLink, Path.class, Path.class)
-                .enforce((_, link, target) -> Policies.fileWrite(link).and(Policies.fileRead(target)))
+                .enforce((provider, link, target) -> Policies.fileWrite(link).and(Policies.fileRead(target)))
                 .elseThrowNotEntitled();
-            rule.callingVoid(FileSystemProvider::delete, Path.class).enforce((_, path) -> Policies.fileWrite(path)).elseThrowNotEntitled();
+            rule.callingVoid(FileSystemProvider::delete, Path.class)
+                .enforce((provider, path) -> Policies.fileWrite(path))
+                .elseThrowNotEntitled();
             rule.calling(FileSystemProvider::deleteIfExists, Path.class)
-                .enforce((_, path) -> Policies.fileWrite(path))
+                .enforce((provider, path) -> Policies.fileWrite(path))
                 .elseThrowNotEntitled();
             rule.calling(FileSystemProvider::readSymbolicLink, Path.class)
-                .enforce((_, path) -> Policies.fileRead(path))
+                .enforce((provider, path) -> Policies.fileRead(path))
                 .elseThrowNotEntitled();
             rule.callingVoid(FileSystemProvider::copy, Path.class, Path.class, CopyOption[].class)
-                .enforce((_, source, target) -> Policies.fileRead(source).and(Policies.fileWrite(target)))
+                .enforce((provider, source, target) -> Policies.fileRead(source).and(Policies.fileWrite(target)))
                 .elseThrowNotEntitled();
             rule.callingVoid(FileSystemProvider::move, Path.class, Path.class, CopyOption[].class)
-                .enforce((_, source, target) -> Policies.fileRead(source).and(Policies.fileWrite(target)))
+                .enforce((provider, source, target) -> Policies.fileRead(source).and(Policies.fileWrite(target)))
                 .elseThrowNotEntitled();
             rule.calling(FileSystemProvider::isSameFile, Path.class, Path.class)
-                .enforce((_, path, path2) -> Policies.fileRead(path).and(Policies.fileRead(path2)))
+                .enforce((provider, path, path2) -> Policies.fileRead(path).and(Policies.fileRead(path2)))
                 .elseThrowNotEntitled();
-            rule.calling(FileSystemProvider::isHidden, Path.class).enforce((_, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
-            rule.calling(FileSystemProvider::getFileStore, Path.class).enforce((_, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
+            rule.calling(FileSystemProvider::isHidden, Path.class)
+                .enforce((provider, path) -> Policies.fileRead(path))
+                .elseThrowNotEntitled();
+            rule.calling(FileSystemProvider::getFileStore, Path.class)
+                .enforce((provider, path) -> Policies.fileRead(path))
+                .elseThrowNotEntitled();
             rule.callingVoid(FileSystemProvider::checkAccess, Path.class, AccessMode[].class)
-                .enforce((_, path) -> Policies.fileRead(path))
+                .enforce((provider, path) -> Policies.fileRead(path))
                 .elseThrowNotEntitled();
             rule.calling(
                 FileSystemProvider::getFileAttributeView,
@@ -115,21 +121,12 @@ public class FileSystemProviderInstrumentation implements InstrumentationConfig 
                 TypeToken.of(Path.class),
                 new TypeToken<Class<BasicFileAttributes>>() {},
                 TypeToken.of(LinkOption[].class)
-            ).enforce((_, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
+            ).enforce((provider, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
             rule.calling(FileSystemProvider::readAttributes, Path.class, String.class, LinkOption[].class)
-                .enforce((_, path) -> Policies.fileRead(path))
+                .enforce((provider, path) -> Policies.fileRead(path))
                 .elseThrowNotEntitled();
-            rule.calling(
-                FileSystemProvider::readAttributesIfExists,
-                TypeToken.of(Path.class),
-                new TypeToken<Class<BasicFileAttributes>>() {},
-                TypeToken.of(LinkOption[].class)
-            ).enforce((_, path) -> Policies.fileRead(path)).elseThrowNotEntitled();
             rule.callingVoid(FileSystemProvider::setAttribute, Path.class, String.class, Object.class, LinkOption[].class)
-                .enforce((_, path) -> Policies.fileWrite(path))
-                .elseThrowNotEntitled();
-            rule.calling(FileSystemProvider::exists, Path.class, LinkOption[].class)
-                .enforce((_, path) -> Policies.fileRead(path))
+                .enforce((provider, path) -> Policies.fileWrite(path))
                 .elseThrowNotEntitled();
         });
     }

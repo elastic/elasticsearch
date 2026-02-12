@@ -95,7 +95,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.calling(File::setWritable, Boolean.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
             rule.calling(File::setWritable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
             rule.callingStatic(File::createTempFile, String.class, String.class).enforce(Policies::createTempFile).elseThrowNotEntitled();
-            rule.callingStatic(File::createTempFile, String.class, String.class, File.class).enforce((_, _, directory) -> {
+            rule.callingStatic(File::createTempFile, String.class, String.class, File.class).enforce((prefix, suffix, directory) -> {
                 if (directory == null) {
                     return Policies.createTempFile();
                 } else {
@@ -225,7 +225,7 @@ public class FileInstrumentation implements InstrumentationConfig {
                 .enforce(Policies::fileWrite)
                 .elseThrowNotEntitled();
             rule.callingStatic(Files::copy, InputStream.class, Path.class, CopyOption[].class)
-                .enforce((_, target) -> Policies.fileWrite(target))
+                .enforce((inputStream, target) -> Policies.fileWrite(target))
                 .elseThrowNotEntitled();
             rule.callingStatic(Files::copy, Path.class, OutputStream.class).enforce(Policies::fileRead).elseThrowNotEntitled();
             rule.callingStatic(Files::readAllBytes, Path.class).enforce(Policies::fileRead).elseThrowNotEntitled();

@@ -213,18 +213,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethod() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethod",
-                int.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethod", int.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingVoidStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethod,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingVoidStatic(InstrumenterTests.TestClassToInstrument::someStaticMethod, Integer.class)
                 .enforce(verifier)
                 .elseThrowNotEntitled()
         );
@@ -240,30 +234,24 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testNotInstrumentedTwice() throws Exception {
-        var targetMethod = org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-            "someStaticMethod",
-            int.class
-        );
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(targetMethod);
+        var targetMethod = InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethod", int.class);
+        var verifier = new InstrumenterTests.TestVerifier(targetMethod);
         var loader1 = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingVoidStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethod,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingVoidStatic(InstrumenterTests.TestClassToInstrument::someStaticMethod, Integer.class)
                 .enforce(verifier)
                 .elseThrowNotEntitled()
         );
 
         var instrumenter = loader1.getInstrumenter();
         var instrumentedTwiceBytes = instrumenter.instrumentClass(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getName(),
+            InstrumenterTests.TestClassToInstrument.class.getName(),
             loader1.testClassBytes,
             true
         );
         logger.trace(() -> Strings.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytes)));
-        var loader2 = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestLoader(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getName(),
+        var loader2 = new InstrumenterTests.TestLoader(
+            InstrumenterTests.TestClassToInstrument.class.getName(),
             instrumentedTwiceBytes,
             instrumenter
         );
@@ -274,30 +262,18 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testMultipleMethods() throws Exception {
-        var verifier1 = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethod",
-                int.class
-            )
+        var verifier1 = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethod", int.class)
         );
-        var verifier2 = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "anotherStaticMethod",
-                int.class
-            )
+        var verifier2 = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("anotherStaticMethod", int.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingVoidStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethod,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingVoidStatic(InstrumenterTests.TestClassToInstrument::someStaticMethod, Integer.class)
                 .enforce(verifier1)
                 .elseThrowNotEntitled()
-                .callingVoidStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::anotherStaticMethod,
-                    Integer.class
-                )
+                .callingVoidStatic(InstrumenterTests.TestClassToInstrument::anotherStaticMethod, Integer.class)
                 .enforce(verifier2)
                 .elseThrowNotEntitled()
         );
@@ -310,32 +286,18 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodOverload() throws Exception {
-        var verifier1 = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethod",
-                int.class
-            )
+        var verifier1 = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethod", int.class)
         );
-        var verifier2 = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethod",
-                int.class,
-                String.class
-            )
+        var verifier2 = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethod", int.class, String.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingVoidStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethod,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingVoidStatic(InstrumenterTests.TestClassToInstrument::someStaticMethod, Integer.class)
                 .enforce(verifier1)
                 .elseThrowNotEntitled()
-                .callingVoidStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethod,
-                    Integer.class,
-                    String.class
-                )
+                .callingVoidStatic(InstrumenterTests.TestClassToInstrument::someStaticMethod, Integer.class, String.class)
                 .enforce(verifier2)
                 .elseThrowNotEntitled()
         );
@@ -347,20 +309,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodOverload() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethod",
-                int.class,
-                String.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethod", int.class, String.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingVoid(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethod,
-                    Integer.class,
-                    String.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingVoid(InstrumenterTests.TestClassToInstrument::someMethod, Integer.class, String.class)
                 .enforce(verifier)
                 .elseThrowNotEntitled()
         );
@@ -374,16 +328,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnBoolean() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningFalse"
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningFalse")
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningFalse
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningFalse)
                 .enforce(verifier)
                 .elseReturn(true)
         );
@@ -399,16 +349,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnBoolean() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningFalse"
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningFalse")
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningFalse
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningFalse)
                 .enforce(verifier)
                 .elseReturn(true)
         );
@@ -427,18 +373,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnString() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningString",
-                String.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningString", String.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningString,
-                    String.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningString, String.class)
                 .enforce(verifier)
                 .elseReturn("overridden")
         );
@@ -452,18 +392,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnString() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningString",
-                String.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningString", String.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningString,
-                    String.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningString, String.class)
                 .enforce(verifier)
                 .elseReturn("overridden")
         );
@@ -479,18 +413,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnInt() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningInt",
-                int.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningInt", int.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningInt,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningInt, Integer.class)
                 .enforce(verifier)
                 .elseReturn(99)
         );
@@ -504,18 +432,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnInt() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningInt",
-                int.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningInt", int.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningInt,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningInt, Integer.class)
                 .enforce(verifier)
                 .elseReturn(99)
         );
@@ -531,18 +453,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnLong() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningLong",
-                long.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningLong", long.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningLong,
-                    Long.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningLong, Long.class)
                 .enforce(verifier)
                 .elseReturn(99L)
         );
@@ -556,18 +472,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnLong() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningLong",
-                long.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningLong", long.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningLong,
-                    Long.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningLong, Long.class)
                 .enforce(verifier)
                 .elseReturn(99L)
         );
@@ -583,18 +493,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnFloat() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningFloat",
-                float.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningFloat", float.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningFloat,
-                    Float.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningFloat, Float.class)
                 .enforce(verifier)
                 .elseReturn(99.5f)
         );
@@ -608,18 +512,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnFloat() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningFloat",
-                float.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningFloat", float.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningFloat,
-                    Float.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningFloat, Float.class)
                 .enforce(verifier)
                 .elseReturn(99.5f)
         );
@@ -635,18 +533,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnDouble() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningDouble",
-                double.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningDouble", double.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningDouble,
-                    Double.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningDouble, Double.class)
                 .enforce(verifier)
                 .elseReturn(99.5)
         );
@@ -660,18 +552,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnDouble() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningDouble",
-                double.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningDouble", double.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningDouble,
-                    Double.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningDouble, Double.class)
                 .enforce(verifier)
                 .elseReturn(99.5)
         );
@@ -687,21 +573,14 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testConstructors() throws Exception {
-        var verifier1 = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getConstructor()
-        );
-        var verifier2 = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getConstructor(int.class)
-        );
+        var verifier1 = new InstrumenterTests.TestVerifier(InstrumenterTests.TestClassToInstrument.class.getConstructor());
+        var verifier2 = new InstrumenterTests.TestVerifier(InstrumenterTests.TestClassToInstrument.class.getConstructor(int.class));
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::new)
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::new)
                 .enforce(verifier1)
                 .elseThrowNotEntitled()
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::new,
-                    Integer.class
-                )
+                .callingStatic(InstrumenterTests.TestClassToInstrument::new, Integer.class)
                 .enforce(verifier2)
                 .elseThrowNotEntitled()
         );
@@ -713,18 +592,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnEarly() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodWithSideEffects",
-                AtomicInteger.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodWithSideEffects", AtomicInteger.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingVoidStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodWithSideEffects,
-                    AtomicInteger.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingVoidStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodWithSideEffects, AtomicInteger.class)
                 .enforce(verifier)
                 .elseReturnEarly()
         );
@@ -742,18 +615,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnEarly() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodWithSideEffects",
-                AtomicInteger.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodWithSideEffects", AtomicInteger.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingVoid(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodWithSideEffects,
-                    AtomicInteger.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingVoid(InstrumenterTests.TestClassToInstrument::someMethodWithSideEffects, AtomicInteger.class)
                 .enforce(verifier)
                 .elseReturnEarly()
         );
@@ -772,18 +639,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgString() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningString",
-                String.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningString", String.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningString,
-                    String.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningString, String.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -799,18 +660,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgInt() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningInt",
-                int.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningInt", int.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningInt,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningInt, Integer.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -826,18 +681,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgString() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningString",
-                String.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningString", String.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningString,
-                    String.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningString, String.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -855,18 +704,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgInt() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningInt",
-                int.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningInt", int.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningInt,
-                    Integer.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningInt, Integer.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -884,18 +727,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgBoolean() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningBoolean",
-                boolean.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningBoolean", boolean.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningBoolean,
-                    Boolean.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningBoolean, Boolean.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -909,18 +746,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgBoolean() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningBoolean",
-                boolean.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningBoolean", boolean.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningBoolean,
-                    Boolean.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningBoolean, Boolean.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -936,18 +767,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgByte() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningByte",
-                byte.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningByte", byte.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningByte,
-                    Byte.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningByte, Byte.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -961,18 +786,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgByte() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningByte",
-                byte.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningByte", byte.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningByte,
-                    Byte.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningByte, Byte.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -988,18 +807,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgShort() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningShort",
-                short.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningShort", short.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningShort,
-                    Short.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningShort, Short.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1013,18 +826,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgShort() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningShort",
-                short.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningShort", short.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningShort,
-                    Short.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningShort, Short.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1040,18 +847,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgChar() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningChar",
-                char.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningChar", char.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningChar,
-                    Character.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningChar, Character.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1065,18 +866,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgChar() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningChar",
-                char.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningChar", char.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningChar,
-                    Character.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningChar, Character.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1092,18 +887,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgLong() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningLong",
-                long.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningLong", long.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningLong,
-                    Long.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningLong, Long.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1117,18 +906,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgLong() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningLong",
-                long.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningLong", long.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningLong,
-                    Long.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningLong, Long.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1144,18 +927,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgFloat() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningFloat",
-                float.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningFloat", float.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningFloat,
-                    Float.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningFloat, Float.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1169,18 +946,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgFloat() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningFloat",
-                float.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningFloat", float.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningFloat,
-                    Float.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningFloat, Float.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1196,18 +967,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testStaticMethodReturnArgDouble() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someStaticMethodReturningDouble",
-                double.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someStaticMethodReturningDouble", double.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .callingStatic(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someStaticMethodReturningDouble,
-                    Double.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .callingStatic(InstrumenterTests.TestClassToInstrument::someStaticMethodReturningDouble, Double.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1221,18 +986,12 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public void testInstanceMethodReturnArgDouble() throws Exception {
-        var verifier = new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestVerifier(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class.getMethod(
-                "someMethodReturningDouble",
-                double.class
-            )
+        var verifier = new InstrumenterTests.TestVerifier(
+            InstrumenterTests.TestClassToInstrument.class.getMethod("someMethodReturningDouble", double.class)
         );
         var loader = buildInstrumentation(
-            builder -> builder.on(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument.class)
-                .calling(
-                    org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestClassToInstrument::someMethodReturningDouble,
-                    Double.class
-                )
+            builder -> builder.on(InstrumenterTests.TestClassToInstrument.class)
+                .calling(InstrumenterTests.TestClassToInstrument::someMethodReturningDouble, Double.class)
                 .enforce(verifier)
                 .elseReturnArg(0)
         );
@@ -1247,15 +1006,13 @@ public class InstrumenterTests extends ESTestCase {
         verifier.assertCalled(2);
     }
 
-    private static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestLoader buildInstrumentation(
-        Consumer<EntitlementRulesBuilder> builderConsumer
-    ) throws Exception {
+    private static InstrumenterTests.TestLoader buildInstrumentation(Consumer<EntitlementRulesBuilder> builderConsumer) throws Exception {
         InstrumentationRegistryImpl registry = new InstrumentationRegistryImpl(null);
         EntitlementRulesBuilder rulesBuilder = new EntitlementRulesBuilder(registry);
         builderConsumer.accept(rulesBuilder);
-        org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.registry = registry;
+        InstrumenterTests.registry = registry;
         InstrumenterImpl instrumenter = new InstrumenterImpl(
-            Type.getType(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.class).getInternalName(),
+            Type.getType(InstrumenterTests.class).getInternalName(),
             Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
             registry.getInstrumentedMethods()
         );
@@ -1269,11 +1026,7 @@ public class InstrumenterTests extends ESTestCase {
         if (logger.isTraceEnabled()) {
             logger.trace("Bytecode after instrumentation:\n{}", bytecode2text(newBytecode));
         }
-        return new org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestLoader(
-            clazz.getName(),
-            newBytecode,
-            instrumenter
-        );
+        return new InstrumenterTests.TestLoader(clazz.getName(), newBytecode, instrumenter);
     }
 
     private static byte[] getClassBytecode(Class<?> clazz) throws IOException {
@@ -1295,7 +1048,7 @@ public class InstrumenterTests extends ESTestCase {
         final Instrumenter instrumenter;
 
         TestLoader(String testClassName, byte[] testClassBytes, Instrumenter instrumenter) {
-            super(org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.class.getClassLoader());
+            super(InstrumenterTests.class.getClassLoader());
             this.testClassBytes = testClassBytes;
             this.instrumenter = instrumenter;
             this.testClass = defineClass(testClassName, testClassBytes, 0, testClassBytes.length);
@@ -1317,9 +1070,8 @@ public class InstrumenterTests extends ESTestCase {
             }
         }
 
-        org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.Testable newInstance() throws Exception {
-            return (org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.Testable) (testClass.getConstructor()
-                .newInstance());
+        InstrumenterTests.Testable newInstance() throws Exception {
+            return (InstrumenterTests.Testable) (testClass.getConstructor().newInstance());
         }
 
         Instrumenter getInstrumenter() {
@@ -1363,10 +1115,7 @@ public class InstrumenterTests extends ESTestCase {
             assertArrayEquals(args, calledArgs);
         }
 
-        public Object assertStaticMethod(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestLoader loader,
-            Object... args
-        ) {
+        public Object assertStaticMethod(InstrumenterTests.TestLoader loader, Object... args) {
             if (executable instanceof Method method) {
                 Method testMethod = loader.getSameMethod(method);
                 Object result = callStaticMethod(testMethod, args);
@@ -1379,10 +1128,7 @@ public class InstrumenterTests extends ESTestCase {
             }
         }
 
-        public void assertStaticMethodThrows(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestLoader loader,
-            Object... args
-        ) {
+        public void assertStaticMethodThrows(InstrumenterTests.TestLoader loader, Object... args) {
             if (executable instanceof Method method) {
                 Method testMethod = loader.getSameMethod(method);
                 assertThrows(NotEntitledException.class, () -> callStaticMethod(testMethod, args));
@@ -1394,10 +1140,7 @@ public class InstrumenterTests extends ESTestCase {
             }
         }
 
-        public void assertCtorThrows(
-            org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests.TestLoader loader,
-            Object... args
-        ) {
+        public void assertCtorThrows(InstrumenterTests.TestLoader loader, Object... args) {
             if (executable instanceof Constructor<?> ctor) {
                 Constructor<?> testConstructor = loader.getSameConstructor(ctor);
                 assertThrows(NotEntitledException.class, () -> {

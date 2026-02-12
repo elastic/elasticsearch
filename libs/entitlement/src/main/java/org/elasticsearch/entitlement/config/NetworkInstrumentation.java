@@ -49,7 +49,6 @@ import java.net.URLStreamHandlerFactory;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.net.spi.InetAddressResolverProvider;
 import java.net.spi.URLStreamHandlerProvider;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
@@ -333,7 +332,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         builder.on("sun.nio.ch.DatagramChannelImpl", DatagramChannel.class, rule -> {
             rule.callingVoid(DatagramChannel::bind, SocketAddress.class).enforce(Policies::inboundNetworkAccess).elseThrowNotEntitled();
             rule.callingVoid(DatagramChannel::connect, SocketAddress.class).enforce(Policies::outboundNetworkAccess).elseThrowNotEntitled();
-            rule.callingVoid(DatagramChannel::send, ByteBuffer.class, SocketAddress.class).enforce((_, _, target) -> {
+            rule.callingVoid(DatagramChannel::send, ByteBuffer.class, SocketAddress.class).enforce((channel, buffer, target) -> {
                 if (target instanceof InetSocketAddress isa && isa.getAddress().isMulticastAddress()) {
                     return Policies.allNetworkAccess();
                 } else {
@@ -386,10 +385,6 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             SelectorProvider.class,
             rule -> { rule.protectedCtor().enforce(Policies::changeNetworkHandling).elseThrowNotEntitled(); }
         );
-
-        builder.on(InetAddressResolverProvider.class, rule -> {
-            rule.protectedCtor().enforce(Policies::changeNetworkHandling).elseThrowNotEntitled();
-        });
 
         builder.on(
             URLStreamHandlerProvider.class,
@@ -535,18 +530,20 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(AbstractSelectableChannel.class, rule -> {
-            rule.calling(AbstractSelectableChannel::register, Selector.class, Integer.class, Object.class).enforce((_, _, ops) -> {
-                CheckMethod check = Policies.empty();
-                if ((ops & SelectionKey.OP_CONNECT) != 0) {
-                    check = check.and(Policies.outboundNetworkAccess());
-                }
-                if ((ops & SelectionKey.OP_ACCEPT) != 0) {
-                    check = check.and(Policies.inboundNetworkAccess());
-                }
+            rule.calling(AbstractSelectableChannel::register, Selector.class, Integer.class, Object.class)
+                .enforce((channel, selector, ops) -> {
+                    CheckMethod check = Policies.empty();
+                    if ((ops & SelectionKey.OP_CONNECT) != 0) {
+                        check = check.and(Policies.outboundNetworkAccess());
+                    }
+                    if ((ops & SelectionKey.OP_ACCEPT) != 0) {
+                        check = check.and(Policies.inboundNetworkAccess());
+                    }
 
-                return check;
-            }).elseThrowNotEntitled();
-            rule.calling(AbstractSelectableChannel::register, Selector.class, Integer.class).enforce((_, _, ops) -> {
+                    return check;
+                })
+                .elseThrowNotEntitled();
+            rule.calling(AbstractSelectableChannel::register, Selector.class, Integer.class).enforce((channel, selector, ops) -> {
                 CheckMethod check = Policies.empty();
                 if ((ops & SelectionKey.OP_CONNECT) != 0) {
                     check = check.and(Policies.outboundNetworkAccess());

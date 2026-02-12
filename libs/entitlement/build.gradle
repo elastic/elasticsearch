@@ -26,23 +26,6 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
-
-  // guarding for intellij
-  if (sourceSets.findByName("main19")) {
-    main19CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java19')
-  }
-  if (sourceSets.findByName("main20")) {
-    main20CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java20')
-  }
-  if (sourceSets.findByName("main21")) {
-    main21CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java21')
-  }
-  if (sourceSets.findByName("main22")) {
-    main22CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java22')
-  }
-  if (sourceSets.findByName("main23")) {
-    main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
-  }
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
@@ -86,6 +69,11 @@ tasks.register('dumpInstrumentedMethods', JavaExec) {
 tasks.named('compileJava') {
   options.release.unset()
   exportedPackages.each { options.compilerArgs.addAll(["--add-exports", "${it}=org.elasticsearch.entitlement"])}
+}
+
+tasks.named({ name -> name ==~ /compileMain[0-9]+Java/}).configureEach {
+  options.release.unset()
+  exportedPackages.each { options.compilerArgs.addAll(["--add-exports", "${it}=ALL-UNNAMED"])}
 }
 
 tasks.named('test') {

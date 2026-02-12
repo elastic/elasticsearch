@@ -286,27 +286,23 @@ public final class InstrumenterImpl implements Instrumenter {
             pushInstrumentationId();
             pushCallerClass();
             pushArguments();
-            switch (strategy) {
-                case DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy returnEarly -> {
-                    // For return early strategy we want to catch not entitled and return early
-                    catchNotEntitledAndReturnEarly();
-                }
-                case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {
-                    // For default value strategy we want to catch not entitled and return the default value
-                    catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
-                }
-                case DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue -> {
-                    // For method argument value strategy we want to catch not entitled and return the method argument at the given index
-                    catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
-                }
-                case DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy notEntitled -> {
-                    // For not entitled strategy we just want to let the not entitled exception propagate
-                    invokeInstrumentationMethod();
-                }
-                case DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy exception -> {
-                    // Custom exception strategy is handled by invoking the instrumentation method
-                    invokeInstrumentationMethod();
-                }
+            if (strategy instanceof DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy) {
+                // For return early strategy we want to catch not entitled and return early
+                catchNotEntitledAndReturnEarly();
+            } else if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue) {
+                // For default value strategy we want to catch not entitled and return the default value
+                catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
+            } else if (strategy instanceof DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue) {
+                // For method argument value strategy we want to catch not entitled and return the method argument at the given index
+                catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
+            } else if (strategy instanceof DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy) {
+                // For not entitled strategy we just want to let the not entitled exception propagate
+                invokeInstrumentationMethod();
+            } else if (strategy instanceof DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy) {
+                // Custom exception strategy is handled by invoking the instrumentation method
+                invokeInstrumentationMethod();
+            } else {
+                throw new IllegalStateException("Unexpected strategy type: " + strategy.getClass().getName());
             }
             super.visitCode();
         }

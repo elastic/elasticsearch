@@ -12,9 +12,3 @@ apply plugin: 'elasticsearch.publish'
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
-
-// EntitlementChecker interfaces may contain long URLs pointing to JDK code references on GH, or to JDK documentation,
-// and @SuppressWarnings for checkstyle does not work for mrjar projects
-tasks.withType(Checkstyle).configureEach {
-  exclude "**/*EntitlementChecker.java"
-}

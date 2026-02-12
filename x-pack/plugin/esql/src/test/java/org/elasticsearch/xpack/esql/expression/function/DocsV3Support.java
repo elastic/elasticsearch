@@ -1162,45 +1162,45 @@ public abstract class DocsV3Support {
 
             builder.append(SETTINGS_WARNING);
 
-            builder.append("`");
-            builder.append(param != null ? param.name() : mapParam.name());
-            builder.append("`");
+            var settingName = param != null ? param.name() : mapParam.name();
+            builder.append(Strings.format("### `%s` [esql-%s]\n", settingName, settingName));
 
-            builder.append(" {applies_to}`serverless: ");
-            builder.append(setting.preview() ? "preview`" : "ga`");
+            builder.append("```{applies_to}\n");
+            builder.append("serverless: ");
+            builder.append(setting.preview() ? "preview" : "ga");
+            builder.append("\n");
             if (setting.serverlessOnly() == false) {
-                builder.append(" {applies_to}`stack: ");
+                builder.append("stack: ");
                 builder.append(setting.preview() ? "preview" : "ga");
                 String since = param != null ? param.since() : mapParam.since();
                 if (since.length() > 0) {
                     builder.append(" ");
                     builder.append(since);
                 }
-                builder.append("`");
+                builder.append("\n");
             }
-            builder.append("\n");
+            builder.append("```\n");
 
-            builder.append(":   ");
             builder.append(param != null ? param.description() : mapParam.description());
-            builder.append(" **Type**:");
+            builder.append("\n\n**Type**:");
             String[] types = param != null ? param.type() : new String[] { "map_param" };
 
             for (String type : types) {
                 builder.append(" `").append(type).append("`");
             }
-            builder.append(".\n    \n");
+            builder.append("\n\n");
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
-                builder.append("    Map entries: \n    ");
+                builder.append("Map entries: \n    ");
 
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
-                    builder.append("    - `").append(mapArgSignature.name()).append("` ");
+                    builder.append("- `").append(mapArgSignature.name()).append("` ");
                     builder.append("(`").append(mapArgSignature.type()).append("`): ");
                     builder.append(mapArgSignature.description()).append("\n");
                 }
-                builder.append("\n   \n");
+                builder.append("\n\n");
             }
 
             for (Example value : examples(setting)) {
@@ -1217,20 +1217,20 @@ public abstract class DocsV3Support {
             String exampleContent = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
             if (exampleContent != null) {
-                builder.append("    **Example**\n\n");
+                builder.append("**Example**\n\n");
                 if (example.description().length() > 0) {
-                    builder.append("    ").append(example.description()).append("\n\n");
+                    builder.append(example.description()).append("\n\n");
                 }
 
-                builder.append("    " + exampleContent.replaceAll("\n", "\n    "));
-                builder.append("\n   ");
+                builder.append(exampleContent);
+                builder.append("\n");
                 if (exampleResult != null && exampleResult.isEmpty() == false) {
-                    builder.append(exampleResult.replaceAll("\n", "\n   ")).append("\n   ");
+                    builder.append(exampleResult).append("\n");
                 }
             }
         }
 
-        void renderKibanaCommandDefinition() throws Exception {
+        public void renderKibanaCommandDefinition() throws Exception {
             org.elasticsearch.xpack.esql.expression.function.Param param = param(setting);
             MapParam mapParam = mapParam(setting);
             assert param != null || mapParam != null;

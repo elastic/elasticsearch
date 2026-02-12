@@ -45,7 +45,6 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -116,7 +115,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 docCount += leaderGroup.appendDocs(randomInt(128));
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
-                Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+                Set<String> indexedDocIds = getShardDocIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
                     assertThat(
                         followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -213,7 +212,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
-                Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+                Set<String> indexedDocIds = getShardDocIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
                     assertThat(
                         followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -262,7 +261,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
-                Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+                Set<String> indexedDocIds = getShardDocIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
                     assertThat(
                         followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -322,7 +321,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         getEngine(shard).noOp(noOp);
                     }
                 }
-                for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
+                for (String deleteId : randomSubsetOf(getShardDocIDs(leaderGroup.getPrimary()))) {
                     BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", deleteId));
                     assertThat(resp.getFailure(), nullValue());
                 }
@@ -435,8 +434,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(
                         newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {
-                        }
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {}
                     );
                 }
             }

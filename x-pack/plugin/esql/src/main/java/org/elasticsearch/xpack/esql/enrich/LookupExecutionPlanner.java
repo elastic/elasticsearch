@@ -334,7 +334,7 @@ public class LookupExecutionPlanner {
                         EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
                     )
                 );
-                return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, docChannel);
+                return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, true, docChannel);
             }
 
             @Override
@@ -385,12 +385,7 @@ public class LookupExecutionPlanner {
             Page inputPage = lookupDriverContext.inputPage();
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
-            Warnings warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                lookupDriverContext.request().source.source().getLineNumber(),
-                lookupDriverContext.request().source.source().getColumnNumber(),
-                lookupDriverContext.request().source.text()
-            );
+            Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupDriverContext.request().source);
 
             LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()
                 .create(lookupDriverContext.request(), searchExecutionContext, lookupDriverContext.aliasFilter(), warnings);

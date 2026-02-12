@@ -10,9 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -36,6 +38,11 @@ import java.util.Map;
  *     The compute engine operates on arrays because the good folks that build CPUs have
  *     spent the past 40 years making them really really good at running tight loops over
  *     arrays of data. So we play along with the CPU and make arrays.
+ * </p>
+ * <p>
+ *     Implementers will return non-null from either {@link #columnAtATimeReader} or
+ *     {@link #rowStrideReader}. As of 2026-2-4 many will return non-null from both
+ *     but that's deprecated and will be removed.
  * </p>
  * <h2>How to implement</h2>
  * <p>
@@ -223,6 +230,27 @@ public interface BlockLoader {
         ) throws IOException;
     }
 
+    /**
+     * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
+     * <p>
+     * Implementations may return {@code null} if they are unable to load the requested values,
+     * for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalLengthReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         *
+         * @param nullsFiltered  if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         */
+        @Nullable
+        BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+
+        NumericDocValues toLengthValues();
+    }
+
     interface RowStrideReader extends Reader {
         /**
          * Reads the values of the given document into the builder.
@@ -230,6 +258,11 @@ public interface BlockLoader {
         void read(int docId, StoredFields storedFields, Builder builder) throws IOException;
     }
 
+    /**
+     * @deprecated we no longer need to implement {@link RowStrideReader} when
+     *             storage prefers column-at-a-time
+     */
+    @Deprecated
     interface AllReader extends ColumnAtATimeReader, RowStrideReader {}
 
     interface StoredFields {
@@ -270,16 +303,17 @@ public interface BlockLoader {
      * Build a column-at-a-time reader. <strong>May</strong> return {@code null}
      * if the underlying storage needs to be loaded row-by-row. Callers should try
      * this first, only falling back to {@link #rowStrideReader} if this returns
-     * {@code null} or if they can't load column-at-a-time themselves.
+     * {@code null}. If this returns null then {@link #rowStrideReader} may not.
      */
     @Nullable
-    ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
+    IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
 
     /**
-     * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
-     * evan if the underlying storage prefers to be loaded column-at-a-time. Some
-     * callers simply can't load column-at-a-time so all implementations must support
-     * this method.
+     * Build a row-by-row reader. <strong>May</strong> return {@code null} if the
+     * underlying storage prefers to be loaded column-at-a-time. Callers should try
+     * {@link #columnAtATimeReader} first, only falling back to this if
+     * {@link #columnAtATimeReader} returns null. This may not return null if
+     * {@link #columnAtATimeReader} does.
      */
     RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
 
@@ -348,7 +382,7 @@ public interface BlockLoader {
         protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
 
         @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
             if (canUsePreferLoaderForLeaf(context)) {
                 return preferLoader.columnAtATimeReader(context);
             } else {
@@ -406,6 +440,30 @@ public interface BlockLoader {
         int count();
 
         int get(int i);
+
+        /**
+         * Can this vector reference duplicate documents? Some {@link BlockLoader}s will
+         * run more slowly if this is {@code true}. These {@linkplain BlockLoader}s will
+         * return incorrect results if there are duplicates and this is {@code false}.
+         * This exists because of a hierarchy of speeds:
+         * <ul>
+         *     <li>
+         *         We can better optimize some {@link BlockLoader}s when they receive
+         *         {@linkplain Docs}s that don't contain duplicates.
+         *     </li>
+         *     <li>
+         *         It's rare that we want to load from duplicate doc ids. We don't need
+         *         to spend that much time optimizing it.
+         *     </li>
+         *     <li>
+         *         We sometimes really <strong>want</strong> to load from duplicate
+         *         doc ids to minimize total amount of loading we have to do in fairly
+         *         specific cases like resolving dimension values after time series
+         *         aggregations.
+         *     </li>
+         * </ul>
+         */
+        boolean mayContainDuplicates();
     }
 
     /**
@@ -687,10 +745,12 @@ public interface BlockLoader {
     }
 
     /**
-     * Specialized builder for collecting dense arrays of double values.
+     * Specialized builder for collecting dense arrays of int values.
      */
     interface SingletonIntBuilder extends Builder {
         SingletonIntBuilder appendLongs(long[] values, int from, int length);
+
+        SingletonIntBuilder appendInts(int[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

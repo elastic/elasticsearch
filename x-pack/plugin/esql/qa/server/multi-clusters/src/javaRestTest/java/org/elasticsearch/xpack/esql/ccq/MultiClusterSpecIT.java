@@ -14,6 +14,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +62,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -90,6 +93,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         COMPLETION.capabilityName(),
         TEXT_EMBEDDING_FUNCTION.capabilityName()
     );
+
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -190,6 +208,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(adminClient(), List.of(ENABLE_FORK_FOR_REMOTE_INDICES_V2.capabilityName()))
             );
         }
+
+        // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -272,6 +294,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 && LOOKUP_ENDPOINTS.contains(endpoint) == false) {
                     return bulkClient.performRequest(request);
                 } else {
+                    request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
                     Request[] clones = cloneRequests(request, 2);
                     Response resp1 = remoteClient.performRequest(clones[0]);
                     Response resp2 = localClient.performRequest(clones[1]);
@@ -296,6 +319,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         for (int i = 0; i < clones.length; i++) {
             clones[i] = new Request(orig.getMethod(), orig.getEndpoint());
             clones[i].addParameters(orig.getParameters());
+            clones[i].setOptions(orig.getOptions());
         }
         HttpEntity entity = orig.getEntity();
         if (entity != null) {
@@ -390,6 +414,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return false;
     }
 
+    protected boolean supportsViews() {
+        // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
+        // In particular, we do not want to load views definitions, because that messes with `FROM *` queries
+        // See, for example, "lookup-join/EnrichLookupStatsBug"
+        return false;
+    }
+
     @Override
     protected boolean supportsExponentialHistograms() {
         try {
@@ -413,6 +444,19 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 && RestEsqlTestCase.hasCapabilities(
                     remoteClusterClient(),
                     List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    protected boolean supportsTDigestFieldAsMetric() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()))
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName())
                 );
         } catch (IOException e) {
             throw new RuntimeException(e);

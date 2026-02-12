@@ -1,5 +1,0 @@
-pr: 138105
-summary: MRT should default to `true` for CPS searches
-area: CCS
-type: enhancement
-issues: []

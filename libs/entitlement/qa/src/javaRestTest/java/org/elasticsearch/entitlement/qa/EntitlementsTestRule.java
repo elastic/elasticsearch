@@ -86,6 +86,16 @@ class EntitlementsTestRule implements TestRule {
             .systemProperty("es.entitlements.verify_bytecode", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir.getRoot().toPath()))
+            .jvmArg(
+                "--add-exports=java.base/org.elasticsearch.entitlement.bridge="
+                    + "org.elasticsearch.entitlement.qa.test,"
+                    + "org.elasticsearch.entitlement,"
+                    + "org.elasticsearch.entitlement.instrumentation,"
+                    + "java.logging,"
+                    + "java.net.http,"
+                    + "java.naming,"
+                    + "jdk.net"
+            )
             .setting("xpack.security.enabled", "false")
             // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
             // .setting("logger.org.elasticsearch.entitlement", "DEBUG")

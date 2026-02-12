@@ -59,10 +59,10 @@ Optionally, you can include precomputed summary statistics:
 When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these values during indexing.
 If the histogram is empty (no positive/negative buckets and zero count is `0`), then `sum` must be `0.0` or omitted, and `min` and `max` must be omitted or `null`.
 
-::::{important}
+## Limitations
+
 - An `exponential_histogram` field is single-valued: one histogram per field per document. Nested arrays are not supported.
 - `exponential_histogram` fields are not searchable and do not support sorting.
-::::
 
 ## Use cases [exponential-histogram-use-cases]
 

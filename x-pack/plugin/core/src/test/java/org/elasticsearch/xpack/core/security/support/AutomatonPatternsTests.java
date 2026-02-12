@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.core.security.support;
 
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
@@ -16,6 +19,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class AutomatonPatternsTests extends ESTestCase {
 
@@ -76,5 +80,25 @@ public class AutomatonPatternsTests extends ESTestCase {
                 });
             });
         });
+    }
+
+    /**
+     * `read_cross_cluster` is deprecated in favour of `read`, and should not have any new privileges added. If new privileges are required,
+     * these should either be added to `read` or `view_index_metadata`.
+     */
+    public void testReadCrossClusterDoesNotHaveNewPrivileges() {
+        var privileges = Automatons.getPatterns(IndexPrivilege.DEPRECATED_READ_CROSS_CLUSTER.getAutomaton());
+
+        assertThat(
+            privileges,
+            containsInAnyOrder(
+                "internal:transport/proxy/indices:data/read/*",
+                TransportClusterSearchShardsAction.TYPE.name(),
+                TransportSearchShardsAction.TYPE.name(),
+                TransportResolveClusterAction.NAME,
+                "indices:data/read/esql",
+                "indices:data/read/esql/compute"
+            )
+        );
     }
 }

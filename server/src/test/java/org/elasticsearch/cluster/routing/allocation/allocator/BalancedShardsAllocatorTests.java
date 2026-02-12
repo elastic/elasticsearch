@@ -35,8 +35,10 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -53,6 +55,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -1092,7 +1095,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 "moved a NOT_PREFERRED allocation",
                 notPreferredLoggerName,
                 Level.DEBUG,
-                "Moving shard [*] to [*] from a NOT_PREFERRED allocation: [NOT_PREFERRED(Always NOT_PREFERRED)]"
+                "Moving shard [*] from [*] to [*]; current assignment is NOT_PREFERRED: [NOT_PREFERRED(Always NOT_PREFERRED)]"
             )
         );
     }
@@ -1250,6 +1253,76 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             "not-preferred-low",
             shuffledList("not-preferred-low", "not-preferred", "not-preferred-high")
         );
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not_preferred:DEBUG",
+        reason = "this bug only manifests with not preferred logger turned on"
+    )
+    public void testBugWhenNotPreferredAndYesDecisionsArePresent() {
+        final var notPreferredDecider = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                final var nodeId = node.node().getId();
+                if (nodeId.startsWith("not-preferred")) {
+                    return Decision.NOT_PREFERRED;
+                } else if (nodeId.startsWith("yes")) {
+                    return Decision.YES;
+                } else {
+                    throw new AssertionError("unexpected node name: " + node.node().getName());
+                }
+            }
+
+            @Override
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
+                return canAllocate(shardRouting, node, allocation);
+            }
+        };
+
+        final var allNodeIds = List.of("not-preferred-low", "yes", "not-preferred-two-high", "not-preferred-one-high");
+        final var discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (String nodeName : allNodeIds) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+        final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+
+        final var indexMetadata = anIndex("index", indexSettings(IndexVersion.current(), 1, 0)).build();
+        projectMetadataBuilder.put(indexMetadata, false);
+        Index index = indexMetadata.getIndex();
+        routingTableBuilder.add(
+            IndexRoutingTable.builder(index)
+                .addShard(
+                    TestShardRouting.newShardRouting(new ShardId(index, 0), "not-preferred-one-high", true, ShardRoutingState.STARTED)
+                )
+        );
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .putProjectMetadata(projectMetadataBuilder)
+            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
+            .build();
+
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of(notPreferredDecider)),
+            clusterState.getRoutingNodes().mutableCopy(),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            randomNonNegativeLong()
+        );
+
+        // This would throw an assertion error when the bug was present
+        new BalancedShardsAllocator(BalancerSettings.DEFAULT, WriteLoadForecaster.DEFAULT, new NodeNameDrivenBalancingWeightsFactory())
+            .allocate(allocation);
+
+        // We should have relocated the shard to the YES node
+        assertThat(allocation.routingNodes().getRelocatingShardCount(), equalTo(1));
     }
 
     private void assertUnassigned(

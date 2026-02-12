@@ -1422,5 +1422,26 @@ setup:
   - match:  { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
   - match:  { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
 
+---
+"Get _inference_fields via _source_includes":
 
+  - requires:
+      cluster_features: "inference_fields.get_via_source_includes"
+      reason: Bug fix for inference fields get via source includes
 
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "value1"
+        refresh: true
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+        _source_includes: _inference_fields
+
+  - match: { _id: doc_1 }
+  - exists: _source._inference_fields

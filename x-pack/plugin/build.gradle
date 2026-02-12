@@ -164,7 +164,20 @@ tasks.named("yamlRestCompatTestTransform").configure(
       "Vectors are no longer returned by default"
     )
     task.skipTest("esql/190_lookup_join/lookup-no-key-only-key", "Requires the fix")
+    task.skipTest("esql/190_lookup_join/basic", "New SORT warning not in original test")
+    task.skipTest("esql/191_lookup_join_text/keyword-keyword", "New SORT warning not in original test")
+    task.skipTest("esql/191_lookup_join_text/text-keyword", "New SORT warning not in original test")
+    task.skipTest("esql/192_lookup_join_on_aliases/alias-as-lookup-index", "New SORT warning not in original test")
+    task.skipTest("esql/192_lookup_join_on_aliases/alias-repeated-alias", "New SORT warning not in original test")
+    task.skipTest("esql/192_lookup_join_on_aliases/alias-repeated-index", "New SORT warning not in original test")
+    task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-single", "New SORT warning not in original test")
     task.skipTest("ml/data_frame_analytics_crud/Test put config with remote source index", "Error message changed")
+    task.skipTest("esql/40_tsdb/PromQL irate on counter field", "We filter out null values now")
+    // Expected deprecation warning to compat yaml tests:
+    task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
+    task.skipTest("aggregate-metrics/40_avg_agg/Test avg agg with query", "Default metric cannot be defined, so the query is empty")
+    task.skipTest("aggregate-metrics/30_sum_agg/Test sum agg with query", "Default metric cannot be defined, so the query is empty")
+    task.skipTest("aggregate-metrics/50_value_count_agg/Test value_count agg with query", "Default metric cannot be defined, so the query is empty")
   }
 )
 

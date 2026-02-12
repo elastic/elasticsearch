@@ -96,6 +96,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -132,7 +133,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             () -> createIndex(
                 indexName,
                 indexSettings(1, 0).put(IndexSettings.MODE.getKey(), randomNonTsdbIndexMode)
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                     .build()
             )
         );
@@ -140,7 +141,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             exception.getMessage(),
             containsString(
                 "The setting ["
-                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + IndexSettings.SYNTHETIC_ID.getKey()
                     + "] is only permitted when [index.mode] is set to [TIME_SERIES]. Current mode: ["
                     + randomNonTsdbIndexMode.getName().toUpperCase(Locale.ROOT)
                     + "]."
@@ -165,7 +166,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 indexName,
                 indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "hostname")
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                     .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomNonDefaultCodec)
                     .build()
             )
@@ -174,7 +175,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             exception.getMessage(),
             containsString(
                 "The setting ["
-                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + IndexSettings.SYNTHETIC_ID.getKey()
                     + "] is only permitted when [index.codec] is set to [default]. Current mode: ["
                     + randomNonDefaultCodec
                     + "]."
@@ -382,12 +383,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(failedRequest.getFailure().getCause(), is(instanceOf(VersionConflictEngineException.class)));
         }
 
-        // Check that synthetic _id field have no postings on disk
+        // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
     }
 
@@ -493,12 +495,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
-        // Check that synthetic _id field have no postings on disk
+        // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
@@ -1211,7 +1214,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, Settings extraSettings) throws IOException {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());

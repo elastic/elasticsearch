@@ -47,6 +47,7 @@ dependencies {
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
+  implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
 
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
@@ -75,8 +76,10 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+  internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
 }
 
 tasks.named('splitPackagesAudit').configure {

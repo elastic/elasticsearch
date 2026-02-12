@@ -225,9 +225,7 @@ public class IndexShardSnapshotStatus {
     public synchronized SnapshotsInProgress.ShardState moveToUnsuccessful(final Stage newStage, final String failure, final long endTime) {
         assert newStage == Stage.PAUSED || newStage == Stage.FAILURE : newStage;
         if (newStage == Stage.PAUSED && stage.compareAndSet(Stage.PAUSING, Stage.PAUSED)) {
-            // Only set totalTimeMillis when the snapshot had actually started (moveToStarted was called).
-            // If we went INIT -> PAUSING without ever starting, startTimeMillis is still 0 and we must not
-            // store endTime - 0 which would be an incorrect large value.
+            // Only set totalTimeMillis when the snapshot had actually started
             if (startTimeMillis != 0) {
                 this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
             }
@@ -240,13 +238,10 @@ public class IndexShardSnapshotStatus {
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {
-        final Stage previousStage = stage.getAndSet(Stage.FAILURE);
-        if (previousStage != Stage.FAILURE) {
+        if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
             abortListeners.onResponse(AbortStatus.NO_ABORT);
-            // Only set totalTimeMillis when the snapshot had actually started (was in STARTED or FINALIZE).
-            // If we fail before moveToStarted was called (e.g. still in INIT), startTimeMillis is 0 and
-            // endTime - startTimeMillis would be an incorrect large value.
-            if (previousStage == Stage.STARTED || previousStage == Stage.FINALIZE) {
+            // Only set totalTimeMillis when the snapshot had actually started
+            if (startTimeMillis != 0) {
                 this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
             }
             this.failure = failure;

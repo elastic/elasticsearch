@@ -14,6 +14,9 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -22,74 +25,66 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class IndexShardSnapshotStatusTests extends ESTestCase {
 
-    public void testMoveToFailedBeforeSnapshotStarted_doesNotSetIncorrectTotalTimeMillis() {
+    public void testFailureOrPauseBeforeStartRecordsZeroTotalTimeMillis() {
+        final var status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"));
+        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.INIT));
+        assertThat(status.getTotalTimeMillis(), equalTo(0L));
+
+        final long endTime = randomInstantBetween(Instant.now(), Instant.now().plus(30, ChronoUnit.DAYS)).toEpochMilli();
+        final var destinationState = randomFrom(IndexShardSnapshotStatus.Stage.PAUSED, IndexShardSnapshotStatus.Stage.FAILURE);
+        switch (destinationState) {
+            case IndexShardSnapshotStatus.Stage.PAUSED -> {
+                status.pauseIfNotCompleted(listener -> listener.onResponse(null));
+                assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSING));
+                status.moveToUnsuccessful(IndexShardSnapshotStatus.Stage.PAUSED, "paused", endTime);
+                assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSED));
+            }
+            case IndexShardSnapshotStatus.Stage.FAILURE -> {
+                status.moveToFailed(endTime, "failed before start");
+                assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.FAILURE));
+            }
+        }
+        assertThat(status.getTotalTimeMillis(), equalTo(0L));
+    }
+
+    public void testFailurePauseOrCompletionAfterStartRecordsTotalTimeMillis() {
         IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"));
         assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.INIT));
         assertThat(status.getTotalTimeMillis(), equalTo(0L));
 
-        // Simulate failure before moveToStarted was ever called (e.g. failure in asyncCreate).
-        // Using a large endTime that would be wrong if stored as totalTimeMillis (e.g. current time in ms).
-        long largeEndTime = 1_700_000_000_000L; // arbitrary large value
-        status.moveToFailed(largeEndTime, "failed before start");
+        final Instant startTime = randomInstantBetween(Instant.now(), Instant.now().plus(30, ChronoUnit.DAYS));
+        status.moveToStarted(
+            startTime.toEpochMilli(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
 
-        // totalTimeMillis must remain 0, not endTime - 0 which would be the wrong value
-        assertThat(status.getTotalTimeMillis(), equalTo(0L));
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.FAILURE));
-    }
+        final long endTime = randomInstantBetween(startTime, startTime.plus(30, ChronoUnit.DAYS)).toEpochMilli();
+        final var destinationState = randomFrom(
+            IndexShardSnapshotStatus.Stage.PAUSED,
+            IndexShardSnapshotStatus.Stage.FAILURE,
+            IndexShardSnapshotStatus.Stage.DONE
+        );
+        switch (destinationState) {
+            case IndexShardSnapshotStatus.Stage.PAUSED -> {
+                status.pauseIfNotCompleted(listener -> listener.onResponse(null));
+                assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSING));
+                status.moveToUnsuccessful(IndexShardSnapshotStatus.Stage.PAUSED, "paused", endTime);
+                assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSED));
+            }
+            case IndexShardSnapshotStatus.Stage.FAILURE -> {
+                status.moveToFailed(endTime, "failed before start");
+                assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.FAILURE));
+            }
+            case IndexShardSnapshotStatus.Stage.DONE -> {
+                status.moveToFinalize();
+                status.moveToDone(endTime, new ShardSnapshotResult(new ShardGeneration("gen"), ByteSizeValue.MINUS_ONE, 1));
+                assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.DONE));
+            }
+        }
 
-    public void testMoveToUnsuccessfulPausedBeforeSnapshotStarted_doesNotSetIncorrectTotalTimeMillis() {
-        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"));
-        // Go INIT -> PAUSING (e.g. node removal before snapshot actually started)
-        status.pauseIfNotCompleted(listener -> listener.onResponse(null));
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSING));
-
-        long largeEndTime = 1_700_000_000_000L;
-        status.moveToUnsuccessful(IndexShardSnapshotStatus.Stage.PAUSED, "paused", largeEndTime);
-
-        // totalTimeMillis must remain 0, not endTime - 0
-        assertThat(status.getTotalTimeMillis(), equalTo(0L));
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSED));
-    }
-
-    public void testMoveToFailedAfterSnapshotStarted_setsTotalTimeMillis() {
-        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"));
-        long startTime = 1000L;
-        status.moveToStarted(startTime, 1, 10, 2L, 20L);
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.STARTED));
-
-        long endTime = 1500L;
-        status.moveToFailed(endTime, "failed during snapshot");
-
-        assertThat(status.getTotalTimeMillis(), equalTo(500L));
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.FAILURE));
-    }
-
-    public void testMoveToUnsuccessfulPausedAfterSnapshotStarted_setsTotalTimeMillis() {
-        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"));
-        long startTime = 1000L;
-        status.moveToStarted(startTime, 1, 10, 2L, 20L);
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.STARTED));
-        // Go STARTED -> PAUSING (e.g. node removal during snapshot)
-        status.pauseIfNotCompleted(listener -> listener.onResponse(null));
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSING));
-
-        long endTime = 1500L;
-        status.moveToUnsuccessful(IndexShardSnapshotStatus.Stage.PAUSED, "paused for node removal", endTime);
-
-        assertThat(status.getTotalTimeMillis(), equalTo(500L));
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSED));
-    }
-
-    public void testMoveToDone_setsTotalTimeMillisAsBefore() {
-        ShardGeneration gen = new ShardGeneration("gen");
-        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(gen);
-        long startTime = 1000L;
-        status.moveToStarted(startTime, 1, 10, 2L, 20L);
-        status.moveToFinalize();
-        long endTime = 1500L;
-        status.moveToDone(endTime, new ShardSnapshotResult(gen, ByteSizeValue.MINUS_ONE, 2));
-
-        assertThat(status.getTotalTimeMillis(), equalTo(500L));
-        assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.DONE));
+        assertThat(status.getTotalTimeMillis(), equalTo(endTime - startTime.toEpochMilli()));
     }
 }

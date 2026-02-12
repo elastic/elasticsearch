@@ -9831,6 +9831,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertThat(branchFilter.child(), instanceOf(EsRelation.class));
         }
     }
+
     /**
      * <pre>{@code
      * Limit[1000[INTEGER],false,false]

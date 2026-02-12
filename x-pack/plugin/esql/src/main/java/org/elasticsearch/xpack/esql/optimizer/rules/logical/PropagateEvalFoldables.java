@@ -55,7 +55,7 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
                     }
                 });
             }
-            // Apply the replacement inside Filter, Eval and Row (which shouldn't make a difference)
+            // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
             // TODO: also allow aggregates once aggs on constants are supported.
             // C.f. https://github.com/elastic/elasticsearch/issues/100634
             if (p instanceof Filter || p instanceof Eval) {

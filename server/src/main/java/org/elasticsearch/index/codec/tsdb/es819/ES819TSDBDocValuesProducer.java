@@ -1685,7 +1685,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         long minValue = meta.readLong();
         int docCount = meta.readInt();
         int maxDocID = meta.readInt();
-        long valueCount =  meta.readLong();
+        long valueCount = meta.readLong();
 
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID, valueCount);
     }
@@ -2426,7 +2426,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId, long valueCount) {}
+    private record DocValuesSkipperEntry(
+        long offset,
+        long length,
+        long minValue,
+        long maxValue,
+        int docCount,
+        int maxDocId,
+        long valueCount
+    ) {}
 
     static class NumericEntry {
         long docsWithFieldOffset;
@@ -2684,7 +2692,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final long[] minValue;
         final long[] maxValue;
         final int[] docCount;
-        final long[]  valueCount;
+        final long[] valueCount;
         int levels;
 
         ES819TSDBDocValuesSkipper(DocValuesSkipperEntry entry) {

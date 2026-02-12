@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
@@ -398,6 +399,7 @@ public class EsqlFunctionRegistry {
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(Acosh.class, Acosh::new, "acosh"),
+                def(Asinh.class, Asinh::new, "asinh"),
                 def(E.class, E::new, "e"),
                 def(Exp.class, Exp::new, "exp"),
                 def(Floor.class, Floor::new, "floor"),
@@ -465,9 +467,9 @@ public class EsqlFunctionRegistry {
                 defTS(TRange.class, TRange::new, "trange") },
             // spatial
             new FunctionDefinition[] {
-                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
+                def(SpatialCentroid.class, uni(SpatialCentroid::new), "st_centroid_agg"),
                 def(SpatialContains.class, SpatialContains::new, "st_contains"),
-                def(SpatialExtent.class, SpatialExtent::new, "st_extent_agg"),
+                def(SpatialExtent.class, uni(SpatialExtent::new), "st_extent_agg"),
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),

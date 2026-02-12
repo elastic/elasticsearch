@@ -1,5 +1,9 @@
 setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  aggregate_metric_test
         body:
@@ -7,7 +11,7 @@ setup:
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [sum, value_count]
+                metrics: [sum, value_count, max]
                 default_metric: value_count
 
   - do:
@@ -16,21 +20,17 @@ setup:
         refresh: true
         body:
           - '{"index": {}}'
-          - '{"metric": {"sum": 10000, "value_count": 100} }'
+          - '{"metric": {"sum": 10000, "value_count": 100, "max": 100} }'
           - '{"index": {}}'
-          - '{"metric": {"sum": 60, "value_count": 20} }'
+          - '{"metric": {"sum": 60, "value_count": 20, "max": 20} }'
           - '{"index": {}}'
-          - '{"metric": {"sum": -400, "value_count": 780} }'
+          - '{"metric": {"sum": -400, "value_count": 780, "max": 780} }'
           - '{"index": {}}'
-          - '{"metric": {"sum": 40, "value_count": 20} }'
+          - '{"metric": {"sum": 40, "value_count": 20, "max": 20} }'
           - '{"index": {}}'
-          - '{"metric": {"sum": -100, "value_count": 40} }'
+          - '{"metric": {"sum": -100, "value_count": 40, "max": 40} }'
 ---
 "Test avg agg":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test
@@ -46,10 +46,6 @@ setup:
 
 ---
 "Test avg agg with query":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test

@@ -188,30 +188,20 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 }
             );
             try {
-                MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(
-                    noOpClient,
-                    clusterService,
-                    historyStore,
-                    () -> {
-                        final var result = Collections.singletonMap(
-                            repoId,
-                            List.of(Tuple.tuple(eligibleSnapshot.snapshotId(), policyId))
-                        );
-                        logger.info("--> retrieving snapshots [{}]", result);
-                        return result;
-                    },
-                    (deletionPolicyId, repo, snapId, slmStats, listener) -> {
-                        logger.info("--> deleting {} from repo {}", snapId, repo);
-                        deleted.add(snapId);
-                        if (deletionSuccess) {
-                            listener.onResponse(AcknowledgedResponse.TRUE);
-                        } else {
-                            listener.onFailure(new RuntimeException("deletion_failed"));
-                        }
-                        deletionLatch.countDown();
-                    },
-                    System::nanoTime
-                );
+                MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(noOpClient, clusterService, historyStore, () -> {
+                    final var result = Collections.singletonMap(repoId, List.of(Tuple.tuple(eligibleSnapshot.snapshotId(), policyId)));
+                    logger.info("--> retrieving snapshots [{}]", result);
+                    return result;
+                }, (deletionPolicyId, repo, snapId, slmStats, listener) -> {
+                    logger.info("--> deleting {} from repo {}", snapId, repo);
+                    deleted.add(snapId);
+                    if (deletionSuccess) {
+                        listener.onResponse(AcknowledgedResponse.TRUE);
+                    } else {
+                        listener.onFailure(new RuntimeException("deletion_failed"));
+                    }
+                    deletionLatch.countDown();
+                }, System::nanoTime);
 
                 long time = System.currentTimeMillis();
                 retentionTask.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_JOB_ID, time, time));
@@ -282,12 +272,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 (historyItem) -> fail("should never write history")
             );
             try {
-                SnapshotRetentionTask task = new SnapshotRetentionTask(
-                    noOpClient,
-                    clusterService,
-                    System::nanoTime,
-                    historyStore
-                );
+                SnapshotRetentionTask task = new SnapshotRetentionTask(noOpClient, clusterService, System::nanoTime, historyStore);
 
                 AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
                 task.getSnapshotsEligibleForDeletion(
@@ -365,12 +350,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 (historyItem) -> fail("should never write history")
             );
             try {
-                SnapshotRetentionTask task = new SnapshotRetentionTask(
-                    noOpClient,
-                    clusterService,
-                    System::nanoTime,
-                    historyStore
-                );
+                SnapshotRetentionTask task = new SnapshotRetentionTask(noOpClient, clusterService, System::nanoTime, historyStore);
 
                 AtomicReference<SnapshotLifecycleStats> slmStats = new AtomicReference<>(new SnapshotLifecycleStats());
                 AtomicBoolean onFailureCalled = new AtomicBoolean(false);
@@ -440,17 +420,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 (historyItem) -> fail("should never write history")
             );
             try {
-                SnapshotRetentionTask task = new MockSnapshotRetentionTask(
-                    noOpClient,
-                    clusterService,
-                    historyStore,
-                    () -> {
-                        fail("should not retrieve snapshots");
-                        return null;
-                    },
-                    (a, b, c, d, e) -> fail("should not delete snapshots"),
-                    System::nanoTime
-                );
+                SnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService, historyStore, () -> {
+                    fail("should not retrieve snapshots");
+                    return null;
+                }, (a, b, c, d, e) -> fail("should not delete snapshots"), System::nanoTime);
 
                 long time = System.currentTimeMillis();
                 task.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_JOB_ID, time, time));
@@ -504,17 +477,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             );
             try {
                 AtomicBoolean retentionWasRun = new AtomicBoolean(false);
-                MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(
-                    noOpClient,
-                    clusterService,
-                    historyStore,
-                    () -> {
-                        retentionWasRun.set(true);
-                        return Collections.emptyMap();
-                    },
-                    (deletionPolicyId, repo, snapId, slmStats, listener) -> {},
-                    System::nanoTime
-                );
+                MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService, historyStore, () -> {
+                    retentionWasRun.set(true);
+                    return Collections.emptyMap();
+                }, (deletionPolicyId, repo, snapId, slmStats, listener) -> {}, System::nanoTime);
 
                 long time = System.currentTimeMillis();
                 task.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID, time, time));

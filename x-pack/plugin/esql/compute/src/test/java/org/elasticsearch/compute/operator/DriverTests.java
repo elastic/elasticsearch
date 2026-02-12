@@ -35,13 +35,13 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -361,7 +361,10 @@ public class DriverTests extends ESTestCase {
         Driver driver = createFailingDriver(driverContext(), failure);
         try {
             MockLog.assertThatLogger(
-                () -> expectThrows(expectedExceptionClass, () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)),
+                () -> expectThrows(
+                    expectedExceptionClass,
+                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
+                ),
                 Driver.class,
                 new MockLog.SeenEventExpectation(
                     "expected log event for " + failure.getClass().getSimpleName(),

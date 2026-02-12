@@ -332,9 +332,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(breaker, reader.leaves().getFirst())) {
-                    assertThat(columnAtATimeLoader, nullValue());
-                }
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
 
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
                     assertThat(

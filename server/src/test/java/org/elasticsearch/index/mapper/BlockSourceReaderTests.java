@@ -76,8 +76,8 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
             ? BlockSourceReader.lookupFromNorms("field")
             : BlockSourceReader.lookupMatchingAll();
         BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
+        assertThat(loader.columnAtATimeReader(ctx), nullValue());
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-        assertThat(loader.columnAtATimeReader(breaker, ctx), nullValue());
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, ctx)) {
             assertThat(
                 loader.rowStrideStoredFieldSpec(),

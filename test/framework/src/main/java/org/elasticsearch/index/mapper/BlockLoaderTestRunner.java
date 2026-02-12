@@ -38,76 +38,166 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Test helper for {@link BlockLoader}. Run it like:
+ * <pre>{@code
+ *  BlockLoaderTestRunner runner = new BlockLoaderTestRunner(params);
+ *  runner.mapperService(createMapperService...);
+ *  runner.fieldName("field").document(Map.of("field", 1));
+ *  runner.run(1);
+ * }</pre>
+ */
 public class BlockLoaderTestRunner {
-    private final BlockLoaderTestCase.Params params;
-    private final boolean allowDummyDocs;
-
     public interface ResultMatcher {
         void match(Object expected, Object actual);
     }
 
-    public BlockLoaderTestRunner(BlockLoaderTestCase.Params params, boolean allowDummyDocs) {
+    private final BlockLoaderTestCase.Params params;
+    private boolean allowDummyDocs;
+    private MapperService mapperService;
+    private CircuitBreaker breaker;
+    private String fieldName;
+    private ParsedDocument doc;
+    private Map<String, Object> mapDoc;
+    private ResultMatcher matcher = (expected, actual) -> assertThat(actual, PrettyEqual.prettyEqualTo(expected));
+
+    public BlockLoaderTestRunner(BlockLoaderTestCase.Params params) {
         this.params = params;
-        this.allowDummyDocs = allowDummyDocs;
-    }
-
-    public void defaultMatcher(Object expected, Object actual) {
-        assertThat(actual, PrettyEqual.prettyEqualTo(expected));
-    }
-
-    public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)
-        throws IOException {
-        runTest(mapperService, document, expected, blockLoaderFieldName, this::defaultMatcher);
-    }
-
-    public void runTest(
-        MapperService mapperService,
-        Map<String, Object> document,
-        Object expected,
-        String blockLoaderFieldName,
-        ResultMatcher matcher
-    ) throws IOException {
-        var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
-        var source = new SourceToParse(
-            "1",
-            BytesReference.bytes(documentXContent),
-            XContentType.JSON,
-            null,
-            Map.of(),
-            Map.of(),
-            true,
-            XContentMeteringParserDecorator.NOOP,
-            null
-        );
-        var parsedDoc = mapperService.documentMapper().parse(source);
-        runTest(mapperService, breaker, parsedDoc, expected, blockLoaderFieldName);
     }
 
     /**
-     * Run the test.
-     * @param breaker breaker to use during the test. Callers are responible for making surethis is cleared.
+     * Allow dummy documents in test index. This defaults to {@code false} but many callers
+     * are fine with these and call this.
      */
-    public void runTest(
-        MapperService mapperService,
-        CircuitBreaker breaker,
-        ParsedDocument parsedDoc,
-        Object expected,
-        String blockLoaderFieldName
-    ) throws IOException {
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, breaker, parsedDoc, blockLoaderFieldName);
-        assertThat(blockLoaderResult, prettyEqualTo(expected));
+    public BlockLoaderTestRunner allowDummyDocs() {
+        this.allowDummyDocs = true;
+        return this;
     }
 
-    private Object setupAndInvokeBlockLoader(
-        MapperService mapperService,
-        CircuitBreaker breaker,
-        ParsedDocument parsedDoc,
-        String fieldName
-    ) throws IOException {
+    /**
+     * Set the {@link MapperService} to use for the test. This must be provided before
+     * calling {@link #run}.
+     */
+    public BlockLoaderTestRunner mapperService(MapperService mapperService) {
+        this.mapperService = mapperService;
+        return this;
+    }
+
+    /**
+     * Set the {@link CircuitBreaker} used for the test. This must be provided before
+     * calling {@link #run}.
+     */
+    public BlockLoaderTestRunner breaker(CircuitBreaker breaker) {
+        this.breaker = breaker;
+        return this;
+    }
+
+    /**
+     * The name of the field to load. The test sends this to {@link MapperService#fieldType}.
+     */
+    public String fieldName() {
+        return fieldName;
+    }
+
+    /**
+     * Set the name of the field to load. The test sends this to {@link MapperService#fieldType}.
+     * This is required before calling {@link #run}
+     */
+    public BlockLoaderTestRunner fieldName(String fieldName) {
+        this.fieldName = fieldName;
+        return this;
+    }
+
+    /**
+     * Configuration a non-standard matcher. The default matcher is usually fine, and
+     * you often don't have to call this.
+     */
+    public BlockLoaderTestRunner matcher(ResultMatcher matcher) {
+        this.matcher = matcher;
+        return this;
+    }
+
+    /**
+     * The document being parsed.
+     */
+    public ParsedDocument document() {
+        if (doc != null) {
+            return doc;
+        }
+        if (mapDoc != null) {
+            if (mapperService == null) {
+                throw new IllegalStateException("need to set mapperService");
+            }
+            try {
+                var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapDoc);
+                var source = new SourceToParse(
+                    "1",
+                    BytesReference.bytes(documentXContent),
+                    XContentType.JSON,
+                    null,
+                    Map.of(),
+                    Map.of(),
+                    true,
+                    XContentMeteringParserDecorator.NOOP,
+                    null
+                );
+                doc = mapperService.documentMapper().parse(source);
+                return doc;
+            } catch (IOException e) {
+                throw new RuntimeException("shouldn't be possible", e);
+            }
+        }
+        throw new IllegalStateException("need to set doc");
+    }
+
+    /**
+     * The document to be parsed as a {@link Map}. This will only work if the document
+     * was set with {@link #document(Map)}.
+     */
+    public Map<String, Object> mapDoc() {
+        if (mapDoc == null) {
+            throw new IllegalStateException("need to set doc to a map");
+        }
+        return mapDoc;
+    }
+
+    /**
+     * Set the document to be parsed. A method with this name must be called before
+     * calling {@link #run}.
+     */
+    public void document(Map<String, Object> doc) throws IOException {
+        this.mapDoc = doc;
+    }
+
+    /**
+     * Set the document to be parsed. A method with this name must be called before
+     * calling {@link #run}.
+     */
+    public void document(ParsedDocument doc) throws IOException {
+        this.doc = doc;
+    }
+
+    /**
+     * Run the test and compare to {@code expected}.
+     */
+    public void run(Object expected) throws IOException {
+        matcher.match(expected, setupAndInvokeBlockLoader());
+    }
+
+    private Object setupAndInvokeBlockLoader() throws IOException {
+        if (mapperService == null) {
+            throw new IllegalStateException("need to set mapperService");
+        }
+        if (breaker == null) {
+            throw new IllegalStateException("need to set breaker");
+        }
+        if (fieldName == null) {
+            throw new IllegalStateException("need to set fieldName");
+        }
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 
-            LuceneDocument doc = parsedDoc.rootDoc();
+            LuceneDocument doc = this.document().rootDoc();
 
             /*
              * Add three documents with doc id 0, 1, 2. The real document is 1.
@@ -117,42 +207,42 @@ public class BlockLoaderTestRunner {
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                LeafReaderContext context = reader.leaves().get(0);
-                return load(createBlockLoader(mapperService, fieldName), context, mapperService, breaker);
+                LeafReaderContext context = reader.leaves().getFirst();
+                return load(createBlockLoader(fieldName), context);
             }
         }
     }
 
-    private Object load(BlockLoader blockLoader, LeafReaderContext context, MapperService mapperService, CircuitBreaker breaker)
-        throws IOException {
+    private Object load(BlockLoader blockLoader, LeafReaderContext context) throws IOException {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
-        try (BlockLoader.ColumnAtATimeReader columnAtATimeReader = blockLoader.columnAtATimeReader(breaker, context)) {
-            if (columnAtATimeReader != null) {
-                int[] docArray;
-                int offset;
-                if (randomBoolean()) {
-                    // Half the time we load a single document. Nice and simple.
-                    docArray = new int[] { 1 };
-                    offset = 0;
-                } else {
-                    /*
-                     * The other half the time we emulate loading a larger page,
-                     * starting part way through the page.
-                     */
-                    docArray = new int[between(2, 10)];
-                    offset = between(0, docArray.length - 1);
-                    for (int i = 0; i < docArray.length; i++) {
-                        if (i < offset) {
-                            docArray[i] = 0;
-                        } else if (i == offset) {
-                            docArray[i] = 1;
-                        } else {
-                            docArray[i] = allowDummyDocs ? 2 : 1;
-                        }
+        var columnAtATimeReaderSource = blockLoader.columnAtATimeReader(context);
+        if (columnAtATimeReaderSource != null) {
+            int[] docArray;
+            int offset;
+            if (randomBoolean()) {
+                // Half the time we load a single document. Nice and simple.
+                docArray = new int[] { 1 };
+                offset = 0;
+            } else {
+                /*
+                 * The other half the time we emulate loading a larger page,
+                 * starting part way through the page.
+                 */
+                docArray = new int[between(2, 10)];
+                offset = between(0, docArray.length - 1);
+                for (int i = 0; i < docArray.length; i++) {
+                    if (i < offset) {
+                        docArray[i] = 0;
+                    } else if (i == offset) {
+                        docArray[i] = 1;
+                    } else {
+                        docArray[i] = allowDummyDocs ? 2 : 1;
                     }
                 }
-                BlockLoader.Docs docs = TestBlock.docs(docArray);
-                var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset, false);
+            }
+            BlockLoader.Docs docs = TestBlock.docs(docArray);
+            try (BlockLoader.ColumnAtATimeReader reader = columnAtATimeReaderSource.apply(breaker)) {
+                var block = (TestBlock) reader.read(TestBlock.factory(), docs, offset, false);
                 assertThat(block.size(), equalTo(docArray.length - offset));
                 return block.get(0);
             }
@@ -178,12 +268,11 @@ public class BlockLoaderTestRunner {
             reader.read(1, storedFieldsLoader, builder);
             var block = (TestBlock) builder.build();
             assertThat(block.size(), equalTo(1));
-
             return block.get(0);
         }
     }
 
-    private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {
+    private BlockLoader createBlockLoader(String fieldName) {
         return mapperService.fieldType(fieldName).blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
             @Override
             public MappedFieldType.FieldExtractPreference fieldExtractPreference() {

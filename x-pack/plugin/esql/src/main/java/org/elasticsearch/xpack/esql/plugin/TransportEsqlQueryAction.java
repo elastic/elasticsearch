@@ -444,7 +444,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     /**
      * Returns the ID for this compute session. The ID is unique within the cluster, and is used
      * to identify the compute-session across nodes. The ID is a cryptographically secure random
-     * value to avoid leaking internal node IDs or task IDs.
+     * value so that exchange sinks cannot be accessed by guessing a session key.
      */
     static String newSessionID() {
         return UUIDs.randomBase64UUID();

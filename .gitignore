@@ -9,8 +9,6 @@
 # These are based on the cursor docs here: https://cursor.com/docs/cli/using#rules
 # Prefix slash ensures these are only ignored at the same level as this file
 /.cursor/
-/AGENTS.md
-/CLAUDE.md
 
 # intellij files
 .idea/

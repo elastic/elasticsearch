@@ -14,6 +14,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,9 +27,6 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
     public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
         if (in instanceof StoreMetricsIndexInput) {
             // annoyingly, source-only snapshots do this for linked files.
-            return in;
-        } else if (in instanceof MemorySegmentAccessInput) {
-            // currently, we can't delegate a method that returns MemorySegment as that is a preview API in JDK21
             return in;
         } else if (in instanceof RandomAccessInput) {
             return new RandomAccessIndexInput(resourceDescription, in, metricHolder);
@@ -220,7 +218,10 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
         return result;
     }
 
-    private static class RandomAccessIndexInput extends StoreMetricsIndexInput implements RandomAccessInput {
+    private static class RandomAccessIndexInput extends StoreMetricsIndexInput
+        implements
+            RandomAccessInput,
+            MemorySegmentAccessInputAccess {
         private final RandomAccessInput delegate;
 
         private RandomAccessIndexInput(
@@ -231,6 +232,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
             super(resourceDescription, in, metricHolder);
             assert in instanceof RandomAccessInput;
             this.delegate = (RandomAccessInput) in;
+        }
+
+        @Override
+        public MemorySegmentAccessInput get() {
+            return delegate instanceof MemorySegmentAccessInput ms ? ms : null;
         }
 
         @Override

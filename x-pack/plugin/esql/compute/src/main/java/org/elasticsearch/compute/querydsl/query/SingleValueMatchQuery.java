@@ -226,15 +226,15 @@ public final class SingleValueMatchQuery extends Query {
             final LeafReader reader = context.reader();
             final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
+            // TODO: check doc values skippers
+            DocValuesSkipper s = reader.getDocValuesSkipper(fieldData.getFieldName());
+            if (s instanceof EsDocValueSkipper skipper) {
+                if (skipper.valueCount() == skipper.docCount() && skipper.docCount() == skipper.maxDocId() - skipper.minDocId()) {
+                    continue;
+                }
+            }
             if (lfd instanceof LeafNumericFieldData) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
-                // TODO: check doc values skippers
-                DocValuesSkipper s = reader.getDocValuesSkipper(fieldData.getFieldName());
-                if (s instanceof EsDocValueSkipper skipper) {
-                    if (skipper.valueCount() == skipper.docCount()) {
-                        continue;
-                    }
-                }
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {
@@ -248,13 +248,6 @@ public final class SingleValueMatchQuery extends Query {
                 return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
                 SortedDocValues singleton = DocValues.unwrapSingleton(reader.getSortedSetDocValues(fieldData.getFieldName()));
-                // TODO: check doc values skippers
-                DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldData.getFieldName());
-                if (skipper instanceof EsDocValueSkipper esDocValueSkipper) {
-                    if (esDocValueSkipper.valueCount() == esDocValueSkipper.docCount()) {
-                        continue;
-                    }
-                }
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {

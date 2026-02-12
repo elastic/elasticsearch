@@ -20,4 +20,8 @@ public abstract class EsDocValueSkipper extends DocValuesSkipper {
     public abstract long valueCount();
 
     public abstract long valueCount(int level);
+
+    public abstract int minDocId();
+
+    public abstract int maxDocId();
 }

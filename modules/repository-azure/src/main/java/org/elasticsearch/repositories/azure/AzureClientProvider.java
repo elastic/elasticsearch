@@ -37,6 +37,7 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -173,7 +174,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         OperationPurpose purpose
     ) {
         if (closed) {
-            throw new IllegalStateException("AzureClientProvider is already closed");
+            throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);

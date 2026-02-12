@@ -201,7 +201,7 @@ public final class PromqlDocsSupport {
         List<SignatureDef> signatures = List.of(new SignatureDef(params, false, mapDataType(def.functionType().outputType())));
 
         genDocs(
-            "definition",
+            "definition/functions",
             COMMENT_FUNCTION,
             mapFunctionType(def.functionType()),
             null,

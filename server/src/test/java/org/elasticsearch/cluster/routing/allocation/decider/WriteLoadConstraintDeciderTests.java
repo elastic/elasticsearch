@@ -172,7 +172,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.routingAllocation
             ),
             Decision.Type.NOT_PREFERRED,
-            "Node [*] is currently hotspotting or in a waiting period, and does not prefer shards moved onto it"
+            "Node [*] is currently hot-spotting or in a waiting period, and does not prefer shards moved onto it"
         );
         assertDecisionMatches(
             "Assigning a new shard to a node that has capacity should succeed",
@@ -478,7 +478,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             equalTo(
                 "Node ["
                     + overloadedNode.getId()
-                    + "] is currently hotspotting or in a waiting "
+                    + "] is currently hot-spotting or in a waiting "
                     + "period, and does not prefer shards moved onto it"
             )
         );

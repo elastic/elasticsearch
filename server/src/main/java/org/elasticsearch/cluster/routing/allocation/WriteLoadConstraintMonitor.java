@@ -160,7 +160,7 @@ public class WriteLoadConstraintMonitor {
         }
         if (haveWriteNodesNotHotspotting == false) {
             logger.debug("""
-                Nodes [{}] are hotspotting, but there are no write nodes below the threshold. \
+                Nodes [{}] are hot-spotting, but there are no write nodes below the threshold. \
                 Cannot rebalance shards.""", nodeSummary(writeNodesHotspotting));
             return;
         }

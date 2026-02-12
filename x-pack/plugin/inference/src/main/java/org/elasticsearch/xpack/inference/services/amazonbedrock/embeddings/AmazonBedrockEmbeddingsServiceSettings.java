@@ -46,18 +46,6 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     public static AmazonBedrockEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var settings = embeddingSettingsFromMap(map, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return settings;
-    }
-
-    private static AmazonBedrockEmbeddingsServiceSettings embeddingSettingsFromMap(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
         var baseSettings = AmazonBedrockServiceSettings.fromMap(map, validationException, context);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
@@ -94,6 +82,9 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
                 }
             }
         }
+
+        validationException.throwIfValidationErrorsExist();
+
         return new AmazonBedrockEmbeddingsServiceSettings(
             baseSettings.region(),
             baseSettings.model(),
@@ -215,6 +206,11 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
+        if (extractOptionalBoolean(serviceSettings, ServiceFields.DIMENSIONS_SET_BY_USER, validationException) != null) {
+            validationException.addValidationError(
+                ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+            );
+        }
 
         validationException.throwIfValidationErrorsExist();
         return new AmazonBedrockEmbeddingsServiceSettings(

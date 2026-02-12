@@ -59,9 +59,6 @@ public final class DefaultPipelineResolver implements PipelineResolver {
 
     @Nullable
     private PipelineConfig resolveForTimeSeries(final String fieldName, final FieldContext context) {
-        if ("@timestamp".equals(fieldName)) {
-            return PipelineConfig.forLongs(TSDB_BLOCK_SIZE).deltaDelta().offset().gcd().patchedPFor().bitPack();
-        }
         final MappedFieldType fieldType = context.fieldType();
         final String typeName = fieldType.typeName();
         final MetricType metricType = extractMetricType(fieldType);
@@ -88,9 +85,6 @@ public final class DefaultPipelineResolver implements PipelineResolver {
 
     @Nullable
     private PipelineConfig resolveForLogsDb(final String fieldName, final FieldContext context) {
-        if ("@timestamp".equals(fieldName)) {
-            return PipelineConfig.forLongs(LOGSDB_BLOCK_SIZE).deltaDelta().offset().gcd().patchedPFor().bitPack();
-        }
         final String typeName = context.fieldType().typeName();
         if ("double".equals(typeName)) {
             return PipelineConfig.forDoubles(LOGSDB_BLOCK_SIZE).alpDoubleStage().offset().gcd().bitPack();

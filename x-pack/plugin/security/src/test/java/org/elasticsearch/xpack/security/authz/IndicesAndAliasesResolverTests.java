@@ -3816,23 +3816,23 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-//    public void testResolveExclusionWithStrictAllowNoIndices() {
-//        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
-//        var request = new SearchRequest("not-an-index", "-logs");
-//        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, randomBoolean(), randomBoolean()));
-//        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
-//            "indices:/" + randomAlphaOfLength(8),
-//            request,
-//            projectMetadata,
-//            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
-//            new TargetProjects(
-//                createRandomProjectWithAlias("P0"),
-//                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
-//            )
-//        );
-//
-//        assertThat(resolvedIndices.getLocal(), empty());
-//    }
+    // public void testResolveExclusionWithStrictAllowNoIndices() {
+    // when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+    // var request = new SearchRequest("not-an-index", "-logs");
+    // request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, randomBoolean(), randomBoolean()));
+    // var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+    // "indices:/" + randomAlphaOfLength(8),
+    // request,
+    // projectMetadata,
+    // buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+    // new TargetProjects(
+    // createRandomProjectWithAlias("P0"),
+    // List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+    // )
+    // );
+    //
+    // assertThat(resolvedIndices.getLocal(), empty());
+    // }
 
     private void assertIndicesMatch(IndicesRequest.Replaceable request, String expression, List<String> indices, String[] expectedIndices) {
         assertThat(indices, hasSize(expectedIndices.length));

@@ -245,7 +245,7 @@ public class CrossProjectIndexResolutionValidator {
         if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
             if (notFoundException == null && indicesOptions.allowNoIndices() == false) {
                 if (localResolvedExpressions.localIndicesIsEmpty()
-                    && remoteResolvedExpressions.values().stream().allMatch(e -> localResolvedExpressions.localIndicesIsEmpty())) {
+                    && remoteResolvedExpressions.values().stream().allMatch(ResolvedIndexExpressions::localIndicesIsEmpty)) {
                     return new IndexNotFoundException("");
                 }
             }

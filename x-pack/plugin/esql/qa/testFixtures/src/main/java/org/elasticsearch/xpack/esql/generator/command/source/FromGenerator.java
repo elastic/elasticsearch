@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.shouldAddUnmappedFieldWithProbabilityIncrease;
 

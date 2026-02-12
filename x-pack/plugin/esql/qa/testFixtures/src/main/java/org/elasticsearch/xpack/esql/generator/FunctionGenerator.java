@@ -700,7 +700,7 @@ public class FunctionGenerator {
         }
         String cidr = randomFrom("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "0.0.0.0/0");
         return "cidr_match(" + ipField + ", \"" + cidr + "\")";
-            //"ip_prefix(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")"
+        // "ip_prefix(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")"
     }
 
     /**

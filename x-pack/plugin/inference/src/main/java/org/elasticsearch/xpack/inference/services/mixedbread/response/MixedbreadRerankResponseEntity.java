@@ -12,8 +12,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -112,7 +110,7 @@ public class MixedbreadRerankResponseEntity {
                     item -> new RankedDocsResults.RankedDoc(
                         item.index(),
                         item.relevanceScore(),
-                        item.document() != null ? item.document().text() : null
+                        item.document() != null ? item.document() : null
                     )
                 )
                 .toList();
@@ -120,47 +118,17 @@ public class MixedbreadRerankResponseEntity {
         }
     }
 
-    private record ResultItem(int index, float relevanceScore, @Nullable Document document) {
+    private record ResultItem(int index, float relevanceScore, @Nullable String document) {
         public static final ConstructingObjectParser<ResultItem, Void> PARSER = new ConstructingObjectParser<>(
             ResultItem.class.getSimpleName(),
             true,
-            args -> new ResultItem((Integer) args[0], (Float) args[1], (Document) args[2])
+            args -> new ResultItem((Integer) args[0], (Float) args[1], (String) args[2])
         );
 
         static {
             PARSER.declareInt(constructorArg(), new ParseField("index"));
             PARSER.declareFloat(constructorArg(), new ParseField("score"));
             PARSER.declareStringOrNull(constructorArg(), new ParseField("input"));
-        }
-    }
-
-    private record Document(String text) {}
-
-    private static Document parseDocument(XContentParser parser) throws IOException {
-        var token = parser.currentToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            return new Document(DocumentObject.PARSER.apply(parser, null).text());
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            return new Document(parser.text());
-        } else if (token == XContentParser.Token.VALUE_NULL) {
-            return new Document(null);
-        }
-
-        throw new XContentParseException(
-            parser.getTokenLocation(),
-            "Expected an object, string or null for document field, but got: " + token
-        );
-    }
-
-    private record DocumentObject(String text) {
-        public static final ConstructingObjectParser<DocumentObject, Void> PARSER = new ConstructingObjectParser<>(
-            DocumentObject.class.getSimpleName(),
-            true,
-            args -> new DocumentObject((String) args[0])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("text"));
         }
     }
 }

@@ -132,12 +132,7 @@ public class MixedbreadRerankResponseEntity {
         static {
             PARSER.declareInt(constructorArg(), new ParseField("index"));
             PARSER.declareFloat(constructorArg(), new ParseField("score"));
-            PARSER.declareField(
-                optionalConstructorArg(),
-                (p, c) -> parseDocument(p),
-                new ParseField("input"),
-                ObjectParser.ValueType.VALUE
-            );
+            PARSER.declareStringOrNull(constructorArg(), new ParseField("input"));
         }
     }
 

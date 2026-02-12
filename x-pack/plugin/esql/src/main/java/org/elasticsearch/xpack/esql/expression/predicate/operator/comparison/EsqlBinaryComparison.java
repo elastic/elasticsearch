@@ -307,6 +307,14 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
     /**
      * Check if the two types are compatible for binary comparison.
+     * <p>
+     * For UNSIGNED_LONG types, we ensure they are not implicitly converted when used in binary operations, as this cannot be done since:
+     * - unsigned longs are passed through the engine as longs, so/and
+     * - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
+     * - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
+     * ex: (double) 18446744073709551615 == (double) 18446744073709551614
+     * - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
+     * Let the user handle the operation explicitly.
      *
      * @param leftType  the left operand type
      * @param rightType the right operand type

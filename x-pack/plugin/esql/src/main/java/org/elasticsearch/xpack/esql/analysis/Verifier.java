@@ -245,14 +245,15 @@ public class Verifier {
         return planCheckers;
     }
 
+    /**
+     * This validates only the negation operator, the rest of the validation is performed in
+     * {@link Verifier#validateBinaryComparison(BinaryComparison)}
+     * and
+     * {@link EsqlBinaryComparison#areTypesCompatible(DataType, DataType)}
+     */
     private static void checkOperationsOnUnsignedLong(LogicalPlan p, Failures failures) {
-        p.forEachExpression(e -> {
-            Failure f = null;
-            if (e instanceof Neg neg) {
-                f = validateUnsignedLongNegation(neg);
-            }
-            // we will add validation of UnsignedLong on BinaryOperator in checkBinaryComparison
-
+        p.forEachExpression(Neg.class, neg -> {
+            Failure f = validateUnsignedLongNegation(neg);
             if (f != null) {
                 failures.add(f);
             }
@@ -369,7 +370,7 @@ public class Verifier {
             return null;
         }
 
-        Failure typeCheckFailure = checkBinaryComparisonTypes(bc);
+        Failure typeCheckFailure = checkBinaryComparisonLeftOperandType(bc);
         if (typeCheckFailure != null) {
             return typeCheckFailure;
         }
@@ -383,7 +384,7 @@ public class Verifier {
      *
      * @return a Failure if the left operand type is not allowed, null otherwise
      */
-    private static Failure checkBinaryComparisonTypes(BinaryComparison bc) {
+    private static Failure checkBinaryComparisonLeftOperandType(BinaryComparison bc) {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);

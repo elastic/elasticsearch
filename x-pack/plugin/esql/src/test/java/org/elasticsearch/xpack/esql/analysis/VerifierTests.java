@@ -865,7 +865,7 @@ public class VerifierTests extends ESTestCase {
      */
     public void testNullComparisonValidation() {
         // null compared with numeric types (all comparison operators)
-        query("from test | where emp_no == null");
+        query("from test | where emp_no == ?", new Object[] { null });
         query("from test | where null == emp_no");
         query("from test | where emp_no != null");
         query("from test | where emp_no > null");
@@ -899,6 +899,23 @@ public class VerifierTests extends ESTestCase {
         // null with different types should all pass validation
         query("from test | where null == salary");
         query("from test | where null == languages");
+
+        // null compared with unsigned_long (all comparison operators)
+        // unsigned_long normally can't mix with other numeric types, but null should be compatible
+        query("row ul = to_ul(1) | where ul == null");
+        query("row ul = to_ul(1) | where ul != null");
+        query("row ul = to_ul(1) | where ul > null");
+        query("row ul = to_ul(1) | where ul >= null");
+        query("row ul = to_ul(1) | where ul < null");
+        query("row ul = to_ul(1) | where ul <= null");
+        query("row ul = to_ul(1) | where null == ul");
+        query("row ul = to_ul(1) | where null != ul");
+        query("row ul = to_ul(1) | where null > ul");
+        query("row ul = to_ul(1) | where null < ul");
+
+        // unsigned_long with null in EVAL
+        query("row ul = to_ul(1) | eval result = ul == null");
+        query("row ul = to_ul(1) | eval result = null == ul");
     }
 
     public void testSumOnDate() {
@@ -3682,8 +3699,28 @@ public class VerifierTests extends ESTestCase {
         query(query, defaultAnalyzer);
     }
 
-    private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+    private void query(String query, Object... params) {
+        query(query, defaultAnalyzer, params);
+    }
+
+    private void query(String query, Analyzer analyzer, Object... params) {
+        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)));
+    }
+
+    private static QueryParams toQueryParams(Object... params) {
+        List<QueryParam> parameters = new ArrayList<>();
+        for (Object param : params) {
+            if (param == null) {
+                parameters.add(paramAsConstant(null, null));
+            } else if (param instanceof String) {
+                parameters.add(paramAsConstant(null, param));
+            } else if (param instanceof Number) {
+                parameters.add(paramAsConstant(null, param));
+            } else {
+                throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
+            }
+        }
+        return new QueryParams(parameters);
     }
 
     private String error(String query) {
@@ -3703,22 +3740,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
-        List<QueryParam> parameters = new ArrayList<>();
-        for (Object param : params) {
-            if (param == null) {
-                parameters.add(paramAsConstant(null, null));
-            } else if (param instanceof String) {
-                parameters.add(paramAsConstant(null, param));
-            } else if (param instanceof Number) {
-                parameters.add(paramAsConstant(null, param));
-            } else {
-                throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
-            }
-        }
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)))
         );
         assertThat(e, instanceOf(exception));
 

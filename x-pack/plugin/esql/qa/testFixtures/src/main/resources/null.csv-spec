@@ -361,3 +361,102 @@ ROW x = null, y = now() | EVAL result = x == y | KEEP result
 result:boolean
 null
 ;
+
+
+###############################################
+# Complex null comparison tests (derived null)
+###############################################
+
+# null derived from arithmetic: null + 1 produces null, then compared with integer
+rowDerivedNullFromAdditionCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | EVAL t = x + 1 > z | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from multiplication: null * 2 compared with integer
+rowDerivedNullFromMultiplicationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 2 | EVAL t = x * 2 == y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# chained null propagation: null + 1 - 2 compared with value
+rowChainedNullPropagationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 5 | EVAL t = (x + 1 - 2) >= y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from function: to_integer(null) compared with value
+rowDerivedNullFromFunctionCompare
+required_capability: fix_null_comparison_type_check
+
+ROW y = 10 | EVAL t = to_integer(null) < y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# WHERE filters out all rows when derived null is used in condition
+rowDerivedNullInWhereClause
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | WHERE x + 1 > z | KEEP x, y, z
+;
+
+x:null | y:integer | z:integer
+;
+
+
+# null propagation through nested arithmetic on both sides
+rowDerivedNullBothSidesCompare
+required_capability: fix_null_comparison_type_check
+
+ROW a = null, b = null | EVAL t = (a + 1) == (b + 2) | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# non-null side produces value, null side propagates null
+rowDerivedNullOneSideCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 3 | EVAL left_val = x + 10, right_val = y * 2, t = left_val > right_val | KEEP left_val, right_val, t
+;
+
+left_val:integer    | right_val:integer | t:boolean
+null                | 6                 | null
+;
+
+
+# null from division by zero is different, but null literal through arithmetic should propagate
+rowDerivedNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "hello" | EVAL t = concat(x, " world") == y | KEEP t
+;
+
+t:boolean
+null
+;

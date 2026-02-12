@@ -48,6 +48,8 @@ import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
 
+    static final int DEFAULT_NUM_PARTITIONS = 256;
+
     public record HashAggregationOperatorFactory(
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
@@ -71,7 +73,7 @@ public class HashAggregationOperator implements Operator {
             AnalysisRegistry analysisRegistry
         ) {
             this(groups, aggregatorMode, aggregators, maxPageSize, partialEmitKeysThreshold, partialEmitUniquenessThreshold,
-                analysisRegistry, 1);
+                analysisRegistry, DEFAULT_NUM_PARTITIONS);
         }
 
         @Override
@@ -456,12 +458,14 @@ public class HashAggregationOperator implements Operator {
         int totalAggBlocks,
         GroupingAggregatorEvaluationContext evaluationContext
     ) {
+        // Track keyBlocks separately: if an exception occurs before they are copied
+        // into the output blocks array, we must release them to avoid memory leaks.
+        Block[] keyBlocks = new Block[allKeys.length];
         Block[] blocks = null;
         IntVector selected = null;
         boolean success = false;
         try {
             // Filter key blocks to this partition's positions
-            Block[] keyBlocks = new Block[allKeys.length];
             for (int k = 0; k < allKeys.length; k++) {
                 keyBlocks[k] = allKeys[k].filter(positions);
             }
@@ -475,9 +479,11 @@ public class HashAggregationOperator implements Operator {
             }
 
             // Assemble the output page: [key blocks..., agg blocks...]
-            blocks = new Block[keyBlocks.length + totalAggBlocks];
-            System.arraycopy(keyBlocks, 0, blocks, 0, keyBlocks.length);
-            int offset = keyBlocks.length;
+            int numKeyBlocks = keyBlocks.length;
+            blocks = new Block[numKeyBlocks + totalAggBlocks];
+            System.arraycopy(keyBlocks, 0, blocks, 0, numKeyBlocks);
+            keyBlocks = null; // ownership transferred to blocks array
+            int offset = numKeyBlocks;
             for (int i = 0; i < aggregators.size(); i++) {
                 evaluateAggregator(aggregators.get(i), blocks, offset, selected, evaluationContext);
                 offset += aggBlockCounts[i];
@@ -487,8 +493,13 @@ public class HashAggregationOperator implements Operator {
             success = true;
         } finally {
             Releasables.close(selected);
-            if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(blocks);
+            if (success == false) {
+                // Release blocks or keyBlocks depending on how far we got
+                if (blocks != null) {
+                    Releasables.closeExpectNoException(blocks);
+                } else if (keyBlocks != null) {
+                    Releasables.closeExpectNoException(keyBlocks);
+                }
             }
         }
     }

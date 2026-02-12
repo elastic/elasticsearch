@@ -410,7 +410,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             this.cells = bigArrays.newObjectArray(initialBucketCount);
         }
 
-        private int initialCellSize(long bucket) {
+        private static int initialCellSize(long bucket, int capacity) {
             // Pre-allocate full capacity for the first few buckets to bypass the cost of multiple rehashes.
             // Optimized for ungrouped aggregations or those with few groups but high cardinality.
             if (bucket < 10) {
@@ -439,7 +439,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             LinearCountingCell cell;
             if (bucketOrd >= cells.size()) {
                 cells = bigArrays.grow(cells, bucketOrd + 1);
-                cell = newCell(initialCellSize(bucketOrd));
+                cell = newCell(initialCellSize(bucketOrd, capacity));
                 cells.set(bucketOrd, cell);
             } else {
                 cell = cells.get(bucketOrd);
@@ -452,7 +452,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                         cell = newCell;
                     }
                 } else {
-                    cell = newCell(initialCellSize(bucketOrd));
+                    cell = newCell(initialCellSize(bucketOrd, capacity));
                     cells.set(bucketOrd, cell);
                 }
             }

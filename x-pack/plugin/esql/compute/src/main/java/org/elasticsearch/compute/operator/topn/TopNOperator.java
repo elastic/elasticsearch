@@ -490,6 +490,11 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return output != null && output.hasNext();
+    }
+
+    @Override
     public Page getOutput() {
         if (output == null || output.hasNext() == false) {
             return null;

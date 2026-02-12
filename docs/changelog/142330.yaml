@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 139883
+pr: 142330
+summary: Log compute engine server failures as ERROR
+type: bug

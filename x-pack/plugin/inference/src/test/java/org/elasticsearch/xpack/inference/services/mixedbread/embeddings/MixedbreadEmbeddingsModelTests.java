@@ -96,10 +96,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(
             model,
-            MixedbreadEmbeddingsTaskSettingsTests.getTaskSettingsMap(
-                TestUtils.PROMPT_INITIAL_VALUE,
-                TestUtils.NORMALIZED_INITIAL_VALUE
-            )
+            MixedbreadEmbeddingsTaskSettingsTests.getTaskSettingsMap(TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE)
         );
         assertThat(overriddenModel, sameInstance(model));
     }

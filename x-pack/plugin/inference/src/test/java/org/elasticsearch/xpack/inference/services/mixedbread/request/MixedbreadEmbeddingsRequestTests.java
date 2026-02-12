@@ -43,15 +43,12 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testGetTruncationInfo_ReturnsNull() {
-        var request = createRequest(TestUtils.CUSTOM_URL, null, null);;
+        var request = createRequest(TestUtils.CUSTOM_URL, null, null);
+        ;
         assertThat(request.getTruncationInfo(), is(nullValue()));
     }
 
-    private static MixedbreadEmbeddingsRequest createRequest(
-        @Nullable String url,
-        @Nullable String prompt,
-        @Nullable Boolean normalized
-    ) {
+    private static MixedbreadEmbeddingsRequest createRequest(@Nullable String url, @Nullable String prompt, @Nullable Boolean normalized) {
         var embeddingsModel = MixedbreadEmbeddingsModelTests.createModel(
             url,
             TestUtils.API_KEY,
@@ -62,10 +59,7 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
             normalized,
             null
         );
-        return new MixedbreadEmbeddingsRequest(
-            embeddingsModel,
-            List.of(INPUT)
-        );
+        return new MixedbreadEmbeddingsRequest(embeddingsModel, List.of(INPUT));
     }
 
     private Map<String, Object> getEntityAsMap(MixedbreadEmbeddingsRequest request) throws IOException {

@@ -47,19 +47,13 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
     }
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
-        var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.PROMPT_INITIAL_VALUE,
-            TestUtils.NORMALIZED_INITIAL_VALUE
-        );
+        var initialSettings = new MixedbreadEmbeddingsTaskSettings(TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(Map.of());
         assertThat(initialSettings, is(sameInstance(updatedSettings)));
     }
 
     public void testUpdatedTaskSettings_WithNewInputType_ReturnsUpdatedSettings() {
-        var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.PROMPT_INITIAL_VALUE,
-            TestUtils.NORMALIZED_INITIAL_VALUE
-        );
+        var initialSettings = new MixedbreadEmbeddingsTaskSettings(TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         Map<String, Object> newSettings = Map.of(MixedbreadUtils.PROMPT_FIELD, TestUtils.PROMPT_OVERRIDDEN_VALUE);
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
         assertEquals(TestUtils.PROMPT_OVERRIDDEN_VALUE, updatedSettings.getPrompt());
@@ -67,10 +61,7 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
     }
 
     public void testUpdatedTaskSettings_WithNewTruncation_ReturnsUpdatedSettings() {
-        var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.PROMPT_INITIAL_VALUE,
-            TestUtils.NORMALIZED_INITIAL_VALUE
-        );
+        var initialSettings = new MixedbreadEmbeddingsTaskSettings(TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         Map<String, Object> newSettings = Map.of(MixedbreadUtils.NORMALIZED_FIELD, TestUtils.NORMALIZED_OVERRIDDEN_VALUE);
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
         assertEquals(initialSettings.getPrompt(), updatedSettings.getPrompt());
@@ -78,10 +69,7 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
     }
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
-        var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.PROMPT_INITIAL_VALUE,
-            TestUtils.NORMALIZED_INITIAL_VALUE
-        );
+        var initialSettings = new MixedbreadEmbeddingsTaskSettings(TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         Map<String, Object> newSettings = Map.of(
             MixedbreadUtils.PROMPT_FIELD,
             TestUtils.PROMPT_OVERRIDDEN_VALUE,

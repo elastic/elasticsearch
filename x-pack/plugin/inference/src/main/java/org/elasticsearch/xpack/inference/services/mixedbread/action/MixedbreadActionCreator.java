@@ -66,10 +66,7 @@ public class MixedbreadActionCreator implements MixedbreadActionVisitor {
             serviceComponents.threadPool(),
             overriddenModel,
             EMBEDDINGS_HANDLER,
-            embeddingsInput -> new MixedbreadEmbeddingsRequest(
-                overriddenModel,
-                embeddingsInput.getTextInputs()
-            ),
+            embeddingsInput -> new MixedbreadEmbeddingsRequest(overriddenModel, embeddingsInput.getTextInputs()),
             EmbeddingsInput.class
         );
         var errorMessage = constructFailedToSendRequestMessage(MixedbreadUtils.EMBEDDINGS_ERROR_PREFIX);

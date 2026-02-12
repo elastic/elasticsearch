@@ -23,7 +23,8 @@ esplugin {
 dependencies {
   compileOnly project(':server')
   compileOnly project(':libs:logging')
-  compileOnly project(":libs:entitlement:qa:entitled-plugin")
+  compileOnly project(':libs:entitlement:qa:entitled-plugin')
+  compileOnly project(':libs:entitlement:bridge')
   implementation project(":libs:entitlement")
 }
 

@@ -30,7 +30,6 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
-import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.NONE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.isExclusionExpression;
 

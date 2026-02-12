@@ -86,7 +86,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                     final InternalAggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
                         l.onFailure(
-                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
+                            new ElasticsearchStatusException(SourceAccessDiagnostics.diagnoseSourceAccessFailure(r), RestStatus.BAD_REQUEST)
                         );
                         return;
                     }
@@ -140,6 +140,14 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         new ValidationException().addValidationError(
                             format("Unexpected status from response of test query: %s", response.status())
                         )
+                    );
+                    return;
+                }
+                // Null aggregations may indicate permission issues when accessing remote indices.
+                // We use the SourceAccessDiagnostics to diagnose the cause and add a validation error.
+                if (response.getAggregations() == null) {
+                    listener.onFailure(
+                        new ValidationException().addValidationError(SourceAccessDiagnostics.diagnoseSourceAccessFailure(response))
                     );
                     return;
                 }

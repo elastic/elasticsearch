@@ -94,7 +94,12 @@ public class IndexAbstractionResolver {
             final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
                 .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
 
-            logger.info("--> rewrite [{}] to [{}] and [{}]", originalIndexExpression, indexRewriteResult.localExpression(), indexRewriteResult.remoteExpressions());
+            logger.info(
+                "--> rewrite [{}] to [{}] and [{}]",
+                originalIndexExpression,
+                indexRewriteResult.localExpression(),
+                indexRewriteResult.remoteExpressions()
+            );
             final String localIndexExpression = indexRewriteResult.localExpression();
             if (localIndexExpression == null) {
                 // (there can be an exclusion without any local index expressions)

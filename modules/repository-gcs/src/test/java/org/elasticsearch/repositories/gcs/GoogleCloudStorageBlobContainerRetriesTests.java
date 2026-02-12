@@ -707,7 +707,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
         });
 
-        assertThrows(AlreadyClosedException.class, () -> blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"));
+        assertThrows(
+            AlreadyClosedException.class,
+            () -> Streams.readFully(blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"))
+        );
     }
 
     private void restartHttpServer() throws IOException {

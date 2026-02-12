@@ -31,6 +31,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -190,7 +190,14 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 for (int i = 0; i < totalResults; i++) {
                     results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
                 }
-                return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
+
+                // RankedDoc's compareTo implementation already sorts by score descending, so we don't need to reverse the sort order
+                var sortedResultsStream = results.stream().sorted();
+                if (taskSettings.topN != null) {
+                    sortedResultsStream = sortedResultsStream.limit(taskSettings.topN);
+                }
+
+                return new RankedDocsResults(sortedResultsStream.toList());
             } catch (NumberFormatException ex) {
                 return makeResultFromTextInput(input, taskSettings);
             }
@@ -212,6 +219,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             }
             // Ensure result are sorted by descending score
             results.sort((a, b) -> -Float.compare(a.relevanceScore(), b.relevanceScore()));
+            if (taskSettings.topN != null && taskSettings.topN < results.size()) {
+                results = results.subList(0, taskSettings.topN);
+            }
+
             return new RankedDocsResults(results);
         }
 
@@ -253,7 +264,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestTaskSettings(boolean useTextLength, float minScore, float resultDiff) implements TaskSettings {
+    public record TestTaskSettings(boolean useTextLength, float minScore, float resultDiff, Integer topN, boolean hideTopN)
+        implements
+            TaskSettings,
+            TopNProvider {
 
         static final String NAME = "test_reranking_task_settings";
 
@@ -261,6 +275,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             boolean useTextLength = false;
             float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
+            Integer topN = null;
+            boolean hideTopN = false;
 
             if (map.containsKey("use_text_length")) {
                 useTextLength = Boolean.parseBoolean(map.remove("use_text_length").toString());
@@ -274,11 +290,19 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 resultDiff = Float.parseFloat(map.remove("result_diff").toString());
             }
 
-            return new TestTaskSettings(useTextLength, minScore, resultDiff);
+            if (map.containsKey("top_n")) {
+                topN = Integer.parseInt(map.remove("top_n").toString());
+            }
+
+            if (map.containsKey("hide_top_n")) {
+                hideTopN = Boolean.parseBoolean(map.remove("hide_top_n").toString());
+            }
+
+            return new TestTaskSettings(useTextLength, minScore, resultDiff, topN, hideTopN);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readFloat(), in.readFloat());
+            this(in.readBoolean(), in.readFloat(), in.readFloat(), in.readOptionalInt(), in.readBoolean());
         }
 
         @Override
@@ -291,6 +315,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             out.writeBoolean(useTextLength);
             out.writeFloat(minScore);
             out.writeFloat(resultDiff);
+            out.writeOptionalInt(topN);
+            out.writeBoolean(hideTopN);
         }
 
         @Override
@@ -299,8 +325,17 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             builder.field("use_text_length", useTextLength);
             builder.field("min_score", minScore);
             builder.field("result_diff", resultDiff);
+            if (topN != null) {
+                builder.field("top_n", topN);
+            }
+            builder.field("hide_top_n", hideTopN);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public Integer getTopN() {
+            return hideTopN ? null : topN;
         }
 
         @Override
@@ -319,7 +354,9 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             return new TestTaskSettings(
                 newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
                 newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
-                newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff
+                newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff,
+                newSettingsMap.containsKey("top_n") ? newSettingsObject.topN() : topN,
+                newSettingsMap.containsKey("hide_top_n") ? newSettingsObject.hideTopN() : hideTopN
             );
         }
     }

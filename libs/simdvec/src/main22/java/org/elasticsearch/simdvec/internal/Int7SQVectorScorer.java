@@ -18,6 +18,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -45,6 +46,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             return Optional.empty();
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput == false) {
             return Optional.empty();
         }

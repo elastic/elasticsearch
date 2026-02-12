@@ -28,7 +28,7 @@ import java.util.Optional;
 
 public class AssignmentStats implements ToXContentObject, Writeable {
 
-    private static final TransportVersion MEMORY_STAT_TRANSPORT_VERSION = TransportVersion.fromName("assignment_stats_memory_stat");
+    public static final TransportVersion MEMORY_STAT_TRANSPORT_VERSION = TransportVersion.fromName("assignment_stats_memory_stat");
 
     public static class NodeStats implements ToXContentObject, Writeable {
         private final DiscoveryNode node;

@@ -344,6 +344,7 @@ The [diversify retriever](/reference/elasticsearch/rest-apis/retrievers/diversif
 
 :::{note}
 The `semantic_text` field must use `dense_vector` embeddings such as those from `text_embedding` inference tasks.
+You must also provide either a `query_vector` or a `query_vector_builder`.
 :::
 
 ```console
@@ -372,7 +373,7 @@ POST test-index/_search
 }
 ```
 
-## {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
+## Performing {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
 
 ```{applies_to}
 stack: ga 9.2

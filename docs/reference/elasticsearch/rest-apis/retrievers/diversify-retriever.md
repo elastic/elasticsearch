@@ -47,14 +47,14 @@ The ordering of results returned from the inner retriever is preserved.
     :::
 
 `query_vector`
-:   (Optional, array of `float` or `byte`)
+:   (Required if the `field` is a `semantic_text` type, otherwise optional, array of `float` or `byte`)
 
     Query vector. Must have the same number of dimensions as the vector field you are searching against.
     Must be either an array of floats or a hex-encoded byte vector.
     If you provide a `query_vector`, you cannot also provide a `query_vector_builder`.
 
 `query_vector_builder`
-:   (Optional, query vector builder object)
+:   (Required if the `field` is a `semantic_text` type, otherwise optional, query vector builder object)
 
     Defines a [model](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to build a query vector.
     If you provide a `query_vector_builder`, you cannot also provide a `query_vector`.

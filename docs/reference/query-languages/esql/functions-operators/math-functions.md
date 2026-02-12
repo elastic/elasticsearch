@@ -27,6 +27,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/asin.md
 :::
 
+:::{include} ../_snippets/functions/layout/asinh.md
+:::
+
 :::{include} ../_snippets/functions/layout/atan.md
 :::
 

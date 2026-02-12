@@ -482,8 +482,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * Formats an execution time in milliseconds to a human-readable string using {@link TimeValue}.
      */
-    private static String formatExecutionTime(long executionTimeMillis) {
-        return TimeValue.timeValueMillis(executionTimeMillis).toString();
+    static String formatExecutionTime(long executionTimeMillis) {
+        return executionTimeMillis + "ms/" + TimeValue.timeValueMillis(executionTimeMillis).toString();
     }
 
     /**
@@ -537,7 +537,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 continue;
             }
 
-            long actionStartTime = logger.isTraceEnabled() ? nowSupplier.getAsLong() : 0;
+            long actionStartTime = nowSupplier.getAsLong();
 
             List<Index> indicesEligibleForAction;
             if (action.appliesToFailureStore()) {
@@ -567,7 +567,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             for (Index index : indicesEligibleForAction) {
-                long findStepStartTime = logger.isTraceEnabled() ? nowSupplier.getAsLong() : 0;
+                long findStepStartTime = nowSupplier.getAsLong();
                 DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
                 if (logger.isTraceEnabled()) {
                     long findStepDuration = nowSupplier.getAsLong() - findStepStartTime;
@@ -589,7 +589,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             dataStream.getName(),
                             index.getName()
                         );
-                        long stepStartTime = logger.isTraceEnabled() ? nowSupplier.getAsLong() : 0;
+                        long stepStartTime = nowSupplier.getAsLong();
                         DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
                         stepToExecute.execute(dlmStepContext);
                         if (logger.isTraceEnabled()) {
@@ -637,7 +637,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DlmStep stepToExecute = null;
         for (DlmStep step : action.steps().reversed()) {
             try {
-                long checkStartTime = logger.isTraceEnabled() ? nowSupplier.getAsLong() : 0;
+                long checkStartTime = nowSupplier.getAsLong();
                 if (step.stepCompleted(index, projectState) == false) {
                     stepToExecute = step;
                     if (logger.isTraceEnabled()) {

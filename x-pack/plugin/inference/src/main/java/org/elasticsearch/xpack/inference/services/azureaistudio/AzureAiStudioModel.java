@@ -101,4 +101,17 @@ public abstract class AzureAiStudioModel extends Model {
     }
 
     public abstract ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings);
+
+    /**
+     * Strips the last trailing slash from a String
+     * @param url
+     * @return
+     */
+    public static String stripTrailingSlash(String url) {
+        if (url.endsWith("/")) {
+            return url.substring(0, url.length() - 1);
+        } else {
+            return url;
+        }
+    }
 }

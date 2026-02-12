@@ -282,6 +282,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields,
             Map<String, String> meta
         ) {
+            // TODO double check doc values here
             super(
                 name,
                 metricFields.containsKey(Metric.max) ? metricFields.get(Metric.max).indexType() : IndexType.docValuesOnly(),
@@ -293,24 +294,29 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             this.singleMetric = metricFields.size() == 1 ? metricFields.keySet().iterator().next() : null;
         }
 
+        private Metric derivedDefaultMetric() {
+            return derivedDefaultMetric(name(), metricFields);
+        }
+
+        private static Metric derivedDefaultMetric(String name, EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
+            if (metricFields.containsKey(Metric.max)) {
+                return Metric.max;
+            }
+            // We iterate on the metrics to ensure that we have a deterministic order in metrics
+            for (Metric metric : Metric.values()) {
+                if (metricFields.containsKey(metric)) {
+                    return metric;
+                }
+            }
+            throw new IllegalStateException("No metric found for aggregate metric field [" + name + "]");
+        }
+
         /**
          * Return a delegate field type which is max if it exists or any other metric.
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
-            if (singleMetric != null) {
-                return metricFields.get(singleMetric);
-            }
-            if (metricFields.containsKey(Metric.max)) {
-                return metricFields.get(Metric.max);
-            }
-            // We iterate on the metrics to ensure that we have a deterministic order in metrics
-            for (Metric metric : Metric.values()) {
-                if (metricFields.containsKey(metric)) {
-                    return metricFields.get(metric);
-                }
-            }
-            throw new IllegalStateException("No delegate field type found for aggregate metric field [" + name() + "]");
+            return metricFields.get(derivedDefaultMetric());
         }
 
         @Override
@@ -603,7 +609,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     case AMD_MAX -> Metric.max;
                     case AMD_MIN -> Metric.min;
                     case AMD_SUM -> Metric.sum;
-                    case AMD_DEFAULT -> Metric.max; // TODO: temporary until we combine https://github.com/elastic/elasticsearch/pull/141331
+                    case AMD_DEFAULT -> derivedDefaultMetric(); // TODO: temporary until we combine//
+                                                                // https://github.com/elastic/elasticsearch/pull/141331
                     default -> null;
                 };
                 if (metric == null) {

@@ -112,7 +112,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @FunctionInfo(
         returnType = "geotile",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         description = """
             Calculates the `geotile` of the supplied geo_point at the specified precision.
             The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,

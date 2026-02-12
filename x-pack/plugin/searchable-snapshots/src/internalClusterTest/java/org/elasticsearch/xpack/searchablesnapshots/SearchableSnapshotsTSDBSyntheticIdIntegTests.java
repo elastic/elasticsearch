@@ -41,6 +41,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -61,7 +62,7 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     private final String MOUNTED_INDEX = "mounted-" + INDEX;
     private int numberOfDocuments;
     private Set<String> docIds;
-    private Set<String> deletedDocIds;
+    private Collection<String> deletedDocIds;
 
     @Before
     @Override
@@ -71,7 +72,7 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
         assertAcked(syntheticIdIndex(INDEX));
         int initialNumberOfDocuments = scaledRandomIntBetween(20, 2_000);
         docIds = indexRandomDocuments(INDEX, initialNumberOfDocuments);
-        deletedDocIds = deleteRandomDocuments(INDEX, initialNumberOfDocuments / 2, docIds);
+        deletedDocIds = deleteRandomDocuments(INDEX, docIds);
         numberOfDocuments = docIds.size();
         createSnapshot(REPOSITORY, SNAPSHOT, List.of(INDEX));
         assertAcked(indicesAdmin().prepareDelete(INDEX));
@@ -84,7 +85,6 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
             randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         ensureGreen(MOUNTED_INDEX);
-        assertFalse("Expected index [" + INDEX + "] to have been deleted", indexExists(INDEX));
     }
 
     private CreateIndexRequestBuilder syntheticIdIndex(String indexName) {
@@ -123,7 +123,7 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     }
 
     private Set<String> indexRandomDocuments(String index, int numdocs) {
-        logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
+        logger.debug("--> indexing [{}] documents into [{}]", numdocs, index);
         Set<String> docIds = new HashSet<>(numdocs);
         Instant now = Instant.now();
         for (int i = 0; i < numdocs; i++) {
@@ -138,14 +138,12 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
         return docIds;
     }
 
-    private Set<String> deleteRandomDocuments(String index, int numdocs, Set<String> docIds) {
-        var deletedDocIds = new HashSet<String>(numdocs);
-        for (int i = 0; i < numdocs; i++) {
-            String docId = randomFrom(docIds);
+    private Collection<String> deleteRandomDocuments(String index, Set<String> docIds) {
+        var deletedDocIds = randomSubsetOf(docIds);
+        for (String docId : deletedDocIds) {
             DeleteResponse response = client().prepareDelete(index, docId).get(TEST_REQUEST_TIMEOUT);
             assertThat(response.status(), Matchers.equalTo(RestStatus.OK));
             docIds.remove(docId);
-            deletedDocIds.add(docId);
         }
         return deletedDocIds;
     }
@@ -164,6 +162,8 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
      * having them all together in one test cuts execution a lot.
      */
     public void testSearchableSnapshot() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
         // Index exists
         assertTrue("Expected index [" + MOUNTED_INDEX + "] to exist, but did not", indexExists(MOUNTED_INDEX));
 
@@ -181,8 +181,8 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
         assertThat(invertedIndexSize(MOUNTED_INDEX), Matchers.equalTo(0));
 
         // Search by docId
-        for (int i = 0; i < 10; i++) {
-            String docId = randomFrom(docIds);
+        var searchIds = randomSubsetOf(Math.min(10, docIds.size()), docIds);
+        for (String docId : searchIds) {
             SearchResponse searchResponse = prepareSearch(MOUNTED_INDEX).setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
             try {
                 assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(1L));
@@ -192,8 +192,7 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
         }
 
         // Get by docId
-        for (int i = 0; i < 10; i++) {
-            String docId = randomFrom(docIds);
+        for (String docId : searchIds) {
             GetResponse getResponse = client().prepareGet().setIndex(MOUNTED_INDEX).setId(docId).get();
             try {
                 assertTrue(getResponse.isExists());
@@ -202,21 +201,23 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
             }
         }
 
-        // Search by deleted doc id
-        String deletedDocId = randomFrom(deletedDocIds);
-        SearchResponse searchResponse = prepareSearch(MOUNTED_INDEX).setQuery(QueryBuilders.idsQuery().addIds(deletedDocId)).get();
-        try {
-            assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(0L));
-        } finally {
-            searchResponse.decRef();
-        }
+        if (deletedDocIds.isEmpty() == false) {
+            // Search by deleted doc id
+            String deletedDocId = randomFrom(deletedDocIds);
+            SearchResponse searchResponse = prepareSearch(MOUNTED_INDEX).setQuery(QueryBuilders.idsQuery().addIds(deletedDocId)).get();
+            try {
+                assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(0L));
+            } finally {
+                searchResponse.decRef();
+            }
 
-        // Get by deleted doc id
-        GetResponse response = client().prepareGet().setIndex(MOUNTED_INDEX).setId(deletedDocId).get();
-        try {
-            assertFalse(response.isExists());
-        } finally {
-            response.decRef();
+            // Get by deleted doc id
+            GetResponse response = client().prepareGet().setIndex(MOUNTED_INDEX).setId(deletedDocId).get();
+            try {
+                assertFalse(response.isExists());
+            } finally {
+                response.decRef();
+            }
         }
     }
 

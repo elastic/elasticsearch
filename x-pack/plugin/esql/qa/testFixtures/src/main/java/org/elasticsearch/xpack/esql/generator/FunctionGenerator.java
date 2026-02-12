@@ -700,7 +700,6 @@ public class FunctionGenerator {
         }
         String cidr = randomFrom("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "0.0.0.0/0");
         return "cidr_match(" + ipField + ", \"" + cidr + "\")";
-            //"ip_prefix(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")"
     }
 
     /**
@@ -872,33 +871,5 @@ public class FunctionGenerator {
             }
         }
         return null;
-    }
-
-    // ========== COMBINED GENERATORS ==========
-
-    /**
-     * Generates a random scalar function expression that returns a value (not boolean).
-     *
-     * @param columns the available columns
-     * @param allowUnmapped if true, may use unmapped field names
-     */
-    public static String randomScalarFunction(List<Column> columns, boolean allowUnmapped) {
-        return switch (randomIntBetween(0, 14)) {
-            case 0 -> mathFunction(columns, allowUnmapped);
-            case 1 -> binaryMathFunction(columns, allowUnmapped);
-            case 2 -> stringFunction(columns, allowUnmapped);
-            case 3 -> stringToIntFunction(columns, allowUnmapped);
-            case 4 -> dateFunction(columns, allowUnmapped);
-            case 5 -> conversionFunction(columns, allowUnmapped);
-            case 6 -> caseFunction(columns, allowUnmapped);
-            case 7 -> coalesceFunction(columns, allowUnmapped);
-            case 8 -> mvFunction(columns, allowUnmapped);
-            case 9 -> concatFunction(columns, allowUnmapped);
-            case 10 -> greatestLeastFunction(columns, allowUnmapped);
-            case 11 -> splitFunction(columns, allowUnmapped);
-            case 12 -> clampFunction(columns, allowUnmapped);
-            case 13 -> ipPrefixFunction(columns, allowUnmapped);
-            default -> mvSliceZipFunction(columns, allowUnmapped);
-        };
     }
 }

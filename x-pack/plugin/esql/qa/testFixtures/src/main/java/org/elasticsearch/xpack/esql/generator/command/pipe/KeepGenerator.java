@@ -28,7 +28,8 @@ public class KeepGenerator implements CommandGenerator {
     public static final String KEEP = "keep";
 
     public static final CommandGenerator INSTANCE = new KeepGenerator();
-    public static final String[] UNMAPPED_FIELD_NAMES = {"unmapped_field_foo", "unmapped_field_foobar", "unmapped_field_bar", "unmapped_field_baz"};
+    public static final String[] UNMAPPED_FIELD_NAMES = {
+        "unmapped_field_foo", "unmapped_field_foobar", "unmapped_field_bar", "unmapped_field_baz"};
 
     @Override
     public CommandDescription generate(

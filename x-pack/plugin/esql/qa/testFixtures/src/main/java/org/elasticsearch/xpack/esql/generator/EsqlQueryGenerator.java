@@ -56,12 +56,12 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateDiffF
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.greatestLeastFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.inExpression;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.ipPrefixFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isNullExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.likeExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.mathFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.mvFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.mvSliceZipFunction;
-import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.randomScalarFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.rlikeExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.splitFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringFunction;
@@ -653,8 +653,7 @@ public class EsqlQueryGenerator {
             case 15 -> splitFunction(previousOutput, allowUnmapped);
             case 16 -> clampFunction(previousOutput, allowUnmapped);
             case 17 -> dateDiffFunction(previousOutput, allowUnmapped);
-            case 18 -> dateDiffFunction(previousOutput, allowUnmapped);
-            default -> randomScalarFunction(previousOutput, allowUnmapped);
+            default -> ipPrefixFunction(previousOutput, allowUnmapped);
         };
     }
 

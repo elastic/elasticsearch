@@ -312,7 +312,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         MultiTypeEsField multiTypeEsField,
         TestBlockCopier blockCopier
     ) {
-        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(getIndexPage(indexDoc).index);
+        var conversion = getConversion(multiTypeEsField, getIndexPage(indexDoc));
         if (conversion == null) {
             return getNullsBlock(indexDoc);
         }
@@ -324,6 +324,15 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 }
             }
         };
+    }
+
+    @Nullable
+    private static AbstractConvertFunction getConversion(MultiTypeEsField multiTypeEsField, IndexPage indexPage) {
+        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(indexPage.index);
+        boolean isPotentiallyUnmapped = conversion == null
+            && multiTypeEsField.getPotentiallyUnmappedExpression() != null
+            && indexPage.mappedFields().contains(multiTypeEsField.getName()) == false;
+        return isPotentiallyUnmapped ? (AbstractConvertFunction) multiTypeEsField.getPotentiallyUnmappedExpression() : conversion;
     }
 
     private IndexPage getIndexPage(DocBlock indexDoc) {

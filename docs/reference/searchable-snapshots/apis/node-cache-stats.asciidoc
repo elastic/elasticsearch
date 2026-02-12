@@ -129,4 +129,4 @@ The API returns the following response:
 // TESTRESPONSE[s/"evictions" : 5/"evictions" : 0/]
 // TESTRESPONSE[s/"num_regions" : 65536/"num_regions" : 0/]
 // TESTRESPONSE[s/"size_in_bytes" : 1099511627776/"size_in_bytes" : 0/]
-// TESTRESPONSE[s/"eerrtBMtQEisohZzxBLUSw"/\$node_name/]
+// TESTRESPONSE[s/"eerrtBMtQEisohZzxBLUSw"/\$node_name/] 

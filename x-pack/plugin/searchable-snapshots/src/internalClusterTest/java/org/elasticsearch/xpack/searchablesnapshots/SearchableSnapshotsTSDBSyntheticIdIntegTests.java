@@ -50,7 +50,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
- * The test set up is an index that uses synthetic ids with some random documents added and half of them deleted.
+ * The test set up is a time-series index that uses synthetic ids with some random documents added and half of them deleted.
  * A snapshot is created of the index, the index is deleted and the snapshot is mounted.
  * All tests run against the mounted snapshot.
  */

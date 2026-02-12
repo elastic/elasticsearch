@@ -30,7 +30,7 @@ public class CustomElandInternalServiceSettingsTests extends AbstractElasticsear
 
     @Override
     protected CustomElandInternalServiceSettings mutateInstance(CustomElandInternalServiceSettings instance) throws IOException {
-        return null;
+        return new CustomElandInternalServiceSettings(ElasticsearchInternalServiceSettingsTests.doMutateInstance(instance));
     }
 
     @Override

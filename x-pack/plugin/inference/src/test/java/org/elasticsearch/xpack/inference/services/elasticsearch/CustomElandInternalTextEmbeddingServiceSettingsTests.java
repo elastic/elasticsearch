@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class CustomElandInternalTextEmbeddingServiceSettingsTests extends AbstractElasticsearchInternalServiceSettingsTests<
@@ -281,6 +282,8 @@ public class CustomElandInternalTextEmbeddingServiceSettingsTests extends Abstra
         CustomElandInternalTextEmbeddingServiceSettings original,
         CustomElandInternalTextEmbeddingServiceSettings updated
     ) {
-        // Nothing to do as there are no additional properties
+        assertThat(updated.dimensions(), equalTo(original.dimensions()));
+        assertThat(updated.similarity(), equalTo(original.similarity()));
+        assertThat(updated.elementType(), equalTo(original.elementType()));
     }
 }

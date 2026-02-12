@@ -86,13 +86,9 @@ abstract class AbstractElasticsearchInternalServiceSettingsTests<T extends Elast
 
     public void testUpdateWithNoNumAllocationsAndAdaptiveAllocations() {
         var validationException = assertThrows(ValidationException.class, () -> createTestInstance().updateServiceSettings(Map.of()));
-        assertThat(
-            validationException.getMessage(),
-            equalTo(
-                "Validation Failed: 1: [service_settings] does not contain one of the required settings "
-                    + "[num_allocations, adaptive_allocations];"
-            )
-        );
+        assertThat(validationException.getMessage(), equalTo("""
+            Validation Failed: 1: [service_settings] does not contain one of the required settings \
+            [num_allocations, adaptive_allocations];"""));
     }
 
     private static AdaptiveAllocationsSettings adaptiveAllocationSettings(AdaptiveAllocationsSettings base) {

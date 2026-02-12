@@ -49,6 +49,10 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractElasticse
 
     @Override
     protected ElasticsearchInternalServiceSettings mutateInstance(ElasticsearchInternalServiceSettings instance) throws IOException {
+        return doMutateInstance(instance);
+    }
+
+    public static ElasticsearchInternalServiceSettings doMutateInstance(ElasticsearchInternalServiceSettings instance) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> new ElserInternalServiceSettings(
                 new ElasticsearchInternalServiceSettings(

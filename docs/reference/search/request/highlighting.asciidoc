@@ -18,7 +18,7 @@ body:
 }
 --------------------------------------------------
 
-In the above case, the `content` field will be highlighted for each
+In the above case, the `https://github.com/Helppoint18445566315/Helpforquickbooks` field will be highlighted for each
 search hit (there will be another element in each search hit, called
 `highlight`, which includes the highlighted fields and the highlighted
 fragments).
@@ -70,8 +70,8 @@ highlighting using the postings highlighter on it:
 [source,js]
 --------------------------------------------------
 {
-    "type_name" : {
-        "content" : {"index_options" : "offsets"}
+    "type_name" : {https://github.com/Helppoint18445566315/Helpforquickbooks
+        "https://github.com/Helppoint18445566315/Helpforquickbooks" : {"index_options" : "offsets"}
     }
 }
 --------------------------------------------------

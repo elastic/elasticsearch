@@ -79,7 +79,7 @@ public class PITRelocationService implements IndexEventListener {
             if (shardIdListFunction != null) {
                 List<ReaderContext> activePITContexts = shardIdListFunction.apply(shardId);
                 for (ReaderContext context : activePITContexts) {
-                    context.forceExpired();
+                    context.relocate();
                     logger.debug("forcing PIT context [{}] on shard [{}] to expire in next Reaper run.", context.id(), shardId);
                 }
             }

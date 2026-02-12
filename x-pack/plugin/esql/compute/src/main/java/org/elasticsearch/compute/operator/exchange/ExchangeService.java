@@ -68,7 +68,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
     public static final String BATCH_EXCHANGE_STATUS_ACTION_NAME = "internal:data/read/esql/batch_exchange_status";
-    private static final String BATCH_EXCHANGE_STATUS_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/batch_exchange_status";
 
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
@@ -138,7 +137,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     } else {
                         logger.warn("Received BatchExchangeStatusRequest for unknown exchangeId={}", exchangeId);
                         channel.sendResponse(
-                            new BatchExchangeStatusResponse(false, new ResourceNotFoundException("exchange [{}] not found", exchangeId))
+                            new BatchExchangeStatusResponse(new ResourceNotFoundException("exchange [{}] not found", exchangeId))
                         );
                     }
                 }

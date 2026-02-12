@@ -24,6 +24,16 @@ import java.util.concurrent.Executor;
  */
 abstract class BidirectionalBatchExchangeBase implements Releasable {
 
+    // Timeout in seconds for waiting on worker setup and server responses during close()
+    private static final int CLOSE_WAIT_TIMEOUT_SECONDS = 30;
+
+    /**
+     * Returns the timeout in seconds for waiting on worker setup and server responses during close().
+     */
+    public static int closeWaitTimeoutSeconds() {
+        return CLOSE_WAIT_TIMEOUT_SECONDS;
+    }
+
     protected final String sessionId;
     protected final ExchangeService exchangeService;
     protected final Executor executor;
@@ -75,11 +85,17 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
      * transport-based connections for bidirectional exchange.
      * <p>
      * The {@link BatchSortedExchangeSource} ensures pages are delivered in order within each batch.
+     *
+     * @param failFast if {@code true}, a sink failure causes the source handler to abort immediately
+     *                 (throwing {@link org.elasticsearch.tasks.TaskCancelledException} on the next poll/isFinished call).
+     *                 If {@code false}, the source handler continues normally and the caller is responsible
+     *                 for shutting down the exchange via the failure listener.
      */
     protected void connectRemoteSink(
         DiscoveryNode node,
         String exchangeId,
         ExchangeSourceHandler sourceHandler,
+        boolean failFast,
         ActionListener<Void> listener,
         String errorMessagePrefix
     ) {
@@ -87,7 +103,7 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
             Transport.Connection connection = transportService.getConnection(node);
             RemoteSink remoteSink = exchangeService.newRemoteSink(task, exchangeId, transportService, connection);
             int concurrentClients = ExchangeSourceHandler.getConcurrentClients(settings);
-            sourceHandler.addRemoteSink(remoteSink, true, () -> {}, concurrentClients, listener);
+            sourceHandler.addRemoteSink(remoteSink, failFast, () -> {}, concurrentClients, listener);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to connect to " + errorMessagePrefix + " for exchange [" + exchangeId + "]", e);
         }

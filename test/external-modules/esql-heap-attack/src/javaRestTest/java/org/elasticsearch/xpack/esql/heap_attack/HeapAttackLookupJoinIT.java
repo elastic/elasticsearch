@@ -63,7 +63,8 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     }
 
     public void testLookupExplosionManyMatchesManyFields() throws IOException {
-        // this test works now, and does not circuit break any more
+        // Streaming lookup processes batches incrementally, keeping memory bounded
+        // even with many matches and many fields. Previously threw CircuitBreakerException with the non-streaming path.
         int sensorDataCount = 1500;
         int lookupEntries = 1000;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 30, lookupEntries, false);
@@ -71,7 +72,8 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
-        // this test works now, and does not circuit break any more
+        // Streaming lookup processes batches incrementally, keeping memory bounded
+        // even with many matches and many fields. Previously threw CircuitBreakerException with the non-streaming path.
         int sensorDataCount = 1500;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries, false);
@@ -79,7 +81,8 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     }
 
     public void testLookupExplosionManyMatchesExpression() throws IOException {
-        // this test works now, and does not circuit break any more
+        // Streaming lookup processes batches incrementally, keeping memory bounded
+        // even with many matches and many fields. Previously threw CircuitBreakerException with the non-streaming path.
         int sensorDataCount = 1500;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries, true);
@@ -120,7 +123,8 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     }
 
     public void testLookupExplosionNoFetchManyMatches() throws IOException {
-        // this test works now, and does not circuit break any more
+        // Streaming lookup processes batches incrementally, keeping memory bounded
+        // even with many matches and many fields. Previously threw CircuitBreakerException with the non-streaming path.
         int sensorDataCount = 8500;
         int lookupEntries = 10000;
         Map<?, ?> map = lookupExplosionNoFetch(sensorDataCount, lookupEntries);

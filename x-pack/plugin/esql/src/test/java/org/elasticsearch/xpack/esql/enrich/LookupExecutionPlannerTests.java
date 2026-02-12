@@ -141,7 +141,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         ) {
             // Capture the plan instead of starting the server
             this.capturedPlan = lookupQueryPlan;
-            // Don't call super - we don't want to actually start the server in tests
+            // Don't call super - we don't want to actually start the driver in tests
             // Signal ready immediately for test purposes
             responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString));
         }
@@ -164,7 +164,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         releasables = new ArrayList<>();
 
         // Create minimal mocks for services - we only need these because AbstractLookupService constructor requires them
-        // but startDriver is overridden to do nothing, so they don't need to be fully functional
+        // but startServerWithOperators is overridden to do nothing, so they don't need to be fully functional
         clusterService = mock(ClusterService.class);
         ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         ClusterState clusterState = ClusterStateCreationUtils.state(projectId, "test-index", 1, 1);
@@ -182,8 +182,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             Set.of(new ResolvedExpression("test-index"))
         );
 
-        // Create mock transport service - only needed for constructor, startDriver does nothing
-        // Since we override startDriver to do nothing, we don't need a real thread pool
+        // Create mock transport service - only needed for constructor, startServerWithOperators does nothing
         // But TransportService requires a ThreadPool, so we create a minimal one
         threadPool = new TestThreadPool(
             getTestClass().getSimpleName(),

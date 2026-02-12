@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -27,7 +27,6 @@ import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeCli
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -41,9 +40,12 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -217,25 +219,28 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private DiscoveryNode determineServerNode() {
-        try {
-            var clusterState = lookupService.getClusterService().state();
-            var projectState = lookupService.getProjectResolver().getProjectState(clusterState);
-            var shardIterators = lookupService.getClusterService()
-                .operationRouting()
-                .searchShards(projectState, new String[] { lookupIndex }, java.util.Map.of(), "_local");
-            if (shardIterators.size() != 1) {
-                return null;
-            }
-            var shardIt = shardIterators.get(0);
-            ShardRouting shardRouting = shardIt.nextOrNull();
-            if (shardRouting == null) {
-                return null;
-            }
-            return clusterState.nodes().get(shardRouting.currentNodeId());
-        } catch (Exception e) {
-            logger.error("Failed to determine server node", e);
-            return null;
+        var clusterState = lookupService.getClusterService().state();
+        var projectState = lookupService.getProjectResolver().getProjectState(clusterState);
+        var shardIterators = lookupService.getClusterService()
+            .operationRouting()
+            .searchShards(projectState, new String[] { lookupIndex }, Map.of(), "_local");
+        if (shardIterators.size() != 1) {
+            throw new IllegalStateException(
+                "Expected exactly 1 shard for lookup index [" + lookupIndex + "], got " + shardIterators.size()
+            );
         }
+        var shardIt = shardIterators.get(0);
+        ShardRouting shardRouting = shardIt.nextOrNull();
+        if (shardRouting == null) {
+            throw new IllegalStateException("No available shard routing for lookup index [" + lookupIndex + "]");
+        }
+        DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
+        if (node == null) {
+            throw new IllegalStateException(
+                "Node [" + shardRouting.currentNodeId() + "] for lookup index [" + lookupIndex + "] not found in cluster state"
+            );
+        }
+        return node;
     }
 
     private void handleBatchExchangeSuccess() {
@@ -314,7 +319,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
         checkFailureAndMaybeThrow();
 
         // If missing markers were detected, wait for client to close (which waits for server response).
-        // This ensures we give real errors time to arrive before throwing a synthetic error.
+        // This ensures we give real errors time to arrive (e.g. CircuitBreaker Exception on the server)
+        // before throwing a synthetic error from the client.
         if (hadMissingMarkersWithoutFailure && client != null) {
             // close() is idempotent and waits up to 30s for server response
             try {
@@ -376,7 +382,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             // Try to poll a result page from the client
             Page resultPage = client.pollPage();
             if (resultPage == null) {
-                // If the page cache is done but we haven't received markers for all batches,
+                // If the client's exchange is done, but we haven't received markers for all batches,
                 // we must wait for the server response to know if it succeeded or failed.
                 // We can't compute trailing nulls until we know the server completed successfully,
                 // otherwise we might produce wrong results (NULLs for rows that actually had matches).
@@ -389,7 +395,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                             }
                             // Page cache is done but marker is missing and no failure reported yet.
                             // Set flag and proceed to close(), which will wait for the server response.
-                            // If no error arrives after waiting, close() will throw.
+                            // If no more specific server error arrives after waiting, close() will throw error.
                             logger.warn("getOutput: pageCacheDone but no marker for batchId={}, proceeding to close", batch.batchId);
                             hadMissingMarkersWithoutFailure = true;
                             return null;
@@ -635,9 +641,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
             // and closing it signals the server that we are closing too
             if (clientReadyListener.isDone() == false) {
                 try {
-                    PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
-                    clientReadyListener.addListener(waitFuture);
-                    waitFuture.actionGet(TimeValue.timeValueSeconds(30));
+                    CountDownLatch setupLatch = new CountDownLatch(1);
+                    clientReadyListener.addListener(new LatchedActionListener<>(ActionListener.noop(), setupLatch));
+                    setupLatch.await(BidirectionalBatchExchangeClient.closeWaitTimeoutSeconds(), TimeUnit.SECONDS);
                 } catch (Exception e) {
                     logger.debug("Timeout waiting for server setup during close", e);
                 }
@@ -820,20 +826,12 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 && rowsEmitted == that.rowsEmitted
                 && planningNanos == that.planningNanos
                 && processNanos == that.processNanos
-                && java.util.Objects.equals(planToWorkers, that.planToWorkers);
+                && Objects.equals(planToWorkers, that.planToWorkers);
         }
 
         @Override
         public int hashCode() {
-            return java.util.Objects.hash(
-                pagesReceived,
-                pagesEmitted,
-                rowsReceived,
-                rowsEmitted,
-                planningNanos,
-                processNanos,
-                planToWorkers
-            );
+            return Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, planningNanos, processNanos, planToWorkers);
         }
 
         @Override

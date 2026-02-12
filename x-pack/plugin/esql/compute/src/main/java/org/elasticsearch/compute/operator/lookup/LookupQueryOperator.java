@@ -21,13 +21,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -51,7 +48,6 @@ import java.util.Objects;
 public final class LookupQueryOperator implements Operator {
     private final BlockFactory blockFactory;
     private final LookupEnrichQueryGenerator queryList;
-    private final BlockOptimization blockOptimization;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
     private final SearchExecutionContext searchExecutionContext;
@@ -61,7 +57,6 @@ public final class LookupQueryOperator implements Operator {
     private final int maxPageSize;
 
     private Page currentInputPage;
-    private Page optimizedInputPage;
     private int queryPosition = -1;
     private Page outputPage;
     private boolean finished = false;
@@ -79,7 +74,6 @@ public final class LookupQueryOperator implements Operator {
         BlockFactory blockFactory,
         int maxPageSize,
         LookupEnrichQueryGenerator queryList,
-        BlockOptimization blockOptimization,
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
         SearchExecutionContext searchExecutionContext,
@@ -88,7 +82,6 @@ public final class LookupQueryOperator implements Operator {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;
-        this.blockOptimization = blockOptimization;
         this.shardContexts = shardContexts;
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
@@ -107,39 +100,6 @@ public final class LookupQueryOperator implements Operator {
         this.warnings = warnings;
     }
 
-    /**
-     * Get the input page to use for queryList calls.
-     * Creates optimized page on-demand if needed (DICTIONARY state).
-     */
-    private Page getInputPageInternal() {
-        if (currentInputPage == null) {
-            return null;
-        }
-        if (blockOptimization == BlockOptimization.DICTIONARY) {
-            if (optimizedInputPage == null) {
-                // Create optimized page on-demand
-                Block inputBlock = currentInputPage.getBlock(0);
-                if (inputBlock instanceof BytesRefBlock bytesRefBlock) {
-                    OrdinalBytesRefBlock ordinalsBytesRefBlock = bytesRefBlock.asOrdinals();
-                    Block optimizedBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
-                    Block[] blocks = new Block[currentInputPage.getBlockCount()];
-                    blocks[0] = optimizedBlock;
-                    optimizedBlock.incRef();
-                    for (int i = 1; i < blocks.length; i++) {
-                        Block originalBlock = currentInputPage.getBlock(i);
-                        originalBlock.incRef();
-                        blocks[i] = originalBlock;
-                    }
-                    optimizedInputPage = new Page(blocks);
-                } else {
-                    optimizedInputPage = currentInputPage;
-                }
-            }
-            return optimizedInputPage;
-        }
-        return currentInputPage;
-    }
-
     @Override
     public void addInput(Page page) {
         if (currentInputPage != null) {
@@ -147,7 +107,6 @@ public final class LookupQueryOperator implements Operator {
         }
         currentInputPage = page;
         queryPosition = -1; // Reset query position for new page
-        optimizedInputPage = null; // Reset optimized page
         pagesReceived++;
         rowsReceived += page.getPositionCount();
     }
@@ -165,23 +124,13 @@ public final class LookupQueryOperator implements Operator {
             return null;
         }
 
-        Page inputPage = getInputPageInternal();
-        if (inputPage == null) {
-            return null;
-        }
-
-        int positionCount = queryList.getPositionCount(inputPage);
+        int positionCount = queryList.getPositionCount(currentInputPage);
 
         // Check if we've finished processing all queries for this input page
         if (queryPosition >= positionCount - 1) {
             // Finished processing this input page - release it
-            if (optimizedInputPage != null && optimizedInputPage != currentInputPage) {
-                optimizedInputPage.allowPassingToDifferentDriver();
-                Releasables.closeExpectNoException(optimizedInputPage);
-            }
             currentInputPage.releaseBlocks();
             currentInputPage = null;
-            optimizedInputPage = null;
             queryPosition = -1; // Reset for next page
             return null;
         }
@@ -242,13 +191,8 @@ public final class LookupQueryOperator implements Operator {
                 // No matches - check if we've finished processing all queries for this input page
                 if (queryPosition >= positionCount - 1) {
                     // Finished processing this input page with no matches - release it
-                    if (optimizedInputPage != null && optimizedInputPage != currentInputPage) {
-                        optimizedInputPage.allowPassingToDifferentDriver();
-                        Releasables.closeExpectNoException(optimizedInputPage);
-                    }
                     currentInputPage.releaseBlocks();
                     currentInputPage = null;
-                    optimizedInputPage = null;
                     queryPosition = -1;
                 }
                 return null;
@@ -291,13 +235,12 @@ public final class LookupQueryOperator implements Operator {
 
     private Query nextQuery() {
         ++queryPosition;
-        Page inputPage = getInputPageInternal();
-        if (inputPage == null) {
+        if (currentInputPage == null) {
             return null;
         }
-        int positionCount = queryList.getPositionCount(inputPage);
+        int positionCount = queryList.getPositionCount(currentInputPage);
         while (queryPosition < positionCount) {
-            Query query = queryList.getQuery(queryPosition, inputPage, searchExecutionContext);
+            Query query = queryList.getQuery(queryPosition, currentInputPage, searchExecutionContext);
             if (query != null) {
                 return query;
             }
@@ -350,11 +293,8 @@ public final class LookupQueryOperator implements Operator {
         }
         // Or if we have an input page that hasn't been fully processed
         if (currentInputPage != null) {
-            Page inputPage = getInputPageInternal();
-            if (inputPage != null) {
-                int positionCount = queryList.getPositionCount(inputPage);
-                return queryPosition < positionCount - 1;
-            }
+            int positionCount = queryList.getPositionCount(currentInputPage);
+            return queryPosition < positionCount - 1;
         }
         return false;
     }
@@ -362,11 +302,6 @@ public final class LookupQueryOperator implements Operator {
     @Override
     public void close() {
         this.shardContext.decRef();
-        // Release pages
-        if (optimizedInputPage != null && optimizedInputPage != currentInputPage) {
-            optimizedInputPage.allowPassingToDifferentDriver();
-            Releasables.closeExpectNoException(optimizedInputPage);
-        }
         if (currentInputPage != null) {
             currentInputPage.releaseBlocks();
         }

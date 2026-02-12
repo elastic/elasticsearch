@@ -51,8 +51,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -87,12 +90,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         this.useMultiNode = MULTI_NODE.equals(nodeMode);
     }
 
-    /**
-     * Settings to use only 1 channel for bidirectional exchange to avoid out-of-order page delivery.
-     * This simplifies testing by ensuring pages are delivered in order without needing complex sorting.
-     */
-    private static final Settings SINGLE_CLIENT_SETTINGS = Settings.builder()
-        .put(ExchangeSourceHandler.CONCURRENT_CLIENTS_SETTING.getKey(), 1)
+    private static final Settings CLIENT_SETTINGS = Settings.builder()
+        .put(ExchangeSourceHandler.CONCURRENT_CLIENTS_SETTING.getKey(), 2)
         .build();
 
     /**
@@ -216,83 +215,23 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             Set<Long> receivedBatchIds = new HashSet<>();
             for (int batchId = 0; batchId < numBatches; batchId++) {
                 logger.debug("[TEST-CLIENT] Polling for batch {} results", batchId);
-                boolean batchComplete = receivedBatchIds.contains((long) batchId);
-                long pollStartTime = System.currentTimeMillis();
-                long pollTimeoutMs = TEST_TIMEOUT_SECONDS * 1000;
-
-                int pollIterations = 0;
-                while (batchComplete == false) {
-                    long elapsed = System.currentTimeMillis() - pollStartTime;
-                    if (elapsed > pollTimeoutMs) {
-                        throw new AssertionError(
-                            "Timeout waiting for batch "
-                                + batchId
-                                + " to complete after "
-                                + elapsed
-                                + "ms. Client state: isFinished="
-                                + client.isFinished()
-                                + ", isExchangeDone="
-                                + client.isExchangeDone()
-                                + ", hasFailed="
-                                + client.hasFailed()
-                                + ", sortedSource="
-                                + client.getSortedSource()
-                                + ", pollIterations="
-                                + pollIterations
-                        );
+                final int currentBatchId = batchId;
+                pollUntilBatchComplete(client, batchId, TEST_TIMEOUT_SECONDS, resultPage -> {
+                    BatchMetadata metadata = resultPage.batchMetadata();
+                    logger.debug(
+                        "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}",
+                        metadata.batchId(),
+                        metadata.pageIndexInBatch(),
+                        metadata.isLastPageInBatch(),
+                        resultPage.getPositionCount()
+                    );
+                    if (resultPage.isBatchMarkerOnly() == false) {
+                        allOutputPagesRef.get().add(resultPage);
                     }
-
-                    if (client.hasFailed()) {
-                        throw new AssertionError("Client failed while waiting for batch " + batchId);
+                    if (metadata.isLastPageInBatch()) {
+                        receivedBatchIds.add(metadata.batchId());
                     }
-
-                    pollIterations++;
-                    if (pollIterations % 10 == 0) {
-                        logger.debug(
-                            "[TEST-CLIENT] Still waiting for batch {}: elapsed={}ms, sortedSource={}, isExchangeDone={}",
-                            batchId,
-                            elapsed,
-                            client.getSortedSource(),
-                            client.isExchangeDone()
-                        );
-                    }
-
-                    IsBlockedResult blocked = client.waitForPage();
-                    if (blocked.listener().isDone() == false) {
-                        PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
-                        blocked.listener().addListener(waitFuture);
-                        try {
-                            waitFuture.actionGet(1, TimeUnit.SECONDS);
-                        } catch (Exception e) {
-                            continue;
-                        }
-                    }
-
-                    Page resultPage;
-                    while ((resultPage = client.pollPage()) != null) {
-                        BatchMetadata metadata = resultPage.batchMetadata();
-                        logger.debug(
-                            "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}",
-                            metadata.batchId(),
-                            metadata.pageIndexInBatch(),
-                            metadata.isLastPageInBatch(),
-                            resultPage.getPositionCount()
-                        );
-                        if (resultPage.isBatchMarkerOnly() == false) {
-                            allOutputPagesRef.get().add(resultPage);
-                        }
-                        if (metadata.isLastPageInBatch()) {
-                            receivedBatchIds.add(metadata.batchId());
-                            if (metadata.batchId() == batchId) {
-                                batchComplete = true;
-                            }
-                        }
-                    }
-                    // Check if the current batch was received by a page polled in a previous iteration
-                    if (receivedBatchIds.contains((long) batchId)) {
-                        batchComplete = true;
-                    }
-                }
+                }, () -> receivedBatchIds.contains((long) currentBatchId));
 
                 client.markBatchCompleted(batchId);
                 callbackBatchIds.add((long) batchId);
@@ -469,7 +408,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         ActionListener<Void> batchExchangeStatusListener,
         String sessionId,
         List<String> createdWorkerNodeIds
-    ) throws Exception {
+    ) {
         logger.debug(
             "[TEST-CLIENT] Creating BidirectionalBatchExchangeClient with sessionId={}, numServers={}",
             sessionId,
@@ -505,7 +444,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     infra.serverTransportServices().get(idx),
                     mock(Task.class),
                     infra.clientTransportService().getLocalNode(),
-                    SINGLE_CLIENT_SETTINGS
+                    CLIENT_SETTINGS
                 );
                 server.startWithOperators(
                     driverContext,
@@ -535,7 +474,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             infra.clientTransportService(),
             mockTask,
             batchExchangeStatusListener,
-            SINGLE_CLIENT_SETTINGS,
+            CLIENT_SETTINGS,
             testCallback,
             null, // lookupPlanConsumer
             infra.numServers(), // maxWorkers
@@ -622,101 +561,27 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 sendBatchFromPages(client, batchPages, batchId, batchesSent);
 
                 // Poll for result pages until we receive the last page of this batch
-                boolean batchComplete = false;
-                long pollStartTime = System.currentTimeMillis();
-                long pollTimeoutMs = timeoutSeconds * 1000;
-                int pollIterations = 0;
-                while (batchComplete == false) {
-                    // Check for timeout
-                    long elapsed = System.currentTimeMillis() - pollStartTime;
-                    if (elapsed > pollTimeoutMs) {
-                        throw new AssertionError(
-                            "Timeout waiting for batch "
-                                + batchId
-                                + " to complete after "
-                                + elapsed
-                                + "ms. Client state: isFinished="
-                                + client.isFinished()
-                                + ", isExchangeDone="
-                                + client.isExchangeDone()
-                                + ", hasFailed="
-                                + client.hasFailed()
-                                + ", sortedSource="
-                                + client.getSortedSource()
-                                + ", pollIterations="
-                                + pollIterations
-                        );
-                    }
-
-                    // Check for client failures
-                    if (client.hasFailed()) {
-                        throw new AssertionError("Client failed while waiting for batch " + batchId + " to complete");
-                    }
-
-                    pollIterations++;
-                    if (pollIterations % 10 == 0) {
-                        logger.debug(
-                            "[TEST-CLIENT] Still waiting for batch {}/{}: elapsed={}ms, sortedSource={}, isExchangeDone={}",
-                            batchId,
-                            numBatches,
-                            elapsed,
-                            client.getSortedSource(),
-                            client.isExchangeDone()
-                        );
-                    }
-
-                    // Wait for a page to be available (with timeout)
-                    IsBlockedResult blocked = client.waitForPage();
-                    if (blocked.listener().isDone() == false) {
-                        // Wait for the page to become available (with short timeout to allow periodic checks)
-                        PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
-                        blocked.listener().addListener(waitFuture);
-                        try {
-                            waitFuture.actionGet(1, TimeUnit.SECONDS);  // Short wait, will retry if no page
-                        } catch (Exception e) {
-                            // Timeout waiting for page - continue loop and check conditions
-                            continue;
+                final int currentBatchId = batchId;
+                AtomicBoolean batchDone = new AtomicBoolean(false);
+                pollUntilBatchComplete(client, batchId, timeoutSeconds, resultPage -> {
+                    BatchMetadata metadata = resultPage.batchMetadata();
+                    logger.debug(
+                        "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}",
+                        metadata.batchId(),
+                        metadata.pageIndexInBatch(),
+                        metadata.isLastPageInBatch(),
+                        resultPage.getPositionCount()
+                    );
+                    assertThat("Result page batchId should match current batch", metadata.batchId(), equalTo((long) currentBatchId));
+                    if (resultPage.isBatchMarkerOnly() == false) {
+                        synchronized (currentBatchOutputPages) {
+                            currentBatchOutputPages.get().add(resultPage);
                         }
                     }
-
-                    // Poll pages from the cache - poll ALL available pages
-                    Page resultPage;
-                    while ((resultPage = client.pollPage()) != null) {
-                        BatchMetadata metadata = resultPage.batchMetadata();
-                        logger.debug(
-                            "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}",
-                            metadata.batchId(),
-                            metadata.pageIndexInBatch(),
-                            metadata.isLastPageInBatch(),
-                            resultPage.getPositionCount()
-                        );
-
-                        // Verify the page belongs to the current batch
-                        assertThat("Result page batchId should match current batch", metadata.batchId(), equalTo((long) batchId));
-
-                        // Collect output page for verification (only non-marker pages)
-                        if (resultPage.isBatchMarkerOnly() == false) {
-                            synchronized (currentBatchOutputPages) {
-                                currentBatchOutputPages.get().add(resultPage);
-                            }
-                        }
-
-                        // Check if this is the last page of the batch
-                        if (metadata.isLastPageInBatch()) {
-                            batchComplete = true;
-                        }
+                    if (metadata.isLastPageInBatch()) {
+                        batchDone.set(true);
                     }
-
-                    // If no pages polled and cache not done, wait a bit before retrying
-                    if (batchComplete == false && client.isExchangeDone() == false) {
-                        try {
-                            Thread.sleep(10);  // Small sleep to avoid busy spinning
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            throw new AssertionError("Interrupted while waiting for pages");
-                        }
-                    }
-                }
+                }, batchDone::get);
 
                 // Verify batch results
                 List<Page> inputPages;
@@ -852,12 +717,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             AbstractSimpleTransportTestCase.connectToNode(clientTransportService, serverTransportService.getLocalNode());
             AbstractSimpleTransportTestCase.connectToNode(serverTransportService, clientTransportService.getLocalNode());
 
-            ExchangeService serverExchangeService = new ExchangeService(
-                SINGLE_CLIENT_SETTINGS,
-                threadPool,
-                ThreadPool.Names.SEARCH,
-                blockFactory
-            );
+            ExchangeService serverExchangeService = new ExchangeService(CLIENT_SETTINGS, threadPool, ThreadPool.Names.SEARCH, blockFactory);
             serverExchangeService.registerTransportHandler(serverTransportService);
 
             serverTransportServices.add(serverTransportService);
@@ -865,12 +725,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         }
 
         // Create client exchange service
-        ExchangeService clientExchangeService = new ExchangeService(
-            SINGLE_CLIENT_SETTINGS,
-            threadPool,
-            ThreadPool.Names.SEARCH,
-            blockFactory
-        );
+        ExchangeService clientExchangeService = new ExchangeService(CLIENT_SETTINGS, threadPool, ThreadPool.Names.SEARCH, blockFactory);
         clientExchangeService.registerTransportHandler(clientTransportService);
 
         return new TestInfrastructure(clientTransportService, serverTransportServices, clientExchangeService, serverExchangeServices);
@@ -938,6 +793,84 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         );
         batchExchangeStatusFuture.actionGet(timeoutSeconds, TimeUnit.SECONDS);
         logger.debug("[TEST] waitForClientCompletion: batchExchangeStatusFuture completed");
+    }
+
+    /**
+     * Polls pages from the client until the target batch is complete.
+     * Encapsulates the shared timeout/wait/poll loop used by multiple test methods.
+     */
+    private void pollUntilBatchComplete(
+        BidirectionalBatchExchangeClient client,
+        int batchId,
+        long timeoutSeconds,
+        Consumer<Page> pageConsumer,
+        BooleanSupplier isComplete
+    ) {
+        long pollStartTime = System.currentTimeMillis();
+        long pollTimeoutMs = timeoutSeconds * 1000;
+        int pollIterations = 0;
+
+        while (isComplete.getAsBoolean() == false) {
+            long elapsed = System.currentTimeMillis() - pollStartTime;
+            if (elapsed > pollTimeoutMs) {
+                throw new AssertionError(
+                    "Timeout waiting for batch "
+                        + batchId
+                        + " to complete after "
+                        + elapsed
+                        + "ms. Client state: isFinished="
+                        + client.isFinished()
+                        + ", isExchangeDone="
+                        + client.isExchangeDone()
+                        + ", hasFailed="
+                        + client.hasFailed()
+                        + ", sortedSource="
+                        + client.getSortedSource()
+                        + ", pollIterations="
+                        + pollIterations
+                );
+            }
+
+            if (client.hasFailed()) {
+                throw new AssertionError("Client failed while waiting for batch " + batchId + " to complete");
+            }
+
+            pollIterations++;
+            if (pollIterations % 10 == 0) {
+                logger.debug(
+                    "[TEST-CLIENT] Still waiting for batch {}: elapsed={}ms, sortedSource={}, isExchangeDone={}",
+                    batchId,
+                    elapsed,
+                    client.getSortedSource(),
+                    client.isExchangeDone()
+                );
+            }
+
+            IsBlockedResult blocked = client.waitForPage();
+            if (blocked.listener().isDone() == false) {
+                PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
+                blocked.listener().addListener(waitFuture);
+                try {
+                    waitFuture.actionGet(1, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    continue;
+                }
+            }
+
+            Page resultPage;
+            while ((resultPage = client.pollPage()) != null) {
+                pageConsumer.accept(resultPage);
+            }
+
+            if (isComplete.getAsBoolean() == false && client.isExchangeDone() == false) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("Interrupted while waiting for pages");
+                }
+            }
+        }
     }
 
     /**
@@ -1405,15 +1338,13 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         return new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                Page actualPage = page;
-
-                if (actualPage.getBlockCount() == 0) {
-                    return driverContext.blockFactory().newConstantNullBlock(actualPage.getPositionCount());
+                if (page.getBlockCount() == 0) {
+                    return driverContext.blockFactory().newConstantNullBlock(page.getPositionCount());
                 }
 
-                Block firstBlock = actualPage.getBlock(0);
+                Block firstBlock = page.getBlock(0);
                 if (firstBlock instanceof IntBlock == false) {
-                    return driverContext.blockFactory().newConstantNullBlock(actualPage.getPositionCount());
+                    return driverContext.blockFactory().newConstantNullBlock(page.getPositionCount());
                 }
 
                 IntBlock intBlock = (IntBlock) firstBlock;

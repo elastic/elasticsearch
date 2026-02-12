@@ -30,9 +30,9 @@ import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
  * expect pages within a batch to arrive in order (pageIndexInBatch = 0, 1, 2, ...).
  * This class buffers out-of-order pages and releases them in the correct sequence.
  * <p>
- * Uses composition pattern - wraps an ExchangeSource and provides sorted output.
+ * Implements {@link ExchangeSource} so it can be used polymorphically wherever an ExchangeSource is expected.
  */
-public class BatchSortedExchangeSource implements Closeable {
+public class BatchSortedExchangeSource implements ExchangeSource, Closeable {
     private static final Logger logger = LogManager.getLogger(BatchSortedExchangeSource.class);
 
     private final ExchangeSource delegate;
@@ -72,6 +72,7 @@ public class BatchSortedExchangeSource implements Closeable {
      *
      * @return the next page in order, or null if no pages are available
      */
+    @Override
     public Page pollPage() {
         // First, return from output queue if available
         Page ready = outputQueue.poll();
@@ -131,40 +132,50 @@ public class BatchSortedExchangeSource implements Closeable {
             state.lastPageIndex = pageIndex;
         }
 
-        // Check if this is the next expected page
-        if (pageIndex == state.nextExpectedIndex) {
-            // Output this page immediately
-            outputQueue.add(page);
-            state.nextExpectedIndex++;
+        // Track whether the page was successfully stored in a container (outputQueue or bufferedPages).
+        // If not (e.g. OOM during add, or duplicate page index), release the page in the finally block.
+        boolean pageStored = false;
+        try {
+            // Check if this is the next expected page
+            if (pageIndex == state.nextExpectedIndex) {
+                // Output this page immediately
+                outputQueue.add(page);
+                pageStored = true;
+                state.nextExpectedIndex++;
 
-            // Check if any buffered pages can now be output
-            flushBufferedPages(state);
-        } else if (pageIndex > state.nextExpectedIndex) {
-            // Page arrived out of order - buffer it
-            logger.trace(
-                "[BatchSortedExchangeSource] Buffering out-of-order page: batchId={}, pageIndex={}, expected={}",
-                batchId,
-                pageIndex,
-                state.nextExpectedIndex
-            );
-            state.bufferedPages.put(pageIndex, page);
-        } else {
-            // Page index is less than expected - this shouldn't happen (duplicate or invalid)
-            page.releaseBlocks();
-            throw new IllegalStateException(
-                "Received page with unexpected index: batchId="
-                    + batchId
-                    + ", pageIndex="
-                    + pageIndex
-                    + ", expected="
-                    + state.nextExpectedIndex
-            );
-        }
+                // Check if any buffered pages can now be output
+                flushBufferedPages(state);
+            } else if (pageIndex > state.nextExpectedIndex) {
+                // Page arrived out of order - buffer it
+                logger.trace(
+                    "[BatchSortedExchangeSource] Buffering out-of-order page: batchId={}, pageIndex={}, expected={}",
+                    batchId,
+                    pageIndex,
+                    state.nextExpectedIndex
+                );
+                state.bufferedPages.put(pageIndex, page);
+                pageStored = true;
+            } else {
+                // Page index is less than expected - this shouldn't happen (duplicate or invalid)
+                throw new IllegalStateException(
+                    "Received page with unexpected index: batchId="
+                        + batchId
+                        + ", pageIndex="
+                        + pageIndex
+                        + ", expected="
+                        + state.nextExpectedIndex
+                );
+            }
 
-        // Clean up completed batches
-        if (state.isComplete()) {
-            logger.debug("[BatchSortedExchangeSource] Batch {} complete, removing state", batchId);
-            activeBatches.remove(batchId);
+            // Clean up completed batches
+            if (state.isComplete()) {
+                logger.debug("[BatchSortedExchangeSource] Batch {} complete, removing state", batchId);
+                activeBatches.remove(batchId);
+            }
+        } finally {
+            if (pageStored == false) {
+                page.releaseBlocks();
+            }
         }
     }
 
@@ -204,6 +215,7 @@ public class BatchSortedExchangeSource implements Closeable {
      *
      * @return NOT_BLOCKED if a page is available or delegate is finished, otherwise a blocked result
      */
+    @Override
     public IsBlockedResult waitForReading() {
         // If we have pages ready in output queue, not blocked
         if (outputQueue.isEmpty() == false) {
@@ -277,6 +289,7 @@ public class BatchSortedExchangeSource implements Closeable {
     /**
      * Returns true if all pages have been consumed.
      */
+    @Override
     public boolean isFinished() {
         return outputQueue.isEmpty() && hasNoBufferedPages() && delegate.isFinished();
     }
@@ -296,6 +309,7 @@ public class BatchSortedExchangeSource implements Closeable {
     /**
      * Returns the number of pages waiting in the output queue.
      */
+    @Override
     public int bufferSize() {
         return outputQueue.size() + delegate.bufferSize();
     }
@@ -303,6 +317,7 @@ public class BatchSortedExchangeSource implements Closeable {
     /**
      * Finish the underlying source.
      */
+    @Override
     public void finish() {
         delegate.finish();
     }
@@ -324,7 +339,9 @@ public class BatchSortedExchangeSource implements Closeable {
             page.releaseBlocks();
         }
 
-        // Finish the delegate
+        // Finish the delegate to signal no more pages will be polled.
+        // The delegate's lifecycle (close/resource cleanup) is owned by the ExchangeSourceHandler
+        // that created it, so we only call finish() here, not close().
         delegate.finish();
     }
 

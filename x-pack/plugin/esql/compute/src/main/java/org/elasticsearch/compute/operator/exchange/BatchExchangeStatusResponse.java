@@ -9,59 +9,48 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Response sent from server to client indicating batch exchange completion status.
- * Contains success/failure information that the client uses to trigger onSuccess/onFailure.
+ * A {@code null} failure means success; a non-null failure means the server encountered an error.
  */
 public final class BatchExchangeStatusResponse extends TransportResponse {
-    private final boolean success;
+    @Nullable
     private final Exception failure;
 
-    public BatchExchangeStatusResponse(boolean success, Exception failure) {
-        this.success = success;
+    /**
+     * Create a success response.
+     */
+    public BatchExchangeStatusResponse() {
+        this.failure = null;
+    }
+
+    /**
+     * Create a failure response.
+     */
+    public BatchExchangeStatusResponse(Exception failure) {
         this.failure = failure;
     }
 
     public BatchExchangeStatusResponse(StreamInput in) throws IOException {
-        this.success = in.readBoolean();
-        if (success) {
-            this.failure = null;
-        } else {
-            this.failure = in.readException();
-        }
+        this.failure = in.readOptionalException();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(success);
-        if (success == false) {
-            out.writeException(failure);
-        }
+        out.writeOptionalException(failure);
     }
 
     public boolean isSuccess() {
-        return success;
+        return failure == null;
     }
 
     public Exception getFailure() {
         return failure;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BatchExchangeStatusResponse that = (BatchExchangeStatusResponse) o;
-        return success == that.success && Objects.equals(failure, that.failure);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(success, failure);
-    }
 }

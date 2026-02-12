@@ -869,10 +869,6 @@ public class LocalExecutionPlanner {
      * Determines whether streaming lookup should be used based on the target node's transport version.
      * Streaming lookup requires all target nodes to support the streaming protocol.
      * Currently only enabled in snapshot builds.
-     *
-     * @param service the lookup service providing access to cluster and transport services
-     * @param indexName the name of the lookup index
-     * @return true if streaming lookup should be used, false otherwise
      */
     private boolean shouldUseStreamingOperator(LookupFromIndexService service, String indexName) {
         // Streaming lookup is only enabled in snapshot builds

@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -557,7 +556,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             // Determine client node (from task origin or use local node as fallback)
             DiscoveryNode clientNode = determineClientNode(request, task);
 
-            // Stage 1: Create BidirectionalBatchExchangeServer (creates source handler)
+            // Create BidirectionalBatchExchangeServer (creates source handler)
             // Use explicit exchange IDs: clientToServerId is per-server unique,
             // serverToClientId is shared across all servers
             BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
@@ -604,7 +603,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
             List<Operator> intermediateOperators = lookupQueryPlan.operators();
 
-            // Stage 2: Start batch processing with the operators
             // The response will be sent after the remote sink connection is ready
             // This ensures the client doesn't send pages before the server can receive them
             startServerWithOperators(
@@ -657,13 +655,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     /**
      * Starts the exchange server with the generated operators.
      * This method can be overridden in tests to capture the plan without actually starting the server.
-     *
-     * @param server the exchange server
-     * @param lookupQueryPlan the lookup query plan
-     * @param intermediateOperators the operators to execute
-     * @param releasables resources to release when done
-     * @param responseListener listener to call when server is ready (remote sink connected)
-     * @param planString optional plan string for profiling
      */
     protected void startServerWithOperators(
         BidirectionalBatchExchangeServer server,
@@ -672,7 +663,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Releasable releasables,
         ActionListener<LookupResponse> responseListener,
         @Nullable String planString
-    ) throws Exception {
+    ) {
         server.startWithOperators(
             lookupQueryPlan.driverContext(),
             transportService.getThreadPool().getThreadContext(),
@@ -737,50 +728,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         List<Operator> operators,
         List<Page> collectedPages
     ) {}
-
-    protected void startDriver(
-        TransportRequest request,
-        CancellableTask task,
-        ActionListener<List<Page>> listener,
-        LookupQueryPlan lookupQueryPlan
-    ) {
-        Driver driver = new Driver(
-            "lookup-join:" + request.sessionId,
-            "lookup-join",
-            clusterService.getClusterName().value(),
-            clusterService.getNodeName(),
-            System.currentTimeMillis(),
-            System.nanoTime(),
-            lookupQueryPlan.driverContext(),
-            request::toString,
-            null, // sourceOperator - not used in streaming mode
-            lookupQueryPlan.operators(),
-            null, // outputOperator - not used in streaming mode
-            Driver.DEFAULT_STATUS_INTERVAL,
-            Releasables.wrap(lookupQueryPlan.shardContext().release(), lookupQueryPlan.localBreaker())
-        );
-        task.addListener(() -> {
-            String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
-            driver.cancel(reason);
-        });
-        var threadContext = transportService.getThreadPool().getThreadContext();
-        Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                listener.onResponse(lookupQueryPlan.collectedPages());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                Releasables.closeExpectNoException(
-                    Releasables.wrap(() -> Iterators.map(lookupQueryPlan.collectedPages().iterator(), p -> () -> {
-                        p.releaseBlocks();
-                    }))
-                );
-                listener.onFailure(e);
-            }
-        });
-    }
 
     /**
      * Extracts a FieldAttribute from a NamedExpression, throwing an exception if it's not a FieldAttribute.

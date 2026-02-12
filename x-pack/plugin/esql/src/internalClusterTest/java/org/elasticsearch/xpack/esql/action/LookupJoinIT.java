@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
@@ -377,7 +379,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         // Required indices for this test
         ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
 
-        // Run the query (added SORT for deterministic results - csv-spec uses ignoreOrder:true)
+        // Run the query with profiling (added SORT for deterministic results - csv-spec uses ignoreOrder:true)
         String query = String.format(Locale.ROOT, """
             FROM %s
             | LOOKUP JOIN %s ON message
@@ -385,7 +387,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             | SORT @timestamp DESC
             """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
 
-        try (EsqlQueryResponse response = runQuery(query)) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true))) {
             assertValues(
                 response.values(),
                 List.of(
@@ -398,6 +400,34 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                     List.of("2023-10-23T12:15:03.360Z", "172.21.2.162", 3450233L, "Connected to 10.1.0.3", "Success")
                 )
             );
+
+            // Verify the correct lookup operator is used: streaming in snapshot builds, non-streaming in release builds
+            assertNotNull("profile should be present", response.profile());
+            List<String> allOperators = response.profile()
+                .drivers()
+                .stream()
+                .flatMap(d -> d.operators().stream())
+                .map(OperatorStatus::operator)
+                .toList();
+            if (Build.current().isSnapshot()) {
+                assertTrue(
+                    "expected StreamingLookupOperator in snapshot build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
+                );
+                assertFalse(
+                    "unexpected LookupOperator in snapshot build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
+                );
+            } else {
+                assertTrue(
+                    "expected LookupOperator in release build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
+                );
+                assertFalse(
+                    "unexpected StreamingLookupOperator in release build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
+                );
+            }
         }
     }
 
@@ -423,20 +453,37 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         AtomicReference<List<String>> capturedWarnings = new AtomicReference<>();
+        AtomicReference<EsqlQueryResponse> responseRef = new AtomicReference<>();
 
-        client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
-            try {
-                // Capture warnings from thread context
-                var threadpool = internalCluster().getInstance(TransportService.class, internalCluster().getRandomNodeName())
-                    .getThreadPool();
-                Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
-                capturedWarnings.set(new ArrayList<>(responseHeaders.getOrDefault("Warning", List.of())));
-            } finally {
-                latch.countDown();
+        client().execute(EsqlQueryAction.INSTANCE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(EsqlQueryResponse response) {
+                try {
+                    responseRef.set(response);
+                    // Capture warnings from thread context
+                    var threadpool = internalCluster().getInstance(TransportService.class, internalCluster().getRandomNodeName())
+                        .getThreadPool();
+                    Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
+                    capturedWarnings.set(new ArrayList<>(responseHeaders.getOrDefault("Warning", List.of())));
+                } finally {
+                    latch.countDown();
+                }
             }
-        }));
+
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+                fail("Query failed: " + e.getMessage());
+            }
+        });
 
         assertTrue("Test timed out", latch.await(30, TimeUnit.SECONDS));
+
+        // Close the response to prevent resource leaks
+        EsqlQueryResponse response = responseRef.get();
+        if (response != null) {
+            response.close();
+        }
 
         // Verify warnings were captured
         List<String> warnings = capturedWarnings.get();

@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
@@ -27,7 +26,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -69,7 +70,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final List<Worker> workers = new ArrayList<>();
     private final Map<Long, Worker> batchToWorker = new HashMap<>();
     private final int maxWorkers;
-    private int nextWorkerId = 0;
     private int lastSelectedWorkerIndex = 0;  // For round-robin tie-breaking
 
     // Supplier for getting server nodes for new workers
@@ -93,6 +93,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     // Track pending worker connections to prevent finishing client-to-server exchanges prematurely
     // This ensures workers can't finish before all connections are established
     private final AtomicInteger pendingWorkerConnections = new AtomicInteger(0);
+    // Counts workers whose server response has not yet arrived. Incremented on the Driver thread
+    // when a worker is created, decremented on the transport callback thread when the response
+    // arrives. When it reaches 0 and no failure is recorded, the global success listener fires.
+    private final AtomicInteger outstandingWorkerResponses = new AtomicInteger(0);
     private volatile boolean finishRequested = false;
 
     // Server setup callback - called lazily when first page is sent
@@ -214,12 +218,16 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         if (serverNode == null) {
             throw new IllegalStateException("serverNodeSupplier returned null - no available server nodes");
         }
-        int workerId = nextWorkerId++;
+        int workerId = workers.size();
         Worker worker = new Worker(workerId, serverNode, sessionId);
         workers.add(worker);
         // Increment pending connections to prevent finishing client-to-server exchanges
         // until this connection is fully established (addRemoteSink called)
         pendingWorkerConnections.incrementAndGet();
+        // Track that this worker's server response is outstanding. Must be incremented here
+        // (on the Driver thread, before the async setup) so the counter is visible before
+        // any transport callback can decrement it.
+        outstandingWorkerResponses.incrementAndGet();
         initializeWorker(worker);
         logger.debug(
             "[LookupJoinClient] Created new worker: workerId={}, serverNode={}, totalWorkers={}",
@@ -297,8 +305,15 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             worker.serverNode.getId(),
             worker.serverToClientId
         );
-        // Each worker connects to its own server's sink, all feeding into the shared serverToClientSourceHandler
-        connectRemoteSink(worker.serverNode, worker.serverToClientId, serverToClientSourceHandler, ActionListener.wrap(nullValue -> {
+        // Each worker connects to its own server's sink, all feeding into the shared serverToClientSourceHandler.
+        // Use failFast=false so that a sink failure does NOT cause ExchangeSourceHandler to throw
+        // TaskCancelledException("remote sinks failed") on the next pollPage()/isFinished() call.
+        // With failFast=true, onSinkFailed() sets the aborted flag and wakes the driver BEFORE the
+        // real error (e.g. CircuitBreakingException) propagates through handleFailure(). This race
+        // causes a generic TaskCancelledException to mask the real error.
+        // With failFast=false, the error propagates through handleFailure() -> failure.set() ->
+        // finishEarly(), which both sets the real error and shuts down the exchange.
+        connectRemoteSink(worker.serverNode, worker.serverToClientId, serverToClientSourceHandler, false, ActionListener.wrap(nullValue -> {
             // Success - no action needed
         }, failure -> { handleFailure("server-to-client exchange for worker " + worker.workerId, failure); }), "server sink handler");
 
@@ -335,8 +350,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     if (response.isSuccess()) {
                         logger.debug("[LookupJoinClient] Completing serverResponseListener for worker={} (success)", worker.workerId);
                         worker.serverResponseListener.onResponse(null);
-                        // Only call global listener if all workers have responded
-                        checkAllWorkersResponded();
                     } else {
                         Exception failure = response.getFailure();
                         logger.warn(
@@ -347,6 +360,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         handleFailure("batch exchange status response for worker " + worker.workerId, failure);
                         worker.serverResponseListener.onResponse(null);
                     }
+                    onWorkerResponded();
                 }, failure -> {
                     logger.error(
                         "[LookupJoinClient] Failed to receive batch exchange status response for worker={}: {}",
@@ -355,6 +369,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     );
                     handleFailure("batch exchange status response (transport error) for worker " + worker.workerId, failure);
                     worker.serverResponseListener.onResponse(null);
+                    onWorkerResponded();
                 })
             );
             worker.requestSent = true;
@@ -365,21 +380,22 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Check if all workers have responded successfully, and if so, call the global success listener.
+     * Called from transport callback threads when a worker's server response arrives (success or failure).
+     * Decrements the outstanding counter atomically; when it reaches 0 and no failure has been
+     * recorded, fires the global success listener. This avoids iterating the {@code workers} list
+     * from a transport thread, which would race with the Driver thread appending new workers.
      */
-    private void checkAllWorkersResponded() {
-        for (Worker worker : workers) {
-            if (worker.serverResponseListener.isDone() == false) {
-                return; // Not all workers have responded yet
-            }
-        }
-        // All workers responded - call global success listener if no failure
-        if (failureRef.get() == null && batchExchangeStatusListener != null) {
-            logger.debug("[LookupJoinClient] All workers responded successfully, calling batch exchange status listener");
-            try {
-                batchExchangeStatusListener.onResponse(null);
-            } catch (Exception e) {
-                logger.error("[LookupJoinClient] Exception in batch exchange status listener callback", e);
+    private void onWorkerResponded() {
+        int remaining = outstandingWorkerResponses.decrementAndGet();
+        if (remaining == 0) {
+            // All workers responded - call global success listener if no failure
+            if (failureRef.get() == null && batchExchangeStatusListener != null) {
+                logger.debug("[LookupJoinClient] All workers responded successfully, calling batch exchange status listener");
+                try {
+                    batchExchangeStatusListener.onResponse(null);
+                } catch (Exception e) {
+                    logger.error("[LookupJoinClient] Exception in batch exchange status listener callback", e);
+                }
             }
         }
     }
@@ -465,8 +481,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * If any worker failed, hasFailed() will return true and the failure can be retrieved.
      */
     public boolean isFinished() {
-        // Check if all workers have responded
-        if (allWorkersResponded() == false) {
+        // Check if all workers have responded (counter-based, thread-safe)
+        if (outstandingWorkerResponses.get() != 0) {
             return false;
         }
         // If all sent batches have been completed and all workers responded, we're done.
@@ -477,21 +493,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
         // Also check exchange for edge cases (e.g., no batches sent)
         return isExchangeDone();
-    }
-
-    /**
-     * Check if all workers have responded.
-     */
-    private boolean allWorkersResponded() {
-        if (workers.isEmpty()) {
-            return true; // No workers created yet - considered done
-        }
-        for (Worker worker : workers) {
-            if (worker.serverResponseListener.isDone() == false) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
@@ -598,7 +599,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         completedBatchCount++;
         Worker worker = batchToWorker.remove(batchId);
         if (worker != null) {
-            int pending = worker.pendingBatches--;
+            int pending = --worker.pendingBatches;
             logger.trace(
                 "[LookupJoinClient] Batch {} completed on worker {}, pending={}, total completed={}",
                 batchId,
@@ -760,14 +761,19 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
 
         // Wait for all worker responses - this ensures all workers have finished processing
+        // and server-side resources (e.g. Lucene readers) are properly cleaned up.
+        // We use LatchedActionListener + CountDownLatch instead of PlainActionFuture to avoid
+        // the deadlock assertion that fires when close() runs on a search thread and the response
+        // arrives on another search thread in the same pool. The wait is timed (30s) so no real
+        // deadlock can occur.
         for (Worker worker : workers) {
             // First: wait for setup to complete (success or failure) so requestSent has its final value
             try {
                 if (worker.setupReadyListener.isDone() == false) {
                     logger.debug("[LookupJoinClient] Waiting for setup completion for worker={}", worker.workerId);
-                    PlainActionFuture<Void> setupFuture = new PlainActionFuture<>();
-                    worker.setupReadyListener.addListener(setupFuture);
-                    setupFuture.actionGet(TimeValue.timeValueSeconds(30));
+                    CountDownLatch setupLatch = new CountDownLatch(1);
+                    worker.setupReadyListener.addListener(new LatchedActionListener<>(ActionListener.noop(), setupLatch));
+                    setupLatch.await(closeWaitTimeoutSeconds(), TimeUnit.SECONDS);
                 }
             } catch (Exception e) {
                 logger.warn("[LookupJoinClient] Timeout or exception waiting for setup completion for worker=" + worker.workerId, e);
@@ -782,9 +788,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         worker.serverResponseListener.isDone()
                     );
                     if (worker.serverResponseListener.isDone() == false) {
-                        PlainActionFuture<Void> waitFuture = new PlainActionFuture<>();
-                        worker.serverResponseListener.addListener(waitFuture);
-                        waitFuture.actionGet(TimeValue.timeValueSeconds(30));
+                        CountDownLatch responseLatch = new CountDownLatch(1);
+                        worker.serverResponseListener.addListener(new LatchedActionListener<>(ActionListener.noop(), responseLatch));
+                        responseLatch.await(closeWaitTimeoutSeconds(), TimeUnit.SECONDS);
                     }
                     logger.debug("[LookupJoinClient] Server response received from worker={}", worker.workerId);
                 } catch (Exception e) {

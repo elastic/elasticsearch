@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -66,8 +67,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private final DiscoveryNode clientNode; // Client node for transport connection
     private PlainActionFuture<Void> driverFuture; // Future for driver completion
     private ThreadContext threadContext; // Thread context for starting driver
-    private boolean driverPrepared = false; // Whether driver has been prepared but not started
-    private boolean driverStarted = false; // Whether driver has been started (client sent BatchExchangeStatusRequest)
+    private volatile boolean driverPrepared = false; // Whether driver has been prepared but not started
+    private volatile boolean driverStarted = false; // Whether driver has been started (client sent BatchExchangeStatusRequest)
     private ScheduledFuture<?> clientReadyTimeoutFuture; // Timeout for client to send BatchExchangeStatusRequest
     private ActionListener<BatchExchangeStatusResponse> batchExchangeStatusListener; // Listener to call when batch processing completes
     private final AtomicReference<Releasable> releasableRef = new AtomicReference<>(); // Releasable resources (shardContext, etc.) that
@@ -78,19 +79,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
     /**
      * Create a new BidirectionalBatchExchangeServer with explicit exchange IDs.
-     * This is stage 1: creates the server and source handler.
-     * Call {@link #startWithOperators(DriverContext, ThreadContext, List, String, Releasable, ActionListener)} to complete setup.
-     *
-     * @param sessionId session ID for the driver (used for logging)
-     * @param clientToServerId explicit client-to-server exchange ID (per-server unique)
-     * @param serverToClientId explicit server-to-client exchange ID (shared across servers)
-     * @param exchangeService the exchange service
-     * @param executor executor for async operations
-     * @param maxBufferSize maximum buffer size for exchanges
-     * @param transportService transport service for transport-based remote sink
-     * @param task task for transport-based remote sink
-     * @param clientNode client node for transport connection
-     * @throws Exception if initialization fails
+     * Call {@link #startWithOperators(DriverContext, ThreadContext, List, String, Releasable, ActionListener)}
+     * to complete setup and start processing after planning is complete
      */
     public BidirectionalBatchExchangeServer(
         String sessionId,
@@ -131,16 +121,8 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     }
 
     /**
-     * Stage 2: Start batch processing with the intermediate operators.
+     * Start batch processing with the intermediate operators.
      * This must be called after planning is complete.
-     *
-     * @param driverContext driver context
-     * @param threadContext thread context for starting the driver
-     * @param intermediateOperators intermediate operators to execute
-     * @param clusterName cluster name
-     * @param releasable releasable resources
-     * @param readyListener listener called when the server is ready to receive pages (remote sink connected)
-     * @throws Exception if starting fails
      */
     public void startWithOperators(
         DriverContext driverContext,
@@ -149,7 +131,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         String clusterName,
         Releasable releasable,
         ActionListener<Void> readyListener
-    ) throws Exception {
+    ) {
         startBatchProcessing(driverContext, threadContext, intermediateOperators, clusterName, TimeValue.timeValueSeconds(1), releasable);
         remoteSinkReady.addListener(readyListener);
     }
@@ -196,6 +178,17 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 exchangeId,
                 serverToClientId
             );
+            try {
+                channel.sendResponse(
+                    new BatchExchangeStatusResponse(
+                        new IllegalStateException(
+                            "Exchange ID mismatch: received [" + exchangeId + "] but expected [" + serverToClientId + "]"
+                        )
+                    )
+                );
+            } catch (Exception e) {
+                logger.debug("[LookupJoinServer] Failed to send failure response (exchange ID mismatch)", e);
+            }
             return;
         }
 
@@ -206,7 +199,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 exchangeId
             );
             try {
-                channel.sendResponse(new BatchExchangeStatusResponse(false, new IllegalStateException("Server is closing")));
+                channel.sendResponse(new BatchExchangeStatusResponse(new IllegalStateException("Server is closing")));
             } catch (Exception e) {
                 logger.debug("[LookupJoinServer] Failed to send failure response (server closing)", e);
             }
@@ -232,7 +225,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 exchangeId,
                 e.getMessage()
             );
-            sendBatchExchangeStatusResponse(false, e);
+            sendBatchExchangeStatusResponse(e);
         }
     }
 
@@ -248,14 +241,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             String errorMsg = "Driver not prepared when BatchExchangeStatusRequest received";
             logger.error("[LookupJoinServer] onClientReady called but driver not prepared yet for exchangeId={}", serverToClientId);
             // Reply with failure since we can't start processing
-            sendBatchExchangeStatusResponse(false, new IllegalStateException(errorMsg));
+            sendBatchExchangeStatusResponse(new IllegalStateException(errorMsg));
             return;
         }
         if (closing) {
             String errorMsg = "Server is closing when BatchExchangeStatusRequest received";
             logger.error("[LookupJoinServer] Server is closing, cannot start driver for exchangeId={}", serverToClientId);
             // Reply with failure since we can't start processing
-            sendBatchExchangeStatusResponse(false, new IllegalStateException(errorMsg));
+            sendBatchExchangeStatusResponse(new IllegalStateException(errorMsg));
             return;
         }
 
@@ -299,7 +292,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             if (closeException != null) {
                 handleDriverFailureAfterClose(closeException);
             } else {
-                sendBatchExchangeStatusResponse(true, null);
+                sendBatchExchangeStatusResponse(null);
             }
         }, failure -> {
             logger.debug(
@@ -329,7 +322,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     /**
      * Handle driver failure after close() has already been called.
      * This propagates the failure to the exchange sink handler and sends the failure response.
-     * Note: driverFuture.onFailure() and close() have already been called before this method.
      */
     private void handleDriverFailureAfterClose(Exception failure) {
         logger.error("[LookupJoinServer] Server driver failed, propagating failure to exchange sink handler", failure);
@@ -339,7 +331,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             logger.error("[LookupJoinServer] Exception propagating failure to sink handler", e);
         }
         // Always send response, even if onFailure() threw
-        sendBatchExchangeStatusResponse(false, failure);
+        sendBatchExchangeStatusResponse(failure);
     }
 
     /**
@@ -348,16 +340,19 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      * This method ensures we always reply to the client, even if an error occurred.
      * The listener is stored when BatchExchangeStatusRequest is received, before processing starts.
      */
-    private void sendBatchExchangeStatusResponse(boolean success, Exception failure) {
+    private void sendBatchExchangeStatusResponse(@Nullable Exception failure) {
         ActionListener<BatchExchangeStatusResponse> listener = batchExchangeStatusListener;
         if (listener != null) {
             logger.debug(
                 "[LookupJoinServer] Sending batch exchange status {} response for exchangeId={}",
-                success ? "success" : "failure",
+                failure == null ? "success" : "failure",
                 serverToClientId
             );
             try {
-                listener.onResponse(new BatchExchangeStatusResponse(success, failure));
+                BatchExchangeStatusResponse response = failure == null
+                    ? new BatchExchangeStatusResponse()
+                    : new BatchExchangeStatusResponse(failure);
+                listener.onResponse(response);
                 // Clear the listener after sending response to prevent duplicate replies
                 batchExchangeStatusListener = null;
             } catch (Exception e) {
@@ -378,47 +373,10 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     }
 
     /**
-     * Get the driver future that completes when batch processing finishes.
-     * @return PlainActionFuture that completes when the driver finishes
-     */
-    public PlainActionFuture<Void> getDriverFuture() {
-        return driverFuture;
-    }
-
-    /**
-     * Start batch processing with the given operators.
-     * Creates a BatchDriver that processes batches and sends results back to the client.
-     * Also connects to the client's sink handler for client-to-server exchange.
-     * The driver will be started when the client is ready (BatchExchangeStatusRequest received).
-     * Called automatically from the constructor.
-     *
-     * @param driverContext driver context
-     * @param threadContext thread context for starting the driver
-     * @param intermediateOperators intermediate operators to execute
-     * @param clusterName cluster name
-     */
-    private void startBatchProcessing(
-        DriverContext driverContext,
-        ThreadContext threadContext,
-        List<Operator> intermediateOperators,
-        String clusterName
-    ) {
-        startBatchProcessing(driverContext, threadContext, intermediateOperators, clusterName, TimeValue.timeValueSeconds(1), () -> {});
-    }
-
-    /**
      * Start batch processing with the given operators and full configuration.
      * Creates a BatchDriver that processes batches and sends results back to the client.
      * Also connects to the client's sink handler for client-to-server exchange.
      * The driver will be started when the client is ready (BatchExchangeStatusRequest received).
-     * Called automatically from the constructor.
-     *
-     * @param driverContext driver context
-     * @param threadContext thread context for starting the driver
-     * @param intermediateOperators intermediate operators to execute
-     * @param clusterName cluster name
-     * @param statusInterval status reporting interval
-     * @param releasable releasable resource
      */
     private void startBatchProcessing(
         DriverContext driverContext,
@@ -446,7 +404,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             "[LookupJoinServer] Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}",
             clientToServerId
         );
-        connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, ActionListener.wrap(nullValue -> {
+        connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, true, ActionListener.wrap(nullValue -> {
             logger.debug("[LookupJoinServer] Client-to-server exchange sink connection completed successfully");
         }, failure -> { logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure); }),
             "client sink handler"
@@ -509,7 +467,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         driverPrepared = true;
 
         // Create future that will be completed when driver finishes
-        // This will be set when startDriver() is called
         driverFuture = new PlainActionFuture<>();
 
         // Schedule a timeout - if client doesn't send BatchExchangeStatusRequest within the timeout,
@@ -545,28 +502,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         );
     }
 
-    /**
-     * Get the BatchDriver instance.
-     * Can be used to start the driver or check its status.
-     */
-    public BatchDriver getBatchDriver() {
-        return batchDriver;
-    }
-
-    /**
-     * Force close the server, completing the driver future if needed.
-     * This is used during ExchangeService shutdown to cleanup servers that haven't started.
-     */
-    public void forceClose() {
-        // Complete the driverFuture if it exists and hasn't completed yet
-        // This allows close() to proceed without throwing IllegalStateException
-        if (driverFuture != null && driverFuture.isDone() == false) {
-            logger.debug("[LookupJoinServer] Force closing - completing driver future");
-            driverFuture.onFailure(new IllegalStateException("Server force closed during ExchangeService shutdown"));
-        }
-        close();
-    }
-
     @Override
     public void close() {
         // Prevent recursive close if server is part of a releasable that includes itself
@@ -595,7 +530,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         }
 
         // Close all releasable resources (shardContext with DirectoryReader, localBreaker, etc.)
-        // This is the single point of cleanup - driver does not close anything
         // When close() is called from driver completion listener, driver has already finished
         // and closed its operators and the releasable passed to it, but we still need to close
         // the releasable we stored (shardContext and localBreaker)

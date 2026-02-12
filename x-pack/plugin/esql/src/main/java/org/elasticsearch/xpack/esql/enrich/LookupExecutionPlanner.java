@@ -432,7 +432,6 @@ public class LookupExecutionPlanner {
                 driverContext.blockFactory(),
                 maxPageSize,
                 queryList,
-                blockOptimization,
                 shardContexts,
                 shardId,
                 searchExecutionContext,

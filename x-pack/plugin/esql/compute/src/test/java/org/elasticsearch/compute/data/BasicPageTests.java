@@ -356,7 +356,7 @@ public class BasicPageTests extends SerializationTestCase {
 
     public void testPageWithBatchMetadataSerialization() throws IOException {
         int positions = randomIntBetween(1, 100);
-        long batchId = randomLong();
+        long batchId = randomNonNegativeLong();
         int pageIndexInBatch = randomIntBetween(0, 50);
         boolean isLastPage = randomBoolean();
 
@@ -385,7 +385,7 @@ public class BasicPageTests extends SerializationTestCase {
     }
 
     public void testBatchMarkerPageSerialization() throws IOException {
-        long batchId = randomLong();
+        long batchId = randomNonNegativeLong();
         int pageIndexInBatch = randomIntBetween(0, 50);
 
         Page origPage = Page.createBatchMarkerPage(batchId, pageIndexInBatch);

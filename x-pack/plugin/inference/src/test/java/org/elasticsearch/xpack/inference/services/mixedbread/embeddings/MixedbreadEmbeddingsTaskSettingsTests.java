@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.embeddings;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.common.model.Truncation;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.TestUtils;
 
@@ -21,77 +17,39 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<MixedbreadEmbeddingsTaskSettings> {
     public static MixedbreadEmbeddingsTaskSettings createRandom() {
-        var inputType = randomFrom(MixedbreadService.VALID_INPUT_TYPE_VALUES);
-        var truncation = randomFrom(Truncation.values());
+        var prompt = randomAlphaOfLengthOrNull(10);
+        var normalized = randomBoolean() ? randomBoolean() : null;
 
-        return new MixedbreadEmbeddingsTaskSettings(inputType, truncation);
+        return new MixedbreadEmbeddingsTaskSettings(prompt, normalized);
     }
 
     public void testFromMap_WithValidValues_ReturnsSettings() {
         Map<String, Object> taskMap = Map.of(
-            MixedbreadUtils.INPUT_TYPE_FIELD,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE.name(),
-            MixedbreadUtils.TRUNCATE_FIELD,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE.name()
+            MixedbreadUtils.PROMPT_FIELD,
+            TestUtils.PROMPT_INITIAL_VALUE,
+            MixedbreadUtils.NORMALIZED_FIELD,
+            TestUtils.NORMALIZED_INITIAL_VALUE
         );
         var settings = MixedbreadEmbeddingsTaskSettings.fromMap(new HashMap<>(taskMap));
-        assertEquals(TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE, settings.getInputType());
-        assertEquals(TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE, settings.getTruncation());
+        assertEquals(TestUtils.PROMPT_INITIAL_VALUE, settings.getPrompt());
+        assertEquals(TestUtils.NORMALIZED_INITIAL_VALUE, settings.getNormalized());
     }
 
     public void testFromMap_WithNullValues_ReturnsSettingsWithNulls() {
         var settings = MixedbreadEmbeddingsTaskSettings.fromMap(Map.of());
-        assertNull(settings.getInputType());
-        assertNull(settings.getTruncation());
-    }
-
-    public void testFromMap_WithInvalidInputType_ThrowsValidationException() {
-        Map<String, Object> taskMap = Map.of(
-            MixedbreadUtils.INPUT_TYPE_FIELD,
-            "invalid",
-            MixedbreadUtils.TRUNCATE_FIELD,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE.name()
-        );
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> MixedbreadEmbeddingsTaskSettings.fromMap(new HashMap<>(taskMap))
-        );
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                "[task_settings] Invalid value [invalid] received. "
-                    + "[input_type] must be one of [classification, clustering, ingest, internal_ingest, internal_search, search]"
-            )
-        );
-    }
-
-    public void testFromMap_WithInvalidTruncation_ThrowsValidationException() {
-        Map<String, Object> taskMap = Map.of(
-            MixedbreadUtils.INPUT_TYPE_FIELD,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE.name(),
-            MixedbreadUtils.TRUNCATE_FIELD,
-            "invalid"
-        );
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> MixedbreadEmbeddingsTaskSettings.fromMap(new HashMap<>(taskMap))
-        );
-        assertThat(
-            thrownException.getMessage(),
-            containsString("[task_settings] Invalid value [invalid] received. " + "[truncate] must be one of [end, none, start]")
-        );
+        assertNull(settings.getPrompt());
+        assertNull(settings.getNormalized());
     }
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE
         );
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(Map.of());
         assertThat(initialSettings, is(sameInstance(updatedSettings)));
@@ -99,40 +57,40 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
 
     public void testUpdatedTaskSettings_WithNewInputType_ReturnsUpdatedSettings() {
         var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE
         );
-        Map<String, Object> newSettings = Map.of(MixedbreadUtils.INPUT_TYPE_FIELD, TestUtils.INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE.name());
+        Map<String, Object> newSettings = Map.of(MixedbreadUtils.PROMPT_FIELD, TestUtils.PROMPT_OVERRIDDEN_VALUE);
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
-        assertEquals(TestUtils.INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE, updatedSettings.getInputType());
-        assertEquals(initialSettings.getTruncation(), updatedSettings.getTruncation());
+        assertEquals(TestUtils.PROMPT_OVERRIDDEN_VALUE, updatedSettings.getPrompt());
+        assertEquals(initialSettings.getNormalized(), updatedSettings.getNormalized());
     }
 
     public void testUpdatedTaskSettings_WithNewTruncation_ReturnsUpdatedSettings() {
         var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE
         );
-        Map<String, Object> newSettings = Map.of(MixedbreadUtils.TRUNCATE_FIELD, TestUtils.TRUNCATE_OVERRIDDEN_ELASTIC_VALUE.name());
+        Map<String, Object> newSettings = Map.of(MixedbreadUtils.NORMALIZED_FIELD, TestUtils.NORMALIZED_OVERRIDDEN_VALUE);
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
-        assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
-        assertEquals(TestUtils.TRUNCATE_OVERRIDDEN_ELASTIC_VALUE, updatedSettings.getTruncation());
+        assertEquals(initialSettings.getPrompt(), updatedSettings.getPrompt());
+        assertEquals(TestUtils.NORMALIZED_OVERRIDDEN_VALUE, updatedSettings.getNormalized());
     }
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new MixedbreadEmbeddingsTaskSettings(
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE
         );
         Map<String, Object> newSettings = Map.of(
-            MixedbreadUtils.INPUT_TYPE_FIELD,
-            TestUtils.INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE.name(),
-            MixedbreadUtils.TRUNCATE_FIELD,
-            TestUtils.TRUNCATE_OVERRIDDEN_ELASTIC_VALUE.name()
+            MixedbreadUtils.PROMPT_FIELD,
+            TestUtils.PROMPT_OVERRIDDEN_VALUE,
+            MixedbreadUtils.NORMALIZED_FIELD,
+            TestUtils.NORMALIZED_OVERRIDDEN_VALUE
         );
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
-        assertEquals(TestUtils.INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE, updatedSettings.getInputType());
-        assertEquals(TestUtils.TRUNCATE_OVERRIDDEN_ELASTIC_VALUE, updatedSettings.getTruncation());
+        assertEquals(TestUtils.PROMPT_OVERRIDDEN_VALUE, updatedSettings.getPrompt());
+        assertEquals(TestUtils.NORMALIZED_OVERRIDDEN_VALUE, updatedSettings.getNormalized());
     }
 
     @Override
@@ -147,31 +105,31 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
 
     @Override
     protected MixedbreadEmbeddingsTaskSettings mutateInstance(MixedbreadEmbeddingsTaskSettings instance) throws IOException {
-        var inputType = instance.getInputType();
-        var truncation = instance.getTruncation();
+        var prompt = instance.getPrompt();
+        var normalized = instance.getNormalized();
         switch (randomInt(1)) {
-            case 0 -> inputType = randomValueOtherThan(inputType, () -> randomFrom(MixedbreadService.VALID_INPUT_TYPE_VALUES));
-            case 1 -> truncation = randomValueOtherThan(truncation, () -> randomFrom(Truncation.values()));
+            case 0 -> prompt = randomValueOtherThan(prompt, () -> randomAlphaOfLengthOrNull(10));
+            case 1 -> normalized = randomValueOtherThan(normalized, () -> randomBoolean() ? randomBoolean() : null);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new MixedbreadEmbeddingsTaskSettings(inputType, truncation);
+        return new MixedbreadEmbeddingsTaskSettings(prompt, normalized);
     }
 
     /**
      * Helper method to build a task settings map for testing.
-     * @param inputType the input type to include in the map
-     * @param truncation specifies whether input text should be truncated if it exceeds the model's maximum supported length
+     * @param prompt the query text used to rank the provided documents by relevance
+     * @param normalized specifies whether to normalize the embeddings
      * @return a map representing the task settings
      */
-    public static Map<String, Object> getTaskSettingsMap(@Nullable InputType inputType, @Nullable Truncation truncation) {
+    public static Map<String, Object> getTaskSettingsMap(@Nullable String prompt, @Nullable Boolean normalized) {
         var map = new HashMap<String, Object>();
 
-        if (inputType != null) {
-            map.put(MixedbreadUtils.INPUT_TYPE_FIELD, inputType.name());
+        if (prompt != null) {
+            map.put(MixedbreadUtils.PROMPT_FIELD, prompt);
         }
 
-        if (truncation != null) {
-            map.put(MixedbreadUtils.TRUNCATE_FIELD, truncation.name());
+        if (normalized != null) {
+            map.put(MixedbreadUtils.NORMALIZED_FIELD, normalized);
         }
 
         return map;

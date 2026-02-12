@@ -12,12 +12,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.common.model.Truncation;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 
 import java.io.IOException;
@@ -25,8 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 /**
  * Defines the task settings for the Mixedbread text embeddings service.
@@ -49,26 +46,12 @@ public class MixedbreadEmbeddingsTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
-        InputType inputType = extractOptionalEnum(
-            map,
-            MixedbreadUtils.INPUT_TYPE_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
-            InputType::fromString,
-            MixedbreadService.VALID_INPUT_TYPE_VALUES,
-            validationException
-        );
-        Truncation truncation = extractOptionalEnum(
-            map,
-            MixedbreadUtils.TRUNCATE_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
-            Truncation::fromString,
-            Truncation.ALL,
-            validationException
-        );
+        var prompt = extractOptionalString(map, MixedbreadUtils.PROMPT_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        var normalized = extractOptionalBoolean(map, MixedbreadUtils.NORMALIZED_FIELD, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new MixedbreadEmbeddingsTaskSettings(inputType, truncation);
+        return new MixedbreadEmbeddingsTaskSettings(prompt, normalized);
     }
 
     /**
@@ -87,44 +70,36 @@ public class MixedbreadEmbeddingsTaskSettings implements TaskSettings {
             return originalSettings;
         }
         return new MixedbreadEmbeddingsTaskSettings(
-            requestTaskSettings.getInputType() != null ? requestTaskSettings.getInputType() : originalSettings.getInputType(),
-            requestTaskSettings.getTruncation() != null ? requestTaskSettings.getTruncation() : originalSettings.getTruncation()
+            requestTaskSettings.getPrompt() != null ? requestTaskSettings.getPrompt() : originalSettings.getPrompt(),
+            requestTaskSettings.getNormalized() != null ? requestTaskSettings.getNormalized() : originalSettings.getNormalized()
         );
     }
 
-    private final InputType inputType;
-    private final Truncation truncation;
+    private final String prompt;
+    private final Boolean normalized;
 
     public MixedbreadEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(Truncation.class));
+        this(in.readOptionalString(), in.readOptionalBoolean());
     }
 
-    public MixedbreadEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Truncation truncation) {
-        validateInputType(inputType);
-        this.inputType = inputType;
-        this.truncation = truncation;
-    }
-
-    private void validateInputType(InputType inputType) {
-        if (inputType == null) {
-            return;
-        }
-        assert MixedbreadService.VALID_INPUT_TYPE_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
+    public MixedbreadEmbeddingsTaskSettings(@Nullable String prompt, @Nullable Boolean normalized) {
+        this.prompt = prompt;
+        this.normalized = normalized;
     }
 
     @Override
     public boolean isEmpty() {
-        return inputType == null && truncation == null;
+        return prompt == null && normalized == null;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (inputType != null) {
-            builder.field(MixedbreadUtils.INPUT_TYPE_FIELD, inputType);
+        if (prompt != null) {
+            builder.field(MixedbreadUtils.PROMPT_FIELD, prompt);
         }
-        if (truncation != null) {
-            builder.field(MixedbreadUtils.TRUNCATE_FIELD, truncation);
+        if (normalized != null) {
+            builder.field(MixedbreadUtils.NORMALIZED_FIELD, normalized);
         }
         builder.endObject();
         return builder;
@@ -148,8 +123,8 @@ public class MixedbreadEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalEnum(inputType);
-        out.writeOptionalEnum(truncation);
+        out.writeOptionalString(prompt);
+        out.writeOptionalBoolean(normalized);
     }
 
     @Override
@@ -157,20 +132,20 @@ public class MixedbreadEmbeddingsTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MixedbreadEmbeddingsTaskSettings that = (MixedbreadEmbeddingsTaskSettings) o;
-        return Objects.equals(inputType, that.inputType) && Objects.equals(truncation, that.truncation);
+        return Objects.equals(prompt, that.prompt) && Objects.equals(normalized, that.normalized);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inputType, truncation);
+        return Objects.hash(prompt, normalized);
     }
 
-    public InputType getInputType() {
-        return inputType;
+    public String getPrompt() {
+        return prompt;
     }
 
-    public Truncation getTruncation() {
-        return truncation;
+    public Boolean getNormalized() {
+        return normalized;
     }
 
     @Override

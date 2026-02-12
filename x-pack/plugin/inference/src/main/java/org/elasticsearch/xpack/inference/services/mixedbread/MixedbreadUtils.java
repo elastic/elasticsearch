@@ -34,7 +34,6 @@ public final class MixedbreadUtils {
 
     // embeddings fields
     public static final String INPUT_NAME = "input";
-    public static final String INPUT_TYPE_FIELD = "input_type";
 
     public static final String DIMENSIONS_FIELD = "dimensions";
     public static final String PROMPT_FIELD = "prompt";

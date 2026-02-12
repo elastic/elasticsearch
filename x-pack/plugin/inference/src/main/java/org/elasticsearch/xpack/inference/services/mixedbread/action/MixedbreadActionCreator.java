@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddin
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 /**
@@ -68,9 +67,8 @@ public class MixedbreadActionCreator implements MixedbreadActionVisitor {
             overriddenModel,
             EMBEDDINGS_HANDLER,
             embeddingsInput -> new MixedbreadEmbeddingsRequest(
-                serviceComponents.truncator(),
-                truncate(embeddingsInput.getTextInputs(), overriddenModel.getServiceSettings().maxInputTokens()),
-                overriddenModel
+                overriddenModel,
+                embeddingsInput.getTextInputs()
             ),
             EmbeddingsInput.class
         );

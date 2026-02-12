@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread;
 
-import org.elasticsearch.inference.InputType;
-import org.elasticsearch.xpack.inference.common.model.Truncation;
-
 public final class TestUtils {
     public static final String DEFAULT_EMBEDDINGS_URL = "https://api.mixedbread.com/v1/embeddings";
     public static final String DEFAULT_RERANK_URL = "https://api.mixedbread.com/v1/reranking";
@@ -25,8 +22,8 @@ public final class TestUtils {
     public static final Boolean NORMALIZED = Boolean.FALSE;
     public static final String ENCODING_VALUE = "float";
 
-    public static final InputType INPUT_TYPE_INITIAL_ELASTIC_VALUE = InputType.INGEST;
-    public static final Truncation TRUNCATE_INITIAL_ELASTIC_VALUE = Truncation.START;
-    public static final InputType INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE = InputType.SEARCH;
-    public static final Truncation TRUNCATE_OVERRIDDEN_ELASTIC_VALUE = Truncation.END;
+    public static final String PROMPT_INITIAL_VALUE = "prompt_initial_value";
+    public static final Boolean NORMALIZED_INITIAL_VALUE = Boolean.FALSE;
+    public static final String PROMPT_OVERRIDDEN_VALUE = "prompt_overridden_value";
+    public static final Boolean NORMALIZED_OVERRIDDEN_VALUE = Boolean.TRUE;
 }

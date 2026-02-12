@@ -10,12 +10,8 @@ package org.elasticsearch.xpack.inference.services.mixedbread.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.mixedbread.TestUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.embeddings.MixedbreadEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.request.embeddings.MixedbreadEmbeddingsRequest;
@@ -28,16 +24,15 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
     public static final String INPUT = "input_value";
     public static final String QUERY = "query_value";
-    private static final InputType INPUT_TYPE_ELASTIC_INITIAL_VALUE = InputType.INGEST;
-    private static final Truncation TRUNCATE_ELASTIC_VALUE = Truncation.START;
 
     public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
-        var request = createRequest(TestUtils.CUSTOM_URL, INPUT_TYPE_ELASTIC_INITIAL_VALUE, TRUNCATE_ELASTIC_VALUE, null);
+        var request = createRequest(TestUtils.CUSTOM_URL, TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         var requestMap = getEntityAsMap(request);
         assertThat(requestMap, aMapWithSize(5));
         assertThat(requestMap.get("input"), is(List.of(INPUT)));
@@ -47,19 +42,15 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("encoding_format"), is(TestUtils.ENCODING_VALUE));
     }
 
-    public void testGetTruncationInfo() {
-        var request = createRequest(TestUtils.CUSTOM_URL, null, null, null);
-        assertThat(request.getTruncationInfo()[0], is(false));
-
-        var truncatedRequest = request.truncate();
-        assertThat(truncatedRequest.getTruncationInfo()[0], is(true));
+    public void testGetTruncationInfo_ReturnsNull() {
+        var request = createRequest(TestUtils.CUSTOM_URL, null, null);;
+        assertThat(request.getTruncationInfo(), is(nullValue()));
     }
 
     private static MixedbreadEmbeddingsRequest createRequest(
         @Nullable String url,
-        @Nullable InputType inputType,
-        @Nullable Truncation truncation,
-        @Nullable InputType requestInputType
+        @Nullable String prompt,
+        @Nullable Boolean normalized
     ) {
         var embeddingsModel = MixedbreadEmbeddingsModelTests.createModel(
             url,
@@ -67,14 +58,13 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
             TestUtils.MODEL_ID,
             null,
             null,
-            inputType,
-            truncation,
+            prompt,
+            normalized,
             null
         );
         return new MixedbreadEmbeddingsRequest(
-            TruncatorTests.createTruncator(),
-            new Truncator.TruncationResult(List.of(INPUT), new boolean[] { false }),
-            embeddingsModel
+            embeddingsModel,
+            List.of(INPUT)
         );
     }
 

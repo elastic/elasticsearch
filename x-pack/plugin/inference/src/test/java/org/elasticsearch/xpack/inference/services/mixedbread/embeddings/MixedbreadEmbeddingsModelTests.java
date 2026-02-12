@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.inference.services.mixedbread.embeddings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.mixedbread.TestUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -33,8 +31,8 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.MODEL_ID,
             null,
             null,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE,
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE,
             null
         );
 
@@ -48,8 +46,8 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.MODEL_ID,
             null,
             null,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE,
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE,
             null
         );
         assertThat(model.getServiceSettings().uri().toString(), is(TestUtils.CUSTOM_URL));
@@ -62,8 +60,8 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.MODEL_ID,
             MAX_INPUT_TOKENS,
             DIMENSIONS,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE,
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(model, Map.of());
@@ -77,8 +75,8 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.MODEL_ID,
             MAX_INPUT_TOKENS,
             DIMENSIONS,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE,
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(model, null);
@@ -92,15 +90,15 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.MODEL_ID,
             MAX_INPUT_TOKENS,
             DIMENSIONS,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE,
+            TestUtils.PROMPT_INITIAL_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(
             model,
             MixedbreadEmbeddingsTaskSettingsTests.getTaskSettingsMap(
-                TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-                TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE
+                TestUtils.PROMPT_INITIAL_VALUE,
+                TestUtils.NORMALIZED_INITIAL_VALUE
             )
         );
         assertThat(overriddenModel, sameInstance(model));
@@ -113,13 +111,13 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.MODEL_ID,
             MAX_INPUT_TOKENS,
             DIMENSIONS,
-            TestUtils.INPUT_TYPE_INITIAL_ELASTIC_VALUE,
+            TestUtils.PROMPT_INITIAL_VALUE,
             null,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(
             model,
-            MixedbreadEmbeddingsTaskSettingsTests.getTaskSettingsMap(TestUtils.INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE, null)
+            MixedbreadEmbeddingsTaskSettingsTests.getTaskSettingsMap(TestUtils.PROMPT_OVERRIDDEN_VALUE, null)
         );
         var expectedModel = createModel(
             TestUtils.CUSTOM_URL,
@@ -127,7 +125,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.MODEL_ID,
             MAX_INPUT_TOKENS,
             DIMENSIONS,
-            TestUtils.INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE,
+            TestUtils.PROMPT_OVERRIDDEN_VALUE,
             null,
             null
         );
@@ -142,12 +140,12 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             MAX_INPUT_TOKENS,
             DIMENSIONS,
             null,
-            TestUtils.TRUNCATE_INITIAL_ELASTIC_VALUE,
+            TestUtils.NORMALIZED_INITIAL_VALUE,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(
             model,
-            MixedbreadEmbeddingsTaskSettingsTests.getTaskSettingsMap(null, TestUtils.TRUNCATE_OVERRIDDEN_ELASTIC_VALUE)
+            MixedbreadEmbeddingsTaskSettingsTests.getTaskSettingsMap(null, TestUtils.NORMALIZED_OVERRIDDEN_VALUE)
         );
         var expectedModel = createModel(
             TestUtils.CUSTOM_URL,
@@ -156,7 +154,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             MAX_INPUT_TOKENS,
             DIMENSIONS,
             null,
-            TestUtils.TRUNCATE_OVERRIDDEN_ELASTIC_VALUE,
+            TestUtils.NORMALIZED_OVERRIDDEN_VALUE,
             null
         );
         assertThat(overriddenModel, is(expectedModel));
@@ -168,8 +166,8 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
         @Nullable String modelId,
         @Nullable Integer maxInputTokens,
         @Nullable Integer dimensions,
-        @Nullable InputType inputType,
-        @Nullable Truncation truncation,
+        @Nullable String prompt,
+        @Nullable Boolean normalized,
         @Nullable ChunkingSettings chunkingSettings
     ) {
         return new MixedbreadEmbeddingsModel(
@@ -185,7 +183,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
                 maxInputTokens,
                 null
             ),
-            new MixedbreadEmbeddingsTaskSettings(inputType, truncation),
+            new MixedbreadEmbeddingsTaskSettings(prompt, normalized),
             chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

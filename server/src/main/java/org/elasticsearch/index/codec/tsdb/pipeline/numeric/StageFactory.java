@@ -93,7 +93,7 @@ public final class StageFactory {
             case StageSpec.AlpRdDoubleStage alpRdDoubleStage -> new AlpRdDoubleTransformDecodeStage();
             case StageSpec.AlpFloatStage alpFloatStage -> new AlpFloatTransformDecodeStage();
             case StageSpec.AlpRdFloatStage alpRdFloatStage -> new AlpRdFloatTransformDecodeStage();
-            case StageSpec.FpcStage fpcStage -> FpcTransformDecodeStage.INSTANCE;
+            case StageSpec.FpcStage(int ts) -> ts > 0 ? new FpcTransformDecodeStage(ts) : new FpcTransformDecodeStage();
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }

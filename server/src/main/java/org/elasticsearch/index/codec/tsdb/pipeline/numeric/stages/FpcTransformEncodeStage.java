@@ -18,7 +18,7 @@ import java.util.Arrays;
 
 public final class FpcTransformEncodeStage implements TransformEncoder {
 
-    private static final int DEFAULT_TABLE_SIZE = 1024;
+    static final int DEFAULT_TABLE_SIZE = 1024;
 
     private final long[] fcmTable;
     private final long[] dfcmTable;
@@ -42,14 +42,14 @@ public final class FpcTransformEncodeStage implements TransformEncoder {
 
     @Override
     public int maxMetadataBytes(int blockSize) {
-        return blockSize * Long.BYTES;
+        return (blockSize + 7) >>> 3;
     }
 
-    // NOTE: Metadata layout: [valueCount × prediction: Long (8 bytes each)].
-    // For each value, the best prediction (FCM or DFCM, whichever has more
-    // leading zeros in the XOR residual) is written to metadata. Values are
-    // XORed with their prediction in-place, producing small residuals for
-    // downstream bit-packing.
+    // NOTE: Metadata layout: [ceil(valueCount/8) selector bytes].
+    // For each value, one bit indicates whether FCM (0) or DFCM (1) prediction
+    // was used. The decoder maintains its own FCM/DFCM tables and uses selector
+    // bits to pick the same prediction. Values are XORed with their prediction
+    // in-place, producing small residuals for downstream bit-packing.
     @Override
     public int encode(final long[] values, int valueCount, final EncodingContext context) throws IOException {
         assert valueCount > 0 : "valueCount must be positive";
@@ -58,40 +58,76 @@ public final class FpcTransformEncodeStage implements TransformEncoder {
         Arrays.fill(dfcmTable, 0);
 
         final var metadata = context.metadata();
+        final int selectorByteCount = (valueCount + 7) >>> 3;
+        final byte[] selectors = new byte[selectorByteCount];
+
         int fcmHash = 0;
         int dfcmHash = 0;
         long lastValue = 0;
+        int i = 0;
 
-        for (int i = 0; i < valueCount; i++) {
-            final long actual = values[i];
+        final int fullBytes = valueCount >>> 3;
+        for (int byteIdx = 0; byteIdx < fullBytes; byteIdx++) {
+            int sel = 0;
+            for (int bit = 0; bit < 8; bit++, i++) {
+                final long actual = values[i];
+                final long fcmPred = fcmTable[fcmHash];
+                final long dfcmPred = lastValue + dfcmTable[dfcmHash];
+                final long fcmXor = actual ^ fcmPred;
+                final long dfcmXor = actual ^ dfcmPred;
 
-            final long fcmPred = fcmTable[fcmHash];
-            final long dfcmPred = lastValue + dfcmTable[dfcmHash];
+                final boolean useDfcm = Long.compareUnsigned(dfcmXor, fcmXor) < 0;
+                if (useDfcm) {
+                    sel |= (1 << bit);
+                }
+                values[i] = useDfcm ? dfcmXor : fcmXor;
 
-            final long fcmXor = actual ^ fcmPred;
-            final long dfcmXor = actual ^ dfcmPred;
-
-            // NOTE: Pick the prediction with the smaller unsigned XOR residual (more leading zeros).
-            final long bestPred = Long.compareUnsigned(fcmXor, dfcmXor) <= 0 ? fcmPred : dfcmPred;
-            metadata.writeLong(bestPred);
-            values[i] = actual ^ bestPred;
-
-            fcmTable[fcmHash] = actual;
-            fcmHash = ((fcmHash << 6) ^ (int) (actual >>> 48)) & tableMask;
-
-            final long stride = actual - lastValue;
-            dfcmTable[dfcmHash] = stride;
-            dfcmHash = ((dfcmHash << 2) ^ (int) (stride >>> 40)) & tableMask;
-
-            lastValue = actual;
+                fcmTable[fcmHash] = actual;
+                fcmHash = ((fcmHash << 6) ^ (int) (actual >>> 48)) & tableMask;
+                final long stride = actual - lastValue;
+                dfcmTable[dfcmHash] = stride;
+                dfcmHash = ((dfcmHash << 2) ^ (int) (stride >>> 40)) & tableMask;
+                lastValue = actual;
+            }
+            selectors[byteIdx] = (byte) sel;
         }
 
+        if (i < valueCount) {
+            int sel = 0;
+            for (int bit = 0; i < valueCount; bit++, i++) {
+                final long actual = values[i];
+                final long fcmPred = fcmTable[fcmHash];
+                final long dfcmPred = lastValue + dfcmTable[dfcmHash];
+                final long fcmXor = actual ^ fcmPred;
+                final long dfcmXor = actual ^ dfcmPred;
+
+                final boolean useDfcm = Long.compareUnsigned(dfcmXor, fcmXor) < 0;
+                if (useDfcm) {
+                    sel |= (1 << bit);
+                }
+                values[i] = useDfcm ? dfcmXor : fcmXor;
+
+                fcmTable[fcmHash] = actual;
+                fcmHash = ((fcmHash << 6) ^ (int) (actual >>> 48)) & tableMask;
+                final long stride = actual - lastValue;
+                dfcmTable[dfcmHash] = stride;
+                dfcmHash = ((dfcmHash << 2) ^ (int) (stride >>> 40)) & tableMask;
+                lastValue = actual;
+            }
+            selectors[fullBytes] = (byte) sel;
+        }
+
+        metadata.writeBytes(selectors, 0, selectorByteCount);
         return valueCount;
     }
 
     public static int encodeStatic(final FpcTransformEncodeStage stage, final long[] values, int valueCount, final EncodingContext context)
         throws IOException {
         return stage.encode(values, valueCount, context);
+    }
+
+    int tableSize() {
+        return tableMask + 1;
     }
 
     @Override

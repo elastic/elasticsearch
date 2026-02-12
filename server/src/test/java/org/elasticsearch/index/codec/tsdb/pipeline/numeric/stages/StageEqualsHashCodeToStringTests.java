@@ -24,7 +24,14 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
     }
 
     public void testFpcTransformDecodeStageToString() {
-        assertEquals("FpcTransformDecodeStage", FpcTransformDecodeStage.INSTANCE.toString());
+        assertEquals("FpcTransformDecodeStage{tableSize=1024}", new FpcTransformDecodeStage().toString());
+    }
+
+    public void testFpcTransformDecodeStageEqualsHashCode() {
+        final var a = new FpcTransformDecodeStage(1024);
+        final var b = new FpcTransformDecodeStage(1024);
+        final var c = new FpcTransformDecodeStage(512);
+        assertEqualsContract(a, b, c);
     }
 
     public void testDeltaDeltaCodecStageToString() {

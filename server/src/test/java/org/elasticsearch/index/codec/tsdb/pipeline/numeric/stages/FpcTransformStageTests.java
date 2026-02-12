@@ -20,8 +20,8 @@ import java.util.Arrays;
 
 public class FpcTransformStageTests extends NumericCodecStageTestCase {
 
-    private static final TransformDecoder DECODER = FpcTransformDecodeStage.INSTANCE;
-    private static final int EXTRA_BUFFER_PER_VALUE = 9;
+    private static final TransformDecoder DECODER = new FpcTransformDecodeStage();
+    private static final int EXTRA_BUFFER_PER_VALUE = 2;
 
     public void testRoundTripConstantValues() throws IOException {
         final int blockSize = randomBlockSize();

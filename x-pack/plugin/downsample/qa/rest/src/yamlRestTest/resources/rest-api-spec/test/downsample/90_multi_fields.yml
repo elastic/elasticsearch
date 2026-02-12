@@ -4,7 +4,7 @@ setup:
         - method: POST
           path: /{index}/_downsample/{target_index}
           capabilities: ['downsample.multi_field_fix']
-      test_runner_features: [ "capabilities" ]
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
       reason: Requires the fix for downsampling multi fields
 
 ---
@@ -72,6 +72,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample

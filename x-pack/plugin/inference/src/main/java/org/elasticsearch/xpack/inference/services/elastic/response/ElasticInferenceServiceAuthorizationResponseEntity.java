@@ -78,7 +78,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         String releaseDate,
         @Nullable String endOfLifeDate,
         @Nullable Configuration configuration,
-        @Nullable String kibanaConnectorName,
+        @Nullable String displayName,
         @Nullable String fingerprint
     ) implements Writeable, ToXContentObject {
 
@@ -91,7 +91,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         private static final String STATUS = "status";
         private static final String PROPERTIES = "properties";
         private static final String CONFIGURATION = "configuration";
-        private static final String KIBANA_CONNECTOR_NAME = "kibana_connector_name";
+        private static final String DISPLAY_NAME = "display_name";
         private static final String FINGERPRINT = "fingerprint";
 
         @SuppressWarnings("unchecked")
@@ -121,7 +121,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(RELEASE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(END_OF_LIFE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareObject(optionalConstructorArg(), Configuration.PARSER::apply, new ParseField(CONFIGURATION));
-            AUTHORIZED_ENDPOINT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(KIBANA_CONNECTOR_NAME));
+            AUTHORIZED_ENDPOINT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(DISPLAY_NAME));
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
         }
 
@@ -152,7 +152,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             out.writeOptionalWriteable(configuration);
 
             if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
-                out.writeOptionalString(kibanaConnectorName);
+                out.writeOptionalString(displayName);
                 out.writeOptionalString(fingerprint);
             }
         }
@@ -161,7 +161,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         public String toString() {
             return Strings.format(
                 "AuthorizedEndpoint{id='%s', modelName='%s', taskType='%s', status='%s', "
-                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s, kibanaConnectorName='%s', fingerprint='%s'}",
+                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s, displayName='%s', fingerprint='%s'}",
                 id,
                 modelName,
                 taskType,
@@ -170,7 +170,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 releaseDate,
                 endOfLifeDate,
                 configuration,
-                kibanaConnectorName,
+                displayName,
                 fingerprint
             );
         }
@@ -194,8 +194,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 builder.field(CONFIGURATION, configuration);
             }
 
-            if (kibanaConnectorName != null) {
-                builder.field(KIBANA_CONNECTOR_NAME, kibanaConnectorName);
+            if (displayName != null) {
+                builder.field(DISPLAY_NAME, displayName);
             }
 
             if (fingerprint != null) {
@@ -328,13 +328,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints) {
         this.authorizedEndpoints = Objects.requireNonNull(authorizedEndpoints);
-    }
-
-    /**
-     * Create an empty response
-     */
-    public ElasticInferenceServiceAuthorizationResponseEntity() {
-        this(List.of());
     }
 
     public ElasticInferenceServiceAuthorizationResponseEntity(StreamInput in) throws IOException {

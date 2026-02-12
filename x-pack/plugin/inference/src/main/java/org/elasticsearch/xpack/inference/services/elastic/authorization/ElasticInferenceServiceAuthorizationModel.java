@@ -130,7 +130,7 @@ public class ElasticInferenceServiceAuthorizationModel {
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
         try {
-            var kibanaConnectorName = authorizedEndpoint.kibanaConnectorName();
+            var kibanaConnectorName = authorizedEndpoint.displayName();
             return new EndpointMetadata(
                 getHeuristics(authorizedEndpoint),
                 getInternalFields(authorizedEndpoint),

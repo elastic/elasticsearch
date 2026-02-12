@@ -894,11 +894,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
     }
 
-    public void testCreatesEndpointMetadataWithKibanaConnectorName() {
+    public void testCreatesEndpointMetadataWithDisplayName() {
         var id = "id1";
         var name = "model1";
         var url = "base_url";
-        var kibanaConnectorName = "my-connector";
+        var displayName = "my-connector";
         var status = STATUS_GA;
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
@@ -912,7 +912,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
                     null,
-                    kibanaConnectorName,
+                    displayName,
                     null
                 )
             )
@@ -934,7 +934,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(kibanaConnectorName)
+                new EndpointMetadata.Display(displayName)
             )
         );
 

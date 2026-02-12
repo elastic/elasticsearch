@@ -107,7 +107,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
               ],
               "release_date": "2024-05-01",
               "end_of_life_date": "2024-05-02",
-              "kibana_connector_name": "Rainbow Sprinkles Elastic",
+              "display_name": "Rainbow Sprinkles Elastic",
               "fingerprint": "fingerprint123"
             }
           ]
@@ -140,7 +140,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "overlap": 2
                 }
               },
-              "kibana_connector_name": "Jina Embeddings V3",
+              "display_name": "Jina Embeddings V3",
               "fingerprint": "fingerprint456"
             }
           ]
@@ -169,7 +169,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "sentence_overlap": 1
                 }
               },
-              "kibana_connector_name": "Elser 2 Elastic",
+              "display_name": "Elser 2 Elastic",
               "fingerprint": "fingerprint789"
             }
           ]
@@ -192,7 +192,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
               ],
               "release_date": "2024-05-01",
               "end_of_life_date": "2024-05-02",
-              "kibana_connector_name": "Rainbow Sprinkles Elastic",
+              "display_name": "Rainbow Sprinkles Elastic",
               "fingerprint": "fingerprint123"
             },
             {
@@ -207,7 +207,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "kibana_connector_name": "Gp Llm V2 Chat Completion",
+              "display_name": "Gp Llm V2 Chat Completion",
               "fingerprint": "fingerprint234"
             },
             {
@@ -222,7 +222,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "kibana_connector_name": "Gp Llm V2 Completion",
+              "display_name": "Gp Llm V2 Completion",
               "fingerprint": "fingerprint345"
             },
             {
@@ -244,7 +244,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "sentence_overlap": 1
                 }
               },
-              "kibana_connector_name": "Elser 2 Elastic",
+              "display_name": "Elser 2 Elastic",
               "fingerprint": "fingerprint789"
             },
             {
@@ -270,7 +270,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "overlap": 2
                 }
               },
-              "kibana_connector_name": "Jina Embeddings V3",
+              "display_name": "Jina Embeddings V3",
               "fingerprint": "fingerprint456"
             },
             {
@@ -297,7 +297,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "overlap": 2
                 }
               },
-              "kibana_connector_name": "Jina Clip V2",
+              "display_name": "Jina Clip V2",
               "fingerprint": "fingerprint_clip_v2"
             },
             {
@@ -310,7 +310,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
               "status": "preview",
               "properties": [],
               "release_date": "2024-05-01",
-              "kibana_connector_name": "Jina Reranker V2",
+              "display_name": "Jina Reranker V2",
               "fingerprint": "fingerprint567"
             }
           ]
@@ -319,19 +319,19 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
 
     private static final String RELEASE_DATE_STRING = "2024-05-01";
     private static final String END_OF_LIFE_DATE_STRING = "2024-05-02";
-    private static final String RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME = "Rainbow Sprinkles Elastic";
+    private static final String RAINBOW_SPRINKLES_DISPLAY_NAME = "Rainbow Sprinkles Elastic";
     private static final String RAINBOW_SPRINKLES_FINGERPRINT = "fingerprint123";
-    private static final String GP_LLM_V2_CHAT_COMPLETION_KIBANA_CONNECTOR_NAME = "Gp Llm V2 Chat Completion";
+    private static final String GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME = "Gp Llm V2 Chat Completion";
     private static final String GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT = "fingerprint234";
-    private static final String GP_LLM_V2_COMPLETION_KIBANA_CONNECTOR_NAME = "Gp Llm V2 Completion";
+    private static final String GP_LLM_V2_COMPLETION_DISPLAY_NAME = "Gp Llm V2 Completion";
     private static final String GP_LLM_V2_COMPLETION_FINGERPRINT = "fingerprint345";
-    private static final String ELSER_V2_KIBANA_CONNECTOR_NAME = "Elser 2 Elastic";
+    private static final String ELSER_V2_DISPLAY_NAME = "Elser 2 Elastic";
     private static final String ELSER_V2_FINGERPRINT = "fingerprint789";
-    private static final String JINA_EMBED_V3_KIBANA_CONNECTOR_NAME = "Jina Embeddings V3";
+    private static final String JINA_EMBED_V3_DISPLAY_NAME = "Jina Embeddings V3";
     private static final String JINA_EMBED_V3_FINGERPRINT = "fingerprint456";
-    private static final String JINA_CLIP_V2_KIBANA_CONNECTOR_NAME = "Jina Clip V2";
+    private static final String JINA_CLIP_V2_DISPLAY_NAME = "Jina Clip V2";
     private static final String JINA_CLIP_V2_FINGERPRINT = "fingerprint_clip_v2";
-    private static final String RERANK_V1_KIBANA_CONNECTOR_NAME = "Jina Reranker V2";
+    private static final String RERANK_V1_DISPLAY_NAME = "Jina Reranker V2";
     private static final String RERANK_V1_FINGERPRINT = "fingerprint567";
     private static final LocalDate RELEASE_DATE_PARSED = LocalDate.parse(RELEASE_DATE_STRING);
     private static final LocalDate END_OF_LIFE_DATE_PARSED = LocalDate.parse(END_OF_LIFE_DATE_STRING);
@@ -361,7 +361,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(ELSER_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(ELSER_V2_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Display(ELSER_V2_DISPLAY_NAME)
             )
         );
     }
@@ -381,7 +381,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
             ),
-            ELSER_V2_KIBANA_CONNECTOR_NAME,
+            ELSER_V2_DISPLAY_NAME,
             ELSER_V2_FINGERPRINT
         );
     }
@@ -434,7 +434,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             END_OF_LIFE_DATE_STRING,
             null,
-            RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME,
+            RAINBOW_SPRINKLES_DISPLAY_NAME,
             RAINBOW_SPRINKLES_FINGERPRINT
         );
     }
@@ -448,7 +448,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(GP_LLM_V2_CHAT_COMPLETION_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Display(GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME)
             )
         );
     }
@@ -462,7 +462,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(GP_LLM_V2_COMPLETION_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Display(GP_LLM_V2_COMPLETION_DISPLAY_NAME)
             )
         );
     }
@@ -477,7 +477,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            GP_LLM_V2_CHAT_COMPLETION_KIBANA_CONNECTOR_NAME,
+            GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME,
             GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT
         );
     }
@@ -492,7 +492,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            GP_LLM_V2_COMPLETION_KIBANA_CONNECTOR_NAME,
+            GP_LLM_V2_COMPLETION_DISPLAY_NAME,
             GP_LLM_V2_COMPLETION_FINGERPRINT
         );
     }
@@ -511,7 +511,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(RAINBOW_SPRINKLES_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(RAINBOW_SPRINKLES_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Display(RAINBOW_SPRINKLES_DISPLAY_NAME)
             )
         );
     }
@@ -561,7 +561,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            JINA_EMBED_V3_KIBANA_CONNECTOR_NAME,
+            JINA_EMBED_V3_DISPLAY_NAME,
             JINA_EMBED_V3_FINGERPRINT
         );
     }
@@ -581,7 +581,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     null
                 ),
                 new EndpointMetadata.Internal(JINA_EMBED_V3_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(JINA_EMBED_V3_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Display(JINA_EMBED_V3_DISPLAY_NAME)
             )
         );
     }
@@ -601,7 +601,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            JINA_CLIP_V2_KIBANA_CONNECTOR_NAME,
+            JINA_CLIP_V2_DISPLAY_NAME,
             JINA_CLIP_V2_FINGERPRINT
         );
     }
@@ -621,7 +621,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     null
                 ),
                 new EndpointMetadata.Internal(JINA_CLIP_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(JINA_CLIP_V2_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Display(JINA_CLIP_V2_DISPLAY_NAME)
             )
         );
     }
@@ -636,7 +636,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            RERANK_V1_KIBANA_CONNECTOR_NAME,
+            RERANK_V1_DISPLAY_NAME,
             RERANK_V1_FINGERPRINT
         );
     }
@@ -650,7 +650,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(RERANK_V1_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(RERANK_V1_KIBANA_CONNECTOR_NAME)
+                new EndpointMetadata.Display(RERANK_V1_DISPLAY_NAME)
             )
         );
     }

@@ -12,7 +12,6 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder;
-import io.opentelemetry.instrumentation.runtimemetrics.java17.JfrFeature;
 import io.opentelemetry.instrumentation.runtimemetrics.java17.RuntimeMetrics;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
@@ -46,16 +45,7 @@ public class OTelSdkMeterSupplier implements Supplier<Meter>, AutoCloseable {
                 .registerMetricReader(reader)
                 .build();
             var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
-            runtimeMetrics = RuntimeMetrics.builder(otelSdk)
-                .enableFeature(JfrFeature.THREAD_METRICS)
-                .enableFeature(JfrFeature.CPU_UTILIZATION_METRICS)
-                .enableFeature(JfrFeature.MEMORY_POOL_METRICS)
-                .disableFeature(JfrFeature.CONTEXT_SWITCH_METRICS)
-                .disableFeature(JfrFeature.CPU_COUNT_METRICS)
-                .disableFeature(JfrFeature.LOCK_METRICS)
-                .disableFeature(JfrFeature.MEMORY_ALLOCATION_METRICS)
-                .disableFeature(JfrFeature.NETWORK_IO_METRICS)
-                .build();
+            runtimeMetrics = RuntimeMetrics.builder(otelSdk).disableAllFeatures().build();
         }
         return meterProvider.get("elasticsearch");
     }

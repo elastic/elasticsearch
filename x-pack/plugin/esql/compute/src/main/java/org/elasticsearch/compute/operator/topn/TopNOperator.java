@@ -148,9 +148,18 @@ public class TopNOperator implements Operator, Accountable {
             StringBuilder b = new StringBuilder("Row[key=");
             b.append(keys.bytesRefView());
             b.append(", values=");
+
             if (values.length() < 100) {
                 b.append(values.bytesRefView());
             } else {
+                b.append('[');
+                assert values.bytesRefView().offset == 0;
+                for (int i = 0; i < 100; i++) {
+                    if (i != 0) {
+                        b.append(" ");
+                    }
+                    b.append(Integer.toHexString(values.bytesRefView().bytes[i] & 255));
+                }
                 b.append("...");
             }
             return b.append("]").toString();

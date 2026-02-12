@@ -30,6 +30,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.NONE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.isExclusionExpression;
 
@@ -86,6 +87,13 @@ public class CrossProjectIndexResolutionValidator {
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
             return null;
+        }
+
+        if (indicesOptions.allowNoIndices() == false) {
+            if (localResolvedExpressions.expressions().stream().allMatch(e -> e.localExpressions().localIndexResolutionResult() == NONE)
+                && remoteResolvedExpressions.values().stream().allMatch(e -> e.expressions().isEmpty())) {
+                return new IndexNotFoundException("");
+            }
         }
 
         // For each unauthorized expression, we report 403 for the first project if the expression is unqualified.
@@ -181,6 +189,10 @@ public class CrossProjectIndexResolutionValidator {
                     var projectAlias = splitResource[0];
                     var resource = splitResource[1];
 
+                    // TODO the fundamental issue is this returns null for all exclusion expressions, which is then interpreted as the
+                    // expression being successfully resolved on the remote.
+                    // The secondary issue is that the local expression doesn't report an error either, because it only checks for status
+                    // SUCCESS with empty indices, but an exclusion expression has status NONE
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
                         projectAlias,

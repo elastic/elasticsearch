@@ -15,7 +15,6 @@ import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.core.analytics.aggregations.support.HistogramValuesSource;
 
 import java.util.Locale;
 import java.util.function.LongSupplier;

@@ -48,7 +48,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.aggregatemetric;
     exports org.elasticsearch.xpack.core.analytics;
     exports org.elasticsearch.xpack.core.analytics.action;
-    exports org.elasticsearch.xpack.core.analytics.aggregations.support;
     exports org.elasticsearch.xpack.core.analytics.mapper;
     exports org.elasticsearch.xpack.core.api.filtering;
     exports org.elasticsearch.xpack.core.application;

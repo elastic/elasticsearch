@@ -411,16 +411,25 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         private long bytesUsed;
         private final int threshold;
         private ObjectArray<LinearCountingCell> cells;
-        private final int initialCellSize;
+        private final int capacity;
 
         LinearCounting(BigArrays bigArrays, CircuitBreaker breaker, long initialBucketCount, int precision) {
             super(precision);
             this.bigArrays = bigArrays;
             this.breaker = breaker;
-            final int capacity = (1 << precision) / 4;
-            this.initialCellSize = Math.min(capacity, 32);
+            this.capacity = (1 << precision) / 4;
             this.threshold = (int) (capacity * MAX_LOAD_FACTOR);
             this.cells = bigArrays.newObjectArray(initialBucketCount);
+        }
+
+        private int initialCellSize(long bucket) {
+            // Pre-allocate full capacity for the first few buckets to bypass the cost of multiple rehashes.
+            // Optimized for ungrouped aggregations or those with few groups but high cardinality.
+            if (bucket < 10) {
+                return capacity;
+            } else {
+                return Math.min(capacity, 32);
+            }
         }
 
         private LinearCountingCell newCell(int capacity) {
@@ -442,7 +451,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             LinearCountingCell cell;
             if (bucketOrd >= cells.size()) {
                 cells = bigArrays.grow(cells, bucketOrd + 1);
-                cell = newCell(initialCellSize);
+                cell = newCell(initialCellSize(bucketOrd));
                 cells.set(bucketOrd, cell);
             } else {
                 cell = cells.get(bucketOrd);
@@ -455,7 +464,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                         cell = newCell;
                     }
                 } else {
-                    cell = newCell(initialCellSize);
+                    cell = newCell(initialCellSize(bucketOrd));
                     cells.set(bucketOrd, cell);
                 }
             }

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -86,6 +88,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -167,12 +170,13 @@ public class Approximation {
         OrderBy.class,
         Project.class,
         RegexExtract.class,
+        RegisteredDomain.class,
         Rerank.class,
         Row.class,
         Sample.class,
+        SampledAggregate.class,
         TopN.class,
-        UriParts.class,
-        RegisteredDomain.class
+        UriParts.class
     );
 
     /**
@@ -304,12 +308,12 @@ public class Approximation {
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
      */
-    private static final int TRIAL_COUNT = 1;
+    private static final int TRIAL_COUNT = 2;
 
     /**
      * The number of buckets to use for computing confidence intervals.
      */
-    private static final int BUCKET_COUNT = 3;
+    private static final int BUCKET_COUNT = 15;
 
     /**
      * For grouped statistics (STATS ... BY), a grouping needs at least this
@@ -323,10 +327,13 @@ public class Approximation {
 
     private static final AggregateFunction COUNT_ALL_ROWS = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD));
 
-    public static class SampleProbability extends LeafExpression {
+    public static class PlaceHolder extends LeafExpression {
 
-        SampleProbability() {
+        private final String name;
+
+        PlaceHolder(String name) {
             super(Source.EMPTY);
+            this.name = name;
         }
 
         @Override
@@ -356,17 +363,29 @@ public class Approximation {
 
         @Override
         public String toString() {
-            return "SampleProbability";
+            return "PlaceHolder[" + name + "]";
         }
 
         @Override
         public boolean equals(Object obj) {
-            return obj != null && getClass() == obj.getClass();
+            return obj != null && getClass() == obj.getClass() && Objects.equals(name, ((PlaceHolder) obj).name);
         }
 
         @Override
         public int hashCode() {
-            return 0;
+            return Objects.hash(name);
+        }
+    }
+
+    private static class SampleProbability extends PlaceHolder {
+        SampleProbability() {
+            super("SampleProbability");
+        }
+    }
+
+    private static class SampleSizeThreshold extends PlaceHolder {
+        SampleSizeThreshold() {
+            super("SampleSizeThreshold");
         }
     }
 
@@ -444,20 +463,87 @@ public class Approximation {
     }
 
     public static LogicalPlan firstSubPlan(LogicalPlan logicalPlan, Configuration configuration, Set<LocalRelation> subPlansResults) {
-        LogicalPlan sourceCountPlan = sourceCountPlan(logicalPlan);
-        if (subPlansResults.stream().anyMatch(result -> result.output().getFirst().name().equals(sourceCountPlan.output().getFirst().name())) == false) {
-            return sourceCountPlan;
+        Holder<Boolean> hasSampleProbability = new Holder<>(false);
+        logicalPlan.forEachExpressionDown(SampleProbability.class, prob -> hasSampleProbability.set(true));
+        if (hasSampleProbability.get() == false) {
+            return null;
         }
-        return null;
+
+        Map<String, Long> rowCounts = subPlansResults.stream()
+            .collect(
+                Collectors.toMap(
+                    localRelation -> localRelation.output().getFirst().name(),
+                    localRelation -> ((LongBlock) localRelation.supplier().get().getBlock(0)).getLong(0)
+                )
+            );
+
+        if (rowCounts.size() == 0) {
+            return sourceCountPlan(logicalPlan);
+        } else if (rowCounts.size() == 1) {
+            return countPlan(logicalPlan, Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / rowCounts.get("$source_count")));
+        } else {
+            Tuple<Double, Long> result = getResult(rowCounts);
+            return countPlan(logicalPlan, Math.min(1.0, result.v1() * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, result.v2())));
+        }
     }
 
     public static LogicalPlan newMainPlan(LogicalPlan logicalPlan, Configuration configuration, Set<LocalRelation> subPlansResults) {
         System.out.println("@@newMainPlan: " + subPlansResults);
-        long rowCount = ((LongBlock) subPlansResults.iterator().next().supplier().get().getBlock(0)).getLong(0);
-        double sampleProbability = 1.0 * sampleRowCount(configuration.approximationSettings()) / rowCount;
+
+        Map<String, Long> rowCounts = subPlansResults.stream()
+            .collect(
+                Collectors.toMap(
+                    localRelation -> localRelation.output().getFirst().name(),
+                    localRelation -> ((LongBlock) localRelation.supplier().get().getBlock(0)).getLong(0)
+                )
+            );
+        System.out.println("@@rowCounts: " + rowCounts);
+
+        if (rowCounts.size() == 1) {
+            return processSourceCount(logicalPlan, configuration, rowCounts.get("$source_count"));
+        } else {
+            Tuple<Double, Long> result = getResult(rowCounts);
+            return processCount(logicalPlan, configuration, result.v1(), result.v2());
+        }
+    }
+
+    private static Tuple<Double, Long> getResult(Map<String, Long> rowCounts) {
+        double sampleProbability = rowCounts.keySet()
+            .stream()
+            .filter(k -> k.startsWith("$count_p="))
+            .map(k -> Double.parseDouble(k.substring("$count_p=".length())))
+            .max(Double::compareTo)
+            .orElseThrow(() -> new IllegalStateException("expected a key starting with $count_p=, but got " + rowCounts.keySet()));
+        return Tuple.tuple(sampleProbability, rowCounts.get("$count_p="+sampleProbability));
+
+    }
+
+    private static LogicalPlan substituteSampleProbability(LogicalPlan logicalPlan, double sampleProbability) {
         logicalPlan = logicalPlan.transformExpressionsDown(
-            Approximation.SampleProbability.class,
+            SampleProbability.class,
             prob -> Literal.fromDouble(Source.EMPTY, sampleProbability)
+        );
+        if (sampleProbability == 1.0) {
+            logicalPlan = logicalPlan.transformDown(SampledAggregate.class, agg -> {
+                List<Alias> nullBuckets = new ArrayList<>();
+                Set<String> originalAggs = agg.originalAggregates().stream().map(NamedExpression::name).collect(Collectors.toSet());
+                for (Attribute attr : agg.outputSet()) {
+                    if (originalAggs.contains(attr.name()) == false) {
+                        System.out.println(" *** NULLIFY: " + attr);
+                        nullBuckets.add(new Alias(Source.EMPTY, attr.name(), Literal.NULL, attr.id()));
+                    } else {
+                        System.out.println(" *** KEEP   : " + attr);
+                    }
+                }
+
+                LogicalPlan plan = new Aggregate(agg.source(), agg.child(), agg.groupings(), agg.originalAggregates());
+                plan = new Eval(Source.EMPTY, plan, nullBuckets);
+                return plan;
+            });
+        }
+        logicalPlan = logicalPlan.transformExpressionsDown(
+            SampleSizeThreshold.class,
+            prob -> Literal.integer(Source.EMPTY, sampleProbability == 1.0 ? 1 : MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
         );
         logicalPlan.setOptimized();
         return logicalPlan;
@@ -467,8 +553,8 @@ public class Approximation {
         if (settings.rows() != null) {
             return settings.rows();
             // TODO!
-//        } else if (queryProperties.hasGrouping) {
-//            return DEFAULT_ROW_COUNT_WITH_GROUPING;
+            // } else if (queryProperties.hasGrouping) {
+            // return DEFAULT_ROW_COUNT_WITH_GROUPING;
         } else {
             return DEFAULT_ROW_COUNT_WITHOUT_GROUPING;
         }
@@ -497,51 +583,36 @@ public class Approximation {
         return sourceCountPlan;
     }
 
-//    /**
-//     * Receives the total number of rows, and runs either the
-//     * {@link Approximation#approximationPlan} or {@link Approximation#countPlan}
-//     * depending on whether the original query preserves all rows or not.
-//     */
-//    private ActionListener<Result> sourceCountListener(ActionListener<Result> approximationListener) {
-//        return approximationListener.delegateFailureAndWrap((listener, countResult) -> {
-//            sourceRowCount.set(rowCount(countResult));
-//            logger.debug("total number of source rows: [{}] rows", sourceRowCount);
-//            if (sourceRowCount.get() == 0) {
-//                // If there are no rows, run the original query.
-//                executionInfo.finishSubPlans();
-//                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
-//                return;
-//            }
-//            double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount.get());
-//            if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
-//                // If the query preserves all rows, we can directly approximate with the sample probability.
-//                executionInfo.finishSubPlans();
-//                runner.run(
-//                    toPhysicalPlan.apply(approximationPlan(sampleProbability)),
-//                    configuration,
-//                    foldContext,
-//                    planTimeProfile,
-//                    listener
-//                );
-//            } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
-//                // If the query cannot increase the number of rows, and the sample probability is large,
-//                // we can directly run the original query without sampling.
-//                logger.debug("using original plan (too few rows)");
-//                executionInfo.finishSubPlans();
-//                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
-//            } else {
-//                // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
-//                sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount.get());
-//                runner.run(
-//                    toPhysicalPlan.apply(countPlan(sampleProbability)),
-//                    configuration,
-//                    foldContext,
-//                    planTimeProfile,
-//                    countListener(sampleProbability, listener)
-//                );
-//            }
-//        });
-//    }
+    private static LogicalPlan processSourceCount(LogicalPlan logicalPlan, Configuration configuration, long sourceRowCount) {
+        logger.debug("total number of source rows: [{}] rows", sourceRowCount);
+        if (sourceRowCount == 0) {
+            // If there are no rows, run the original query.
+            return substituteSampleProbability(logicalPlan, 1.0);
+        }
+        QueryProperties queryProperties = verifyPlan(logicalPlan);
+        double sampleProbability = Math.min(1.0, (double) sampleRowCount(configuration.approximationSettings()) / sourceRowCount);
+        if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
+            // If the query preserves all rows, we can directly approximate with the sample probability.
+            return substituteSampleProbability(logicalPlan, sampleProbability);
+        } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
+            // If the query cannot increase the number of rows, and the sample probability is large,
+            // we can directly run the original query without sampling.
+            logger.debug("using original plan (too few rows)");
+            return substituteSampleProbability(logicalPlan, 1.0);
+        } else {
+            // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
+            return logicalPlan;
+            // sampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount.get());
+            //
+            // runner.run(
+            // toPhysicalPlan.apply(countPlan(sampleProbability)),
+            // configuration,
+            // foldContext,
+            // planTimeProfile,
+            // countListener(sampleProbability, listener)
+            // );
+        }
+    }
 
     /**
      * Plan that counts a sampled number of rows reaching the STATS function.
@@ -551,23 +622,20 @@ public class Approximation {
      * </pre>
      * where {@code prob} is the given sample probability.
      */
-    private LogicalPlan countPlan(double sampleProbability) {
+    private static LogicalPlan countPlan(LogicalPlan logicalPlan, double sampleProbability) {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan countPlan = logicalPlan.transformUp(plan -> {
-            if (plan instanceof LeafPlan) {
-                if (sampleProbability < 1.0) {
-                    // The leaf plan should be appended by a SAMPLE.
-                    plan = new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
-                }
-            } else if (encounteredStats.get() == false) {
+            if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate aggregate) {
                     // The STATS function should be replaced by a STATS COUNT(*).
                     encounteredStats.set(true);
-                    plan = new Aggregate(
+                    plan = new SampledAggregate(
                         Source.EMPTY,
                         aggregate.child(),
                         List.of(),
-                        List.of(new Alias(Source.EMPTY, "$count", COUNT_ALL_ROWS))
+                        List.of(new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS)),
+                        List.of(new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS)),
+                        Literal.fromDouble(Source.EMPTY, sampleProbability)
                     );
                 }
             } else {
@@ -581,91 +649,76 @@ public class Approximation {
         return countPlan;
     }
 
-//    /**
-//     * Receives the sampled number of rows reaching the STATS function.
-//     * Runs either the {@link Approximation#approximationPlan} or a next iteration
-//     * {@link Approximation#countPlan} depending on whether the current count is
-//     * sufficient.
-//     * <p>
-//     * This count listener works recursively, increasing the sample probability at
-//     * each step. The first iteration uses a probability of
-//     * <pre>
-//     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / {@link Approximation#sourceRowCount}
-//     * </pre>
-//     * which is set by the {@link Approximation#sourceCountListener}.
-//     * <p>
-//     * If the sampled row count is high enough, the approximation plan is run next.
-//     * <p>
-//     * If the sampled row count is low the probability is multiplied by
-//     * <pre>
-//     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / Math.max(1, rowCount)
-//     * </pre>
-//     * and the count plan is run again.
-//     * <p>
-//     * For positive rowCount this means the next iteration aims for
-//     * approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
-//     * The recursion stops when a rowCount larger than {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / 2
-//     * is encountered. The division by 2 is to stop when the random sampling
-//     * returns a few less rows than aimed for.
-//     * <p>
-//     * For zero rowCount the sample probability is multiplied by
-//     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}. That means the next
-//     * recursion step can sample a number of rows between 0 and the target count,
-//     * but can never overshoot by much.
-//     * <p>
-//     * Regarding the recursion depth: in the worst case (very large index, very few
-//     * matching docs), the first few iterations return zero rows, and the sample probability
-//     * is multiplied by {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} each time.
-//     * Next, there's one iteration that returns a positive small row count, and the
-//     * probability is scaled up the correct value. Next, there's one final iteration
-//     * with approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
-//     * <p>
-//     * This result in a maximum recursion depth of about:
-//     * <pre>
-//     *     log(sourceRowCount, {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}) + 2
-//     * </pre>
-//     * which is at most 7 when sourceRowCount=MAX_LONG (huge!) and
-//     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} = 10000.
-//     * To be safe, the maximum recursion depth is capped at 10, and an exception is thrown
-//     * when this depth is exceeded.
-//     */
-//    private ActionListener<Result> countListener(double sampleProbability, ActionListener<Result> approximationListener) {
-//        return approximationListener.delegateFailureAndWrap((listener, countResult) -> {
-//            countRecursionDepth += 1;
-//            if (countRecursionDepth > 10) {
-//                listener.onFailure(new IllegalStateException("Approximation count recursion limit exceeded"));
-//                return;
-//            }
-//            long rowCount = rowCount(countResult);
-//            logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
-//            double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount() / Math.max(1, rowCount));
-//            if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
-//                // If the new sample probability is large, run the original query.
-//                logger.debug("using original plan (too few rows)");
-//                executionInfo.finishSubPlans();
-//                runner.run(toPhysicalPlan.apply(exactPlanWithConfidenceIntervals()), configuration, foldContext, planTimeProfile, listener);
-//            } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
-//                // Not enough rows are sampled yet; increase the sample probability and try again.
-//                newSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
-//                runner.run(
-//                    toPhysicalPlan.apply(countPlan(newSampleProbability)),
-//                    configuration,
-//                    foldContext,
-//                    planTimeProfile,
-//                    countListener(newSampleProbability, listener)
-//                );
-//            } else {
-//                executionInfo.finishSubPlans();
-//                runner.run(
-//                    toPhysicalPlan.apply(approximationPlan(newSampleProbability)),
-//                    configuration,
-//                    foldContext,
-//                    planTimeProfile,
-//                    listener
-//                );
-//            }
-//        });
-//    }
+    // /**
+    // * Receives the sampled number of rows reaching the STATS function.
+    // * Runs either the {@link Approximation#approximationPlan} or a next iteration
+    // * {@link Approximation#countPlan} depending on whether the current count is
+    // * sufficient.
+    // * <p>
+    // * This count listener works recursively, increasing the sample probability at
+    // * each step. The first iteration uses a probability of
+    // * <pre>
+    // * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / {@link Approximation#sourceRowCount}
+    // * </pre>
+    // * which is set by the {@link Approximation#sourceCountListener}.
+    // * <p>
+    // * If the sampled row count is high enough, the approximation plan is run next.
+    // * <p>
+    // * If the sampled row count is low the probability is multiplied by
+    // * <pre>
+    // * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / Math.max(1, rowCount)
+    // * </pre>
+    // * and the count plan is run again.
+    // * <p>
+    // * For positive rowCount this means the next iteration aims for
+    // * approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
+    // * The recursion stops when a rowCount larger than {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / 2
+    // * is encountered. The division by 2 is to stop when the random sampling
+    // * returns a few less rows than aimed for.
+    // * <p>
+    // * For zero rowCount the sample probability is multiplied by
+    // * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}. That means the next
+    // * recursion step can sample a number of rows between 0 and the target count,
+    // * but can never overshoot by much.
+    // * <p>
+    // * Regarding the recursion depth: in the worst case (very large index, very few
+    // * matching docs), the first few iterations return zero rows, and the sample probability
+    // * is multiplied by {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} each time.
+    // * Next, there's one iteration that returns a positive small row count, and the
+    // * probability is scaled up the correct value. Next, there's one final iteration
+    // * with approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
+    // * <p>
+    // * This result in a maximum recursion depth of about:
+    // * <pre>
+    // * log(sourceRowCount, {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}) + 2
+    // * </pre>
+    // * which is at most 7 when sourceRowCount=MAX_LONG (huge!) and
+    // * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} = 10000.
+    // * To be safe, the maximum recursion depth is capped at 10, and an exception is thrown
+    // * when this depth is exceeded.
+    // */
+    private static LogicalPlan processCount(LogicalPlan logicalPlan, Configuration configuration, double sampleProbability, long rowCount) {
+        // countRecursionDepth += 1;
+        // if (countRecursionDepth > 10) {
+        // listener.onFailure(new IllegalStateException("Approximation count recursion limit exceeded"));
+        // return;
+        // }
+        logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
+        double newSampleProbability = Math.min(
+            1.0,
+            sampleProbability * sampleRowCount(configuration.approximationSettings()) / Math.max(1, rowCount)
+        );
+        if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
+            // If the new sample probability is large, run the original query.
+            logger.debug("using original plan (too few rows)");
+            return substituteSampleProbability(logicalPlan, 1.0);
+        } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
+            // Not enough rows are sampled yet; increase the sample probability and try again.
+            return logicalPlan;
+        } else {
+            return substituteSampleProbability(logicalPlan, newSampleProbability);
+        }
+    }
 
     /**
      * Returns the row count in the result and closes the result.
@@ -826,7 +879,7 @@ public class Approximation {
         Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
 
         // The aggregate functions in the approximation plan.
-        List<NamedExpression> aggregates = new ArrayList<>();
+        List<NamedExpression> bucketAggregates = new ArrayList<>();
 
         // List of expressions that must be evaluated after the sampled aggregation.
         // These consist of:
@@ -835,12 +888,13 @@ public class Approximation {
         // - exact total row count if COUNT(*) is used (to avoid sampling errors there)
         List<Alias> evals = new ArrayList<>();
         List<NamedExpression> originalAggregates = new ArrayList<>();
+        List<Attribute> projections = new ArrayList<>();
 
         for (NamedExpression aggOrKey : aggregate.aggregates()) {
             if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
                 // This is a grouping key, not an aggregate function.
-                aggregates.add(aggOrKey);
                 originalAggregates.add(aggOrKey);
+                projections.add(aggOrKey.toAttribute());
                 continue;
             }
 
@@ -854,26 +908,33 @@ public class Approximation {
                 List<Alias> buckets = new ArrayList<>();
                 for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
                     for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
-                        Expression bucket = aggFn.withFilter(
-                            new Equals(
+                        Expression bucketIdFilter = new Equals(
+                            Source.EMPTY,
+                            new MvSlice(
                                 Source.EMPTY,
-                                new MvSlice(
-                                    Source.EMPTY,
-                                    bucketIdField.toAttribute(),
-                                    Literal.integer(Source.EMPTY, trialId),
-                                    Literal.integer(Source.EMPTY, trialId)
-                                ),
-                                Literal.integer(Source.EMPTY, bucketId)
-                            )
+                                bucketIdField.toAttribute(),
+                                Literal.integer(Source.EMPTY, trialId),
+                                Literal.integer(Source.EMPTY, trialId)
+                            ),
+                            Literal.integer(Source.EMPTY, bucketId)
                         );
-                        Alias bucketAlias = new Alias(Source.EMPTY, aggOrKey.name() + "$" + (trialId * BUCKET_COUNT + bucketId), bucket);
+                        Expression bucket = aggFn.withFilter(
+                            aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
+                        );
+                        Alias bucketAlias = new Alias(
+                            Source.EMPTY,
+                            aggOrKey.name() + "$bucket$" + (trialId * BUCKET_COUNT + bucketId),
+                            bucket
+                        );
                         if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
                             buckets.add(bucketAlias);
-                            aggregates.add(bucketAlias);
+                            bucketAggregates.add(bucketAlias);
+                            projections.add(bucketAlias.toAttribute());
                         } else {
                             Alias uncorrectedBucketAlias = new Alias(Source.EMPTY, bucketAlias.name() + "$uncorrected", bucket);
-                            aggregates.add(uncorrectedBucketAlias);
                             uncorrectedExpressions.put(bucketAlias.id(), uncorrectedBucketAlias);
+                            bucketAggregates.add(uncorrectedBucketAlias);
+                            projections.add(uncorrectedBucketAlias.toAttribute());
 
                             Expression uncorrectedBucket = uncorrectedBucketAlias.toAttribute();
                             if (aggFn.equals(COUNT_ALL_ROWS)) {
@@ -889,6 +950,7 @@ public class Approximation {
                             Expression correctedBucket = correctForSampling(uncorrectedBucket, bucketSampleProbability, null);
                             Alias correctedBucketAlias = bucketAlias.replaceChild(correctedBucket);
                             evals.add(correctedBucketAlias);
+                            projections.add(correctedBucketAlias.toAttribute());
                             buckets.add(correctedBucketAlias);
                         }
                     }
@@ -898,13 +960,13 @@ public class Approximation {
 
             // Replace the original aggregation by a sample-corrected one if needed.
             if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
-                aggregates.add(aggAlias);
                 originalAggregates.add(aggAlias);
+                projections.add(aggAlias.toAttribute());
             } else {
                 Alias uncorrectedAggAlias = new Alias(aggAlias.source(), aggAlias.name() + "$uncorrected", aggFn);
-                aggregates.add(uncorrectedAggAlias);
-                originalAggregates.add(uncorrectedAggAlias);
                 uncorrectedExpressions.put(aggAlias.id(), uncorrectedAggAlias);
+                originalAggregates.add(uncorrectedAggAlias);
+                projections.add(uncorrectedAggAlias.toAttribute());
 
                 Expression correctedAgg = correctForSampling(
                     uncorrectedAggAlias.toAttribute(),
@@ -912,8 +974,11 @@ public class Approximation {
                     fieldBuckets.get(aggOrKey.id())
                 );
                 evals.add(aggAlias.replaceChild(correctedAgg));
+                projections.add(aggAlias.toAttribute());
             }
         }
+
+        List<NamedExpression> aggregates = Stream.concat(originalAggregates.stream(), bucketAggregates.stream()).collect(Collectors.toList());
 
         Alias sampleSize = null;
         if (aggregate.groupings().isEmpty() == false) {
@@ -933,22 +998,12 @@ public class Approximation {
             plan = new Filter(
                 Source.EMPTY,
                 plan,
-                new GreaterThanOrEqual(
-                    Source.EMPTY,
-                    sampleSize.toAttribute(),
-                    Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
-                )
+                new GreaterThanOrEqual(Source.EMPTY, sampleSize.toAttribute(), new SampleSizeThreshold())
             );
         }
 
         plan = new Eval(Source.EMPTY, plan, evals);
-
-        List<Attribute> keepAttributes = new ArrayList<>(plan.output());
-
-        if (sampleSize != null) {
-            keepAttributes.remove(sampleSize.toAttribute());
-        }
-        return new Project(Source.EMPTY, plan, keepAttributes);
+        return new Project(Source.EMPTY, plan, projections);
     }
 
     /**

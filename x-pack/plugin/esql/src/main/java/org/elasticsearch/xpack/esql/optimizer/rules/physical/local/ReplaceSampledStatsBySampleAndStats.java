@@ -7,20 +7,25 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 
-public class ReplaceSampledStats extends PhysicalOptimizerRules.OptimizerRule<SampledAggregateExec> {
+public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.OptimizerRule<SampledAggregateExec> {
 
     @Override
     protected PhysicalPlan rule(SampledAggregateExec plan) {
+        double sampleProbability = (double) Foldables.literalValueOf(plan.sampleProbability());
+
         // TODO: push sample to the source command
         return new AggregateExec(
             plan.source(),
-            new SampleExec(plan.source(), plan.child(), plan.sampleProbability()),
+            sampleProbability == 1.0 ? plan.child() : plan.child().transformUp(LeafExec.class, leaf -> new SampleExec(Source.EMPTY, leaf, plan.sampleProbability())),
             plan.groupings(),
             plan.aggregates(),
             plan.getMode(),

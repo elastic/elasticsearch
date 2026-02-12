@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQuer
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampledStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
@@ -69,21 +69,35 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(7);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(9);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
+        }
+        esSourceRules.add(new ReplaceSampledStatsByExactStats());
+        if (optimizeForEsSource) {
             esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());
-            esSourceRules.add(new PushSampledStatsToSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
         @SuppressWarnings("unchecked")
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
+
+        List<Rule<?, PhysicalPlan>> approximationRules = new ArrayList<>(2);
+        approximationRules.add(new ReplaceSampledStatsBySampleAndStats());
+        if (optimizeForEsSource) {
+            approximationRules.add(new PushSampleToSource());
+        }
+        @SuppressWarnings("unchecked")
+        var approximation = new Batch<PhysicalPlan>(
+            "Query approximation",
+            Limiter.ONCE,
+            approximationRules.toArray(Rule[]::new)
+        );
 
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
@@ -96,16 +110,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         );
 
         // add the field extraction in just one pass
-        // add it at the end after all the other rules have ran
+        // add it at the end after all the other rules have run
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
-            new ReplaceSampledStats(),
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
             new SpatialShapeBoundsExtraction()
         );
-        return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
+
+        return optimizeForEsSource ? List.of(pushdown, approximation, substitutionRules, fieldExtraction) : List.of(pushdown, approximation, fieldExtraction);
     }
 }

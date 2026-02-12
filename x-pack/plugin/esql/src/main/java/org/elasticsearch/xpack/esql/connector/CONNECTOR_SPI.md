@@ -178,6 +178,46 @@ and filter pushdown. Used by `LakehouseConnector` and available for direct use b
 | [JdbcConnector](sql/JdbcConnector.java) | SQL example: reads from a database via JDBC |
 | [JdbcPlan](sql/JdbcPlan.java) | Plan node holding table name and built SQL |
 
+### Architecture Overview
+
+```
+                              ┌──────────────────────────────────────────────┐
+                              │              Core SPI (connector/)           │
+                              │                                              │
+                              │  Connector ─── ConnectorPlan ─── ConnectorExec
+                              │      │              │                        │
+                              │      │         ConnectorPartition            │
+                              │      │                                       │
+                              │  ConnectorSourceDescriptor                   │
+                              │  ConnectorCapabilities                       │
+                              │  ConnectorPushdownRule                       │
+                              └──────────────┬──────────────┬────────────────┘
+                                             │              │
+                    ┌────────────────────────┐ ┌────────────────────────────┐
+                    │  Lakehouse (lakehouse/) │ │      SQL (sql/)            │
+                    │                        │ │                            │
+                    │  LakehouseConnector     │ │  SqlConnector              │
+                    │  LakehousePlan          │ │  SqlPlan                   │
+                    │                        │ │                            │
+                    │  StorageProvider ───┐   │ │  SqlBuilder                │
+                    │  FormatReader ──────┤   │ │  PushFilter/Limit/OrderBy  │
+                    │  TableCatalog ──────┤   │ │  PushAggregate + BuildSql  │
+                    │  FilterPushdown ────┘   │ │                            │
+                    └────────────┬───────────┘ └─────────────┬──────────────┘
+                                 │                           │
+                    ┌────────────┴───────────┐ ┌─────────────┴──────────────┐
+                    │  Concrete connectors    │ │  Concrete connectors       │
+                    │                        │ │                            │
+                    │  IcebergConnector       │ │  JdbcConnector             │
+                    │  DeltaLakeConnector     │ │  PostgresConnector         │
+                    │  ParquetConnector       │ │  OracleConnector           │
+                    └────────────────────────┘ └────────────────────────────┘
+```
+
+**Core SPI** defines the contract every connector must follow. **Lakehouse** and **SQL** are two
+independent tracks built on top, each providing reusable base classes and optimization rules.
+Concrete connectors extend one track and fill in the connector-specific details.
+
 ---
 
 ## Design Principles
@@ -295,6 +335,38 @@ the [`lakehouse`](lakehouse/) package that separates storage access from format 
 | [TableCatalog](lakehouse/TableCatalog.java) | (Optional) Table catalog integration | Iceberg, Delta Lake, Hudi |
 | [FilterPushdownSupport](lakehouse/FilterPushdownSupport.java) | (Optional) Filter pushdown | Partition pruning, row-group filtering |
 
+### Component Composition
+
+```
+                         LakehouseConnector
+                                │
+              ┌─────────────────┼─────────────────┐
+              │                 │                  │
+              ▼                 ▼                  ▼
+      StorageProvider      FormatReader       TableCatalog
+      (file access)       (file reading)      (optional)
+              │                 │                  │
+              │                 │                  │
+  ┌───────────┴──┐    ┌────────┴───┐    ┌─────────┴──────┐
+  │ newObject()  │    │ metadata() │    │ canHandle()    │
+  │ listObjects()│    │ read()     │    │ metadata()     │
+  │ exists()     │    │            │    │ planScan()     │
+  └──────────────┘    └────────────┘    └────────────────┘
+         │                  │                   │
+         ▼                  ▼                   ▼
+    S3, GCS,          Parquet, ORC,       Iceberg, Delta,
+    HDFS, Local       CSV, Avro           Hudi
+                                                │
+                                                ▼
+                                       FilterPushdownSupport
+                                       (partition pruning,
+                                        row-group filtering)
+```
+
+**StorageProvider** and **FormatReader** are always required — they provide file access and reading.
+**TableCatalog** and **FilterPushdownSupport** are optional — they add catalog integration and
+filter pushdown for formats that support them (e.g., Iceberg).
+
 ### Combinations
 
 Any storage can be paired with any format:
@@ -401,6 +473,33 @@ Where `my_db` is registered as:
   "settings": {}
 }
 ```
+
+### SQL Pushdown Pipeline
+
+```
+ES|QL plan tree                    SqlConnector rules            JdbcPlan state
+═══════════════                    ══════════════════            ══════════════
+
+  Limit 100                         PushLimitToSql               limit: 100
+     │                                   │
+  TopN(name ASC)                    PushOrderByToSql             orderBy: [name ASC]
+     │                                   │
+  Filter(age > 21)                  PushFilterToSql              filter: age > 21
+     │                                   │
+  JdbcPlan(users)                        │                       tableName: "users"
+                                         │
+                                    BuildSql (final rule)
+                                         │
+                                         ▼
+                                    builtSql: "SELECT name, age
+                                      FROM users
+                                      WHERE age > 21
+                                      ORDER BY name ASC
+                                      LIMIT 100"
+```
+
+Each rule removes one ES|QL plan node and accumulates the operation into `JdbcPlan`.
+The final `BuildSql` rule translates the accumulated operations into a single SQL string.
 
 ### Key classes
 

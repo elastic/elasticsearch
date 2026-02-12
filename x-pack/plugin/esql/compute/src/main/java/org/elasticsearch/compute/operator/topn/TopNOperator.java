@@ -308,6 +308,10 @@ public class TopNOperator implements Operator, Accountable {
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
 
+    /**
+     * Tracker for the minimum competitive value. If this is null no one is listening
+     * for the min competitive so we don't track it.
+     */
     @Nullable
     private final SharedMinCompetitive minCompetitive;
 

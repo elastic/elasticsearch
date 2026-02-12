@@ -1501,8 +1501,11 @@ public class TopNOperatorTests extends OperatorTestCase {
             int column = randomValueOtherThanMany(c -> false == validSortKeys[c], () -> randomIntBetween(0, blocksCount - 1));
             uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
         }
-        NaiveTopNComparator comparator = new NaiveTopNComparator(uniqueOrders);
-        TopNOperator.SortOrder firstOrder = uniqueOrders.iterator().next();
+        List<TopNOperator.SortOrder> sortOrders = uniqueOrders.stream().toList();
+        NaiveTopNComparator comparator = new NaiveTopNComparator(sortOrders);
+        SharedMinCompetitive minCompetitive = randomBoolean()
+            ? new SharedMinCompetitive(blockFactory().breaker(), elementTypes, encoders, sortOrders)
+            : null;
 
         TopNOperator operator = new TopNOperator(
             driverContext.blockFactory(),
@@ -1513,7 +1516,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             uniqueOrders.stream().toList(),
             rowsPerPage,
             InputOrdering.NOT_SORTED,
-            null
+            minCompetitive
         );
         for (int p = 0; p < pageCount; p++) {
             assertThat(operator.needsInput(), equalTo(true));
@@ -1571,18 +1574,22 @@ public class TopNOperatorTests extends OperatorTestCase {
             }
             operator.addInput(new Page(blocks));
 
-            // MinCompetitive minCompetitive = operator.minCompetitive();
-            // if ((p + 1) * rowsPerPage < topCount || encoders.getFirst() == UTF8) {
-            // assertThat(minCompetitive, nullValue());
-            // } else {
-            // List<List<Object>> minCompetitiveRow = expectedValues.stream().sorted(comparator).skip(topCount - 1).findFirst().get();
-            // List<Object> firstOrderColumn = minCompetitiveRow.get(firstOrder.channel());
-            // System.err.println("expecting " + firstOrderColumn + " " + encoders.getFirst());
-            // try (Block minBlock = minCompetitive.firstSortKey()) {
-            // Object actual = BlockUtils.toJavaObject(minBlock, 0);
-            // assertThat(actual, firstOrderColumn.getFirst() == null ? nullValue() : equalTo(firstOrderColumn));
-            // }
-            // }
+            if (minCompetitive != null) {
+                if ((p + 1) * rowsPerPage < topCount) {
+                    assertThat(minCompetitive.get(blockFactory()), nullValue());
+                } else {
+                    List<List<Object>> minCompetitiveRow = expectedValues.stream().sorted(comparator).skip(topCount - 1).findFirst().get();
+                    try (Page min = minCompetitive.get(blockFactory())) {
+                        assertThat(min.getBlockCount(), equalTo(sortOrders.size()));
+                        for (int s = 0; s < min.getBlockCount(); s++) {
+                            TopNOperator.SortOrder sort = sortOrders.get(s);
+                            Object actual = BlockUtils.toJavaObject(min.getBlock(s), 0);
+                            Object expected = reduceKey(minCompetitiveRow.get(sort.channel()), sort.asc());
+                            assertThat(actual, equalTo(expected));
+                        }
+                    }
+                }
+            }
         }
         operator.finish();
         assertThat(operator.needsInput(), equalTo(false));
@@ -2059,25 +2066,31 @@ public class TopNOperatorTests extends OperatorTestCase {
         for (List<List<Object>> row : rows) {
             List<Object> resultRow = new ArrayList<>(orders.size());
             for (TopNOperator.SortOrder order : orders) {
-                List<Object> valueAt = row.get(order.channel());
-                if (valueAt.size() == 1) {
-                    resultRow.add(valueAt);
-                } else {
-                    Object minMax = order.asc()
-                        ? valueAt.stream().map(element -> (Comparable) element).min(Comparator.<Comparable>naturalOrder()).get()
-                        : valueAt.stream().map(element -> (Comparable) element).max(Comparator.<Comparable>naturalOrder()).get();
-                    resultRow.add(List.of(minMax));
-                }
+                resultRow.add(reduceKey(row.get(order.channel()), order.asc()));
             }
             result.add(resultRow);
         }
         return result;
     }
 
-    private class NaiveTopNComparator implements Comparator<List<List<Object>>> {
-        private final Set<TopNOperator.SortOrder> orders;
+    static Object reduceKey(List<Object> values, boolean asc) {
+        if (values.size() == 1) {
+            return values.getFirst();
+        }
+        return minMax(values, asc);
+    }
 
-        NaiveTopNComparator(Set<TopNOperator.SortOrder> orders) {
+    @SuppressWarnings({ "rawtypes", "unchecked", "OptionalGetWithoutIsPresent" })
+    static Object minMax(List<Object> values, boolean asc) {
+        return asc
+            ? values.stream().map(element -> (Comparable) element).min(naturalOrder()).get()
+            : values.stream().map(element -> (Comparable) element).max(naturalOrder()).get();
+    }
+
+    private class NaiveTopNComparator implements Comparator<List<List<Object>>> {
+        private final List<TopNOperator.SortOrder> orders;
+
+        NaiveTopNComparator(List<TopNOperator.SortOrder> orders) {
             this.orders = orders;
         }
 
@@ -2100,15 +2113,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             if (firstIsNull || secondIsNull) {
                 return Boolean.compare(firstIsNull, secondIsNull) * (nullsFirst ? -1 : 1);
             }
-            List<Comparable> v1 = value1.stream().map(element -> (Comparable) element).toList();
-            List<Comparable> v2 = value2.stream().map(element -> (Comparable) element).toList();
-            Comparable minMax1 = (Comparable) (asc
-                ? v1.stream().min(Comparator.<Comparable>naturalOrder()).get()
-                : v1.stream().max(Comparator.<Comparable>naturalOrder()).get());
-            Comparable minMax2 = (Comparable) (asc
-                ? v2.stream().min(Comparator.<Comparable>naturalOrder()).get()
-                : v2.stream().max(Comparator.<Comparable>naturalOrder()).get());
-
+            Comparable minMax1 = (Comparable) minMax(value1, asc);
+            Comparable minMax2 = (Comparable) minMax(value2, asc);
             return (asc ? 1 : -1) * minMax1.compareTo(minMax2);
         }
     }

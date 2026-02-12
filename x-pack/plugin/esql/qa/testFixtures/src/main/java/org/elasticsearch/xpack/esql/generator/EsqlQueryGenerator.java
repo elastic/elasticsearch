@@ -44,6 +44,29 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.areUnmappedFieldsAllowed;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.binaryMathFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.caseFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.cidrMatchFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.clampFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.coalesceFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.concatFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.conversionFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateDiffFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.greatestLeastFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.inExpression;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isNullExpression;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.likeExpression;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.mathFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.mvFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.mvSliceZipFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.randomScalarFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.rlikeExpression;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.splitFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToBoolFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToIntFunction;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.randomUnmappedFieldName;
 
 public class EsqlQueryGenerator {
@@ -203,8 +226,8 @@ public class EsqlQueryGenerator {
      * @param previousCommands the list of commands executed so far (used to determine if unmapped fields are allowed)
      */
     public static String booleanExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
-        boolean allowUnmapped = FunctionGenerator.areUnmappedFieldsAllowed(previousCommands);
-        return switch (randomIntBetween(0, 10)) {
+        boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
+        return switch (randomIntBetween(0, 11)) {
             case 0, 1, 2 -> {
                 String field = randomNumericField(previousOutput);
                 if (field == null) {
@@ -214,38 +237,16 @@ public class EsqlQueryGenerator {
             }
             case 3 -> "true";
             case 4 -> "false";
-            case 5 -> {
-                // IS NULL / IS NOT NULL
-                String expr = FunctionGenerator.isNullExpression(previousOutput, allowUnmapped);
-                yield expr;
-            }
-            case 6 -> {
-                // String comparison functions: starts_with, ends_with, contains
-                String expr = FunctionGenerator.stringToBoolFunction(previousOutput, allowUnmapped);
-                yield expr;
-            }
-            case 7 -> {
-                // IN expression
-                String expr = FunctionGenerator.inExpression(previousOutput, allowUnmapped);
-                yield expr;
-            }
-            case 8 -> {
-                // LIKE expression
-                String expr = FunctionGenerator.likeExpression(previousOutput, allowUnmapped);
-                yield expr;
-            }
-            case 9 -> {
-                // RLIKE expression
-                String expr = FunctionGenerator.rlikeExpression(previousOutput, allowUnmapped);
-                yield expr;
-            }
+            case 5 -> isNullExpression(previousOutput, allowUnmapped); // IS NULL / IS NOT NULL
+            case 6 -> stringToBoolFunction(previousOutput, allowUnmapped); // String comparison functions: starts_with, ends_with, contains
+            case 7 -> inExpression(previousOutput, allowUnmapped);
+            case 8 -> likeExpression(previousOutput, allowUnmapped);
+            case 9 -> rlikeExpression(previousOutput, allowUnmapped);
+            case 10 -> cidrMatchFunction(previousOutput, allowUnmapped);
             default -> {
                 // Numeric comparison on function result
-                String funcExpr = FunctionGenerator.stringToIntFunction(previousOutput, allowUnmapped);
-                if (funcExpr == null) {
-                    yield null;
-                }
-                yield funcExpr + " " + mathCompareOperator() + " " + randomIntBetween(0, 20);
+                String funcExpr = stringToIntFunction(previousOutput, allowUnmapped);
+                yield funcExpr == null ? null : funcExpr + " " + mathCompareOperator() + " " + randomIntBetween(0, 20);
             }
         };
     }
@@ -437,7 +438,7 @@ public class EsqlQueryGenerator {
     }
 
     public static String agg(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
-        boolean allowUnmapped = FunctionGenerator.areUnmappedFieldsAllowed(previousCommands);
+        boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
         var unmappedFieldName = randomUnmappedFieldName();
         // Only use unmapped field if allowed and it doesn't exist in the schema
         var canUseUnmappedFieldName = allowUnmapped && previousOutput.stream().noneMatch(x -> x.name().equals(unmappedFieldName));
@@ -631,37 +632,29 @@ public class EsqlQueryGenerator {
 
     /**
      * Generates a random function expression.
-     * @deprecated Use {@link #functionExpression(List, List)} instead to properly handle unmapped fields
-     */
-    @Deprecated
-    public static String functionExpression(List<Column> previousOutput) {
-        return functionExpression(previousOutput, null);
-    }
-
-    /**
-     * Generates a random function expression.
      * @param previousOutput the columns available in the current schema
      * @param previousCommands the list of commands executed so far (used to determine if unmapped fields are allowed)
      */
     public static String functionExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
-        boolean allowUnmapped = FunctionGenerator.areUnmappedFieldsAllowed(previousCommands);
+        boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
         return switch (randomIntBetween(0, 18)) {
-            case 0, 1 -> FunctionGenerator.mathFunction(previousOutput, allowUnmapped);
-            case 2 -> FunctionGenerator.binaryMathFunction(previousOutput, allowUnmapped);
-            case 3, 4 -> FunctionGenerator.stringFunction(previousOutput, allowUnmapped);
-            case 5 -> FunctionGenerator.stringToIntFunction(previousOutput, allowUnmapped);
-            case 6 -> FunctionGenerator.dateFunction(previousOutput, allowUnmapped);
-            case 7 -> FunctionGenerator.conversionFunction(previousOutput, allowUnmapped);
-            case 8 -> FunctionGenerator.caseFunction(previousOutput, allowUnmapped);
-            case 9 -> FunctionGenerator.coalesceFunction(previousOutput, allowUnmapped);
-            case 10, 11 -> FunctionGenerator.mvFunction(previousOutput, allowUnmapped);
-            case 12 -> FunctionGenerator.concatFunction(previousOutput, allowUnmapped);
-            case 13 -> FunctionGenerator.greatestLeastFunction(previousOutput, allowUnmapped);
-            case 14 -> FunctionGenerator.mvSliceZipFunction(previousOutput, allowUnmapped);
-            case 15 -> FunctionGenerator.splitFunction(previousOutput, allowUnmapped);
-            case 16 -> FunctionGenerator.clampFunction(previousOutput, allowUnmapped);
-            case 17 -> FunctionGenerator.dateDiffFunction(previousOutput, allowUnmapped);
-            default -> FunctionGenerator.randomScalarFunction(previousOutput, allowUnmapped);
+            case 0, 1 -> mathFunction(previousOutput, allowUnmapped);
+            case 2 -> binaryMathFunction(previousOutput, allowUnmapped);
+            case 3, 4 -> stringFunction(previousOutput, allowUnmapped);
+            case 5 -> stringToIntFunction(previousOutput, allowUnmapped);
+            case 6 -> dateFunction(previousOutput, allowUnmapped);
+            case 7 -> conversionFunction(previousOutput, allowUnmapped);
+            case 8 -> caseFunction(previousOutput, allowUnmapped);
+            case 9 -> coalesceFunction(previousOutput, allowUnmapped);
+            case 10, 11 -> mvFunction(previousOutput, allowUnmapped);
+            case 12 -> concatFunction(previousOutput, allowUnmapped);
+            case 13 -> greatestLeastFunction(previousOutput, allowUnmapped);
+            case 14 -> mvSliceZipFunction(previousOutput, allowUnmapped);
+            case 15 -> splitFunction(previousOutput, allowUnmapped);
+            case 16 -> clampFunction(previousOutput, allowUnmapped);
+            case 17 -> dateDiffFunction(previousOutput, allowUnmapped);
+            case 18 -> dateDiffFunction(previousOutput, allowUnmapped);
+            default -> randomScalarFunction(previousOutput, allowUnmapped);
         };
     }
 

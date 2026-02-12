@@ -154,7 +154,16 @@ public class FunctionGenerator {
         if (allowUnmapped == false) {
             return null;
         }
-        return randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY ? randomUnmappedFieldName() : null;
+        return shouldAddUnmappedField() ? randomUnmappedFieldName() : null;
+    }
+
+    private static boolean shouldAddUnmappedField() {
+        return shouldAddUnmappedFieldWithProbabilityIncrease(1);
+    }
+
+    public static boolean shouldAddUnmappedFieldWithProbabilityIncrease(int probabilityIncrease) {
+        assert probabilityIncrease > 0 && probabilityIncrease < 10 : "Probability increase should be in interval [1, 9]";
+        return randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY * probabilityIncrease;
     }
 
     /**
@@ -362,7 +371,7 @@ public class FunctionGenerator {
             return null;
         }
         // Possibly add an unmapped field to the concat arguments
-        if (allowUnmapped && randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY) {
+        if (allowUnmapped && shouldAddUnmappedField()) {
             stringFields.add(randomUnmappedFieldName());
         }
         if (stringFields.size() < 2) {
@@ -436,7 +445,7 @@ public class FunctionGenerator {
             .map(c -> EsqlQueryGenerator.needsQuoting(c.name()) ? EsqlQueryGenerator.quote(c.name()) : c.name())
             .collect(Collectors.toList());
         // Possibly add an unmapped field
-        if (allowUnmapped && randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY) {
+        if (allowUnmapped && shouldAddUnmappedField()) {
             dateFields.add(randomUnmappedFieldName());
         }
         if (dateFields.size() < 2) {
@@ -532,11 +541,9 @@ public class FunctionGenerator {
             .collect(Collectors.groupingBy(Column::type));
 
         // Find a type that has at least one field
-        String targetType = null;
         List<Column> sameTypeColumns = null;
         for (var entry : columnsByType.entrySet()) {
             if (entry.getValue().isEmpty() == false) {
-                targetType = entry.getKey();
                 sameTypeColumns = entry.getValue();
                 break;
             }
@@ -551,7 +558,7 @@ public class FunctionGenerator {
 
         // Coalesce is perfect for testing unmapped fields - it handles nulls by design
         // Use unmapped field as first argument (will be null, so second arg is returned)
-        if (allowUnmapped && randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY * 2) {
+        if (allowUnmapped && shouldAddUnmappedFieldWithProbabilityIncrease(2)) {
             String unmapped = randomUnmappedFieldName();
             return "coalesce(" + unmapped + ", " + field1 + ")";
         }
@@ -586,7 +593,7 @@ public class FunctionGenerator {
             .collect(Collectors.toList());
 
         // Possibly add an unmapped field (which has NULL type, accepted by these functions)
-        if (allowUnmapped && randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY && sameTypeFields.isEmpty() == false) {
+        if (allowUnmapped && shouldAddUnmappedField() && sameTypeFields.isEmpty() == false) {
             sameTypeFields.add(randomUnmappedFieldName());
         }
 
@@ -680,22 +687,35 @@ public class FunctionGenerator {
     // ========== IP FUNCTIONS ==========
 
     /**
-     * Generates an IP function.
+     * Generates an cidr_match function.
      * May randomly use unmapped field names to test NULL data type handling.
      *
      * @param columns the available columns
      * @param allowUnmapped if true, may use unmapped field names
      */
-    public static String ipFunction(List<Column> columns, boolean allowUnmapped) {
+    public static String cidrMatchFunction(List<Column> columns, boolean allowUnmapped) {
         String ipField = fieldOrUnmapped(EsqlQueryGenerator.randomName(columns, Set.of("ip")), allowUnmapped);
         if (ipField == null) {
             return null;
         }
         String cidr = randomFrom("10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12", "0.0.0.0/0");
-        return randomFrom(
-            "cidr_match(" + ipField + ", \"" + cidr + "\")",
-            "ip_prefix(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")"
-        );
+        return "cidr_match(" + ipField + ", \"" + cidr + "\")";
+            //"ip_prefix(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")"
+    }
+
+    /**
+     * Generates an ip_prefix function.
+     * May randomly use unmapped field names to test NULL data type handling.
+     *
+     * @param columns the available columns
+     * @param allowUnmapped if true, may use unmapped field names
+     */
+    public static String ipPrefixFunction(List<Column> columns, boolean allowUnmapped) {
+        String ipField = fieldOrUnmapped(EsqlQueryGenerator.randomName(columns, Set.of("ip")), allowUnmapped);
+        if (ipField == null) {
+            return null;
+        }
+        return "ip_prefix(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")";
     }
 
     // ========== BOOLEAN EXPRESSIONS ==========
@@ -709,7 +729,7 @@ public class FunctionGenerator {
      */
     public static String isNullExpression(List<Column> columns, boolean allowUnmapped) {
         // Higher probability for unmapped fields in IS NULL expressions since they're always null
-        if (allowUnmapped && randomIntBetween(0, 100) < UNMAPPED_FIELD_PROBABILITY * 3) {
+        if (allowUnmapped && shouldAddUnmappedFieldWithProbabilityIncrease(3)) {
             String unmapped = randomUnmappedFieldName();
             // Unmapped fields are always null, so IS NULL should be true, IS NOT NULL should be false
             return unmapped + (randomBoolean() ? " IS NULL" : " IS NOT NULL");
@@ -863,7 +883,7 @@ public class FunctionGenerator {
      * @param allowUnmapped if true, may use unmapped field names
      */
     public static String randomScalarFunction(List<Column> columns, boolean allowUnmapped) {
-        return switch (randomIntBetween(0, 13)) {
+        return switch (randomIntBetween(0, 14)) {
             case 0 -> mathFunction(columns, allowUnmapped);
             case 1 -> binaryMathFunction(columns, allowUnmapped);
             case 2 -> stringFunction(columns, allowUnmapped);
@@ -877,24 +897,8 @@ public class FunctionGenerator {
             case 10 -> greatestLeastFunction(columns, allowUnmapped);
             case 11 -> splitFunction(columns, allowUnmapped);
             case 12 -> clampFunction(columns, allowUnmapped);
+            case 13 -> ipPrefixFunction(columns, allowUnmapped);
             default -> mvSliceZipFunction(columns, allowUnmapped);
-        };
-    }
-
-    /**
-     * Generates a random boolean expression using functions.
-     *
-     * @param columns the available columns
-     * @param allowUnmapped if true, may use unmapped field names
-     */
-    public static String randomBooleanFunction(List<Column> columns, boolean allowUnmapped) {
-        return switch (randomIntBetween(0, 5)) {
-            case 0 -> stringToBoolFunction(columns, allowUnmapped);
-            case 1 -> isNullExpression(columns, allowUnmapped);
-            case 2 -> inExpression(columns, allowUnmapped);
-            case 3 -> likeExpression(columns, allowUnmapped);
-            case 4 -> rlikeExpression(columns, allowUnmapped);
-            default -> ipFunction(columns, allowUnmapped);
         };
     }
 }

@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.shouldAddUnmappedFieldWithProbabilityIncrease;
 
 public class FromGenerator implements CommandGenerator {
 
@@ -35,7 +36,7 @@ public class FromGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        boolean useUnmappedFields = randomBoolean();
+        boolean useUnmappedFields = shouldAddUnmappedFieldWithProbabilityIncrease(3);
         StringBuilder result = new StringBuilder();
         if (useUnmappedFields) {
             result.append("SET unmapped_fields=\"nullify\";");

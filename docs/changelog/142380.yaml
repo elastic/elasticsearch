@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 142380
+summary: "[Inference] Correctly preserve class information for internal endpoin…"
+type: bug

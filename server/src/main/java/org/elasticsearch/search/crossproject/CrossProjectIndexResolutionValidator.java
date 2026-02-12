@@ -89,13 +89,6 @@ public class CrossProjectIndexResolutionValidator {
             return null;
         }
 
-        if (indicesOptions.allowNoIndices() == false) {
-            if (localResolvedExpressions.expressions().stream().allMatch(e -> e.localExpressions().localIndexResolutionResult() == NONE)
-                && remoteResolvedExpressions.values().stream().allMatch(e -> e.expressions().isEmpty())) {
-                return new IndexNotFoundException("");
-            }
-        }
-
         // For each unauthorized expression, we report 403 for the first project if the expression is unqualified.
         // Otherwise, we report 403 for all projects where the expression is unauthorized.
         Map<String, ElasticsearchSecurityException> remoteAuthorizationExceptions = null;
@@ -189,10 +182,6 @@ public class CrossProjectIndexResolutionValidator {
                     var projectAlias = splitResource[0];
                     var resource = splitResource[1];
 
-                    // TODO the fundamental issue is this returns null for all exclusion expressions, which is then interpreted as the
-                    // expression being successfully resolved on the remote.
-                    // The secondary issue is that the local expression doesn't report an error either, because it only checks for status
-                    // SUCCESS with empty indices, but an exclusion expression has status NONE
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
                         projectAlias,
@@ -255,6 +244,12 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
+            if (notFoundException == null && indicesOptions.allowNoIndices() == false) {
+                if (localResolvedExpressions.localIndicesIsEmpty()
+                    && remoteResolvedExpressions.values().stream().allMatch(e -> localResolvedExpressions.localIndicesIsEmpty())) {
+                    return new IndexNotFoundException("");
+                }
+            }
             return notFoundException;
         } else {
             var firstException = localAuthorizationException != null

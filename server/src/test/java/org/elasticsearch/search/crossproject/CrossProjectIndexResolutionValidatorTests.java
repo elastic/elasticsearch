@@ -1508,6 +1508,25 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         }
     }
 
+    public void testSingleExclusionExpressionWithStrictAllowNoIndices() {
+        // Exclusion by itself
+        final var resolvedExclusion = randomFrom(
+            new ResolvedIndexExpression("-logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs")),
+            new ResolvedIndexExpression("-logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-logs*"))
+        );
+        final var local = new ResolvedIndexExpressions(List.of(resolvedExclusion));
+        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+
+        var ex = CrossProjectIndexResolutionValidator.validate(
+            getStrictAllowNoIndices(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
+        assertNotNull(ex);
+        assertThat(ex.getMessage(), equalTo("no such index []"));
+    }
+
     private IndicesOptions getStrictAllowNoIndices() {
         return getIndicesOptions(true, false);
     }

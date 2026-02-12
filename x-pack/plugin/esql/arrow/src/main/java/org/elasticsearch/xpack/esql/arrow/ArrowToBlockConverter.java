@@ -40,7 +40,8 @@ import org.elasticsearch.compute.data.LongBlock;
  *   <li>Arrow INT (IntVector) ↔ ESQL integer (IntBlock) - {@link FromInt32} / {@link BlockConverter.AsInt32}</li>
  *   <li>Arrow BIT (BitVector) ↔ ESQL boolean (BooleanBlock) - {@link FromBoolean} / {@link BlockConverter.AsBoolean}</li>
  *   <li>Arrow VARCHAR (VarCharVector) ↔ ESQL keyword (BytesRefBlock) - {@link FromVarChar} / {@link BlockConverter.AsVarChar}</li>
- *   <li>Arrow VARBINARY (VarBinaryVector) ↔ ESQL ip/binary (BytesRefBlock) - {@link FromVarBinary} / {@link BlockConverter.AsVarBinary}</li>
+ *   <li>Arrow VARBINARY (VarBinaryVector) ↔ ESQL ip/binary (BytesRefBlock) -
+ *          {@link FromVarBinary} / {@link BlockConverter.AsVarBinary}</li>
  *   <li>Arrow TIMESTAMPMICRO (TimeStampMicroVector) → ESQL datetime (LongBlock) - {@link FromTimestampMicro}</li>
  *   <li>Arrow TIMESTAMPMICROTZ (TimeStampMicroTZVector) → ESQL datetime (LongBlock) - {@link FromTimestampMicroTZ}</li>
  * </ul>

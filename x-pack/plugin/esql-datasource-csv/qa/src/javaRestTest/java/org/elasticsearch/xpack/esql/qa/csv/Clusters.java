@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.csv;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -63,7 +64,7 @@ public class Clusters {
         URL resourceUrl = Clusters.class.getResource("/iceberg-fixtures");
         if (resourceUrl != null && resourceUrl.getProtocol().equals("file")) {
             try {
-                return Paths.get(resourceUrl.toURI()).toAbsolutePath().toString();
+                return PathUtils.get(resourceUrl.toURI()).toAbsolutePath().toString();
             } catch (URISyntaxException e) {
                 throw new IllegalStateException("Failed to resolve fixtures path", e);
             }

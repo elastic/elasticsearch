@@ -191,7 +191,7 @@ public class MessageTemplates {
             String varName = matcher.group(1);
             String content = matcher.group(2);
             String value = variables.get(varName);
-            String replacement = (value != null && !value.isEmpty()) ? content : "";
+            String replacement = (value != null && value.isEmpty() == false) ? content : "";
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);

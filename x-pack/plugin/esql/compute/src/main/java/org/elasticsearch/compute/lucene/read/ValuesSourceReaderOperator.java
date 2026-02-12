@@ -10,7 +10,6 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.IOFunction;
-import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
@@ -325,7 +324,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                     columnAtATime = fn.apply(driverContext.breaker());
                     trackReader("column_at_a_time", columnAtATime);
                 } else {
-                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(driverContext.breaker(), fn, r -> trackReader("column_at_a_time", r));
+                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(
+                        driverContext.breaker(),
+                        fn,
+                        r -> trackReader("column_at_a_time", r)
+                    );
                 }
             }
             return columnAtATime;

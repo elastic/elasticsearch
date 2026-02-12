@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.BlockLoaderTestCase.TEST_BREAKER_SIZE;
 import static org.elasticsearch.index.mapper.BlockLoaderTestCase.buildSpecification;
 import static org.elasticsearch.index.mapper.BlockLoaderTestCase.hasDocValues;
 
@@ -42,7 +41,8 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
     public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
-        this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));;
+        this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+        ;
         if (randomBoolean()) {
             runner.allowDummyDocs();
         }

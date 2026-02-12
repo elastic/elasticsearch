@@ -884,8 +884,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                     case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
-                        // NOCOMMIT should this be something different for binary doc values?
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), blContext.ordinalsByteSize())
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name())
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };

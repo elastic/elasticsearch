@@ -2488,7 +2488,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                     };
                     final TestBlock testBlock;
                     if (textValues.stream().anyMatch(exceedIgnoreAbove)) {
-                        assertNull(blockLoader.columnAtATimeReader(breaker, ctx));
+                        assertNull(blockLoader.columnAtATimeReader(ctx));
                         assertFalse(blockLoader.rowStrideStoredFieldSpec().noRequirements());
                         try (var rowReader = blockLoader.rowStrideReader(breaker, ctx)) {
                             StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();

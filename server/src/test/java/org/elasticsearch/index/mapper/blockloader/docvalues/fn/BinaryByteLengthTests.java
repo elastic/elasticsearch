@@ -17,7 +17,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
@@ -88,12 +91,17 @@ public class BinaryByteLengthTests extends ESTestCase {
                     );
                 }
 
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var lengthLoader = new ByteLengthFromBytesRefDocValuesBlockLoader(warnings, "field");
+                var lengthLoader = new ByteLengthFromBytesRefDocValuesBlockLoader(
+                    warnings,
+                    "field",
+                    MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE
+                );
 
-                var stringsReader = stringsLoader.reader(ctx);
-                var lengthReader = lengthLoader.reader(ctx);
+                var stringsReader = stringsLoader.reader(breaker, ctx);
+                var lengthReader = lengthLoader.reader(breaker, ctx);
 
                 if (multiValues) {
                     assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts"));
@@ -111,8 +119,8 @@ public class BinaryByteLengthTests extends ESTestCase {
                 assertThat(warnings.warnings(), equalTo(expectedWarnings));
                 warnings.warnings().clear();
 
-                stringsReader = stringsLoader.reader(ctx);
-                lengthReader = lengthLoader.reader(ctx);
+                stringsReader = stringsLoader.reader(breaker, ctx);
+                lengthReader = lengthLoader.reader(breaker, ctx);
                 for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
                     int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
                     for (int d = 0; d < docsArray.length; d++) {
@@ -129,8 +137,8 @@ public class BinaryByteLengthTests extends ESTestCase {
                 assertThat(warnings.warnings(), equalTo(expectedWarnings));
                 // Testing fetching a single doc, which has a different code path
                 warnings.warnings().clear();
-                stringsReader = stringsLoader.reader(ctx);
-                lengthReader = lengthLoader.reader(ctx);
+                stringsReader = stringsLoader.reader(breaker, ctx);
+                lengthReader = lengthLoader.reader(breaker, ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
                     docs = TestBlock.docs(docId);
                     try (

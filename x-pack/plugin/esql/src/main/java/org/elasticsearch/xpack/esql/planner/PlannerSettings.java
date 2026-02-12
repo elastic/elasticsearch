@@ -67,17 +67,6 @@ public class PlannerSettings {
     );
 
     /**
-     * Circuit breaker space reserved for each ordinals {@link BlockLoader.Reader}.
-     * Measured in heap dumps from 3.5kb to 65kb. This is an intentional overestimate.
-     */
-    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_ORDINALS = Setting.byteSizeSetting(
-        "esql.block_loader.size.ordinals",
-        DEFAULT_ORDINALS_BYTE_SIZE,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * The threshold number of grouping keys for a partial aggregation to start emitting intermediate results early.
      * While emitting partial results can reduce memory pressure and allow for incremental downstream processing,
      * it might emit the same keys multiple times, incurring serialization and network overhead. This setting,
@@ -93,6 +82,17 @@ public class PlannerSettings {
         "esql.partial_agg_emit_keys_threshold",
         100_000,
         1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Circuit breaker space reserved for each ordinals {@link BlockLoader.Reader}.
+     * Measured in heap dumps from 3.5kb to 65kb. This is an intentional overestimate.
+     */
+    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_ORDINALS = Setting.byteSizeSetting(
+        "esql.block_loader.size.ordinals",
+        DEFAULT_ORDINALS_BYTE_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

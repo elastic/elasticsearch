@@ -31,9 +31,9 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
     @Override
     protected IndexReshardingMetadata createTestInstance() {
         if (randomBoolean()) {
-            return new IndexReshardingMetadata(randomLong(), createTestSplit());
+            return new IndexReshardingMetadata(createTestSplit());
         } else {
-            return new IndexReshardingMetadata(randomLong(), new IndexReshardingState.Noop());
+            return new IndexReshardingMetadata(new IndexReshardingState.Noop());
         }
     }
 
@@ -65,7 +65,7 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
             case IndexReshardingState.Noop ignored -> createTestSplit();
             case IndexReshardingState.Split split -> mutateSplit(split);
         };
-        return new IndexReshardingMetadata(randomLong(), state);
+        return new IndexReshardingMetadata(state);
     }
 
     // To exercise equals() we want to mutate exactly one thing randomly so we know that each component

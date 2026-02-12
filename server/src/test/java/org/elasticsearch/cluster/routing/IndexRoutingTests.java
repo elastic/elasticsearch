@@ -839,11 +839,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private static IndexRouting getSplitRouting(IndexMetadata startingMetadata) {
-        IndexReshardingMetadata reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(
-            0L,
-            startingMetadata.getNumberOfShards(),
-            2
-        );
+        IndexReshardingMetadata reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(startingMetadata.getNumberOfShards(), 2);
         return IndexRouting.fromIndexMetadata(
             IndexMetadata.builder(startingMetadata)
                 .reshardingMetadata(reshardingMetadata)
@@ -879,7 +875,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
                 .numberOfShards(newShardCount)
                 .numberOfReplicas(1)
-                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, shards, 2))
+                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(shards, 2))
                 .build()
         );
 
@@ -898,7 +894,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .numberOfShards(newShardCount)
                 .numberOfReplicas(1)
                 .reshardingMetadata(
-                    IndexReshardingMetadata.newSplitByMultiple(0L, shards, 2)
+                    IndexReshardingMetadata.newSplitByMultiple(shards, 2)
                         .transitionSplitTargetToNewState(new ShardId("test", "na", 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
                 )
                 .build()
@@ -919,7 +915,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .numberOfShards(newShardCount)
                 .numberOfReplicas(1)
                 .reshardingMetadata(
-                    IndexReshardingMetadata.newSplitByMultiple(0L, shards, 2)
+                    IndexReshardingMetadata.newSplitByMultiple(shards, 2)
                         .transitionSplitTargetToNewState(new ShardId("test", "na", 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
                         .transitionSplitTargetToNewState(new ShardId("test", "na", 1), IndexReshardingState.Split.TargetShardState.SPLIT)
                 )
@@ -963,7 +959,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .numberOfShards(postReshardShards)
                 .numberOfReplicas(1)
                 .routingPartitionSize(2)
-                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(0L, preReshardShards, 2))
+                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2))
                 .build()
         );
 
@@ -971,7 +967,7 @@ public class IndexRoutingTests extends ESTestCase {
         // We won't see shard 4 and above (there is a corresponding logic in index operation routing).
         Function<Integer, Integer> adjustForResharding = i -> i < preReshardShards
             ? i
-            : IndexReshardingMetadata.newSplitByMultiple(0L, preReshardShards, 2).getSplit().sourceShard(i);
+            : IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2).getSplit().sourceShard(i);
 
         for (var shardAndRouting : shardToRouting.entrySet()) {
             var collectedShards = new ArrayList<Integer>();
@@ -992,7 +988,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .routingPartitionSize(2)
                 .reshardingMetadata(
-                    IndexReshardingMetadata.newSplitByMultiple(0L, preReshardShards, 2)
+                    IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2)
                         .transitionSplitTargetToNewState(new ShardId("test", "na", 4), IndexReshardingState.Split.TargetShardState.HANDOFF)
                 )
                 .build()
@@ -1019,7 +1015,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .routingPartitionSize(2)
                 .reshardingMetadata(
-                    IndexReshardingMetadata.newSplitByMultiple(0L, preReshardShards, 2)
+                    IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2)
                         .transitionSplitTargetToNewState(new ShardId("test", "na", 4), IndexReshardingState.Split.TargetShardState.HANDOFF)
                         .transitionSplitTargetToNewState(new ShardId("test", "na", 4), IndexReshardingState.Split.TargetShardState.SPLIT)
                 )
@@ -1027,9 +1023,7 @@ public class IndexRoutingTests extends ESTestCase {
         );
 
         // Shard 4 can now be included in routing too based on the resharding metadata, adjust the rule.
-        adjustForResharding = i -> i < 5
-            ? i
-            : IndexReshardingMetadata.newSplitByMultiple(0L, preReshardShards, 2).getSplit().sourceShard(i);
+        adjustForResharding = i -> i < 5 ? i : IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2).getSplit().sourceShard(i);
 
         for (var shardAndRouting : shardToRouting.entrySet()) {
             var collectedShards = new ArrayList<Integer>();

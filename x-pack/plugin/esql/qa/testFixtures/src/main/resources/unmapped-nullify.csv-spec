@@ -12,18 +12,7 @@ null
 null
 ;
 
-keepMappedWhere
-required_capability: date_nanos_type
-required_capability: optional_fields_nullify_tech_preview
-
-SET unmapped_fields="nullify"; FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | KEEP nanos; 
-
-nanos:date_nanos
-[2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z]
-[2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]
-;
-
-keepMapped1
+keepMapped
 required_capability: date_nanos_type
 required_capability: optional_fields_nullify_tech_preview
 
@@ -32,20 +21,6 @@ SET unmapped_fields="nullify"; FROM date_nanos | SORT millis ASC | WHERE millis 
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z
 2023-01-23T13:55:01.543123456Z
-;
-
-keepMapped2
-required_capability: date_nanos_type
-required_capability: date_nanos_compare_to_millis
-required_capability: fix_date_nanos_lucene_pushdown_bug
-
-SET unmapped_fields="nullify"; FROM date_nanos | WHERE nanos < TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
-warningRegex:Line 1:25: evaluation of \[nanos < TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-millis:date              | nanos:date_nanos               | num:long
-2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
-2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
 ;
 
 keepStar

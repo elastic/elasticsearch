@@ -165,25 +165,20 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
+        if (this == obj) {
+            return true;
+        }
         if (obj instanceof VectorData other) {
-            if (Arrays.equals(floatVector, other.floatVector) == false) {
-                return false;
-            }
-            return Objects.equals(canonicalString(), other.canonicalString());
+            return Arrays.equals(floatVector, other.floatVector)
+                && Arrays.equals(byteVector, other.byteVector)
+                && Objects.equals(stringVector, other.stringVector);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        if (floatVector != null) return Arrays.hashCode(floatVector);
-        return canonicalString().hashCode();
-    }
-
-    private String canonicalString() {
-        if (byteVector != null) return HexFormat.of().formatHex(byteVector);
-        return stringVector;
+        return Objects.hash(Arrays.hashCode(floatVector), Arrays.hashCode(byteVector), stringVector);
     }
 
     public static VectorData parseXContent(XContentParser parser) throws IOException {

@@ -45,6 +45,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
+    private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
     private static final String VECTOR_FIELD = "vector";
     private static final String VECTOR_ALIAS_FIELD = "vector_alias";
     protected static final Set<String> QUANTIZED_INDEX_TYPES = Set.of(
@@ -190,6 +192,9 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     @Override
     protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        DenseVectorFieldType fieldType = (DenseVectorFieldType) context.getFieldType(VECTOR_FIELD);
+        VectorData resolvedVector = fieldType.resolveQueryVector(queryBuilder.queryVector());
+
         if (queryBuilder.getVectorSimilarity() != null) {
             assertTrue(query instanceof VectorSimilarityQuery);
             assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
@@ -244,7 +249,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query knnVectorQueryBuilt = switch (elementType()) {
             case BYTE, BIT -> new ESKnnByteVectorQuery(
                 VECTOR_FIELD,
-                queryBuilder.queryVector().asByteVector(),
+                resolvedVector.asByteVector(),
                 k,
                 numCands,
                 approxFilterQuery,
@@ -252,7 +257,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             );
             case FLOAT, BFLOAT16 -> new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
-                queryBuilder.queryVector().asFloatVector(),
+                resolvedVector.asFloatVector(),
                 k,
                 numCands,
                 approxFilterQuery,
@@ -264,21 +269,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             case BIT, BYTE -> {
                 if (filterQuery != null) {
                     yield new BooleanQuery.Builder().add(
-                        new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD),
+                        new DenseVectorQuery.Bytes(resolvedVector.asByteVector(), VECTOR_FIELD),
                         BooleanClause.Occur.SHOULD
                     ).add(filterQuery, BooleanClause.Occur.FILTER).build();
                 } else {
-                    yield new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD);
+                    yield new DenseVectorQuery.Bytes(resolvedVector.asByteVector(), VECTOR_FIELD);
                 }
             }
             case FLOAT, BFLOAT16 -> {
                 if (filterQuery != null) {
                     yield new BooleanQuery.Builder().add(
-                        new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD),
+                        new DenseVectorQuery.Floats(resolvedVector.asFloatVector(), VECTOR_FIELD),
                         BooleanClause.Occur.SHOULD
                     ).add(filterQuery, BooleanClause.Occur.FILTER).build();
                 } else {
-                    yield new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD);
+                    yield new DenseVectorQuery.Floats(resolvedVector.asFloatVector(), VECTOR_FIELD);
                 }
             }
         };
@@ -523,6 +528,43 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
         QueryBuilder rewrittenQuery = query.rewrite(context);
         assertThat(rewrittenQuery, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testBWCVersionSerialization_GivenStringVector() throws IOException {
+        if (elementType() != DenseVectorFieldMapper.ElementType.BYTE && elementType() != DenseVectorFieldMapper.ElementType.BIT) {
+            return;
+        }
+
+        TransportVersion version = TransportVersion.fromId(QUERY_VECTOR_BASE64.id() - 1000);
+        for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
+            byte[] bytes = new byte[vectorDimensions];
+            for (int j = 0; j < bytes.length; j++) {
+                bytes[j] = randomByte();
+            }
+            String hexString = HexFormat.of().formatHex(bytes);
+
+            KnnVectorQueryBuilder queryWithString = new KnnVectorQueryBuilder(
+                VECTOR_FIELD,
+                VectorData.fromStringVector(hexString),
+                5,
+                10,
+                null,
+                null,
+                null
+            );
+
+            KnnVectorQueryBuilder expectedBwc = new KnnVectorQueryBuilder(
+                VECTOR_FIELD,
+                VectorData.fromBytes(bytes),
+                5,
+                10,
+                null,
+                null,
+                null
+            );
+
+            assertBWCSerialization(queryWithString, expectedBwc, version);
+        }
     }
 
     public void testBWCVersionSerialization_GivenAutoPrefiltering() throws IOException {

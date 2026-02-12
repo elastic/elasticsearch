@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class MixedbreadRerankResponseEntity {
 
@@ -122,7 +123,7 @@ public class MixedbreadRerankResponseEntity {
         static {
             PARSER.declareInt(constructorArg(), new ParseField("index"));
             PARSER.declareFloat(constructorArg(), new ParseField("score"));
-            PARSER.declareStringOrNull(constructorArg(), new ParseField("input"));
+            PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("input"));
         }
     }
 }

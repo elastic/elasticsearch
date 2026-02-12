@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.mixedbread;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -31,6 +30,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -67,6 +68,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     public static final String NAME = "mixedbread";
     public static final String SERVICE_NAME = "Mixedbread";
 
+    static final int EMBEDDING_MAX_BATCH_SIZE = 20;
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     /**
@@ -328,12 +330,24 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        throw new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", NAME));
-    }
+        if (model instanceof MixedbreadEmbeddingsModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
 
-    @Override
-    protected boolean supportsChunkedInfer() {
-        return false;
+        var mixedbreadEmbeddingsModel = (MixedbreadEmbeddingsModel) model;
+        var actionCreator = new MixedbreadActionCreator(getSender(), getServiceComponents());
+
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+            inputs,
+            EMBEDDING_MAX_BATCH_SIZE,
+            mixedbreadEmbeddingsModel.getConfigurations().getChunkingSettings()
+        ).batchRequestsWithListeners(listener);
+
+        for (var request : batchedRequests) {
+            var action = mixedbreadEmbeddingsModel.accept(actionCreator, taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+        }
     }
 
     @Override

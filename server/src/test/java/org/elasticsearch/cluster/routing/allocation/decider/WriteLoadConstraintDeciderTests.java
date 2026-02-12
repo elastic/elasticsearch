@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.ArgumentMatchers.any;
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
@@ -482,6 +485,119 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     + "period, and does not prefer shards moved onto it"
             )
         );
+    }
+
+    public void testWriteLoadDeciderNeedsBothUtilizationAndLatencyForHotspot() {
+        final float highUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final String highUtilizationThresholdString = new RatioValue(highUtilizationThreshold * 100.0f).formatNoTrailingZerosPercent();
+        final long highLatencyThreshold = randomLongBetween(1000, 10000);
+        final String highLatencyThresholdString = new TimeValue(highLatencyThreshold).toString();
+        final var settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
+                highUtilizationThreshold
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(highLatencyThreshold)
+            )
+            .build();
+        final var decider = createWriteLoadConstraintDecider(settings);
+        final var indexName = randomIdentifier();
+        final var state = ClusterStateCreationUtils.state(1, new String[] { indexName }, 4);
+        final var hotspotNode = randomFrom(state.nodes().getAllNodes());
+
+        // test utilization low, latency high
+        var utilization = randomFloatBetween(0.0f, highUtilizationThreshold, true);
+        var latency = randomLongBetween(highLatencyThreshold + 1, 2 * highLatencyThreshold);
+        var routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
+        var hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
+        var shardRouting = routingAllocation.routingNodes()
+            .node(hotspotNode.getId())
+            .shardsWithState(ShardRoutingState.STARTED)
+            .findFirst()
+            .orElseThrow();
+
+        Decision decision = decider.canRemain(
+            state.metadata().getProject().index(indexName),
+            shardRouting,
+            hotspotRoutingNode,
+            routingAllocation
+        );
+        assertEquals(decision.type(), Decision.YES.type());
+        assertThat(decision.getExplanation(), matchesPattern("""
+            Node \\[.*\\]'s queue latency of \\[.*\\] does not exceed the latency threshold of \\[.*\\], or the thread pool \
+            utilization of \\[.*\\] does not exceed the utilization threshold of \\[.*\\]"""));
+
+        // test utilization high, latency low
+        utilization = randomFloatBetween(highUtilizationThreshold, 1.2f, false);
+        latency = randomLongBetween(0, highLatencyThreshold - 1);
+        routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
+        hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
+        shardRouting = routingAllocation.routingNodes()
+            .node(hotspotNode.getId())
+            .shardsWithState(ShardRoutingState.STARTED)
+            .findFirst()
+            .orElseThrow();
+
+        decision = decider.canRemain(state.metadata().getProject().index(indexName), shardRouting, hotspotRoutingNode, routingAllocation);
+        assertEquals(decision.type(), Decision.YES.type());
+        assertThat(decision.getExplanation(), matchesPattern("""
+            Node \\[.*\\]'s queue latency of \\[.*\\] does not exceed the latency threshold of \\[.*\\], or the thread pool \
+            utilization of \\[.*\\] does not exceed the utilization threshold of \\[.*\\]"""));
+
+        // test utilization high and latency high
+        utilization = randomFloatBetween(highUtilizationThreshold, 1.2f, false);
+        latency = randomLongBetween(highLatencyThreshold + 1, highLatencyThreshold * 2);
+        routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
+        hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
+        shardRouting = routingAllocation.routingNodes()
+            .node(hotspotNode.getId())
+            .shardsWithState(ShardRoutingState.STARTED)
+            .findFirst()
+            .orElseThrow();
+
+        decision = decider.canRemain(state.metadata().getProject().index(indexName), shardRouting, hotspotRoutingNode, routingAllocation);
+        assertEquals(decision.type(), Decision.NOT_PREFERRED.type());
+        assertThat(decision.getExplanation(), matchesPattern("""
+            Node \\[.*\\] has a queue latency of \\[.*\\] millis that exceeds the queue latency threshold of \\[.*\\] and a thread \
+            pool utilization of \\[.*\\] that exceeds the utilization threshold of \\[.*\\]. This node is hot-spotting. Shard write \
+            load \\[.*\\]. Should move shard\\(s\\) away"""));
+    }
+
+    public RoutingAllocation buildRoutingAllocation(
+        ClusterState state,
+        WriteLoadConstraintDecider decider,
+        String nodeId,
+        float utilization,
+        long latency
+    ) {
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .nodeUsageStatsForThreadPools(
+                Map.of(
+                    nodeId,
+                    new NodeUsageStatsForThreadPools(
+                        nodeId,
+                        Map.of(ThreadPool.Names.WRITE, new ThreadPoolUsageStats(randomIntBetween(1, 10), utilization, latency))
+                    )
+                )
+            )
+            .build();
+
+        var routingAllocation = new RoutingAllocation(
+            new AllocationDeciders(List.of(decider)),
+            state.getRoutingNodes().mutableCopy(),
+            state,
+            clusterInfo,
+            SnapshotShardSizeInfo.EMPTY,
+            randomLong()
+        );
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+        return routingAllocation;
     }
 
     /**

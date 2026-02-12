@@ -89,10 +89,27 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
         if (leftType == DENSE_VECTOR || rightType == DENSE_VECTOR) {
-            if ((leftType == DENSE_VECTOR || isSupportedScalar(leftType)) && (rightType == DENSE_VECTOR || isSupportedScalar(rightType))) {
-                return TypeResolution.TYPE_RESOLVED;
+            if (leftType != DENSE_VECTOR) {
+                if (false == isSupportedScalar(leftType)) {
+                    return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+                }
+                if (false == left().foldable()) {
+                    return new TypeResolution(
+                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", left().sourceText())
+                    );
+                }
             }
-            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+            if (rightType != DENSE_VECTOR) {
+                if (false == isSupportedScalar(rightType)) {
+                    return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+                }
+                if (false == right().foldable()) {
+                    return new TypeResolution(
+                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", right().sourceText())
+                    );
+                }
+            }
+            return TypeResolution.TYPE_RESOLVED;
         }
         return super.checkCompatibility();
     }
@@ -105,37 +122,14 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
                 return denseVectors.apply(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             }
             if (left().dataType() != DENSE_VECTOR) {
-                if (false == left().foldable()) {
-                    throw new IllegalArgumentException(
-                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", left().sourceText())
-                    );
-                }
                 double lhs = ((Number) left().fold(toEvaluator.foldCtx())).doubleValue();
                 return denseVectors.apply(source(), lhs, toEvaluator.apply(right()));
             } else {
-                if (false == right().foldable()) {
-                    throw new IllegalArgumentException(
-                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", right().sourceText())
-                    );
-                }
-
                 double rhs = ((Number) (right().fold(toEvaluator.foldCtx()))).doubleValue();
                 return denseVectors.apply(source(), toEvaluator.apply(left()), rhs);
             }
         }
         return super.toEvaluator(toEvaluator);
-    }
-
-    private static double toDouble(Number num, String sourceText) {
-        double d = num.doubleValue();
-        if (num instanceof Long) {
-            if ((long) d != num.longValue()) {
-                throw new IllegalArgumentException(
-                    LoggerMessageFormat.format(null, "[{}] evaluates to a large value which is not supported", sourceText)
-                );
-            }
-        }
-        return d;
     }
 
     private static boolean isSupportedScalar(DataType dataType) {

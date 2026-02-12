@@ -2683,6 +2683,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final long[] minValue;
         final long[] maxValue;
         final int[] docCount;
+        final long[]  valueCount;
         int levels;
 
         ES819TSDBDocValuesSkipper(DocValuesSkipperEntry entry) {
@@ -2695,6 +2696,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             minValue = new long[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
             maxValue = new long[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
             docCount = new int[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
+            valueCount = new long[ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL];
             levels = 1;
         }
 
@@ -2726,6 +2728,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         maxValue[level] = input.readLong();
                         minValue[level] = input.readLong();
                         docCount[level] = input.readInt();
+                        valueCount[level] = input.readLong();
                     }
                     if (valid) {
                         // adjust levels

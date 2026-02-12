@@ -1045,12 +1045,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int docCount;
         long minValue;
         long maxValue;
+        long valueCount;
 
         SkipAccumulator(int docID) {
             minDocID = docID;
             minValue = Long.MAX_VALUE;
             maxValue = Long.MIN_VALUE;
             docCount = 0;
+            valueCount = 0;
         }
 
         boolean isDone(int skipIndexIntervalSize, int valueCount, long nextValue, int nextDoc) {
@@ -1067,6 +1069,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         void accumulate(long value) {
             minValue = Math.min(minValue, value);
             maxValue = Math.max(maxValue, value);
+            valueCount++;
         }
 
         void accumulate(SkipAccumulator other) {
@@ -1075,6 +1078,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             minValue = Math.min(minValue, other.minValue);
             maxValue = Math.max(maxValue, other.maxValue);
             docCount += other.docCount;
+            valueCount += other.valueCount;
         }
 
         void nextDoc(int docID) {
@@ -1098,6 +1102,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         long globalMaxValue = Long.MIN_VALUE;
         long globalMinValue = Long.MAX_VALUE;
         int globalDocCount = 0;
+        long globalValueCount = 0;
         int maxDocId = -1;
         final List<SkipAccumulator> accumulators = new ArrayList<>();
         SkipAccumulator accumulator = null;
@@ -1130,6 +1135,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
             globalMinValue = Math.min(globalMinValue, accumulator.minValue);
             globalDocCount += accumulator.docCount;
+            globalValueCount += accumulator.valueCount;
             maxDocId = accumulator.maxDocID;
             writeLevels(accumulators);
         }
@@ -1141,6 +1147,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         assert globalDocCount <= maxDocId + 1;
         meta.writeInt(globalDocCount);
         meta.writeInt(maxDocId);
+        // meta.writeLong(globalValueCount);
     }
 
     private void writeLevels(List<SkipAccumulator> accumulators) throws IOException {
@@ -1164,6 +1171,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 data.writeLong(accumulator.maxValue);
                 data.writeLong(accumulator.minValue);
                 data.writeInt(accumulator.docCount);
+                data.writeLong(accumulator.valueCount);
             }
         }
     }

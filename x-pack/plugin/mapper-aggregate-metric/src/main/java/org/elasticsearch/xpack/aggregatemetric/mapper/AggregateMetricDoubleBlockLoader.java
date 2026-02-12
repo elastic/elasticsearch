@@ -220,7 +220,7 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return null;
+            throw new UnsupportedOperationException("AvgBlockLoader does not have a corresponding builder");
         }
     }
 }

@@ -580,35 +580,6 @@ public class CsvTestsDataLoader {
         return false;
     }
 
-    private static boolean containsAggregateMetricDoubleFields(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
-            return false;
-        }
-        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
-        return loopConditionCheck(mappingNode, fieldProperties -> {
-            JsonNode typeNode = fieldProperties.get("type");
-            return typeNode != null && typeNode.asText().equals("aggregate_metric_double");
-        });
-    }
-
-    private static boolean loopConditionCheck(JsonNode topNode, Predicate<JsonNode> check) {
-        if (topNode == null) {
-            return false;
-        }
-        JsonNode properties = topNode.get("properties");
-        if (properties == null) {
-            return false;
-        }
-        for (var fieldWithValue : properties.properties()) {
-            JsonNode fieldProperties = fieldWithValue.getValue();
-            if (loopConditionCheck(fieldProperties, check) || check.test(fieldProperties)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");

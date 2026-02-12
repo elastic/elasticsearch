@@ -12,6 +12,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
 
 import java.io.IOException;
@@ -25,6 +26,9 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
     public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
         if (in instanceof StoreMetricsIndexInput) {
             // annoyingly, source-only snapshots do this for linked files.
+            return in;
+        } else if (in instanceof MemorySegmentAccessInput) {
+            // currently, we can't delegate a method that returns MemorySegment as that is a preview API in JDK21
             return in;
         } else if (in instanceof RandomAccessInput) {
             return new RandomAccessIndexInput(resourceDescription, in, metricHolder);

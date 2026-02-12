@@ -122,11 +122,15 @@ public class CloneStep implements DlmStep {
         long timeSinceCreation = currentTime - cloneCreationTime;
         if (isCloneIndexStuck(cloneIndexMetadata, timeSinceCreation, stepContext)) {
             // Clone has been stuck for > 12 hours, clean it up so a new clone can be attempted
+            TimeValue timeSinceCreationValue = TimeValue.timeValueMillis(timeSinceCreation);
             logger.info(
-                "DLM cleaning up clone index [{}] for index [{}] as it has been in progress for [{}ms], exceeding timeout of [{}ms]",
+                "DLM cleaning up clone index [{}] for index [{}] as it has been in progress for [{}] (raw: [{}ms]), "
+                    + "exceeding timeout of [{}] (raw: [{}ms])",
                 cloneIndex,
                 indexName,
+                timeSinceCreationValue.toHumanReadableString(2),
                 timeSinceCreation,
+                CLONE_TIMEOUT.toHumanReadableString(2),
                 CLONE_TIMEOUT.millis()
             );
             deleteCloneIndexIfExists(
@@ -141,12 +145,15 @@ public class CloneStep implements DlmStep {
             );
         } else {
             // Clone is still fresh, wait for it to complete
+            TimeValue timeSinceCreationValue = TimeValue.timeValueMillis(timeSinceCreation);
             logger.debug(
-                "DLM clone index [{}] for index [{}] exists and has been in progress for [{}ms], "
-                    + "waiting for completion or timeout of [{}ms]",
+                "DLM clone index [{}] for index [{}] exists and has been in progress for [{}] (raw: [{}ms]), "
+                    + "waiting for completion or timeout of [{}] (raw: [{}ms])",
                 cloneIndex,
                 indexName,
+                timeSinceCreationValue.toHumanReadableString(2),
                 timeSinceCreation,
+                CLONE_TIMEOUT.toHumanReadableString(2),
                 CLONE_TIMEOUT.millis()
             );
         }

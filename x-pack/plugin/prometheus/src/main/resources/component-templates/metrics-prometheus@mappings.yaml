@@ -22,12 +22,19 @@ template:
         type: passthrough
         priority: 10
         time_series_dimension: true
+      # Similar to the OTel mappings, Prometheus metrics also get a passthrough namespace for metrics.
+      # This ensures that dots in field names are no issues (metrics.foo and metrics.foo.bar can both be ingested)
+      metrics:
+        type: passthrough
+        priority: 20
     dynamic_templates:
       - counter:
+          path_match: [ "metrics.*_sum", "metrics.*_count", "metrics.*_total", "metrics.*_bucket" ]
           mapping:
             type: double
             time_series_metric: counter
       - gauge:
+          path_match: [ "metrics.*" ]
           mapping:
             type: double
             time_series_metric: gauge

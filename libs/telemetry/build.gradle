@@ -17,6 +17,7 @@ dependencies {
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'logging'
+    exclude group: 'org.elasticsearch', module: 'telemetry'
   }
 }
 

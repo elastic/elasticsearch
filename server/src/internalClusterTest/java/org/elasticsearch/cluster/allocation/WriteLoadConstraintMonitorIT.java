@@ -164,7 +164,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                                 r.getNode(),
                                 new NodeUsageStatsForThreadPools(
                                     r.getNodeUsageStatsForThreadPools().nodeId(),
-                                    addHotspotStatsToWriteThreadPool(
+                                    simulateWriteThreadPoolHotspotting(
                                         r.getNodeUsageStatsForThreadPools().threadPoolUsageStatsMap(),
                                         queueLatencyThresholdMillis,
                                         utilizationThreshold
@@ -178,7 +178,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
             });
     }
 
-    private Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> addHotspotStatsToWriteThreadPool(
+    private Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> simulateWriteThreadPoolHotspotting(
         Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> stringThreadPoolUsageStatsMap,
         long queueLatencyThresholdMillis,
         float utilizationThreshold

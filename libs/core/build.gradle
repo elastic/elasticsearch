@@ -21,6 +21,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'core'
   }
+  testImplementation('ch.obermuhlner:big-math:2.3.2')
 }
 
 tasks.named('forbiddenApisMain').configure {

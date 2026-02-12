@@ -105,7 +105,7 @@ public class WriteLoadConstraintSettings {
     /**
      * When the decider is {@link WriteLoadDeciderStatus#ENABLED}, the write-load monitor will call
      * {@link RerouteService#reroute(String, Priority, ActionListener)} when we see tasks being delayed by this amount of time
-     * (but no more often than {@link #WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING}) and the utilization is above a certain threshold
+     * and the utilization is above a certain threshold (but no more often than {@link #WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING})
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING = Setting.timeSetting(
         SETTING_PREFIX + "queue_latency_threshold",

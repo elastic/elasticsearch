@@ -25,11 +25,12 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
     public void testAggregateCounter() throws IOException {
         CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
-            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null, resetDataPoints);
+            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 70, 60, 50, 40, 30, 20, 10);
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 64, 32, 16, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue, equalTo(1.0));
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         producer.reset();
@@ -43,13 +44,14 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
     public void testAggregateCounterWithReset() throws IOException {
         CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
-            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null, resetDataPoints);
+            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 70, 60, 50, 40, 30, 20, 10);
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue, equalTo(1.0));
-        assertThat(resetDataPoints.isEmpty(), equalTo(false));
+        assertThat(resetDataPoints.count(), equalTo(2));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {
@@ -62,6 +64,68 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         producer.reset();
         assertThat(producer.downsampledValue, equalTo(Double.NaN));
         assertThat(producer.previousValue, equalTo(1.0));
+        assertThat(producer.lastTimestamp, equalTo(-1L));
+        producer.tsidReset();
+        assertThat(producer.previousValue, equalTo(Double.NaN));
+        resetDataPoints.reset();
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+    }
+
+    public void testAggregateCounterDoesNotDuplicateFirstValue() throws IOException {
+        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
+            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
+        IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
+        SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 30, 20, 10);
+        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 7, 0, 1);
+        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(producer.downsampledValue, equalTo(1.0));
+        assertThat(resetDataPoints.count(), equalTo(1));
+        resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
+            assertThat(timestamp, equalTo(20L));
+            assertThat(dataPoints, equalTo(Map.of("my-counter", 0.0)));
+        });
+        producer.reset();
+        assertThat(producer.downsampledValue, equalTo(Double.NaN));
+        assertThat(producer.previousValue, equalTo(1.0));
+        assertThat(producer.lastTimestamp, equalTo(-1L));
+        producer.tsidReset();
+        assertThat(producer.previousValue, equalTo(Double.NaN));
+        resetDataPoints.reset();
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+    }
+
+    public void testAggregateCounterDoesNotAddNotRedundantValue() throws IOException {
+        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
+            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
+        // Bucket #2
+        IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
+        SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 70, 60, 50);
+        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 6, 5, 4);
+        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(producer.downsampledValue, equalTo(4.0));
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+        producer.reset();
+        resetDataPoints.reset();
+
+        // Bucket #1
+        docIdBuffer = IntArrayList.from(3, 2, 1, 0);
+        timeValues = createTimestampValuesInstance(docIdBuffer, 40, 30, 20, 10);
+        counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
+        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(producer.downsampledValue, equalTo(7.0));
+        assertThat(resetDataPoints.count(), equalTo(1));
+        resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
+            assertThat(timestamp, equalTo(20L));
+            assertThat(dataPoints, equalTo(Map.of("my-counter", 8.0)));
+        });
+        producer.reset();
+        assertThat(producer.downsampledValue, equalTo(Double.NaN));
+        assertThat(producer.previousValue, equalTo(7.0));
         assertThat(producer.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
         assertThat(producer.previousValue, equalTo(Double.NaN));

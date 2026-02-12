@@ -11,15 +11,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class CounterResetDataPoints {
+class CounterResetDataPoints {
     private final Map<Long, Map<String, Double>> dataPoints = new HashMap<>();
 
     void reset() {
         dataPoints.clear();
     }
 
-    void addDataPoint(long timestamp, String dimension, double value) {
-        dataPoints.computeIfAbsent(timestamp, k -> new HashMap<>()).put(dimension, value);
+    void addDataPoint(String fieldName, ResetPoint resetPoint) {
+        dataPoints.computeIfAbsent(resetPoint.timestamp, k -> new HashMap<>()).put(fieldName, resetPoint.value);
     }
 
     public boolean isEmpty() {
@@ -31,4 +31,10 @@ public class CounterResetDataPoints {
             dataPoints.forEach(processor);
         }
     }
+
+    public int count() {
+        return dataPoints.size();
+    }
+
+    record ResetPoint(long timestamp, double value) { }
 }

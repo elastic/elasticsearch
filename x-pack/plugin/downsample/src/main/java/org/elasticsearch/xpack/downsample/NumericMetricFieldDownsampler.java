@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Stack;
 
 /**
  * Class that collects all raw values for a numeric metric field and computes its aggregate (downsampled)
@@ -49,8 +50,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         String fieldName,
         MappedFieldType fieldType,
         IndexFieldData<?> fieldData,
-        DownsampleConfig.SamplingMethod samplingMethod,
-        CounterResetDataPoints extraDataPoints
+        DownsampleConfig.SamplingMethod samplingMethod
     ) {
         assert supportsFieldType(fieldType)
             : "only gauges and counters accepted, other metrics should have been handled by dedicated downsamplers";
@@ -61,7 +61,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         if (metricType == TimeSeriesParams.MetricType.GAUGE) {
             return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
         }
-        return new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler(fieldName, fieldData, extraDataPoints);
+        return new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler(fieldName, fieldData);
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
@@ -179,18 +179,15 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
      */
     static final class AggregateCounterFieldDownsampler extends NumericMetricFieldDownsampler {
 
-        private final CounterResetDataPoints extraDataPoints;
+        final Stack<CounterResetDataPoints.ResetPoint> resetStack = new Stack<>();
         double downsampledValue = Double.NaN;
         long lastTimestamp = -1;
-        boolean isEmpty = true;
-
         // Cross bucket value
         double previousValue = Double.NaN;
+        double lastBucketValue = Double.NaN;
 
-        AggregateCounterFieldDownsampler(String name, IndexFieldData<?> fieldData, CounterResetDataPoints resetDataPoints) {
+        AggregateCounterFieldDownsampler(String name, IndexFieldData<?> fieldData) {
             super(name, fieldData);
-            this.extraDataPoints = resetDataPoints;
-            assert extraDataPoints != null;
         }
 
         public void collect(
@@ -216,12 +213,27 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                     continue;
                 }
 
-                // if we detect a reset
+                // when we detect a timestamp
                 if (currentCounterValue > previousValue) {
+                    // We check if we need to persist the previous value too
+                    // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing to extra to persist
                     if (lastTimestamp > 0) {
-                        extraDataPoints.addDataPoint(lastTimestamp, name(), previousValue);
+                        // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture the
+                        // reset or not.
+                        double lastPersisted = Double.NaN;
+                        if (resetStack.isEmpty() == false) {
+                            lastPersisted = resetStack.peek().value();
+                        } else if (Double.isNaN(lastBucketValue) == false) {
+                            lastPersisted = lastBucketValue;
+                        }
+                        // If there is no known last persisted value or the last persisted is larger than the current value,
+                        // we need to store the previous document to capture the reset.
+                        if (Double.isNaN(lastPersisted) || Double.compare(currentCounterValue, lastPersisted) < 0) {
+                            resetStack.push(new CounterResetDataPoints.ResetPoint(lastTimestamp, previousValue));
+                        }
                     }
-                    extraDataPoints.addDataPoint(currentTimestamp, name(), currentCounterValue);
+                    // This is the last value before reset, which we always need to persist
+                    resetStack.push(new CounterResetDataPoints.ResetPoint(currentTimestamp, currentCounterValue));
                 }
                 downsampledValue = currentCounterValue;
                 previousValue = currentCounterValue;
@@ -231,13 +243,16 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         public void reset() {
             isEmpty = true;
+            lastBucketValue = downsampledValue;
             downsampledValue = Double.NaN;
             lastTimestamp = -1;
+            resetStack.clear();
         }
 
         public void tsidReset() {
             reset();
             previousValue = Double.NaN;
+            lastBucketValue = Double.NaN;
         }
 
         @Override
@@ -247,13 +262,29 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             }
         }
 
-        public boolean isEmpty() {
-            return isEmpty;
-        }
-
         @Override
         public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
             throw new UnsupportedOperationException("This producer should never be called without timestamps");
+        }
+
+        /**
+         * Here we update {@link CounterResetDataPoints} which contains the reset counter values for all the counter,
+         * with the latest reset points of this counter field.
+         * @param counterResetDataPoints the extra reset data values for every counter for this bucket
+         */
+        public void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+            if (resetStack.isEmpty()) {
+                return;
+            }
+            // It is possible that the first reset data point is the same with the first data point
+            // we skip this if this is the case
+            var firstResetPoint = resetStack.pop();
+            if (firstResetPoint.value() != downsampledValue) {
+                counterResetDataPoints.addDataPoint(name(), firstResetPoint);
+            }
+            while (resetStack.isEmpty() == false) {
+                counterResetDataPoints.addDataPoint(name(), resetStack.pop());
+            }
         }
     }
 }

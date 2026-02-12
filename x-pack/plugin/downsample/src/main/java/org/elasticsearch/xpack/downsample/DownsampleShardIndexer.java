@@ -105,8 +105,6 @@ class DownsampleShardIndexer {
     private final DownsampleShardPersistentTaskState state;
     private final String[] dimensions;
     private volatile boolean abort = false;
-    // This needs to be shared over all fields, so we can easily create the extra docs
-    final CounterResetDataPoints counterResetDataPoints;
     ByteSizeValue downsampleBulkSize = DOWNSAMPLE_BULK_SIZE;
     ByteSizeValue downsampleMaxBytesInFlight = DOWNSAMPLE_MAX_BYTES_IN_FLIGHT;
 
@@ -148,20 +146,16 @@ class DownsampleShardIndexer {
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
             var samplingMethod = config.getSamplingMethodOrDefault();
-            this.counterResetDataPoints = samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE ? new CounterResetDataPoints() : null;
 
             List<AbstractFieldDownsampler<?>> downsamplers = new ArrayList<>(metrics.length + labels.length + dimensions.length);
-            downsamplers.addAll(
-                AbstractFieldDownsampler.create(searchExecutionContext, metrics, multiFieldSources, samplingMethod, counterResetDataPoints)
-            );
+            downsamplers.addAll(AbstractFieldDownsampler.create(searchExecutionContext, metrics, multiFieldSources, samplingMethod));
             // Labels are downsampled using the last value, they are not influenced by the requested sampling method
             downsamplers.addAll(
                 AbstractFieldDownsampler.create(
                     searchExecutionContext,
                     labels,
                     multiFieldSources,
-                    DownsampleConfig.SamplingMethod.LAST_VALUE,
-                    counterResetDataPoints
+                    DownsampleConfig.SamplingMethod.LAST_VALUE
                 )
             );
             downsamplers.addAll(DimensionFieldDownsampler.create(searchExecutionContext, dimensions, multiFieldSources));
@@ -372,6 +366,7 @@ class DownsampleShardIndexer {
         private final NumericMetricFieldDownsampler[] numericDownsamplers;
         private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
         private final DimensionFieldDownsampler[] dimensionDownsamplers;
+        private final CounterResetDataPoints counterResetDataPoints = new CounterResetDataPoints();
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
@@ -402,7 +397,8 @@ class DownsampleShardIndexer {
                 fieldDownsamplers,
                 aggregateCounterDownsamplers,
                 dimensionDownsamplers,
-                dimensions
+                dimensions,
+                counterResetDataPoints
             );
         }
 
@@ -599,19 +595,20 @@ class DownsampleShardIndexer {
 
         private void flushIfNotEmpty() throws IOException {
             if (downsampleBucketBuilder.isEmpty() == false) {
+                for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
+                    aggregateCounterDownsamplers[i].updateResetDataPoints(counterResetDataPoints);
+                }
                 XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
                 indexBucket(doc);
                 AtomicReference<IOException> error = new AtomicReference<>();
-                if (counterResetDataPoints != null) {
-                    counterResetDataPoints.processDataPoints((timestamp, counterValues) -> {
-                        try {
-                            XContentBuilder resetDoc = downsampleBucketBuilder.buildExtraCounterDocument(timestamp, counterValues);
-                            indexBucket(resetDoc);
-                        } catch (IOException e) {
-                            error.set(e);
-                        }
-                    });
-                }
+                counterResetDataPoints.processDataPoints((timestamp, counterValues) -> {
+                    try {
+                        XContentBuilder resetDoc = downsampleBucketBuilder.buildExtraCounterDocument(timestamp, counterValues);
+                        indexBucket(resetDoc);
+                    } catch (IOException e) {
+                        error.set(e);
+                    }
+                });
                 if (error.get() != null) {
                     throw error.get();
                 }
@@ -668,17 +665,20 @@ class DownsampleShardIndexer {
         private final DimensionFieldDownsampler[] dimensionDownsamplers;
         private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
         private final String[] dimensions;
+        private final CounterResetDataPoints counterResetDataPoints;
 
         DownsampleBucketBuilder(
             List<AbstractFieldDownsampler<?>> fieldDownsamplers,
             NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers,
             DimensionFieldDownsampler[] dimensionDownsamplers,
-            String[] dimensions
+            String[] dimensions,
+            CounterResetDataPoints counterResetDataPoints
         ) {
             this.fieldDownsamplers = fieldDownsamplers;
             this.dimensions = dimensions;
             this.dimensionDownsamplers = dimensionDownsamplers;
             this.aggregateCounterDownsamplers = aggregateCounterDownsamplers;
+            this.counterResetDataPoints = counterResetDataPoints;
             /*
              * The field downsamplers for aggregate_metric_double all share the same name (this is
              * the name they will be serialized in the target index). We group all field downsamplers by
@@ -721,10 +721,8 @@ class DownsampleShardIndexer {
             for (AbstractFieldDownsampler<?> downsampler : fieldDownsamplers) {
                 downsampler.reset();
             }
-            // We need to clear the extra data points
-            if (counterResetDataPoints != null) {
-                counterResetDataPoints.reset();
-            }
+            // We need to clear the extra data points for this bucket
+            counterResetDataPoints.reset();
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",

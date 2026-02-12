@@ -333,7 +333,7 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         long startInNanos = System.nanoTime();
-        if (numPartitions <= 1) {
+        if (numPartitions == 1) {
             emitSinglePartition();
         } else {
             emitPartitioned();
@@ -394,7 +394,7 @@ public class HashAggregationOperator implements Operator {
             int[] partitionOf = new int[numGroups];
             int[] partitionSizes = new int[numPartitions];
             for (int i = 0; i < numGroups; i++) {
-                partitionOf[i] = hashKeyPosition(allKeys, i, numPartitions);
+                partitionOf[i] = computePartition(allKeys, i, numPartitions);
                 partitionSizes[partitionOf[i]]++;
             }
 
@@ -560,7 +560,7 @@ public class HashAggregationOperator implements Operator {
      *     position represents one unique group), so we always read the first value index.
      * </p>
      */
-    static int hashKeyPosition(Block[] keys, int position, int numPartitions) {
+    static int computePartition(Block[] keys, int position, int numPartitions) {
         long h = 0;
         BytesRef scratch = new BytesRef();
         for (Block key : keys) {

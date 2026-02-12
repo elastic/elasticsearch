@@ -167,6 +167,17 @@ public final class ShardSearchStats implements SearchOperationListener {
         totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
     }
 
+    /**
+     * Accumulates the recent search load for this shard.
+     *
+     * @param tookInNanos the duration of the search work being accounted for, in nanoseconds
+     * @param nowInNanos  the current monotonic time, in nanoseconds, obtained from
+     *                    {@link System#nanoTime()}, used as the timestamp for the load sample
+     */
+    public void accumulateSearchLoad(long tookInNanos, long nowInNanos) {
+        totalStats.recentSearchLoad.addIncrement(tookInNanos, nowInNanos);
+    }
+
     static final class StatsHolder {
         final MeanMetric queryMetric = new MeanMetric();
         final MeanMetric fetchMetric = new MeanMetric();

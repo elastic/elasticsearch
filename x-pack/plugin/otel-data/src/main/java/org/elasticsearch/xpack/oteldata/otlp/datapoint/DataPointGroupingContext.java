@@ -22,6 +22,7 @@ import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
@@ -36,7 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-public class DataPointGroupingContext {
+public class DataPointGroupingContext implements AbstractOTLPTransportAction.ProcessingContext {
 
     private final BufferedByteStringAccessor byteStringAccessor;
     private final Map<Hash128, ResourceGroup> resourceGroups = new HashMap<>();
@@ -111,20 +112,23 @@ public class DataPointGroupingContext {
         }
     }
 
+    @Override
     public int totalDataPoints() {
         return totalDataPoints;
     }
 
+    @Override
     public int getIgnoredDataPoints() {
         return ignoredDataPoints;
     }
 
+    @Override
     public String getIgnoredDataPointsMessage(int limit) {
         if (ignoredDataPointMessages.isEmpty()) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Ignored ").append(ignoredDataPoints).append(" data points due to the following reasons:\n");
+        sb.append("Ignored ").append(getIgnoredDataPoints()).append(" data points due to the following reasons:\n");
         int count = 0;
         for (String message : ignoredDataPointMessages) {
             sb.append(" - ").append(message).append("\n");
@@ -135,7 +139,6 @@ public class DataPointGroupingContext {
             }
         }
         return sb.toString();
-
     }
 
     private ResourceGroup getOrCreateResourceGroup(ResourceMetrics resourceMetrics) {
@@ -182,7 +185,6 @@ public class DataPointGroupingContext {
     }
 
     class ScopeGroup {
-        private static final String RECEIVER = "/receiver/";
 
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
@@ -199,21 +201,7 @@ public class DataPointGroupingContext {
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.scopeTsidBuilder = scopeTsidBuilder;
             this.dataPointGroupsByIndexAndTimestamp = new HashMap<>();
-            this.receiverName = extractReceiverName(scope);
-        }
-
-        private @Nullable String extractReceiverName(InstrumentationScope scope) {
-            String scopeName = scope.getName();
-            int indexOfReceiver = scopeName.indexOf(RECEIVER);
-            if (indexOfReceiver >= 0) {
-                int beginIndex = indexOfReceiver + RECEIVER.length();
-                int endIndex = scopeName.indexOf('/', beginIndex);
-                if (endIndex < 0) {
-                    endIndex = scopeName.length();
-                }
-                return scopeName.substring(beginIndex, endIndex);
-            }
-            return null;
+            this.receiverName = TargetIndex.extractReceiverName(scope);
         }
 
         public <T> void addDataPoints(Metric metric, List<T> dataPoints, BiFunction<T, Metric, DataPoint> createDataPoint) {

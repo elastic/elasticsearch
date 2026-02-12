@@ -63,8 +63,8 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         this(source, field, Literal.TRUE, NO_WINDOW, FieldExtractPreference.NONE);
     }
 
-    // Package-private constructor used by replaceChildren and NodeInfo
-    SpatialExtent(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
+    // Public for use in EsqlNodeSubclassTests and nodeInfo
+    public SpatialExtent(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
         super(source, field, filter, window, preference);
     }
 

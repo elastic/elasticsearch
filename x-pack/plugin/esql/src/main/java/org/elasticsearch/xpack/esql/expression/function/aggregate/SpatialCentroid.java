@@ -62,8 +62,8 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         this(source, field, Literal.TRUE, NO_WINDOW, NONE);
     }
 
-    // Package-private constructor used by replaceChildren and NodeInfo
-    SpatialCentroid(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
+    // Public for use in EsqlNodeSubclassTests and nodeInfo
+    public SpatialCentroid(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
         super(source, field, filter, window, preference);
     }
 

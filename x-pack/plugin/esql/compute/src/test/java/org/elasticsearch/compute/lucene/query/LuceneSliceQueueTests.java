@@ -376,6 +376,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     context -> shardQueries.get(context.index()),
                     DataPartitioning.SEGMENT,
                     query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
+                    DataPartitioning.AUTO_STRATEGY_DEFAULT_DOC_THRESHOLD,
                     10,
                     context -> ScoreMode.COMPLETE
                 );

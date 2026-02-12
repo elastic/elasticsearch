@@ -15,7 +15,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -31,6 +34,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         public Factory(
             IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            int autoStrategyDocThreshold,
             int taskConcurrency,
             int maxPageSize,
             int limit
@@ -38,8 +43,9 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             super(
                 contexts,
                 queryFunction,
-                DataPartitioning.SHARD,
-                query -> { throw new UnsupportedOperationException("locked to SHARD partitioning"); },
+                dataPartitioning(dataPartitioning),
+                partitioningStrategy(contexts),
+                autoStrategyDocThreshold,
                 taskConcurrency,
                 maxPageSize,
                 limit,
@@ -92,5 +98,27 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         long numChunks = Math.ceilDiv(maxPageSizeInBytes, chunkSizeInBytes);
         long pageSize = Math.clamp(numChunks * CHUNK_SIZE, CHUNK_SIZE, MAX_TARGET_PAGE_SIZE);
         return Math.toIntExact(pageSize);
+    }
+
+    private static DataPartitioning dataPartitioning(DataPartitioning dataPartitioning) {
+        if (dataPartitioning == DataPartitioning.SHARD) {
+            return DataPartitioning.SHARD;
+        }
+        // Time-series can't run with segment or doc partitioning, so use auto │
+        // to resolve to either shard or time-series partitioning.
+        return DataPartitioning.AUTO;
+    }
+
+    private static DataPartitioning.AutoStrategy partitioningStrategy(IndexedByShardId<? extends ShardContext> contexts) {
+        try {
+            for (ShardContext ctx : contexts.iterable()) {
+                if (PartitionedDocValues.tsidPartitionsByPrefix(ctx.searcher()) == false) {
+                    return limit -> q -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return limit -> q -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
     }
 }

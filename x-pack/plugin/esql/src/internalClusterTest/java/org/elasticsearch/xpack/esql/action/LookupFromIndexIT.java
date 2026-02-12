@@ -328,6 +328,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
+                DataPartitioning.AUTO_STRATEGY_DEFAULT_DOC_THRESHOLD,
                 1,
                 10000,
                 LuceneOperator.NO_LIMIT,

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb.pipeline;
 
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.openjdk.jmh.infra.Blackhole;
@@ -17,6 +18,10 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 public abstract class AbstractPipelineBenchmark {
+
+    static {
+        LogConfigurator.configureESLogging();
+    }
 
     protected static final int EXTRA_METADATA_SIZE = 20 * 1024;
 

@@ -28,7 +28,7 @@
 #   Tier 1 vs Tier 2 → pipeline architecture throughput overhead (same algorithm)
 #   Tier 2 vs Tier 3 → algorithm complexity delta (same architecture)
 #
-# Pipeline variants tested (double, 19 from DOUBLE_SHORTLIST):
+# Pipeline variants tested (double, 26 from DOUBLE_SHORTLIST):
 #   alp_double, alp_rd_double,
 #   alp_double_stage-offset-gcd-bitpack, alp_rd_double_stage-offset-gcd-bitpack,
 #   quantize-1e6-delta-offset-gcd-bitpack, alp_double_stage-1e6-offset-gcd-bitpack,
@@ -36,10 +36,12 @@
 #   delta-offset-gcd-bitpack (ES819-equivalent, Tier 2), delta-offset-gcd-zstd,
 #   alp_double_stage-offset-gcd-zstd, alp_double_stage-1e6-zstd,
 #   fpc-offset-gcd-bitpack, fpc-bitpack, fpc-zstd, fpc-offset-gcd-zstd,
-#   quantize-1e6-fpc-offset-gcd-bitpack
+#   quantize-1e6-fpc-offset-gcd-bitpack,
+#   lz4, lz4-hc, xor-lz4, delta-offset-gcd-lz4,
+#   alp_double_stage-offset-gcd-lz4, fpc-lz4, fpc-offset-gcd-lz4
 #
-# Total commands: 600
-#   = (1 ES819-baseline + 19 pipeline variants) x 30 double datasets
+# Total commands: 810
+#   = (1 ES819-baseline + 26 pipeline variants) x 30 double datasets
 #
 # Output filtering:
 #   - Gradle runs with --quiet to suppress build output.
@@ -142,12 +144,12 @@ else
   NUM_DATASETS=30
 fi
 
-# Count pipelines per dataset: from -p list or all (1 baseline + 19 DOUBLE_SHORTLIST)
+# Count pipelines per dataset: from -p list or all (1 baseline + 26 DOUBLE_SHORTLIST)
 if [[ -n "${PIPELINE_LIST}" ]]; then
   IFS=',' read -ra _pl <<< "${PIPELINE_LIST}"
   NUM_PIPELINES=${#_pl[@]}
 else
-  NUM_PIPELINES=20
+  NUM_PIPELINES=27
 fi
 
 TOTAL=$(( NUM_DATASETS * NUM_PIPELINES ))
@@ -322,6 +324,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-do
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-double.txt"
 }
 merge_dataset_json "constant-double"
 
@@ -407,6 +437,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-double.txt"
 }
 merge_dataset_json "percentage-double"
 
@@ -492,6 +550,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-d
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=monotonic-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "monotonic-double.txt"
 }
 merge_dataset_json "monotonic-double"
 
@@ -577,6 +663,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-doubl
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-double.txt"
 }
 merge_dataset_json "gauge-double"
 
@@ -662,6 +776,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-g
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=realistic-gauge-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "realistic-gauge-double.txt"
 }
 merge_dataset_json "realistic-gauge-double"
 
@@ -747,6 +889,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gaug
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sparse-gauge-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sparse-gauge-double.txt"
 }
 merge_dataset_json "sparse-gauge-double"
 
@@ -832,6 +1002,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-doub
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-double.txt"
 }
 merge_dataset_json "random-double"
 
@@ -917,6 +1115,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sens
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=stable-sensor-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "stable-sensor-double.txt"
 }
 merge_dataset_json "stable-sensor-double"
 
@@ -1002,6 +1228,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increm
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=tiny-increment-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "tiny-increment-double.txt"
 }
 merge_dataset_json "tiny-increment-double"
 
@@ -1087,6 +1341,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-coun
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=steady-counter-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "steady-counter-double.txt"
 }
 merge_dataset_json "steady-counter-double"
 
@@ -1172,6 +1454,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=burst-spike-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "burst-spike-double.txt"
 }
 merge_dataset_json "burst-spike-double"
 
@@ -1257,6 +1567,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossi
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=zero-crossing-oscillation-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "zero-crossing-oscillation-double.txt"
 }
 merge_dataset_json "zero-crossing-oscillation-double"
 
@@ -1342,6 +1680,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-s
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-with-spikes-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-with-spikes-double.txt"
 }
 merge_dataset_json "step-with-spikes-double"
 
@@ -1427,6 +1793,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-wit
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-with-resets-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-with-resets-double.txt"
 }
 merge_dataset_json "counter-with-resets-double"
 
@@ -1512,6 +1906,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-d
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=quantized-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "quantized-double.txt"
 }
 merge_dataset_json "quantized-double"
 
@@ -1597,6 +2019,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=sensor-2dp-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "sensor-2dp-double.txt"
 }
 merge_dataset_json "sensor-2dp-double"
 
@@ -1682,6 +2132,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=temperature-1dp-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "temperature-1dp-double.txt"
 }
 merge_dataset_json "temperature-1dp-double"
 
@@ -1767,6 +2245,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=financial-2dp-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "financial-2dp-double.txt"
 }
 merge_dataset_json "financial-2dp-double"
 
@@ -1852,6 +2358,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=percentage-rounded-1dp-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "percentage-rounded-1dp-double.txt"
 }
 merge_dataset_json "percentage-rounded-1dp-double"
 
@@ -1937,6 +2471,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=mixed-sign-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "mixed-sign-double.txt"
 }
 merge_dataset_json "mixed-sign-double"
 
@@ -2022,6 +2584,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-d
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=step-hold-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "step-hold-double.txt"
 }
 merge_dataset_json "step-hold-double"
 
@@ -2107,6 +2697,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-a
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-as-double.txt"
 }
 merge_dataset_json "timestamp-as-double"
 
@@ -2192,6 +2810,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=counter-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "counter-as-double.txt"
 }
 merge_dataset_json "counter-as-double"
 
@@ -2277,6 +2923,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-do
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gauge-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gauge-as-double.txt"
 }
 merge_dataset_json "gauge-as-double"
 
@@ -2362,6 +3036,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-doub
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=gcd-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "gcd-as-double.txt"
 }
 merge_dataset_json "gcd-as-double"
 
@@ -2447,6 +3149,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=constant-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "constant-as-double.txt"
 }
 merge_dataset_json "constant-as-double"
 
@@ -2532,6 +3262,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-d
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=random-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "random-as-double.txt"
 }
 merge_dataset_json "random-as-double"
 
@@ -2617,6 +3375,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=decreasing-timestamp-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "decreasing-timestamp-as-double.txt"
 }
 merge_dataset_json "decreasing-timestamp-as-double"
 
@@ -2702,6 +3488,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-do
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=small-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "small-as-double.txt"
 }
 merge_dataset_json "small-as-double"
 
@@ -2787,6 +3601,34 @@ run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-w
 # ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -wi ${WI} -i ${I} -f ${F}'
 run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=quantize-1e6-fpc-offset-gcd-bitpack -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
 
+
+# [PIPELINE] lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
+
+# [PIPELINE] lz4-hc
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=lz4-hc -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=lz4-hc -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
+
+# [PIPELINE] xor-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=xor-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=xor-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
+
+# [PIPELINE] delta-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=delta-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=delta-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
+
+# [PIPELINE] alp_double_stage-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=alp_double_stage-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
+
+# [PIPELINE] fpc-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=fpc-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=fpc-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
+
+# [PIPELINE] fpc-offset-gcd-lz4
+# ./gradlew :benchmarks:run --args='(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=fpc-offset-gcd-lz4 -wi ${WI} -i ${I} -f ${F}'
+run "(Encode|Decode)DoubleGeneratorsPipelineBenchmark -p datasetName=timestamp-with-jitter-as-double -p pipeline=fpc-offset-gcd-lz4 -p blockSize=${BS} -wi ${WI} -i ${I} -f ${F}" "timestamp-with-jitter-as-double.txt"
 }
 merge_dataset_json "timestamp-with-jitter-as-double"
 

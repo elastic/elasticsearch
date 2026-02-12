@@ -9,9 +9,9 @@
 
 package org.elasticsearch.benchmark.index.codec.tsdb.internal;
 
-import org.elasticsearch.index.codec.tsdb.pipeline.bench.NumericDataGenerators;
-import org.elasticsearch.index.codec.tsdb.pipeline.bench.NumericDataGenerators.SeededDoubleDataSource;
-import org.elasticsearch.index.codec.tsdb.pipeline.bench.NumericDataGenerators.SeededLongDataSource;
+import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators;
+import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators.SeededDoubleDataSource;
+import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators.SeededLongDataSource;
 
 import java.util.ArrayList;
 import java.util.Collections;

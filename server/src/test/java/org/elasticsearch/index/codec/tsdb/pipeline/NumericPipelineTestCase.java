@@ -15,7 +15,6 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.pipeline.bench.NumericDataGenerators;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;

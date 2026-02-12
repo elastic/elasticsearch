@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -30,7 +31,8 @@ public record RepositoriesMetrics(
     LongCounter unsuccessfulOperationCounter,
     LongHistogram exceptionHistogram,
     LongHistogram throttleHistogram,
-    LongHistogram httpRequestTimeInMillisHistogram
+    LongHistogram httpRequestTimeInMillisHistogram,
+    DoubleHistogram copyRequestTimeInSecondsHistogram
 ) {
 
     public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
@@ -95,6 +97,12 @@ public record RepositoriesMetrics(
      * Exposed via {@link #httpRequestTimeInMillisHistogram()}
      */
     public static final String HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
+    /**
+     * Duration of copy operation;
+     *
+     * Exposed via {@link #copyRequestTimeInSecondsHistogram()}
+     */
+    public static final String COPY_REQUEST_TIME_IN_SECONDS_HISTOGRAM = "es.repositories.requests.copy_request_time.histogram";
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
         this(
@@ -115,7 +123,8 @@ public record RepositoriesMetrics(
                 HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM,
                 "HttpRequestTime in milliseconds expressed as as a histogram",
                 "ms"
-            )
+            ),
+            meterRegistry.registerDoubleHistogram(COPY_REQUEST_TIME_IN_SECONDS_HISTOGRAM, "Duration for copy requests", "s")
         );
     }
 

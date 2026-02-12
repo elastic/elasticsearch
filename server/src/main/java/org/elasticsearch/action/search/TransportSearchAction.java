@@ -718,13 +718,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (resolvedIndexExpressions == null) {
             indices = request.indices();
         } else {
-            indices = resolvedIndexExpressions.getLocalIndicesList().toArray(new String[0]);
+            indices = resolvedIndexExpressions.expressions().stream().map(ResolvedIndexExpression::original).toArray(String[]::new);
         }
 
         OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .routing(request.routing())
             .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
+        pitReq.projectRouting(request.getProjectRouting());
+
         client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
     }
 

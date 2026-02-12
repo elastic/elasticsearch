@@ -281,7 +281,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.timingStats().getSum(), equalTo(1900L));
         assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(2L));
         assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1900L));
-        assertThat(Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage()), equalTo(166L)); // (111+222)/2
+        assertThat(Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage()), equalTo(167L)); // (111+222)/2
 
         processor.processInferenceResult(c);
         processor.updateStats(c);

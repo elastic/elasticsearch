@@ -96,6 +96,11 @@ public class LimitOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return lastInput != null;
+    }
+
+    @Override
     public Page getOutput() {
         if (lastInput == null) {
             return null;

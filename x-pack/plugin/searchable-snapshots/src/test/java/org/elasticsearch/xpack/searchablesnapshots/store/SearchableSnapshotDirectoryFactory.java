@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -43,20 +44,13 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.blobstore.OptionalBytesReference;
-import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
@@ -86,17 +80,13 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -134,7 +124,8 @@ public class SearchableSnapshotDirectoryFactory {
     static class WriteOnceSnapshotDirectory extends Directory {
         private final Path path;
         private String fileName;
-        private byte[] data;
+        private Path dataFile;
+        private long dataLength;
         private SearchableSnapshotDirectory delegate;
 
         // infrastructure — created lazily when the snapshot is materialized
@@ -166,10 +157,11 @@ public class SearchableSnapshotDirectoryFactory {
         }
 
         @Override
-        public IndexOutput createOutput(String name, IOContext context) {
+        public IndexOutput createOutput(String name, IOContext context) throws IOException {
             this.fileName = name;
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            return new SnapIndexOutput(name, buffer);
+            this.dataFile = Files.createTempFile(path, "snap_", ".tmp");
+            OutputStream out = Files.newOutputStream(dataFile);
+            return new SnapIndexOutput(name, out);
         }
 
         @Override
@@ -217,6 +209,7 @@ public class SearchableSnapshotDirectoryFactory {
             if (threadPool != null) {
                 ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
             }
+            IOUtils.rm(path.resolve("blobs"));
         }
 
         private void ensureDelegate() {
@@ -235,18 +228,25 @@ public class SearchableSnapshotDirectoryFactory {
 
         private void materializeSnapshotImpl() throws IOException {
             final String blobName = "blob-1";
-            final BlobContainer blobContainer = singleBlobContainer(blobName, data);
+
+            // Move temp file to blob directory so FsBlobContainer can resolve it
+            Path blobDir = Files.createDirectories(path.resolve("blobs"));
+            Path blobFile = blobDir.resolve(blobName);
+            Files.move(dataFile, blobFile, StandardCopyOption.REPLACE_EXISTING);
+
+            FsBlobStore blobStore = new FsBlobStore(8192, blobDir, true);
+            BlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobDir);
 
             final String checksum = "0";
             final StoreFileMetadata metadata = new StoreFileMetadata(
                 fileName,
-                data.length,
+                dataLength,
                 checksum,
                 IndexVersion.current().luceneVersion().toString()
             );
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 "snapshotId",
-                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(data.length + 1))),
+                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(dataLength + 1))),
                 0L,
                 0L,
                 0,
@@ -260,13 +260,13 @@ public class SearchableSnapshotDirectoryFactory {
             ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             Path cacheDir = Files.createDirectories(CacheService.resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             threadPool = new SimpleThreadPool("tp", SearchableSnapshots.executorBuilders(Settings.EMPTY));
-            nodeEnvironment = newNodeEnvironment(Settings.EMPTY, path, data.length);
+            nodeEnvironment = newNodeEnvironment(Settings.EMPTY, path, dataLength);
             clusterService = createClusterService(threadPool, clusterSettings());
 
             Settings.Builder cacheSettings = Settings.builder();
             cacheService = new CacheService(cacheSettings.build(), clusterService, threadPool, new PersistentCache(nodeEnvironment));
             cacheService.start();
-            sharedBlobCacheService = defaultFrozenCacheService(threadPool, nodeEnvironment, path, data.length);
+            sharedBlobCacheService = defaultFrozenCacheService(threadPool, nodeEnvironment, path, dataLength);
 
             delegate = new SearchableSnapshotDirectory(
                 () -> blobContainer,
@@ -299,27 +299,27 @@ public class SearchableSnapshotDirectoryFactory {
         // -- SnapIndexOutput: hooks close() to materialize the snapshot --
 
         private class SnapIndexOutput extends OutputStreamIndexOutput {
-            private final ByteArrayOutputStream buffer;
 
-            SnapIndexOutput(String name, ByteArrayOutputStream buffer) {
-                super(name, name, buffer, 8192);
-                this.buffer = buffer;
+            SnapIndexOutput(String name, OutputStream out) {
+                super(name, name, out, 8192);
             }
 
             @Override
             public void close() throws IOException {
                 super.close();
-                data = buffer.toByteArray();
-                checkFooter(data);
+                dataLength = Files.size(dataFile);
+                checkFooter(dataFile);
                 materializeSnapshot();
             }
 
             // Footers can be handled specially - cached, so ensure that the footer
             // is present and valid.
-            static void checkFooter(byte[] data) throws IOException {
-                try (var in = new BufferedChecksumIndexInput(new ByteArrayIndexInput("verify footer", data))) {
-                    in.seek(in.length() - CodecUtil.footerLength());
-                    CodecUtil.checkFooter(in);
+            static void checkFooter(Path file) throws IOException {
+                try (Directory dir = FSDirectory.open(file.getParent())) {
+                    try (var in = new BufferedChecksumIndexInput(dir.openInput(file.getFileName().toString(), IOContext.READONCE))) {
+                        in.seek(in.length() - CodecUtil.footerLength());
+                        CodecUtil.checkFooter(in);
+                    }
                 }
             }
         }
@@ -434,23 +434,6 @@ public class SearchableSnapshotDirectoryFactory {
         );
     }
 
-    // -- blob container --
-
-    private static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
-        return new MostlyUnimplementedFakeBlobContainer() {
-            @Override
-            public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
-                if (blobName.equals(name) == false) {
-                    throw new FileNotFoundException("Blob not found: " + name);
-                }
-                return Streams.limitStream(
-                    new ByteArrayInputStream(blobContent, toIntBytes(position), blobContent.length - toIntBytes(position)),
-                    length
-                );
-            }
-        };
-    }
-
     // -- recovery state (inlined from TestShardRouting + DiscoveryNodeUtils) --
 
     private static SearchableSnapshotRecoveryState createRecoveryState(boolean finalizedDone) {
@@ -500,120 +483,6 @@ public class SearchableSnapshotDirectoryFactory {
             recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
         }
         return recoveryState;
-    }
-
-    // -- inner classes --
-
-    static class MostlyUnimplementedFakeBlobContainer implements BlobContainer {
-
-        @Override
-        public long readBlobPreferredLength() {
-            return Long.MAX_VALUE;
-        }
-
-        @Override
-        public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public BlobPath path() {
-            throw unsupportedException();
-        }
-
-        @Override
-        public boolean blobExists(OperationPurpose purpose, String blobName) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void writeBlob(
-            OperationPurpose purpose,
-            String blobName,
-            InputStream inputStream,
-            long blobSize,
-            boolean failIfAlreadyExists
-        ) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void writeMetadataBlob(
-            OperationPurpose purpose,
-            String blobName,
-            boolean failIfAlreadyExists,
-            boolean atomic,
-            CheckedConsumer<OutputStream, IOException> writer
-        ) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void writeBlobAtomic(
-            OperationPurpose purpose,
-            String blobName,
-            InputStream inputStream,
-            long blobSize,
-            boolean failIfAlreadyExists
-        ) throws IOException {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public DeleteResult delete(OperationPurpose purpose) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public Map<String, BlobContainer> children(OperationPurpose purpose) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) {
-            throw unsupportedException();
-        }
-
-        @Override
-        public void compareAndExchangeRegister(
-            OperationPurpose purpose,
-            String key,
-            BytesReference expected,
-            BytesReference updated,
-            ActionListener<OptionalBytesReference> listener
-        ) {
-            listener.onFailure(unsupportedException());
-        }
-
-        @Override
-        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-            listener.onFailure(unsupportedException());
-        }
-
-        private UnsupportedOperationException unsupportedException() {
-            assert false : "this operation is not supported and should have not be called";
-            return new UnsupportedOperationException("This operation is not supported");
-        }
     }
 
     static class NoopBlobStoreCacheService extends BlobStoreCacheService {
@@ -676,7 +545,4 @@ public class SearchableSnapshotDirectoryFactory {
         }
     }
 
-    private static int toIntBytes(long l) {
-        return ByteSizeUnit.BYTES.toIntBytes(l);
-    }
 }

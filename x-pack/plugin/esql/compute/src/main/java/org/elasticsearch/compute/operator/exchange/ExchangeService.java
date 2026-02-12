@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -183,7 +184,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         if (queryIndices == null || queryIndices.length == 0) {
             throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for empty indices");
         }
-        final Set<String> requestIndices = Set.of(queryIndices);
+        final Set<String> requestIndices = Set.copyOf(Arrays.asList(queryIndices));
         if (expectedIndices.equals(requestIndices) == false) {
             throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for indices " + requestIndices);
         }
@@ -314,7 +315,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
             createSinkHandler(request.sessionId, request.exchangeBuffer);
             if (request.indices() != null && request.indices().length > 0) {
-                sinkExpectedIndices.put(request.sessionId, Set.of(request.indices()));
+                sinkExpectedIndices.put(request.sessionId, Set.copyOf(Arrays.asList(request.indices())));
             }
             channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
@@ -330,7 +331,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             // that belongs to another user's query by guessing the session ID.
             final Set<String> expectedIndices = sinkExpectedIndices.get(exchangeId);
             if (expectedIndices != null) {
-                final Set<String> requestIndices = request.indices() != null ? Set.of(request.indices()) : Set.of();
+                final Set<String> requestIndices = request.indices() != null ? Set.copyOf(Arrays.asList(request.indices())) : Set.of();
                 if (expectedIndices.equals(requestIndices) == false) {
                     listener.onFailure(
                         new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for indices " + requestIndices)

@@ -81,8 +81,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE) != null;
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
-        var nodeWriteThreadPoolLoadBalanceThreshold = writeLoadConstraintSettings.getHighUtilizationBalanceThreshold();
-        if (nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= nodeWriteThreadPoolLoadBalanceThreshold) {
+        var nodeWriteThreadPoolLoadAllocationThreshold = writeLoadConstraintSettings.getHighUtilizationAllocationThreshold();
+        if (nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= nodeWriteThreadPoolLoadAllocationThreshold) {
             // The node's write thread pool usage stats already show high utilization above the threshold for accepting new shards.
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final String explain = Strings.format(
@@ -90,7 +90,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         + "allocate shard [%s] to node without risking increased write latencies.",
                     node.getShortNodeDescription(),
                     nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                    nodeWriteThreadPoolLoadBalanceThreshold,
+                    nodeWriteThreadPoolLoadAllocationThreshold,
                     shardRouting.shardId()
                 );
                 if (logger.isDebugEnabled()) {
@@ -112,7 +112,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
         var shardWriteLoad = allShardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0);
         var newWriteThreadPoolUtilization = calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad);
-        if (newWriteThreadPoolUtilization >= nodeWriteThreadPoolLoadBalanceThreshold) {
+        if (newWriteThreadPoolUtilization >= nodeWriteThreadPoolLoadAllocationThreshold) {
             // The node's write thread pool usage would be raised above the high utilization threshold with assignment of the new shard.
             // This could lead to a hot spot on this node and is undesirable.
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
@@ -120,7 +120,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     "The high utilization threshold of [%f] would be exceeded on node [%s] with utilization [%.2f] if shard [%s] with "
                         + "estimated additional utilisation [%.5f] (write load [%.5f] / threads [%d]) were assigned to it. Cannot allocate "
                         + "shard to node without risking increased write latencies.",
-                    nodeWriteThreadPoolLoadBalanceThreshold,
+                    nodeWriteThreadPoolLoadAllocationThreshold,
                     node.getShortNodeDescription(),
                     nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                     shardRouting.shardId(),

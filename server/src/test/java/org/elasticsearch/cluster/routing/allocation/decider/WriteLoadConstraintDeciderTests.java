@@ -304,7 +304,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 highUtilizationHotspotThreshold
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING.getKey(),
                 highUtilizationBalanceThreshold
             )
             .put(
@@ -410,7 +410,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING.getKey(),
                 highUtilizationThreshold
             )
             .put(

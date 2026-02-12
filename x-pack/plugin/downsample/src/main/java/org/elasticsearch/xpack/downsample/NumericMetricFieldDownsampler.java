@@ -194,7 +194,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
                 var currentTimestamp = timestamps[i];
-                if (counterDocValues.advanceExact(docId) == false || currentTimestamp > 0) {
+                if (counterDocValues.advanceExact(docId) == false || currentTimestamp < 0) {
                     continue;
                 }
                 int docValuesCount = counterDocValues.docValueCount();

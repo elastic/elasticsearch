@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
  * <p>
  * Generated files will be written to:
  * <pre>
- * $TMPDIR/promql/kibana/definitions/*.json
+ * $TMPDIR/promql/kibana/definition/*
  * </pre>
  */
 public class PromqlKibanaDefinitionGeneratorTests extends ESTestCase {

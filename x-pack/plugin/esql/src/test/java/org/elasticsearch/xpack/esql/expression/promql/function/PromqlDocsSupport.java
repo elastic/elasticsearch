@@ -58,14 +58,16 @@ public final class PromqlDocsSupport {
             "mod",
             "%",
             OperatorKind.BINARY,
-            "Returns the remainder of dividing the left operand by the right operand element-wise. For vector–vector operations, the metric name is dropped.",
+            "Returns the remainder of dividing the left operand by the right operand element-wise. "
+                + "For vector\u2013vector operations, the metric name is dropped.",
             "metric % 10"
         ),
         new OperatorDefinition(
             "pow",
             "^",
             OperatorKind.BINARY,
-            "Raises the left operand to the power of the right operand element-wise. For vector–vector operations, the metric name is dropped.",
+            "Raises the left operand to the power of the right operand element-wise. "
+                + "For vector\u2013vector operations, the metric name is dropped.",
             "metric ^ 2"
         ),
 
@@ -88,28 +90,32 @@ public final class PromqlDocsSupport {
             "gt",
             ">",
             OperatorKind.BINARY,
-            "Compares elements where the left operand is greater than the right. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "Compares elements where the left operand is greater than the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
             "requests_total > 256"
         ),
         new OperatorDefinition(
             "gte",
             ">=",
             OperatorKind.BINARY,
-            "Compares elements where the left operand is greater than or equal to the right. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "Compares elements where the left operand is greater than or equal to the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
             "requests_total >= 256"
         ),
         new OperatorDefinition(
             "lt",
             "<",
             OperatorKind.BINARY,
-            "Compares elements where the left operand is less than the right. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "Compares elements where the left operand is less than the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
             "requests_total < 256"
         ),
         new OperatorDefinition(
             "lte",
             "<=",
             OperatorKind.BINARY,
-            "Compares elements where the left operand is less than or equal to the right. By default, acts as a filter. With the bool modifier, returns 0 or 1.",
+            "Compares elements where the left operand is less than or equal to the right. "
+                + "By default, acts as a filter. With the bool modifier, returns 0 or 1.",
             "requests_total <= 256"
         ),
 
@@ -118,7 +124,8 @@ public final class PromqlDocsSupport {
             "and",
             "and",
             OperatorKind.SET_BINARY,
-            "Returns elements from the left vector that have matching label sets in the right vector. Values and metric name come from the left-hand side.",
+            "Returns elements from the left vector that have matching label sets in the right vector. "
+                + "Values and metric name come from the left-hand side.",
             "vector1 and vector2"
         ),
         new OperatorDefinition(

@@ -36,5 +36,5 @@ class CounterResetDataPoints {
         return dataPoints.size();
     }
 
-    record ResetPoint(long timestamp, double value) { }
+    record ResetPoint(long timestamp, double value) {}
 }

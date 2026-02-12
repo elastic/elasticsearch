@@ -122,7 +122,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
         if (NumericMetricFieldDownsampler.supportsFieldType(fieldType)) {
-            return NumericMetricFieldDownsampler.create(fieldName, fieldType.getMetricType(), fieldData, samplingMethod);
+            return NumericMetricFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         // TODO: Support POSITION in downsampling
         if (fieldType.getMetricType() == POSITION) {

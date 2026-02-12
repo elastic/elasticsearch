@@ -388,7 +388,7 @@ class DownsampleShardIndexer {
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
 
-            // For each field, return a tuple with the downsample field downsampler and the field value leaf
+            // For each field retrieve the doc values for this segment
             var numericValues = new SortedNumericDoubleValues[numericDownsamplers.length];
             for (int i = 0; i < numericDownsamplers.length; i++) {
                 numericValues[i] = numericDownsamplers[i].getLeaf(ctx);

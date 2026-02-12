@@ -6,6 +6,17 @@ Elasticsearch is a free and open project and we love to receive contributions fr
 If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
 make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
 
+Subscribing to Reviews
+----------------------
+
+If you want to stay informed about code reviews in specific areas of the codebase, please see our [Review Subscription Guide](docs/REVIEW_SUBSCRIPTION.md). This guide explains how to:
+
+- Watch the repository for all pull request activity
+- Subscribe to reviews for specific code areas through team membership
+- Set up notifications for individual pull requests
+- Configure email filters for review notifications
+
+
 Bug reports
 -----------
 

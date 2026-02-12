@@ -453,10 +453,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
          * Uses ConcurrentHashMap.computeIfAbsent for thread-safe lazy creation.
          */
         private TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
-            return topFieldCollectorManagers.computeIfAbsent(
-                sort,
-                s -> new TopFieldCollectorManager(s, limit, null, 0)
-            );
+            return topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
         }
 
         private TopDocsCollector<?> newTopDocsCollector(Sort sort) {

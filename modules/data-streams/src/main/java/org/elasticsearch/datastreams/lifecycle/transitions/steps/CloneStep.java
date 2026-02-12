@@ -12,12 +12,14 @@ package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -326,15 +328,18 @@ public class CloneStep implements DlmStep {
      * @return the resize request to clone the source index into a new index with 0 replicas
      */
     public static ResizeRequest formCloneRequest(String originalIndex, String cloneIndex) {
-        ResizeRequest cloneRequest = new ResizeRequest(
+        CreateIndexRequest createReq = new CreateIndexRequest(cloneIndex);
+        createReq.waitForActiveShards(ActiveShardCount.ALL);
+        ResizeRequest resizeReq = new ResizeRequest(
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
             ResizeType.CLONE,
             originalIndex,
             cloneIndex
         );
-        cloneRequest.setTargetIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        return cloneRequest;
+        resizeReq.setTargetIndex(createReq);
+        resizeReq.setTargetIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        return resizeReq;
     }
 
     /**

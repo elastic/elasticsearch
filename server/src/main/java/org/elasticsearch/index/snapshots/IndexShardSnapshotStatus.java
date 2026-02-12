@@ -246,7 +246,7 @@ public class IndexShardSnapshotStatus {
             if (startTimeMillis != 0) {
                 this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
             } else {
-                assert previousStage == Stage.INIT || previousStage == Stage.PAUSING
+                assert previousStage == Stage.INIT || previousStage == Stage.PAUSING || previousStage == Stage.ABORTED
                     : "Missing start time despite being in stage: " + previousStage;
             }
             this.failure = failure;

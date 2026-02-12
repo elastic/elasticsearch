@@ -530,14 +530,20 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             routingAllocation
         );
         assertEquals(decision.type(), Decision.YES.type());
-        assertThat(decision.getExplanation(), matchesPattern(Strings.format("""
-            Node \\[.*\\]'s queue latency of \\[%d\\] does not exceed the latency threshold of \\[%s\\], or the thread pool \
-            utilization of \\[%f\\] does not exceed the utilization threshold of \\[%s\\]""",
-            latency,
-            highLatencyThresholdString,
-            utilization,
-            highUtilizationThresholdString
-        )));
+        assertThat(
+            decision.getExplanation(),
+            matchesPattern(
+                Strings.format(
+                    """
+                        Node \\[.*\\]'s queue latency of \\[%d\\] does not exceed the latency threshold of \\[%s\\], or the thread pool \
+                        utilization of \\[%f\\] does not exceed the utilization threshold of \\[%s\\]""",
+                    latency,
+                    highLatencyThresholdString,
+                    utilization,
+                    highUtilizationThresholdString
+                )
+            )
+        );
 
         // test utilization high, latency low
         utilization = randomFloatBetween(highUtilizationThreshold, 1.2f, false);
@@ -552,14 +558,20 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         decision = decider.canRemain(state.metadata().getProject().index(indexName), shardRouting, hotspotRoutingNode, routingAllocation);
         assertEquals(decision.type(), Decision.YES.type());
-        assertThat(decision.getExplanation(), matchesPattern(Strings.format("""
-            Node \\[.*\\]'s queue latency of \\[%d\\] does not exceed the latency threshold of \\[%s\\], or the thread pool \
-            utilization of \\[%f\\] does not exceed the utilization threshold of \\[%s\\]""",
-            latency,
-            highLatencyThresholdString,
-            utilization,
-            highUtilizationThresholdString
-        )));
+        assertThat(
+            decision.getExplanation(),
+            matchesPattern(
+                Strings.format(
+                    """
+                        Node \\[.*\\]'s queue latency of \\[%d\\] does not exceed the latency threshold of \\[%s\\], or the thread pool \
+                        utilization of \\[%f\\] does not exceed the utilization threshold of \\[%s\\]""",
+                    latency,
+                    highLatencyThresholdString,
+                    utilization,
+                    highUtilizationThresholdString
+                )
+            )
+        );
 
         // test utilization high and latency high
         utilization = randomFloatBetween(highUtilizationThreshold, 1.2f, false);
@@ -574,15 +586,21 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         decision = decider.canRemain(state.metadata().getProject().index(indexName), shardRouting, hotspotRoutingNode, routingAllocation);
         assertEquals(decision.type(), Decision.NOT_PREFERRED.type());
-        assertThat(decision.getExplanation(), matchesPattern(Strings.format("""
-            Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a thread \
-            pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is hot-spotting. Shard write \
-            load \\[.*\\]. Should move shard\\(s\\) away""",
-            latency,
-            highLatencyThresholdString,
-            utilization,
-            highUtilizationThresholdString
-        )));
+        assertThat(
+            decision.getExplanation(),
+            matchesPattern(
+                Strings.format(
+                    """
+                        Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a thread \
+                        pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is hot-spotting. Shard write \
+                        load \\[.*\\]. Should move shard\\(s\\) away""",
+                    latency,
+                    highLatencyThresholdString,
+                    utilization,
+                    highUtilizationThresholdString
+                )
+            )
+        );
     }
 
     public RoutingAllocation buildRoutingAllocation(

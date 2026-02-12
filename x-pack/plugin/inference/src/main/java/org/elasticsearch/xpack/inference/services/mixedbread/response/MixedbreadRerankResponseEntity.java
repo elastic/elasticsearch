@@ -106,13 +106,7 @@ public class MixedbreadRerankResponseEntity {
 
         public RankedDocsResults toRankedDocsResults() {
             List<RankedDocsResults.RankedDoc> rankedDocs = results.stream()
-                .map(
-                    item -> new RankedDocsResults.RankedDoc(
-                        item.index(),
-                        item.relevanceScore(),
-                        item.document()
-                    )
-                )
+                .map(item -> new RankedDocsResults.RankedDoc(item.index(), item.relevanceScore(), item.document()))
                 .toList();
             return new RankedDocsResults(rankedDocs);
         }

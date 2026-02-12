@@ -201,7 +201,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // METRICS_INFO requires a fix on the remote cluster to skip node-level reduction (which needs shard access).
         // Remote clusters without the fix will fail with a missing _doc attribute error.
         if (testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())) {
-            assumeTrue(
+            assumeFalse(
                 "METRICS_INFO in CCS requires the node-reduction fix on the remote cluster",
                 hasCapabilities(remoteClusterClient(), List.of(METRICS_INFO_COMMAND.capabilityName()))
             );

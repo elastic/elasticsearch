@@ -1220,8 +1220,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.blockRemoteQueryPhase();
 
         // To ensure that we get reduced partial results, we'll allow both local and remote query phase to complete but block both local
-        // and remote fetch phases so that the search does not complete so we can retrieve the intermediate response with partial results
-        // from the query phase
+        // and remote fetch phases. In this state, the search is still running and setting return_intermediate_results to true or false
+        // should have different outcomes asserted below.
         SearchListenerPlugin.blockLocalFetchPhase();
         SearchListenerPlugin.blockRemoteFetchPhase();
         SearchListenerPlugin.blockLocalQueryPhaseCompletion(localNumShards);
@@ -2220,10 +2220,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         return client(LOCAL_CLUSTER).execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id)).actionGet();
     }
 
-    protected AsyncSearchResponse getAsyncSearch(String id, boolean returnPartialResponse) {
+    protected AsyncSearchResponse getAsyncSearch(String id, boolean returnIntermediateResponse) {
         return client(LOCAL_CLUSTER).execute(
             GetAsyncSearchAction.INSTANCE,
-            new GetAsyncResultRequest(id).setReturnIntermediateResults(returnPartialResponse)
+            new GetAsyncResultRequest(id).setReturnIntermediateResults(returnIntermediateResponse)
                 .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(1))
         ).actionGet();
     }
@@ -2237,11 +2237,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     private Map<String, Object> setupTwoClusters() {
-        return setupTwoClusters(randomIntBetween(2, 12), randomIntBetween(2, 12));
-    }
-
-    private Map<String, Object> setupTwoClusters(int numShardsLocal, int numShardsRemote) {
         String localIndex = "local";
+        int numShardsLocal = randomIntBetween(2, 12);
         Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
         assertAcked(
             client(LOCAL_CLUSTER).admin()
@@ -2253,6 +2250,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         indexDocs(client(LOCAL_CLUSTER), localIndex);
 
         String remoteIndex = "remote";
+        int numShardsRemote = randomIntBetween(2, 12);
         final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
         remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
         final Settings.Builder remoteSettings = Settings.builder();

@@ -72,7 +72,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
 
     /**
-     * Retrieve field value fetchers for a list of fields.
+     * Create field downsamplers for the provided list of fields.
      */
     static List<AbstractFieldDownsampler<?>> create(
         SearchExecutionContext context,
@@ -104,6 +104,9 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         return Collections.unmodifiableList(downsamplers);
     }
 
+    /**
+     * Create a single field downsamplers for the provided field.
+     */
     private static AbstractFieldDownsampler<?> create(
         String fieldName,
         MappedFieldType fieldType,

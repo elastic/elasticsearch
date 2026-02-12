@@ -71,6 +71,7 @@ import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDo
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmActionContext;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.gateway.GatewayService;
@@ -100,6 +101,9 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.ALL;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.BACKING_INDICES;
+import static org.elasticsearch.cluster.metadata.DataStream.DatastreamIndexTypes.FAILURE_INDICES;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
@@ -476,6 +480,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
+     * Formats an execution time in milliseconds to a human-readable string using {@link TimeValue}.
+     */
+    static String formatExecutionTime(long executionTimeMillis) {
+        return executionTimeMillis + "ms/" + TimeValue.timeValueMillis(executionTimeMillis).toString();
+    }
+
+    /**
      * Processes Data Lifecycle Management (DLM) actions for the given data stream.
      * <p>
      * For each configured {@link DlmAction}, this method:
@@ -497,7 +508,24 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     // Visible for testing
     Set<Index> maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
         HashSet<Index> indicesProcessed = new HashSet<>();
+        DlmActionContext actionContext = new DlmActionContext(
+            projectState,
+            transportActionsDeduplicator,
+            errorStore,
+            signallingErrorRetryInterval,
+            client
+        );
         for (DlmAction action : actions) {
+
+            if (action.canRunOnProject(actionContext) == false) {
+                logger.trace(
+                    "Skipping action [{}] for project [{}] as prerequisites are not met",
+                    action.name(),
+                    projectState != null ? projectState.projectId() : "unknown"
+                );
+                continue;
+            }
+
             TimeValue actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
 
             if (actionSchedule == null) {
@@ -509,19 +537,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 continue;
             }
 
+            long actionStartTime = nowSupplier.getAsLong();
+
             List<Index> indicesEligibleForAction;
             if (action.appliesToFailureStore()) {
-                indicesEligibleForAction = dataStream.getIndicesPastRetention(
-                    indexName -> projectState.metadata().index(indexName),
-                    nowSupplier,
-                    actionSchedule
-                );
-            } else {
-                indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                indicesEligibleForAction = dataStream.getIndicesOlderThan(
                     indexName -> projectState.metadata().index(indexName),
                     nowSupplier,
                     actionSchedule,
-                    false
+                    ALL
+                );
+            } else {
+                indicesEligibleForAction = dataStream.getIndicesOlderThan(
+                    indexName -> projectState.metadata().index(indexName),
+                    nowSupplier,
+                    actionSchedule,
+                    BACKING_INDICES
                 );
             }
 
@@ -536,7 +567,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             for (Index index : indicesEligibleForAction) {
+                long findStepStartTime = nowSupplier.getAsLong();
                 DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
+                if (logger.isTraceEnabled()) {
+                    long findStepDuration = nowSupplier.getAsLong() - findStepStartTime;
+                    logger.trace(
+                        "Finding first incomplete step for action [{}] on datastream [{}] index [{}] took [{}]",
+                        action.name(),
+                        dataStream.getName(),
+                        index.getName(),
+                        formatExecutionTime(findStepDuration)
+                    );
+                }
 
                 if (stepToExecute != null) {
                     try {
@@ -545,18 +587,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             stepToExecute.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            action.name()
+                            index.getName()
                         );
-                        stepToExecute.execute(
-                            new DlmStepContext(
-                                index,
-                                projectState,
-                                transportActionsDeduplicator,
-                                errorStore,
-                                signallingErrorRetryInterval,
-                                client
-                            )
-                        );
+                        long stepStartTime = nowSupplier.getAsLong();
+                        DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
+                        stepToExecute.execute(dlmStepContext);
+                        if (logger.isTraceEnabled()) {
+                            long stepDuration = nowSupplier.getAsLong() - stepStartTime;
+                            logger.trace(
+                                "Executed step [{}] for action [{}] on datastream [{}] index [{}] in [{}]",
+                                stepToExecute.stepName(),
+                                action.name(),
+                                dataStream.getName(),
+                                index.getName(),
+                                formatExecutionTime(stepDuration)
+                            );
+                        }
                     } catch (Exception ex) {
                         logger.warn(
                             logger.getMessageFactory()
@@ -574,6 +620,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     indicesProcessed.add(index);
                 }
             }
+            if (logger.isTraceEnabled()) {
+                long actionDuration = nowSupplier.getAsLong() - actionStartTime;
+                logger.trace(
+                    "Data stream lifecycle action [{}] for data stream [{}] completed in [{}]",
+                    action.name(),
+                    dataStream.getName(),
+                    formatExecutionTime(actionDuration)
+                );
+            }
         }
         return indicesProcessed;
     }
@@ -582,23 +637,30 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DlmStep stepToExecute = null;
         for (DlmStep step : action.steps().reversed()) {
             try {
+                long checkStartTime = nowSupplier.getAsLong();
                 if (step.stepCompleted(index, projectState) == false) {
                     stepToExecute = step;
-                    logger.trace(
-                        "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete",
-                        step.stepName(),
-                        action.name(),
-                        dataStream.getName(),
-                        index.getName()
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete, checked in [{}]",
+                            step.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            index.getName(),
+                            formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
+                        );
+                    }
                 } else {
-                    logger.trace(
-                        "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete",
-                        step.stepName(),
-                        action.name(),
-                        dataStream.getName(),
-                        index.getName()
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete, checked in [{}]",
+                            step.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            index.getName(),
+                            formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
+                        );
+                    }
                     break;
                 }
             } catch (Exception ex) {
@@ -1099,17 +1161,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (dataRetention == null && failureRetention == null) {
             return Set.of();
         }
-        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             dataRetention,
-            false
+            BACKING_INDICES
         );
-        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
+        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             failureRetention,
-            true
+            FAILURE_INDICES
         );
         if (backingIndicesOlderThanRetention.isEmpty() && failureIndicesOlderThanRetention.isEmpty()) {
             return Set.of();

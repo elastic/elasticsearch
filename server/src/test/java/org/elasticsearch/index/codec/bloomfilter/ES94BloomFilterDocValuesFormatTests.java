@@ -76,7 +76,7 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
                 new TestCodec(
                     new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME, optimizedMergeEnabled) {
                         @Override
-                        int bloomFilterSizeInBytesForNewSegment(int numDocs) {
+                        public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
                             if (randomBloomFilterSizes) {
                                 // Between 32b and 64kb
                                 return 1 << randomIntBetween(5, 16);

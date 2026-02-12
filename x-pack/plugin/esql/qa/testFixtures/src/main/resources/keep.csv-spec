@@ -206,12 +206,12 @@ emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:i
 ;
 
 projectFromWithStatsAfterLimit
-from employees | sort emp_no | keep gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
+from employees | sort emp_no | keep gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender | sort gender;
 
    m:long | gender:keyword
-315236372 | null
-311267831 | M
 393084805 | F
+311267831 | M
+315236372 | null
 ;
 
 projectFromWithStatsAndSort-Ignore

@@ -110,6 +110,7 @@ ROW row = [
        name = TRIM(name), 
        number = TO_LONG(number)
 | STATS last_val = LAST(number, @timestamp) BY name
+| SORT name
 ;
 
 warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.

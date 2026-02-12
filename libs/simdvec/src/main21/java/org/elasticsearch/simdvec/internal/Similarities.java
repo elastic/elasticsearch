@@ -56,6 +56,14 @@ public class Similarities {
         Operation.BULK_OFFSETS
     );
 
+    static final MethodHandle DOT_PRODUCT_D4Q4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_D4Q4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_D4Q4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        BBQType.D4Q4,
+        Operation.BULK_OFFSETS
+    );
+
     static final MethodHandle DOT_PRODUCT_F32 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.SINGLE);
     static final MethodHandle DOT_PRODUCT_F32_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK);
     static final MethodHandle DOT_PRODUCT_F32_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
@@ -173,6 +181,38 @@ public class Similarities {
     ) {
         try {
             DOT_PRODUCT_D2Q4_BULK_WITH_OFFSETS.invokeExact(a, query, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static long dotProductD4Q4(MemorySegment a, MemorySegment query, int length) {
+        try {
+            return (long) DOT_PRODUCT_D4Q4.invokeExact(a, query, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductD4Q4Bulk(MemorySegment a, MemorySegment query, int length, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_D4Q4_BULK.invokeExact(a, query, length, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void dotProductD4Q4BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment query,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_D4Q4_BULK_WITH_OFFSETS.invokeExact(a, query, length, pitch, offsets, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

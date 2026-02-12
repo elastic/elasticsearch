@@ -2,6 +2,7 @@
 * [`ACOS`](../../functions-operators/math-functions.md#esql-acos)
 * [`ACOSH`](../../functions-operators/math-functions.md#esql-acosh)
 * [`ASIN`](../../functions-operators/math-functions.md#esql-asin)
+* [`ASINH`](../../functions-operators/math-functions.md#esql-asinh)
 * [`ATAN`](../../functions-operators/math-functions.md#esql-atan)
 * [`ATAN2`](../../functions-operators/math-functions.md#esql-atan2)
 * [`CBRT`](../../functions-operators/math-functions.md#esql-cbrt)

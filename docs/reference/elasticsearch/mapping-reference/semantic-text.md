@@ -15,6 +15,10 @@ The `semantic_text` field type simplifies [semantic search](docs-content://solut
 - Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or {{infer}} processors.
 - Handles chunking: Automatically chunks long text documents during indexing.
 
+:::::{warning}
+The `semantic_text` field mapping can be added regardless of license state. However, it typically calls the [{{infer-cap}} API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference), which requires an [appropriate license](https://www.elastic.co/subscriptions). In these cases, using `semantic_text` in a cluster without the appropriate license causes operations such as indexing and reindexing to fail.
+:::::
+
 ## Basic `semantic_text` mapping example
 
 The following example creates an index mapping with a `semantic_text` field:

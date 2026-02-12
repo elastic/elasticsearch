@@ -1318,7 +1318,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 )
             );
         }
-        return new UnresolvedAttribute(source(ctx), param.value().toString());
+        if (param.value() == null) {
+            context.params.addParsingError(new ParsingException(source(ctx), "Query parameter [{}] is null", ctx.getText()));
+        }
+        return new UnresolvedAttribute(source(ctx), String.valueOf(param.value()));
     }
 
     @Override

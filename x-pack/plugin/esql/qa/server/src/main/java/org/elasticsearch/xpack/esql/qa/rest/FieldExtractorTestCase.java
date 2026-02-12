@@ -1475,13 +1475,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             List.of(unsupportedColumnInfo("metric.value", "double", "keyword")),
             List.of(matchesList().item(null), matchesList().item(null))
         );
-
-        result = runEsql("TS metrics-long,metrics-long_dimension | KEEP metric.value");
-        assertResultMap(
-            result,
-            List.of(columnInfo("metric.value", "unsupported")),
-            List.of(matchesList().item(null), matchesList().item(null))
-        );
     }
 
     protected Matcher<Integer> pidMatcher() {

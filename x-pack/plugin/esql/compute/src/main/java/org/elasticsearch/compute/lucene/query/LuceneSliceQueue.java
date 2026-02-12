@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,6 +22,8 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -30,9 +33,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -75,6 +80,8 @@ import java.util.function.IntFunction;
  * </p>
  */
 public final class LuceneSliceQueue {
+    public static final TransportVersion TIME_SERIES_PARTITIONING = TransportVersion.fromName("time_series_partitioning");
+
     /**
      * Query to run and tags to add to the results.
      */
@@ -132,7 +139,7 @@ public final class LuceneSliceQueue {
         for (LuceneSlice slice : sliceList) {
             if (slice.queryHead()) {
                 queryHeads.add(slice.slicePosition());
-            } else if (slice.getLeaf(0).minDoc() == 0) {
+            } else if (slice.leaves().stream().allMatch(l -> l.minDoc() == 0)) {
                 segmentHeads.add(slice.slicePosition());
             } else {
                 stealableSlices.add(slice.slicePosition());
@@ -203,6 +210,7 @@ public final class LuceneSliceQueue {
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         Function<Query, PartitioningStrategy> autoStrategy,
+        int autoStrategyDocThreshold,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction
     ) {
@@ -229,7 +237,7 @@ public final class LuceneSliceQueue {
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
-                    PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
+                    var partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, autoStrategyDocThreshold, ctx, query);
                     partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                     List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
                     var weightAndCache = weight(ctx, query, scoreMode, partitioning);
@@ -302,6 +310,21 @@ public final class LuceneSliceQueue {
                 int desiredSliceSize = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), 1, MAX_DOCS_PER_SLICE);
                 return new AdaptivePartitioner(Math.max(1, desiredSliceSize), MAX_SEGMENTS_PER_SLICE).partition(searcher.getLeafContexts());
             }
+        },
+        /**
+         * Partition using the prefix of tsid
+         */
+        TIME_SERIES(3) {
+            @Override
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
+                final int totalDocCount = searcher.getIndexReader().maxDoc();
+                final int docsPerSlice = Math.max(Math.ceilDiv(totalDocCount, taskConcurrency), 1);
+                try {
+                    return new TimeSeriesPartitioner().partition(searcher, docsPerSlice);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
         };
 
         private final byte id;
@@ -316,13 +339,18 @@ public final class LuceneSliceQueue {
                 case 0 -> SHARD;
                 case 1 -> SEGMENT;
                 case 2 -> DOC;
+                case 3 -> TIME_SERIES;
                 default -> throw new IllegalArgumentException("invalid PartitioningStrategyId [" + id + "]");
             };
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(id);
+            byte val = id;
+            if (this == TIME_SERIES && out.getTransportVersion().supports(TIME_SERIES_PARTITIONING) == false) {
+                val = DOC.id; // make time-series as DOC
+            }
+            out.writeByte(val);
         }
 
         abstract List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency);
@@ -330,6 +358,7 @@ public final class LuceneSliceQueue {
         private static PartitioningStrategy pick(
             DataPartitioning dataPartitioning,
             Function<Query, PartitioningStrategy> autoStrategy,
+            int autoStrategyDocThreshold,
             ShardContext ctx,
             Query query
         ) {
@@ -337,18 +366,17 @@ public final class LuceneSliceQueue {
                 case SHARD -> PartitioningStrategy.SHARD;
                 case SEGMENT -> PartitioningStrategy.SEGMENT;
                 case DOC -> PartitioningStrategy.DOC;
-                case AUTO -> forAuto(autoStrategy, ctx, query);
+                case AUTO -> forAuto(autoStrategy, ctx, query, autoStrategyDocThreshold);
             };
         }
 
-        /**
-         * {@link DataPartitioning#AUTO} resolves to {@link #SHARD} for indices
-         * with fewer than this many documents.
-         */
-        private static final int SMALL_INDEX_BOUNDARY = MAX_DOCS_PER_SLICE;
-
-        private static PartitioningStrategy forAuto(Function<Query, PartitioningStrategy> autoStrategy, ShardContext ctx, Query query) {
-            if (ctx.searcher().getIndexReader().maxDoc() < SMALL_INDEX_BOUNDARY) {
+        private static PartitioningStrategy forAuto(
+            Function<Query, PartitioningStrategy> autoStrategy,
+            ShardContext ctx,
+            Query query,
+            int autoStrategyDocThreshold
+        ) {
+            if (ctx.searcher().getIndexReader().maxDoc() < autoStrategyDocThreshold) {
                 return PartitioningStrategy.SHARD;
             }
             return autoStrategy.apply(query);
@@ -358,8 +386,9 @@ public final class LuceneSliceQueue {
     record WeightAndCache(Weight weight, LuceneSlice.BlockedOnCaching blockedOnCaching) {}
 
     private static WeightAndCache weight(ShardContext ctx, Query query, ScoreMode scoreMode, PartitioningStrategy partitioning) {
+        final boolean intraSegment = partitioning == PartitioningStrategy.DOC || partitioning == PartitioningStrategy.TIME_SERIES;
         try {
-            if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && partitioning == PartitioningStrategy.DOC) {
+            if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && intraSegment) {
                 DocPartitioningQueryCache queryCache = new DocPartitioningQueryCache(ctx.searcher().getQueryCache());
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     ctx.searcher().getIndexReader(),
@@ -439,4 +468,74 @@ public final class LuceneSliceQueue {
         }
     }
 
+    static final class TimeSeriesPartitioner {
+
+        private static class Slice {
+            final List<PartialLeafReaderContext> leaves;
+            int numDocs = 0;
+
+            Slice(int size) {
+                leaves = new ArrayList<>(size);
+            }
+
+            void add(LeafReaderContext context, int minDoc, int maxDoc) {
+                leaves.add(new PartialLeafReaderContext(context, minDoc, maxDoc));
+                numDocs += (maxDoc - minDoc);
+            }
+        }
+
+        List<List<PartialLeafReaderContext>> partition(IndexSearcher searcher, int docsPerSlice) throws IOException {
+            final Map<Integer, Slice> slices = new TreeMap<>(); // ordered by prefixes
+            final List<LeafReaderContext> leaves = searcher.getLeafContexts();
+            for (LeafReaderContext leaf : leaves) {
+                var tsid = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+                if (tsid == null) {
+                    continue; // empty
+                }
+                int[] startDocs = ((PartitionedDocValues) tsid).partitionStartDocs();
+                int pendingPrefix = -1;
+                int pendingStartDoc = -1;
+                for (int i = 0; i < startDocs.length; i++) {
+                    int startDoc = startDocs[i];
+                    if (startDoc != pendingStartDoc) {
+                        if (pendingPrefix != -1) {
+                            slices.computeIfAbsent(pendingPrefix, k -> new Slice(leaves.size())).add(leaf, pendingStartDoc, startDoc);
+                        }
+                        pendingStartDoc = startDoc;
+                        pendingPrefix = i;
+                    }
+                }
+                if (pendingPrefix >= 0) {
+                    slices.computeIfAbsent(pendingPrefix, k -> new Slice(leaves.size())).add(leaf, pendingStartDoc, leaf.reader().maxDoc());
+                }
+            }
+            return combineSlices(slices.values().stream().toList(), docsPerSlice);
+        }
+
+        private List<List<PartialLeafReaderContext>> combineSlices(List<Slice> slices, int docsPerSlice) {
+            Map<LeafReaderContext, PartialLeafReaderContext> current = new IdentityHashMap<>();
+            List<List<PartialLeafReaderContext>> results = new ArrayList<>(slices.size());
+            final int minDocsPerSlice = Math.max(docsPerSlice * 2 / 3, 1);
+            int pendingDocs = 0;
+            for (Slice slice : slices) {
+                if (pendingDocs > minDocsPerSlice && (pendingDocs + slice.numDocs) > (docsPerSlice * 3 / 2)) {
+                    results.add(current.values().stream().toList());
+                    current.clear();
+                    pendingDocs = 0;
+                }
+                for (PartialLeafReaderContext leaf : slice.leaves) {
+                    final LeafReaderContext ctx = leaf.leafReaderContext();
+                    current.merge(ctx, leaf, (k, curr) -> {
+                        assert curr.maxDoc() == leaf.minDoc() : "current=" + curr + "; next=" + leaf;
+                        return new PartialLeafReaderContext(ctx, curr.minDoc(), leaf.maxDoc());
+                    });
+                }
+                pendingDocs += slice.numDocs;
+            }
+            if (current.isEmpty() == false) {
+                results.add(current.values().stream().toList());
+            }
+            return results;
+        }
+    }
 }

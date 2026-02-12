@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -53,6 +54,15 @@ public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
+
+    /**
+     * {@link DataPartitioning#AUTO} resolves to {@link DataPartitioning#SHARD} for indices
+     * with fewer than this many documents.
+     */
+    public static final Setting<Integer> AUTO_STRATEGY_DOC_THRESHOLD_SETTING = Setting.intSetting(
+        "esql.auto_partitioning.doc_threshold",
+        DataPartitioning.AUTO_STRATEGY_DEFAULT_DOC_THRESHOLD
+    );
 
     protected final IndexedByShardId<? extends RefCounted> refCounteds;
     protected final BlockFactory blockFactory;
@@ -133,6 +143,7 @@ public abstract class LuceneOperator extends SourceOperator {
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            int autoStrategyDocThreshold,
             int taskConcurrency,
             int limit,
             boolean needsScore,
@@ -145,6 +156,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 queryFunction,
                 dataPartitioning,
                 autoStrategy,
+                autoStrategyDocThreshold,
                 taskConcurrency,
                 scoreModeFunction
             );

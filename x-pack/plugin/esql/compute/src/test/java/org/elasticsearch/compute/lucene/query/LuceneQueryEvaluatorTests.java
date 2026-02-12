@@ -284,6 +284,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
+            DataPartitioning.AUTO_STRATEGY_DEFAULT_DOC_THRESHOLD,
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,

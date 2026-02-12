@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -62,5 +64,12 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         builder.field(PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getKey(), smallChunks ? "1kb" : null);
         request.setJsonEntity(Strings.toString(builder.endObject().endObject()));
         assertOK(client().performRequest(request));
+    }
+
+    protected void addRandomPragma(Settings.Builder pragma) {
+        super.addRandomPragma(pragma);
+        if (randomBoolean()) {
+            pragma.put(LuceneOperator.AUTO_STRATEGY_DOC_THRESHOLD_SETTING.getKey(), 1);
+        }
     }
 }

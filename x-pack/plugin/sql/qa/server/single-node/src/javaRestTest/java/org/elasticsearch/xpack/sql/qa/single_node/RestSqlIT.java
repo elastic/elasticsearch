@@ -139,11 +139,7 @@ public class RestSqlIT extends RestSqlTestCase {
         String mode = randomMode();
         String sql = "SELECT name FROM test_date_add "
             + "WHERE event_date BETWEEN base_date AND DATE_ADD('days', 30, base_date) ORDER BY name";
-        Map<String, Object> result = runSql(
-            new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON),
-            "",
-            mode
-        );
+        Map<String, Object> result = runSql(new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON), "", mode);
 
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         assertThat(rows, hasSize(2));

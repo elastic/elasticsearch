@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
@@ -43,7 +44,7 @@ public class BatchSortedExchangeSource implements Closeable {
         /** The next pageIndexInBatch we expect to output */
         int nextExpectedIndex = 0;
         /** Pages waiting to be output, keyed by pageIndexInBatch */
-        final TreeMap<Integer, BatchPage> bufferedPages = new TreeMap<>();
+        final TreeMap<Integer, Page> bufferedPages = new TreeMap<>();
         /** Index of the last page in batch (-1 if not yet received) */
         int lastPageIndex = -1;
 
@@ -57,7 +58,7 @@ public class BatchSortedExchangeSource implements Closeable {
     private final Map<Long, PageOrderingState> activeBatches = new HashMap<>();
 
     /** Queue of pages ready to be output (in correct order) */
-    private final Queue<BatchPage> outputQueue = new ArrayDeque<>();
+    private final Queue<Page> outputQueue = new ArrayDeque<>();
 
     public BatchSortedExchangeSource(ExchangeSource delegate) {
         this.delegate = delegate;
@@ -71,9 +72,9 @@ public class BatchSortedExchangeSource implements Closeable {
      *
      * @return the next page in order, or null if no pages are available
      */
-    public BatchPage pollPage() {
+    public Page pollPage() {
         // First, return from output queue if available
-        BatchPage ready = outputQueue.poll();
+        Page ready = outputQueue.poll();
         if (ready != null) {
             return ready;
         }
@@ -95,32 +96,31 @@ public class BatchSortedExchangeSource implements Closeable {
             return false;
         }
 
-        // Must be a BatchPage
-        if ((page instanceof BatchPage) == false) {
+        // Must have BatchMetadata
+        if (page.batchMetadata() == null) {
             page.releaseBlocks();
-            throw new IllegalArgumentException(
-                "BatchSortedExchangeSource requires BatchPage input, got: " + page.getClass().getSimpleName()
-            );
+            throw new IllegalArgumentException("BatchSortedExchangeSource requires pages with BatchMetadata");
         }
 
-        addToSorter((BatchPage) page);
+        addToSorter(page);
         return true;
     }
 
     /**
      * Add a page to the sorter, potentially releasing pages to the output queue.
      */
-    private void addToSorter(BatchPage batchPage) {
-        long batchId = batchPage.batchId();
-        int pageIndex = batchPage.pageIndexInBatch();
-        boolean isLast = batchPage.isLastPageInBatch();
+    private void addToSorter(Page page) {
+        BatchMetadata metadata = page.batchMetadata();
+        long batchId = metadata.batchId();
+        int pageIndex = metadata.pageIndexInBatch();
+        boolean isLast = metadata.isLastPageInBatch();
 
         logger.trace(
             "[BatchSortedExchangeSource] Received page: batchId={}, pageIndex={}, isLast={}, positions={}",
             batchId,
             pageIndex,
             isLast,
-            batchPage.getPositionCount()
+            page.getPositionCount()
         );
 
         // Get or create batch state
@@ -134,7 +134,7 @@ public class BatchSortedExchangeSource implements Closeable {
         // Check if this is the next expected page
         if (pageIndex == state.nextExpectedIndex) {
             // Output this page immediately
-            outputQueue.add(batchPage);
+            outputQueue.add(page);
             state.nextExpectedIndex++;
 
             // Check if any buffered pages can now be output
@@ -147,10 +147,10 @@ public class BatchSortedExchangeSource implements Closeable {
                 pageIndex,
                 state.nextExpectedIndex
             );
-            state.bufferedPages.put(pageIndex, batchPage);
+            state.bufferedPages.put(pageIndex, page);
         } else {
             // Page index is less than expected - this shouldn't happen (duplicate or invalid)
-            batchPage.releaseBlocks();
+            page.releaseBlocks();
             throw new IllegalStateException(
                 "Received page with unexpected index: batchId="
                     + batchId
@@ -175,13 +175,14 @@ public class BatchSortedExchangeSource implements Closeable {
         while (state.bufferedPages.isEmpty() == false) {
             Integer nextKey = state.bufferedPages.firstKey();
             if (nextKey == state.nextExpectedIndex) {
-                BatchPage bufferedPage = state.bufferedPages.remove(nextKey);
+                Page bufferedPage = state.bufferedPages.remove(nextKey);
                 outputQueue.add(bufferedPage);
                 state.nextExpectedIndex++;
+                BatchMetadata metadata = bufferedPage.batchMetadata();
                 logger.trace(
                     "[BatchSortedExchangeSource] Flushed buffered page: batchId={}, pageIndex={}",
-                    bufferedPage.batchId(),
-                    bufferedPage.pageIndexInBatch()
+                    metadata.batchId(),
+                    metadata.pageIndexInBatch()
                 );
             } else {
                 // Gap in sequence - wait for missing page
@@ -310,7 +311,7 @@ public class BatchSortedExchangeSource implements Closeable {
     public void close() {
         // Release any buffered pages
         for (PageOrderingState state : activeBatches.values()) {
-            for (BatchPage page : state.bufferedPages.values()) {
+            for (Page page : state.bufferedPages.values()) {
                 page.releaseBlocks();
             }
             state.bufferedPages.clear();
@@ -318,7 +319,7 @@ public class BatchSortedExchangeSource implements Closeable {
         activeBatches.clear();
 
         // Release any pages in output queue
-        BatchPage page;
+        Page page;
         while ((page = outputQueue.poll()) != null) {
             page.releaseBlocks();
         }

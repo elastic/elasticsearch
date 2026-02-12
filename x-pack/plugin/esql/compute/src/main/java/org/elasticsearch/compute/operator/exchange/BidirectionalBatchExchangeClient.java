@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BatchMetadata;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -417,12 +419,12 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
 
     /**
      * Polls a page from the cache.
-     * The consumer should call this to retrieve pages and check {@link BatchPage#isLastPageInBatch()}
-     * to detect batch completion.
+     * The consumer should call this to retrieve pages and check the page's BatchMetadata
+     * to detect batch completion via {@code page.batchMetadata().isLastPageInBatch()}.
      *
      * @return the next page, or null if no pages are available
      */
-    public BatchPage pollPage() {
+    public Page pollPage() {
         return sortedSource.pollPage();
     }
 
@@ -531,24 +533,28 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Send a BatchPage for processing.
+     * Send a Page with BatchMetadata for processing.
      * The worker is selected using least-loaded assignment strategy.
      * Workers are lazily initialized as needed up to maxWorkers.
      * The batchId should be monotonically increasing for each call.
      * Currently, only single-page batches are supported, so isLastPageInBatch must always be true.
      * Called only from the single-threaded Driver, so no synchronization needed.
      *
-     * @param batchPage the batch page to send
+     * @param page the page with BatchMetadata to send
      */
-    public void sendPage(BatchPage batchPage) {
+    public void sendPage(Page page) {
         checkFailure();
+        BatchMetadata metadata = page.batchMetadata();
+        if (metadata == null) {
+            throw new IllegalArgumentException("Page must have BatchMetadata");
+        }
         // Currently only single-page batches are supported
-        if (batchPage.isLastPageInBatch() == false) {
+        if (metadata.isLastPageInBatch() == false) {
             throw new IllegalArgumentException(
                 "Multi-page batches are not yet supported. Received page for batch "
-                    + batchPage.batchId()
+                    + metadata.batchId()
                     + " with isLastPageInBatch=false (pageIndex="
-                    + batchPage.pageIndexInBatch()
+                    + metadata.pageIndexInBatch()
                     + ")"
             );
         }
@@ -556,13 +562,13 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         Worker worker = getLeastLoadedWorker();
         // Track pending batches for this worker
         worker.pendingBatches++;
-        batchToWorker.put(batchPage.batchId(), worker);
+        batchToWorker.put(metadata.batchId(), worker);
         // Track the number of batches that have been sent
         startedBatchCount++;
-        worker.clientToServerSink.addPage(batchPage);
+        worker.clientToServerSink.addPage(page);
         logger.trace(
             "[LookupJoinClient] Sent batch {} to worker {}, pending={}",
-            batchPage.batchId(),
+            metadata.batchId(),
             worker.workerId,
             worker.pendingBatches
         );
@@ -579,7 +585,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         Worker worker = getLeastLoadedWorker();
         worker.pendingBatches++;
         batchToWorker.put(batchId, worker);
-        BatchPage marker = BatchPage.createMarker(batchId, 0);
+        Page marker = Page.createBatchMarkerPage(batchId, 0);
         worker.clientToServerSink.addPage(marker);
     }
 

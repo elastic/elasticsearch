@@ -18,11 +18,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
@@ -276,30 +276,28 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
         // Send page synchronously - the exchange buffer holds pages until server fetches them
         // The client handles worker/server selection internally using least-loaded strategy
-        // Note: BatchPage constructor calls incRef() on blocks, so we need to release the batchPage on failure
-        BatchPage batchPage = null;
+        Page pageWithMetadata = null;
         try {
             Block[] inputBlocks = matchFieldsMapping.applyTo(page);
-            batchPage = new BatchPage(new Page(inputBlocks), batchId, 0, true);
-            client.sendPage(batchPage);
+            // incRef the blocks since they're shared with the original page
+            for (Block block : inputBlocks) {
+                block.incRef();
+            }
+            pageWithMetadata = new Page(new BatchMetadata(batchId, 0, true), inputBlocks);
+            client.sendPage(pageWithMetadata);
             logger.trace("addInput: sent batchId={} to worker", batchId);
         } catch (RuntimeException e) {
             logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
-            // Release the batchPage if it was created (it has incRef'd the blocks)
-            if (batchPage != null) {
-                batchPage.releaseBlocks();
+            if (pageWithMetadata != null) {
+                pageWithMetadata.releaseBlocks();
             }
-            // Also release the original page since we won't be using it
             page.releaseBlocks();
-            // Rethrow runtime exceptions (like CircuitBreakingException) directly for proper test handling
             throw e;
         } catch (Exception e) {
             logger.error("addInput: failed to send batchId={}: {}", batchId, e.getMessage());
-            // Release the batchPage if it was created (it has incRef'd the blocks)
-            if (batchPage != null) {
-                batchPage.releaseBlocks();
+            if (pageWithMetadata != null) {
+                pageWithMetadata.releaseBlocks();
             }
-            // Also release the original page since we won't be using it
             page.releaseBlocks();
             failure.set(e);
             return;
@@ -376,7 +374,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             }
 
             // Try to poll a result page from the client
-            BatchPage resultPage = client.pollPage();
+            Page resultPage = client.pollPage();
             if (resultPage == null) {
                 // If the page cache is done but we haven't received markers for all batches,
                 // we must wait for the server response to know if it succeeded or failed.
@@ -407,25 +405,30 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 return null;
             }
 
-            logger.trace("getOutput: received result for batch {}, isLast={}", resultPage.batchId(), resultPage.isLastPageInBatch());
+            BatchMetadata resultMetadata = resultPage.batchMetadata();
+            logger.trace(
+                "getOutput: received result for batch {}, isLast={}",
+                resultMetadata.batchId(),
+                resultMetadata.isLastPageInBatch()
+            );
 
             // Result pages were created on the server-side driver, so we need to allow
             // releasing them on this (client-side) driver thread
             resultPage.allowPassingToDifferentDriver();
 
             // Look up the batch by ID
-            PendingJoin batch = activeBatches.get(resultPage.batchId());
+            PendingJoin batch = activeBatches.get(resultMetadata.batchId());
             if (batch == null) {
                 resultPage.releaseBlocks();
-                throw new IllegalStateException("Received result for unknown batch: batchId=" + resultPage.batchId());
+                throw new IllegalStateException("Received result for unknown batch: batchId=" + resultMetadata.batchId());
             }
 
-            if (resultPage.isLastPageInBatch()) {
+            if (resultMetadata.isLastPageInBatch()) {
                 batch.receivedLastPage = true;
                 hasBatchReadyToOutput = true;
             }
 
-            // BatchPage extends Page, so we can use it directly
+            // Check for empty result page (marker only)
             if (resultPage.getPositionCount() == 0) {
                 resultPage.releaseBlocks();
                 // If this was the last page, loop back to process trailing nulls immediately

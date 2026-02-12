@@ -63,10 +63,10 @@ import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
-import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -141,7 +141,7 @@ import static org.mockito.Mockito.mock;
         + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer:DEBUG,"
         + "org.elasticsearch.compute.operator.exchange.BatchSortedExchangeSource:DEBUG,"
         + "org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator:DEBUG",
-    reason = "debugging streaming lookup performance"
+    reason = "troubleshooting streaming lookup"
 )
 public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
     private static final String MULTI_NODE = "multiNode";

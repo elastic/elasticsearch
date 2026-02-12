@@ -276,7 +276,7 @@ public final class LookupQueryOperator implements Operator {
             }
             docsVector = docsBuilder.build();
             page = new Page(
-                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, null).asBlock(),
+                new DocVector(shardContexts, shardsVector, segmentsVector, docsVector, DocVector.config().mayContainDuplicates()).asBlock(),
                 positionsVector.asBlock()
             );
             pagesEmitted++;

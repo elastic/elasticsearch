@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -62,11 +63,11 @@ import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
 
 @TestLogging(
-    value = "org.elasticsearch.compute.operator.exchange.BatchDriver:TRACE,"
-        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient:TRACE,"
-        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer:TRACE,"
-        + "org.elasticsearch.compute.operator.exchange.BatchContext:TRACE",
-    reason = "debugging batch driver and bidirectional exchange"
+    value = "org.elasticsearch.compute.operator.exchange.BatchDriver:DEBUG,"
+        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient:DEBUG,"
+        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer:DEBUG,"
+        + "org.elasticsearch.compute.operator.exchange.BatchContext:DEBUG",
+    reason = "troubleshooting batch driver and bidirectional exchange"
 )
 public class BidirectionalBatchExchangeTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(BidirectionalBatchExchangeTests.class);
@@ -267,21 +268,22 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                         }
                     }
 
-                    BatchPage resultPage;
+                    Page resultPage;
                     while ((resultPage = client.pollPage()) != null) {
+                        BatchMetadata metadata = resultPage.batchMetadata();
                         logger.debug(
                             "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}",
-                            resultPage.batchId(),
-                            resultPage.pageIndexInBatch(),
-                            resultPage.isLastPageInBatch(),
+                            metadata.batchId(),
+                            metadata.pageIndexInBatch(),
+                            metadata.isLastPageInBatch(),
                             resultPage.getPositionCount()
                         );
                         if (resultPage.isBatchMarkerOnly() == false) {
                             allOutputPagesRef.get().add(resultPage);
                         }
-                        if (resultPage.isLastPageInBatch()) {
-                            receivedBatchIds.add(resultPage.batchId());
-                            if (resultPage.batchId() == batchId) {
+                        if (metadata.isLastPageInBatch()) {
+                            receivedBatchIds.add(metadata.batchId());
+                            if (metadata.batchId() == batchId) {
                                 batchComplete = true;
                             }
                         }
@@ -390,7 +392,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // This should throw an IllegalArgumentException because only single-page batches are supported
             logger.debug("[TEST] About to call sendPage with isLastPageInBatch=false");
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
-                client.sendPage(new BatchPage(page, 0, 0, false));  // isLastPageInBatch=false
+                Page pageWithMetadata = page.withBatchMetadata(new BatchMetadata(0, 0, false));  // isLastPageInBatch=false
+                client.sendPage(pageWithMetadata);
             });
             logger.debug("[TEST] Caught expected IllegalArgumentException: {}", error.getMessage());
 
@@ -516,7 +519,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 createdWorkerNodeIds.add(node.getId());
                 listener.onResponse("test-plan");
             } catch (Exception e) {
-                logger.error("[TEST] ServerSetupCallback failed for node={}", node.getId(), e);
+                logger.error("[TEST] ServerSetupCallback failed for node={}: {}", node.getId(), e);
                 listener.onFailure(e);
             }
         };
@@ -677,18 +680,19 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     }
 
                     // Poll pages from the cache - poll ALL available pages
-                    BatchPage resultPage;
+                    Page resultPage;
                     while ((resultPage = client.pollPage()) != null) {
+                        BatchMetadata metadata = resultPage.batchMetadata();
                         logger.debug(
                             "[TEST-CLIENT] Received result page: batchId={}, pageIndex={}, isLast={}, positions={}",
-                            resultPage.batchId(),
-                            resultPage.pageIndexInBatch(),
-                            resultPage.isLastPageInBatch(),
+                            metadata.batchId(),
+                            metadata.pageIndexInBatch(),
+                            metadata.isLastPageInBatch(),
                             resultPage.getPositionCount()
                         );
 
                         // Verify the page belongs to the current batch
-                        assertThat("Result page batchId should match current batch", resultPage.batchId(), equalTo((long) batchId));
+                        assertThat("Result page batchId should match current batch", metadata.batchId(), equalTo((long) batchId));
 
                         // Collect output page for verification (only non-marker pages)
                         if (resultPage.isBatchMarkerOnly() == false) {
@@ -698,7 +702,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                         }
 
                         // Check if this is the last page of the batch
-                        if (resultPage.isLastPageInBatch()) {
+                        if (metadata.isLastPageInBatch()) {
                             batchComplete = true;
                         }
                     }
@@ -1069,7 +1073,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     isLastPageInBatch,
                     page.getPositionCount()
                 );
-                client.sendPage(new BatchPage(page, batchId, pageIdx, isLastPageInBatch));
+                client.sendPage(page.withBatchMetadata(new BatchMetadata(batchId, pageIdx, isLastPageInBatch)));
             }
         }
         batchesSent.incrementAndGet();
@@ -1367,9 +1371,10 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         Map<Long, Integer> expectedNextIndexByBatch = new HashMap<>();
 
         for (Page page : receivedOutputPages) {
-            if (page instanceof BatchPage batchPage) {
-                long batchId = batchPage.batchId();
-                int pageIndex = batchPage.pageIndexInBatch();
+            BatchMetadata metadata = page.batchMetadata();
+            if (metadata != null) {
+                long batchId = metadata.batchId();
+                int pageIndex = metadata.pageIndexInBatch();
 
                 int expectedIndex = expectedNextIndexByBatch.getOrDefault(batchId, 0);
                 assertThat(
@@ -1385,7 +1390,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 );
                 expectedNextIndexByBatch.put(batchId, expectedIndex + 1);
             } else {
-                throw new AssertionError("Expected BatchPage but got " + page.getClass().getSimpleName());
+                throw new AssertionError("Expected page with BatchMetadata but got page without metadata");
             }
         }
 

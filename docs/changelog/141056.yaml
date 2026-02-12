@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 140757
+ - 139359
+pr: 141056
+summary: Remove incorrect inline stats pruning
+type: bug

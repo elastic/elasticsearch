@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.qa.parquet;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 import java.net.URISyntaxException;
 import java.net.URL;
-import org.elasticsearch.core.PathUtils;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;

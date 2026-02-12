@@ -2870,6 +2870,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertPartialTypeKeyword(relation, "partial_type_keyword");
     }
 
+    protected LogicalPlan planUnionIndex(String query) {
+        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(parser.parseQuery(query)));
+    }
+
     public void testInsist_multipleInsistClauses_insistsAreFolded() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 

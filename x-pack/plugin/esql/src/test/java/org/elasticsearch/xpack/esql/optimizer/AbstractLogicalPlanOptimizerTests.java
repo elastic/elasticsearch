@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +66,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Map<String, EsField> metricMapping;
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
+    protected static Analyzer unionIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
     protected static Analyzer subqueryAnalyzer;
     protected static Map<String, EsField> mappingBaseConversion;
@@ -353,6 +356,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planMultiIndex(String query) {
         return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.parseQuery(query)));
+    }
+
+    protected LogicalPlan planUnionIndex(String query) {
+        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(parser.parseQuery(query)));
     }
 
     protected LogicalPlan planSample(String query) {

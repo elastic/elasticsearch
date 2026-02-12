@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -36,10 +37,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -252,59 +256,56 @@ public class DriverTests extends ESTestCase {
     }
 
     public void testServerErrorsAreLoggedAsError() {
-        DriverContext driverContext = driverContext();
-        Driver driver = createFailingDriver(driverContext, new IllegalStateException("simulated compute bug"));
-        try {
-            MockLog.assertThatLogger(
-                () -> expectThrows(
-                    IllegalStateException.class,
-                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
-                ),
-                Driver.class,
-                new MockLog.SeenEventExpectation(
-                    "server failures should be logged at error",
-                    Driver.class.getCanonicalName(),
-                    Level.ERROR,
-                    "*Error running driver [test-task]*"
-                ),
-                new MockLog.UnseenEventExpectation(
-                    "server failures should not be logged at warn",
-                    Driver.class.getCanonicalName(),
-                    Level.WARN,
-                    "*Error running driver [test-task]*"
-                )
-            );
-        } finally {
-            driver.close();
-        }
+        assertFailureLogged(
+            new IllegalStateException("simulated compute bug"),
+            IllegalStateException.class,
+            Level.ERROR,
+            "*Error running driver [test-task]*"
+        );
+        assertFailureLogged(
+            new ArrayIndexOutOfBoundsException("simulated broken invariant"),
+            ArrayIndexOutOfBoundsException.class,
+            Level.ERROR,
+            "*Error running driver [test-task]*"
+        );
+        assertFailureLogged(
+            new RuntimeException(new IOException("io failure")),
+            RuntimeException.class,
+            Level.ERROR,
+            "*Error running driver [test-task]*"
+        );
     }
 
-    public void testClientErrorsAreNotLoggedAsWarnOrError() {
-        DriverContext driverContext = driverContext();
-        Driver driver = createFailingDriver(driverContext, new ElasticsearchStatusException("bad request", RestStatus.BAD_REQUEST));
-        try {
-            MockLog.assertThatLogger(
-                () -> expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
-                ),
-                Driver.class,
-                new MockLog.UnseenEventExpectation(
-                    "client failures should not be logged at warn",
-                    Driver.class.getCanonicalName(),
-                    Level.WARN,
-                    "*running driver [test-task]*"
-                ),
-                new MockLog.UnseenEventExpectation(
-                    "client failures should not be logged at error",
-                    Driver.class.getCanonicalName(),
-                    Level.ERROR,
-                    "*running driver [test-task]*"
-                )
-            );
-        } finally {
-            driver.close();
-        }
+    @TestLogging(reason = "assert DEBUG user-error logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")
+    public void testClientErrorsAreLoggedAsDebug() {
+        assertFailureLogged(
+            new ElasticsearchStatusException("bad request", RestStatus.BAD_REQUEST),
+            ElasticsearchStatusException.class,
+            Level.DEBUG,
+            "*User error running driver [test-task]*"
+        );
+        assertFailureLogged(
+            new IllegalArgumentException("bad argument"),
+            IllegalArgumentException.class,
+            Level.DEBUG,
+            "*User error running driver [test-task]*"
+        );
+        assertFailureLogged(
+            new CircuitBreakingException("too many bytes", CircuitBreaker.Durability.PERMANENT),
+            CircuitBreakingException.class,
+            Level.DEBUG,
+            "*User error running driver [test-task]*"
+        );
+    }
+
+    @TestLogging(reason = "assert DEBUG cancellation logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")
+    public void testTaskCancellationIsLoggedAsDebug() {
+        assertFailureLogged(
+            new TaskCancelledException("cancelled"),
+            TaskCancelledException.class,
+            Level.DEBUG,
+            "*Cancelling running driver [test-task]*"
+        );
     }
 
     private static Driver createDriver(
@@ -349,6 +350,29 @@ public class DriverTests extends ESTestCase {
             }),
             new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
         );
+    }
+
+    private void assertFailureLogged(
+        RuntimeException failure,
+        Class<? extends RuntimeException> expectedExceptionClass,
+        Level expectedLogLevel,
+        String expectedMessagePattern
+    ) {
+        Driver driver = createFailingDriver(driverContext(), failure);
+        try {
+            MockLog.assertThatLogger(
+                () -> expectThrows(expectedExceptionClass, () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)),
+                Driver.class,
+                new MockLog.SeenEventExpectation(
+                    "expected log event for " + failure.getClass().getSimpleName(),
+                    Driver.class.getCanonicalName(),
+                    expectedLogLevel,
+                    expectedMessagePattern
+                )
+            );
+        } finally {
+            driver.close();
+        }
     }
 
     static class NowSupplier implements LongSupplier {

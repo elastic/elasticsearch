@@ -21,7 +21,6 @@ public final class PatchedPForEncodeStage implements TransformEncoder {
     private static final int DEFAULT_MAX_EXCEPTION_PERCENT = 10;
     private static final int HISTOGRAM_SIZE = 65;
     private static final int MIN_EXCEPTIONS = 2;
-    private static final int MAX_EXCEPTIONS = 32;
 
     private final int maxExceptionPercent;
     private final long[] scratchValues = new long[HISTOGRAM_SIZE];
@@ -42,8 +41,7 @@ public final class PatchedPForEncodeStage implements TransformEncoder {
 
     @Override
     public int maxMetadataBytes(int blockSize) {
-        int maxExc = Math.max(MIN_EXCEPTIONS, Math.min(MAX_EXCEPTIONS, (blockSize * maxExceptionPercent) / 100));
-        return 10 + maxExc * 15;
+        return 10 + computeMaxExceptions(blockSize) * 15;
     }
 
     @Override
@@ -122,8 +120,9 @@ public final class PatchedPForEncodeStage implements TransformEncoder {
     }
 
     private int computeMaxExceptions(int valueCount) {
+        int hardCap = valueCount >>> 3;
         int computed = (valueCount * maxExceptionPercent) / 100;
-        return Math.max(MIN_EXCEPTIONS, Math.min(MAX_EXCEPTIONS, computed));
+        return Math.max(MIN_EXCEPTIONS, Math.min(hardCap, computed));
     }
 
     // NOTE: Uses first 65 slots of the scratch array as a bit-width histogram (widths 0..64).

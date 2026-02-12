@@ -164,6 +164,11 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 );
 
                 Model mergedParsedModel = service.get().buildModelFromConfigAndSecrets(mergedModelConfigurations, mergedModelSecrets);
+                if (mergedParsedModel.equals(existingParsedModel)) {
+                    // if there are no changes to the model, return early without updating
+                    listener.onResponse(true);
+                    return;
+                }
 
                 if (isInClusterService(service.get().name())) {
                     updateInClusterEndpoint(request, mergedParsedModel, existingParsedModel, listener);

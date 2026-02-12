@@ -69,8 +69,10 @@ public class TopNBenchmark {
     private static final String BOOLEANS = "booleans";
     private static final String BYTES_REFS = "bytes_refs";
 
-    private static final String ASC = "_ASC";
-    private static final String DESC = "_DESC";
+    private static final String ASC = "_asc";
+    private static final String DESC = "_desc";
+
+    private static final String AND = "_and_";
 
     static {
         LogConfigurator.configureESLogging();
@@ -100,11 +102,11 @@ public class TopNBenchmark {
             DOUBLES + ASC,
             BOOLEANS + ASC,
             BYTES_REFS + ASC,
-            LONGS + ASC + "_and_" + LONGS + ASC,
-            LONGS + ASC + "_and_" + LONGS + DESC,
-            LONGS + DESC + "_and_" + LONGS + DESC,
-            LONGS + ASC + "_and_" + BYTES_REFS + ASC,
-            LONGS + DESC + "_and_" + BYTES_REFS + DESC }
+            LONGS + ASC + AND + LONGS + ASC,
+            LONGS + ASC + AND + LONGS + DESC,
+            LONGS + DESC + AND + LONGS + DESC,
+            LONGS + ASC + AND + BYTES_REFS + ASC,
+            LONGS + DESC + AND + BYTES_REFS + DESC }
     )
     public String data;
 
@@ -121,7 +123,7 @@ public class TopNBenchmark {
     public int topCount;
 
     private static Operator operator(String data, int topCount, boolean sortedInput) {
-        String[] dataSpec = data.split("_AND_");
+        String[] dataSpec = data.split("_and_");
         List<ElementType> elementTypes = Arrays.stream(dataSpec).map(TopNBenchmark::elementType).toList();
         List<TopNEncoder> encoders = Arrays.stream(dataSpec).map(TopNBenchmark::encoder).toList();
         List<TopNOperator.SortOrder> sortOrders = IntStream.range(0, dataSpec.length).mapToObj(c -> sortOrder(c, dataSpec[c])).toList();
@@ -183,7 +185,7 @@ public class TopNBenchmark {
     }
 
     private static Page page(boolean sortedInput, String data) {
-        String[] dataSpec = data.split("_AND_");
+        String[] dataSpec = data.split("_and_");
         return new Page(Arrays.stream(dataSpec).map(d -> block(sortedInput, d)).toArray(Block[]::new));
     }
 
@@ -209,13 +211,13 @@ public class TopNBenchmark {
             }
             case BOOLEANS -> {
                 BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 1).mapToObj(i -> i == 1)).forEach(builder::appendBoolean);
+                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 1).boxed()).forEach(i -> builder.appendBoolean(i == 1));
                 yield builder.build();
             }
             case BYTES_REFS -> {
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).mapToObj(Integer::toString)).forEach(
-                    s -> builder.appendBytesRef(new BytesRef(s))
+                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).boxed()).forEach(
+                    i -> builder.appendBytesRef(new BytesRef(i.toString()))
                 );
                 yield builder.build();
             }
@@ -224,7 +226,8 @@ public class TopNBenchmark {
     }
 
     private static <T extends Comparable<T>> List<T> maybeSort(boolean sortedInput, String data, Stream<T> randomValues) {
-        List<T> values = randomValues.toList();
+        List<T> values = new ArrayList<>();
+        randomValues.forEachOrdered(values::add);
         if (sortedInput) {
             values.sort(Comparator.naturalOrder());
             return ascDesc(data) ? values : values.reversed();

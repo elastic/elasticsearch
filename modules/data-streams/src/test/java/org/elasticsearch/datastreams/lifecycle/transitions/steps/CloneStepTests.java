@@ -125,7 +125,7 @@ public class CloneStepTests extends ESTestCase {
         assertThat(cloneStep.stepName(), equalTo("Clone Index"));
     }
 
-    public void testStepNotCompletedWhenNoCloneIndexCallbackExists() {
+    public void testStepNotCompletedWhenNoCloneIndexExists() {
         ProjectState projectState = createProjectState(indexName, 1, null);
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
@@ -226,7 +226,7 @@ public class CloneStepTests extends ESTestCase {
         assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
 
-    public void testGetCloneIndexCallbackNameIsDeterministic() {
+    public void testGetCloneIndexNameIsDeterministic() {
         String cloneName1 = getDLMCloneIndexName(indexName);
         String cloneName2 = getDLMCloneIndexName(indexName);
         assertThat(cloneName1, equalTo(cloneName2));

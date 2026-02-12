@@ -203,16 +203,11 @@ public class CloneStep implements DlmStep {
             TransportResizeAction.TYPE.name(),
             cloneIndexRequest,
             Strings.format("DLM service encountered an error when trying to clone index [%s]", originalIndex),
-            (req, unused) -> cloneIndexCallback(stepContext.projectId(), cloneIndexRequest, listener, stepContext)
+            (req, unused) -> cloneIndex(stepContext.projectId(), cloneIndexRequest, listener, stepContext)
         );
     }
 
-    private void cloneIndexCallback(
-        ProjectId projectId,
-        ResizeRequest cloneRequest,
-        ActionListener<Void> listener,
-        DlmStepContext stepContext
-    ) {
+    private void cloneIndex(ProjectId projectId, ResizeRequest cloneRequest, ActionListener<Void> listener, DlmStepContext stepContext) {
         assert cloneRequest.indices() != null && cloneRequest.indices().length == 1 : "DLM should clone one index at a time";
         String originalIndex = cloneRequest.getSourceIndex();
         String cloneIndex = cloneRequest.getTargetIndexRequest().index();
@@ -249,11 +244,11 @@ public class CloneStep implements DlmStep {
                 indexToBeForceMerged,
                 originalIndex
             ),
-            (req, unused) -> markIndexToBeForceMergedCallback(markIndexForForceMergeRequest, stepContext, listener)
+            (req, unused) -> markIndexToBeForceMerged(markIndexForForceMergeRequest, stepContext, listener)
         );
     }
 
-    private static void markIndexToBeForceMergedCallback(
+    private static void markIndexToBeForceMerged(
         MarkIndexForDLMForceMergeAction.Request request,
         DlmStepContext stepContext,
         ActionListener<Void> listener
@@ -298,15 +293,11 @@ public class CloneStep implements DlmStep {
             TransportDeleteIndexAction.TYPE.name(),
             deleteIndexRequest,
             Strings.format("DLM service encountered an error trying to delete clone index [%s]", cloneIndex),
-            (req, unused) -> deleteCloneIndexCallback(deleteIndexRequest, stepContext, listener)
+            (req, unused) -> deleteCloneIndex(deleteIndexRequest, stepContext, listener)
         );
     }
 
-    private static void deleteCloneIndexCallback(
-        DeleteIndexRequest deleteIndexRequest,
-        DlmStepContext stepContext,
-        ActionListener<Void> listener
-    ) {
+    private static void deleteCloneIndex(DeleteIndexRequest deleteIndexRequest, DlmStepContext stepContext, ActionListener<Void> listener) {
         String cloneIndex = deleteIndexRequest.indices()[0];
         logger.debug("DLM issuing request to delete index [{}]", cloneIndex);
         stepContext.client()

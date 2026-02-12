@@ -34,12 +34,6 @@ public class MixedbreadRerankServiceSettings extends MixedbreadServiceSettings {
         .setPathSegments(MixedbreadUtils.VERSION_1, MixedbreadUtils.RERANK_PATH);
 
     /**
-     * Free subscription tier 100 req / min
-     * <a href="https://www.mixedbread.com/pricing">Rate Limiting</a>.
-     */
-    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(100);
-
-    /**
      * Creates a new instance of {@link MixedbreadRerankServiceSettings} from a map of settings.
      *
      * @param map the map containing the service settings

@@ -89,13 +89,13 @@ public class MixedbreadRerankRequest implements Request {
 
     @Override
     public Request truncate() {
-        // Not applicable for rerank, only used in text embedding requests
+        // no truncation
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // Not applicable for rerank, only used in text embedding requests
+        // no truncation
         return null;
     }
 

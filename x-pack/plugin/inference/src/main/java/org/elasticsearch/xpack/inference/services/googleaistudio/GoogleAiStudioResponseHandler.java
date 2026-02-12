@@ -88,5 +88,4 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         serverSentEventProcessor.subscribe(googleAiProcessor);
         return new StreamingChatCompletionResults(googleAiProcessor);
     }
-
 }

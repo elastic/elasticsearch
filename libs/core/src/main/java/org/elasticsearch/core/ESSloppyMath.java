@@ -31,4 +31,8 @@ public class ESSloppyMath {
     public static double acosh(double value) {
         return FastMath.acosh(value);
     }
+
+    public static double asinh(double value) {
+        return FastMath.asinh(value);
+    }
 }

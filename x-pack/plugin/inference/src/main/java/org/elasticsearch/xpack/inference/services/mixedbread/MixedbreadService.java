@@ -207,7 +207,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
+        @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
         return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(

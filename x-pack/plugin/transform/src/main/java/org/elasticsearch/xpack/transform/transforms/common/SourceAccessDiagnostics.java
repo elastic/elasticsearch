@@ -54,7 +54,7 @@ final class SourceAccessDiagnostics {
      */
     private static String findClusterSecurityFailure(SearchResponse response) {
         SearchResponse.Clusters clusters = response.getClusters();
-        if (clusters.getTotal() == 0) {
+        if (clusters == null || clusters.getTotal() == 0) {
             return null;
         }
 

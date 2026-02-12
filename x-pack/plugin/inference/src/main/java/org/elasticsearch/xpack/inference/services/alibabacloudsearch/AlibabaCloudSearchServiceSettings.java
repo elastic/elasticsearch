@@ -66,7 +66,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         return new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
     }
 
-    private static void validateHttpSchema(String httpSchema, ValidationException validationException) {
+    static void validateHttpSchema(String httpSchema, ValidationException validationException) {
         if (httpSchema != null && VALID_SCHEMAS.contains(httpSchema) == false) {
             validationException.addValidationError("Invalid value for [http_schema]. Must be one of [https, http]");
         }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -15,8 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -35,9 +34,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +46,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractContent;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getSemanticTextFieldEmbeddingLength;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
 
@@ -349,23 +345,44 @@ public record SemanticTextField(
         return new Chunk(text, -1, -1, chunk.bytesReference());
     }
 
+    private static final VectorSimilarityFunction queryVectorSimilarityFunction = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+
     @Override
-    public VectorData getDocumentVectorForSearchHit(
-        String diversificationField,
-        SearchHit hit,
-        @Nullable InterceptedQueryBuilderWrapper queryWrapper
-    ) {
+    public VectorData getDocumentVectorForSearchHit(String diversificationField, SearchHit hit, @Nullable VectorData queryVector)
+        throws IllegalArgumentException {
         if (this.inference == null || this.inference.chunks() == null) {
             return null;
         }
 
         if (this.inference().modelSettings().taskType() != TaskType.TEXT_EMBEDDING) {
-            return null;
+            throw new IllegalArgumentException(
+                "[semantic_text] field task type must be [text_embedding] when retrieving search hit document vectors."
+            );
+        }
+
+        if (queryVector == null) {
+            throw new IllegalArgumentException(
+                "[query_vector] or [query_vector_builder] must be supplied "
+                    + "when retrieving search hit document vectors for a [semantic_text] field."
+            );
         }
 
         DenseVectorFieldMapper.ElementType elementType = this.inference().modelSettings().elementType();
+
+        boolean useFloatForComparison = queryVector.isFloat();
+        boolean isCompatibleVectors = elementType != null && switch (elementType) {
+            case FLOAT, BFLOAT16 -> useFloatForComparison;
+            case BIT, BYTE -> useFloatForComparison == false;
+        };
+
+        if (isCompatibleVectors == false) {
+            throw new IllegalArgumentException(
+                "supplied query vector is incompatible with search hit document vectors for the [semantic_text] field."
+            );
+        }
+
         Integer dimensions = this.inference().modelSettings().dimensions();
-        if (elementType == null || dimensions == null) {
+        if (dimensions == null) {
             return null;
         }
 
@@ -375,48 +392,31 @@ public record SemanticTextField(
             return null;
         }
 
-        if (queryWrapper != null && queryWrapper.query() instanceof InterceptedInferenceQueryBuilder<?> iiQb) {
-            if (iiQb.originalQuery() instanceof MatchQueryBuilder mqb) {
-                VectorData bestVector = getBestVectorFromMatchQuery(mqb, hit, diversificationField, chunks, embeddingLength, elementType);
-                if (bestVector != null) {
-                    return bestVector;
-                }
+        List<VectorData> chunkVectors = new ArrayList<>();
+        for (Chunk chunk : chunks) {
+            chunkVectors.add(getTextEmbeddingVectorFromChunk(chunk, embeddingLength, contentType, elementType));
+        }
+
+        int bestScoringChunk = 0;
+        float currentHighestScore = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < chunkVectors.size(); i++) {
+            VectorData vector = chunkVectors.get(i);
+            if (vector == null) {
+                continue;
+            }
+            float score = getVectorComparisonScore(vector, queryVector);
+            if (score > currentHighestScore) {
+                bestScoringChunk = i;
+                currentHighestScore = score;
             }
         }
 
-        // nothing to score - just get the first chunk's vector
-        return getTextEmbeddingVectorFromChunk(chunks.getFirst(), embeddingLength, this.contentType(), elementType);
+        return chunkVectors.get(bestScoringChunk);
     }
 
-    private VectorData getBestVectorFromMatchQuery(
-        MatchQueryBuilder mqb,
-        SearchHit hit,
-        String diversificationField,
-        List<Chunk> chunks,
-        int embeddingLength,
-        DenseVectorFieldMapper.ElementType elementType
-    ) {
-        var queryString = mqb.value().toString();
-
-        var documentTextField = hit.field(diversificationField);
-
-        List<String> chunkContent = new ArrayList<>(chunks.size());
-        for (Chunk chunk : chunks) {
-            var chunkText = useLegacyFormat ? chunk.text() : extractContent(chunk.startOffset, chunk.endOffset, documentTextField);
-            chunkContent.add(chunkText == null ? "" : chunkText);
-        }
-
-        MemoryIndexChunkScorer chunkScorer = new MemoryIndexChunkScorer();
-        var scoredChunks = chunkScorer.scoreChunks(chunkContent, queryString, 1, false);
-        if (scoredChunks.isEmpty()) {
-            return null;
-        }
-
-        return getTextEmbeddingVectorFromChunk(
-            chunks.get(scoredChunks.getFirst().chunkIndex()),
-            embeddingLength,
-            this.contentType(),
-            elementType
-        );
+    private float getVectorComparisonScore(VectorData v1, VectorData v2) {
+        return v1.isFloat()
+            ? SemanticTextField.queryVectorSimilarityFunction.compare(v1.floatVector(), v2.floatVector())
+            : SemanticTextField.queryVectorSimilarityFunction.compare(v1.byteVector(), v2.byteVector());
     }
 }

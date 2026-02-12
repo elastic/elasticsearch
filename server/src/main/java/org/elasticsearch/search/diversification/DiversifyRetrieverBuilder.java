@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
-import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -40,7 +39,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -70,16 +68,16 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
     public static final ParseField SIZE_FIELD = new ParseField("size");
 
-    public static class RankDocWithDenseVector extends RankDoc {
-        private final VectorData vector;
+    public static class RankDocWithSearchHit extends RankDoc {
+        private final SearchHit hit;
 
-        public RankDocWithDenseVector(int doc, float score, int shardIndex, @Nullable VectorData vector) {
+        public RankDocWithSearchHit(int doc, float score, int shardIndex, SearchHit hit) {
             super(doc, score, shardIndex);
-            this.vector = vector;
+            this.hit = hit;
         }
 
-        public VectorData vector() {
-            return vector;
+        public SearchHit hit() {
+            return hit;
         }
     }
 
@@ -370,10 +368,15 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         RankDoc[] results = new RankDoc[scoreDocs.length];
         Map<Integer, VectorData> fieldVectors = new HashMap<>();
         for (int i = 0; i < scoreDocs.length; i++) {
-            RankDocWithDenseVector asRankDoc = (RankDocWithDenseVector) scoreDocs[i];
+            RankDocWithSearchHit asRankDoc = (RankDocWithSearchHit) scoreDocs[i];
             results[i] = asRankDoc;
-            if (asRankDoc.vector() != null) {
-                fieldVectors.put(asRankDoc.rank, asRankDoc.vector());
+            try {
+                VectorData vector = getFieldVectorForSearchHit(asRankDoc);
+                if (vector != null) {
+                    fieldVectors.put(asRankDoc.rank, vector);
+                }
+            } catch (IllegalArgumentException e) {
+                throw new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e);
             }
         }
 
@@ -446,52 +449,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected RankDoc createRankDocFromHit(int docId, SearchHit hit, int shardRequestIndex) {
-        // first try and see if it's an inference field
-        VectorData vector = tryGetVectorFromInferenceField(hit);
-
-        if (vector == null) {
-            var field = hit.getFields().getOrDefault(diversificationField, null);
-            if (field != null) {
-                var fieldValue = field.getValues();
-                vector = extractFieldVectorData(fieldValue);
-            }
-        }
-
-        return new RankDocWithDenseVector(docId, hit.getScore(), shardRequestIndex, vector);
-    }
-
-    private VectorData tryGetVectorFromInferenceField(SearchHit hit) {
-        var inferenceFields = hit.getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
-        if (inferenceFields == null) {
-            return null;
-        }
-
-        var fieldValues = inferenceFields.getValues();
-        if (fieldValues == null || fieldValues.isEmpty()) {
-            return null;
-        }
-
-        if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
-            var fieldValue = mappedValues.getOrDefault(diversificationField, null);
-            if (fieldValue instanceof ResultDiversificationDenseVectorSupplier vectorSupplier) {
-
-                InterceptedQueryBuilderWrapper interceptedWrapper = null;
-                var innerRetriever = this.innerRetrievers.getFirst();
-                var retrieverSource = innerRetriever.source();
-                if (retrieverSource != null && retrieverSource.subSearches().isEmpty() == false) {
-                    for (var entry : retrieverSource.subSearches()) {
-                        if (entry.getQueryBuilder() instanceof InterceptedQueryBuilderWrapper iqbw) {
-                            interceptedWrapper = iqbw;
-                            break;
-                        }
-                    }
-                }
-
-                return vectorSupplier.getDocumentVectorForSearchHit(diversificationField, hit, interceptedWrapper);
-            }
-        }
-
-        return null;
+        return new RankDocWithSearchHit(docId, hit.getScore(), shardRequestIndex, hit);
     }
 
     @Override
@@ -506,12 +464,74 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);
     }
 
+    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc) throws IllegalArgumentException {
+        // first try and see if it's an inference field
+        VectorData vector = tryGetVectorFromInferenceField(doc.hit);
+        if (vector != null) {
+            return vector;
+        }
+
+        var field = doc.hit.getFields().getOrDefault(diversificationField, null);
+        return field == null ? null : extractFieldVectorData(field.getValues());
+    }
+
+    private VectorData tryGetVectorFromInferenceField(SearchHit hit) throws IllegalArgumentException {
+        var inferenceFields = hit.getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
+        if (inferenceFields == null) {
+            return null;
+        }
+
+        var fieldValues = inferenceFields.getValues();
+        if (fieldValues == null || fieldValues.isEmpty()) {
+            return null;
+        }
+
+        if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
+            var fieldValue = mappedValues.getOrDefault(diversificationField, null);
+            if (fieldValue instanceof ResultDiversificationDenseVectorSupplier vectorSupplier) {
+                // we can rely on the fact that the query vector here is realized from the rewrite above
+                return vectorSupplier.getDocumentVectorForSearchHit(
+                    diversificationField,
+                    hit,
+                    queryVector == null ? null : queryVector.get()
+                );
+            }
+        }
+
+        return null;
+    }
+
     private VectorData extractFieldVectorData(Object fieldValue) {
         if (fieldValue == null) {
             return null;
         }
 
-        switch (fieldValue) {
+        var thisFieldValue = fieldValue;
+
+        if (fieldValue instanceof List<?> asList && asList.isEmpty() == false) {
+            if (asList.getFirst().getClass().isArray()) {
+                // if it's a multivalued field, get the first value
+                thisFieldValue = asList.getFirst();
+            } else {
+                thisFieldValue = asList.toArray();
+            }
+        }
+
+        if (thisFieldValue instanceof Object[] objectArray) {
+            if (objectArray.length == 0) {
+                return null;
+            }
+
+            if (objectArray[0] instanceof Byte) {
+                thisFieldValue = Arrays.stream(objectArray).map(x -> (Byte) x).toArray(Byte[]::new);
+            }
+
+            if (objectArray[0] instanceof Float) {
+                thisFieldValue = Arrays.stream(objectArray).map(x -> (Float) x).toArray(Float[]::new);
+            }
+        }
+
+        switch (thisFieldValue) {
             case float[] floatArray -> {
                 return new VectorData(floatArray);
             }
@@ -525,37 +545,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 return new VectorData(unboxedByteArray(boxedByteArray));
             }
             default -> {
-            }
-        }
-
-        // could be an array list... let's make sure
-        if (fieldValue instanceof ArrayList<?> asArrayList && asArrayList.isEmpty() == false) {
-            Object firstElement = asArrayList.getFirst();
-            if (firstElement instanceof Float asFloat) {
-                var asFloatArray = asArrayList.toArray(new Float[0]);
-                return new VectorData(unboxedFloatArray(asFloatArray));
-            }
-            if (firstElement instanceof Byte) {
-                var asByteArray = asArrayList.toArray(new Byte[0]);
-                return new VectorData(unboxedByteArray(asByteArray));
-            }
-        }
-
-        // CCS search returns a generic Object[] array, so we must
-        // examine the individual element type here.
-        if (fieldValue instanceof Object[] objectArray) {
-            if (objectArray.length == 0) {
-                return null;
-            }
-
-            if (objectArray[0] instanceof Byte) {
-                Byte[] asByteArray = Arrays.stream(objectArray).map(x -> (Byte) x).toArray(Byte[]::new);
-                return new VectorData(unboxedByteArray(asByteArray));
-            }
-
-            if (objectArray[0] instanceof Float) {
-                Float[] asFloatArray = Arrays.stream(objectArray).map(x -> (Float) x).toArray(Float[]::new);
-                return new VectorData(unboxedFloatArray(asFloatArray));
             }
         }
 

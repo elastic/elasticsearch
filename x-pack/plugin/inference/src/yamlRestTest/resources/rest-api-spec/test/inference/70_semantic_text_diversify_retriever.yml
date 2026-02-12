@@ -188,6 +188,7 @@ setup:
               field: "content"
               lambda: 0.9
               size: 3
+              query_vector: [ 0.4, 0.2, 0.3, 0.3 ]
               retriever:
                 standard:
                   query:
@@ -197,14 +198,61 @@ setup:
 
   - match: { hits.total.value: 8 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source.id: 8001870 }
-  - match: { hits.hits.1._source.id: 7130104 }
-  - match: { hits.hits.2._source.id: 7130867 }
+  - match: { hits.hits.0._source.id: 7130104 }
+  - match: { hits.hits.1._source.id: 7130867 }
+  - match: { hits.hits.2._source.id: 7130674 }
+
+---
+"Validate diversification must have a query vector or builder":
+  - do:
+      catch: /\[query_vector\] or \[query_vector_builder\] must be supplied when retrieving search hit document vectors for a \[semantic_text\] field./
+      search:
+        index: test-result-diversification-semantic-text-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "content"
+              lambda: 0.9
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    match:
+                      content:
+                        query: "What causes muscle soreness after running?"
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+
+---
+"Validate diversification must have compatible query vector format":
+  - do:
+      catch: /supplied query vector is incompatible with search hit document vectors for the \[semantic_text\] field./
+      search:
+        index: test-result-diversification-semantic-text-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "content"
+              lambda: 0.9
+              size: 3
+              query_vector: "7e7e"
+              retriever:
+                standard:
+                  query:
+                    match:
+                      content:
+                        query: "What causes muscle soreness after running?"
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
 
 ---
 "Validate diversification does not work with sparse vector data":
   - do:
-      catch: /Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
+      catch: /\[semantic_text\] field task type must be \[text_embedding\] when retrieving search hit document vectors/
       search:
         index: test-result-diversification-sparse-semantic-text-index
         body:

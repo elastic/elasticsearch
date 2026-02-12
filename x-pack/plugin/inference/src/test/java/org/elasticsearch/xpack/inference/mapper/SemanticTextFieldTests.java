@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
-import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -29,7 +27,6 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -42,7 +39,6 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
-import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +48,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
@@ -196,23 +191,43 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
-    public void testGetVectorFromSearchHitBasic() throws IOException {
+    public void testGetVectorFromSearchHit() throws IOException {
         for (int i = 0; i < 10; i++) {
             Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
             DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+            int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
 
             List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
             var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
-            var firstEmbedding = inferenceResults.chunks().getFirst().embedding();
 
-            var firstVector = switch (firstEmbedding) {
-                case EmbeddingFloatResults.Embedding efr -> new VectorData(efr.values());
-                case EmbeddingByteResults.Embedding ebr -> new VectorData(ebr.values());
-                default -> {
-                    fail("invalid embedding type: " + firstEmbedding.getClass());
-                    yield null;
-                }
+            List<VectorData> chunkVectors = new ArrayList<>();
+            for (EmbeddingResults.Chunk chunk : inferenceResults.chunks()) {
+                VectorData thisVector = switch (chunk.embedding()) {
+                    case EmbeddingFloatResults.Embedding efr -> new VectorData(efr.values());
+                    case EmbeddingByteResults.Embedding ebr -> new VectorData(ebr.values());
+                    default -> throw new IllegalStateException("Unexpected value: " + chunk.embedding().getClass());
+                };
+                chunkVectors.add(thisVector);
+            }
+
+            var queryVector = switch (elementType) {
+                case FLOAT, BFLOAT16 -> new VectorData(randomFloatVectorOfLength(embeddingLength));
+                case BIT, BYTE -> new VectorData(randomByteArrayOfLength(embeddingLength));
             };
+
+            VectorSimilarityFunction vectorComparison = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+
+            int bestVector = 0;
+            float bestScore = Float.NEGATIVE_INFINITY;
+            for (int v = 0; v < chunkVectors.size(); v++) {
+                float score = queryVector.isFloat()
+                    ? vectorComparison.compare(chunkVectors.get(v).floatVector(), queryVector.floatVector())
+                    : vectorComparison.compare(chunkVectors.get(v).byteVector(), queryVector.byteVector());
+                if (score > bestScore) {
+                    bestVector = v;
+                    bestScore = score;
+                }
+            }
 
             var field = semanticTextFieldFromChunkedInferenceResults(
                 useLegacyFormat,
@@ -225,47 +240,88 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             );
 
             var searchHit = new SearchHit(1);
-            var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, null);
+            var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, queryVector);
             searchHit.decRef();
 
-            assertEquals(firstVector, vector);
+            assertEquals(chunkVectors.get(bestVector), vector);
         }
     }
 
-    public void testGetVectorFromSearchHitWithMatchQuery() throws IOException {
-        for (int i = 0; i < 10; i++) {
-            Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-            DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
-            int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+    public void testGetVectorFromSearchHitInvalidForSparseEmbedding() throws IOException {
+        Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
 
-            String documentText = generateRandomDocumentText();
-            List<String> inputs = getChunksForTextInput(documentText, randomIntBetween(3, 10));
-            var contentType = randomFrom(XContentType.values());
-            var field = randomSemanticText(useLegacyFormat, "testfield", model, generateRandomChunkingSettings(), inputs, contentType);
+        List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
+        var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
 
-            var matchChunk = inputs.get(randomIntBetween(0, inputs.size() - 1));
-            var matchChunkTerms = matchChunk.split(" ");
-            var queryPhrase = matchChunkTerms[randomIntBetween(0, matchChunkTerms.length - 1)];
-            var chunkInputs = useLegacyFormat ? inputs : getChunkInputsFromField(documentText, field);
+        var field = semanticTextFieldFromChunkedInferenceResults(
+            useLegacyFormat,
+            "testfield",
+            model,
+            generateRandomChunkingSettings(),
+            inputs,
+            inferenceResults,
+            randomFrom(XContentType.values())
+        );
 
-            MemoryIndexChunkScorer chunkScorer = new MemoryIndexChunkScorer();
-            var scoredChunks = chunkScorer.scoreChunks(chunkInputs, queryPhrase, 1, false);
-            var whichScoredChunk = scoredChunks.isEmpty() ? 0 : scoredChunks.getFirst().chunkIndex();
-            var matchedVector = getTextEmbeddingVectorFromChunk(
-                field.inference().chunks().get("testfield").get(whichScoredChunk),
-                embeddingLength,
-                contentType,
-                elementType
+        var searchHit = new SearchHit(1);
+        try {
+            var ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> { field.getDocumentVectorForSearchHit("testfield", searchHit, null); }
+            );
+            assertEquals(
+                "[semantic_text] field task type must be [text_embedding] when retrieving search hit document vectors.",
+                ex.getMessage()
+            );
+        } finally {
+            searchHit.decRef();
+        }
+    }
+
+    public void testGetVectorFromSearchHitInvalidQueryVector() throws IOException {
+        Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+
+        List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
+        var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
+
+        var field = semanticTextFieldFromChunkedInferenceResults(
+            useLegacyFormat,
+            "testfield",
+            model,
+            generateRandomChunkingSettings(),
+            inputs,
+            inferenceResults,
+            randomFrom(XContentType.values())
+        );
+
+        var searchHit = new SearchHit(1);
+        try {
+            var exMissingQueryVector = expectThrows(IllegalArgumentException.class, () -> {
+                field.getDocumentVectorForSearchHit("testfield", searchHit, null);
+            });
+            assertEquals(
+                "[query_vector] or [query_vector_builder] must be supplied "
+                    + "when retrieving search hit document vectors for a [semantic_text] field.",
+                exMissingQueryVector.getMessage()
             );
 
-            var searchHit = new SearchHit(1);
-            searchHit.setDocumentField(new DocumentField("testfield", List.of(documentText)));
-            var matchQuery = new MatchQueryBuilder("testfield", queryPhrase);
-            var queryWrapper = new InterceptedQueryBuilderWrapper(new InterceptedInferenceMatchQueryBuilder(matchQuery));
-            var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, queryWrapper);
-            searchHit.decRef();
+            var incompatibleQueryVector = switch (elementType) {
+                case FLOAT, BFLOAT16 -> new VectorData(randomByteArrayOfLength(embeddingLength));
+                case BIT, BYTE -> new VectorData(randomFloatVectorOfLength(embeddingLength));
+            };
 
-            assertEquals(matchedVector, vector);
+            var exIncompatibleQueryVector = expectThrows(IllegalArgumentException.class, () -> {
+                field.getDocumentVectorForSearchHit("testfield", searchHit, incompatibleQueryVector);
+            });
+            assertEquals(
+                "supplied query vector is incompatible with search hit document vectors for the [semantic_text] field.",
+                exIncompatibleQueryVector.getMessage()
+            );
+        } finally {
+            searchHit.decRef();
         }
     }
 

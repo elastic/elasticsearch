@@ -325,6 +325,20 @@ a:double | acosh:double
 // end::acosh-result[]
 ;
 
+asinh
+required_capability: asinh_function
+// tag::asinh[]
+ROW a=1.8
+| EVAL asinh=ASINH(a)
+// end::asinh[]
+;
+
+// tag::asinh-result[]
+a:double | asinh:double
+     1.8 | 1.3504407402749725
+// end::asinh-result[]
+;
+
 sin
 // tag::sin[]
 ROW a=1.8

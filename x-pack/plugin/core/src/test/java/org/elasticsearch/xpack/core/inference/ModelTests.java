@@ -135,31 +135,33 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
             var dimensionsValue = serviceSettings.getOrDefault("dimensions", this.dimensions());
             var similarityValue = serviceSettings.get("similarity");
             SimilarityMeasure similarityEnumValue = null;
-            if (similarityValue != null) {
-                if (similarityValue instanceof String == false) {
+            if (similarityValue == null) {
+                similarityEnumValue = this.similarity();
+            } else {
+                if (similarityValue instanceof String stringSimilarityValue) {
+                    try {
+                        similarityEnumValue = SimilarityMeasure.fromString(stringSimilarityValue);
+                    } catch (IllegalArgumentException e) {
+                        validationException.addValidationError("Invalid value for service setting [similarity]: " + similarityValue);
+                    }
+                } else {
                     validationException.addValidationError("Expected service setting [similarity] to be of type String");
                 }
-                try {
-                    similarityEnumValue = SimilarityMeasure.fromString((String) similarityValue);
-                } catch (IllegalArgumentException e) {
-                    validationException.addValidationError("Invalid value for service setting [similarity]: " + similarityValue);
-                }
-            } else {
-                similarityEnumValue = this.similarity();
             }
             var elementTypeValue = serviceSettings.get("element_type");
             DenseVectorFieldMapper.ElementType elementTypeEnumValue = null;
-            if (elementTypeValue != null) {
-                if (elementTypeValue instanceof String == false) {
+            if (elementTypeValue == null) {
+                elementTypeEnumValue = this.elementType();
+            } else {
+                if (elementTypeValue instanceof String stringElementTypeValue) {
+                    try {
+                        elementTypeEnumValue = DenseVectorFieldMapper.ElementType.fromString(stringElementTypeValue);
+                    } catch (IllegalArgumentException e) {
+                        validationException.addValidationError("Invalid value for service setting [element_type]: " + elementTypeValue);
+                    }
+                } else {
                     validationException.addValidationError("Expected service setting [element_type] to be of type String");
                 }
-                try {
-                    elementTypeEnumValue = DenseVectorFieldMapper.ElementType.fromString((String) elementTypeValue);
-                } catch (IllegalArgumentException e) {
-                    validationException.addValidationError("Invalid value for service setting [element_type]: " + elementTypeValue);
-                }
-            } else {
-                elementTypeEnumValue = this.elementType();
             }
             validationException.throwIfValidationErrorsExist();
             return new TestServiceSettings((String) modelValue, (Integer) dimensionsValue, similarityEnumValue, elementTypeEnumValue);

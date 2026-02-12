@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
@@ -247,7 +248,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
                     var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
                     var reductionPlan = ComputeService.reductionPlan(
-                        EsqlTestUtils.TEST_PLANNER_SETTINGS,
+                        PlannerSettings.DEFAULTS,
                         new EsqlFlags(false),
                         conf,
                         conf.newFoldContext(),
@@ -270,7 +271,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     }
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                         var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        switch (reductionPlan.nodeReduceLocalPhysicalOptimization()) {
+                        switch (reductionPlan.localPhysicalOptimization()) {
                             // If there is no local node-reduce physical optimization, there's nothing to verify!
                             case DISABLED -> {
                                 result.add(
@@ -287,7 +288,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                                 var finalizedResult = new ReductionPlan(
                                     (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), conf),
                                     (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), conf),
-                                    reductionPlan.nodeReduceLocalPhysicalOptimization()
+                                    reductionPlan.localPhysicalOptimization()
                                 );
                                 result.addAll(
                                     addDualPlanResult(
@@ -368,7 +369,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private PhysicalPlan localOptimize(PhysicalPlan plan, Configuration conf) {
             return PlannerUtils.localPlan(
-                EsqlTestUtils.TEST_PLANNER_SETTINGS,
+                PlannerSettings.DEFAULTS,
                 new EsqlFlags(false),
                 conf,
                 conf.newFoldContext(),

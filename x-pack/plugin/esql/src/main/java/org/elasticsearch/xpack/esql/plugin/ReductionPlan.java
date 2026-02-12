@@ -21,7 +21,7 @@ public record ReductionPlan(
     ExchangeSinkExec nodeReducePlan,
     ExchangeSinkExec dataNodePlan,
     // TODO This should always be DISABLED; see https://github.com/elastic/elasticsearch/issues/142392.
-    LocalPhysicalOptimization nodeReduceLocalPhysicalOptimization
+    LocalPhysicalOptimization localPhysicalOptimization
 ) {
     public ReductionPlan withoutLocalPhysicalOptimization() {
         return new ReductionPlan(nodeReducePlan, dataNodePlan, LocalPhysicalOptimization.DISABLED);

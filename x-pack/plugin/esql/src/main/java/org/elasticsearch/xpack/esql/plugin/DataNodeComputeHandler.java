@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -350,6 +351,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     parentTask,
                                     computeContext,
                                     request.plan(),
+                                    computeService.plannerSettings().get(),
                                     LocalPhysicalOptimization.ENABLED,
                                     planTimeProfile,
                                     sub.acquireCompute()
@@ -372,6 +374,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             parentTask,
                             computeContext,
                             request.plan(),
+                            computeService.plannerSettings().get(),
                             LocalPhysicalOptimization.ENABLED,
                             planTimeProfile,
                             batchListener
@@ -479,10 +482,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         CancellableTask task,
         String externalId,
         PhysicalPlan reducePlan,
-        LocalPhysicalOptimization nodeReduceLocalPhysicalOptimization,
+        LocalPhysicalOptimization localPhysicalOptimization,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,
+        PlannerSettings plannerSettings,
         PlanTimeProfile planTimeProfile,
         ActionListener<DataNodeComputeResponse> listener
     ) {
@@ -541,7 +545,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
-                    nodeReduceLocalPhysicalOptimization,
+                    plannerSettings,
+                    localPhysicalOptimization,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
@@ -577,7 +582,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
-                computeService.plannerSettings(),
+                computeService.plannerSettings().get(),
                 computeService.createFlags(),
                 configuration,
                 configuration.newFoldContext(),
@@ -610,10 +615,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             (CancellableTask) task,
             sessionId,
             reductionPlan.nodeReducePlan(),
-            reductionPlan.nodeReduceLocalPhysicalOptimization(),
+            reductionPlan.localPhysicalOptimization(),
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,
+            computeService.plannerSettings().get(),
             planTimeProfile,
             ActionListener.releaseAfter(listener, computeSearchContexts)
         );

@@ -148,7 +148,7 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-    private final PlannerSettings plannerSettings;
+    private final PlannerSettings.Holder plannerSettings;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -190,7 +190,7 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
     }
 
-    PlannerSettings plannerSettings() {
+    PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
 
@@ -288,6 +288,7 @@ public class ComputeService {
                     rootTask,
                     computeContext,
                     mainPlan,
+                    plannerSettings.get(),
                     LocalPhysicalOptimization.ENABLED,
                     planTimeProfile,
                     localListener.acquireCompute()
@@ -398,6 +399,7 @@ public class ComputeService {
                     rootTask,
                     computeContext,
                     coordinatorPlan,
+                    plannerSettings.get(),
                     LocalPhysicalOptimization.ENABLED,
                     planTimeProfile,
                     computeListener.acquireCompute()
@@ -482,6 +484,7 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        plannerSettings.get(),
                         LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
                         localListener.acquireCompute()
@@ -657,6 +660,7 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
+        PlannerSettings plannerSettings,
         LocalPhysicalOptimization localPhysicalOptimization,
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener

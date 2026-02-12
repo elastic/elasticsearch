@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.xpack.core.analytics.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Releasables;

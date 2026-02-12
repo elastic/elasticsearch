@@ -110,7 +110,7 @@ public class MixedbreadRerankResponseEntity {
                     item -> new RankedDocsResults.RankedDoc(
                         item.index(),
                         item.relevanceScore(),
-                        item.document() != null ? item.document() : null
+                        item.document()
                     )
                 )
                 .toList();

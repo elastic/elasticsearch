@@ -65,8 +65,6 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private static final Logger logger = LogManager.getLogger(PrometheusRemoteWriteTransportAction.class);
 
     private static final String METRIC_NAME_LABEL = "__name__";
-    private static final String DYNAMIC_TEMPLATE_COUNTER = "counter";
-    private static final String DYNAMIC_TEMPLATE_GAUGE = "gauge";
     private static final String METRICS_DATA_STREAM_PREFIX = "metrics-";
 
     private final Client client;
@@ -109,17 +107,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                     continue;
                 }
 
-                String dynamicTemplate = inferMetricType(metricName);
-
                 for (Sample sample : timeSeries.getSamplesList()) {
-                    IndexRequest indexRequest = buildIndexRequest(
-                        timeSeries,
-                        sample,
-                        metricName,
-                        dynamicTemplate,
-                        request.dataset,
-                        request.namespace
-                    );
+                    IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, request.dataset, request.namespace);
                     bulkRequestBuilder.add(indexRequest);
                 }
             }
@@ -173,29 +162,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         return null;
     }
 
-    /**
-     * Infers the metric type based on naming conventions.
-     * Metrics ending with "_total", "_bucket", "_count", or "_sum" are treated as counters,
-     * all other metrics are gauges.
-     */
-    static String inferMetricType(String metricName) {
-        if (metricName.endsWith("_total")
-            || metricName.endsWith("_bucket")
-            || metricName.endsWith("_count")
-            || metricName.endsWith("_sum")) {
-            return DYNAMIC_TEMPLATE_COUNTER;
-        }
-        return DYNAMIC_TEMPLATE_GAUGE;
-    }
-
-    private IndexRequest buildIndexRequest(
-        TimeSeries timeSeries,
-        Sample sample,
-        String metricName,
-        String dynamicTemplate,
-        String dataset,
-        String namespace
-    ) throws IOException {
+    private IndexRequest buildIndexRequest(TimeSeries timeSeries, Sample sample, String metricName, String dataset, String namespace)
+        throws IOException {
         try (XContentBuilder builder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             builder.startObject();
 
@@ -216,17 +184,16 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 builder.field(label.getName(), label.getValue());
             }
             builder.endObject();
+            builder.startObject("metrics");
 
             // metric value - field named after the metric
             builder.field(metricName, sample.getValue());
 
             builder.endObject();
+            builder.endObject();
 
             String targetIndex = METRICS_DATA_STREAM_PREFIX + fullDataset + "-" + namespace;
-            return new IndexRequest(targetIndex).opType(DocWriteRequest.OpType.CREATE)
-                .setRequireDataStream(true)
-                .source(builder)
-                .setDynamicTemplates(Map.of(metricName, dynamicTemplate));
+            return new IndexRequest(targetIndex).opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(builder);
         }
     }
 

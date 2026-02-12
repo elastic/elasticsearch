@@ -33,7 +33,6 @@ import java.util.List;
  */
 public class MemoryIndexChunkScorer {
 
-    private static final String CHUNK_INDEX_FIELD = "chunk_index";
     private static final String CONTENT_FIELD = "content";
 
     private final StandardAnalyzer analyzer;

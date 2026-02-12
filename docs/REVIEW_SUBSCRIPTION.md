@@ -1,6 +1,6 @@
-# Review Subscription Guide for elastic/elasticsearch
+# Review Subscription Guide
 
-This guide explains how to subscribe to code reviews in the elastic/elasticsearch repository.
+This guide explains how to subscribe to code reviews in the Elasticsearch repository.
 
 ## For Contributors
 

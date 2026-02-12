@@ -219,7 +219,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
          * ref-counting for eviction safety. Only use this method when the
          * segment is known to be long-lived (e.g. whole-file mmap).
          */
-        protected MemorySegment rawMemorySegment() {
+        protected final MemorySegment rawMemorySegment() {
             return memorySegment;
         }
 

@@ -79,7 +79,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     // * 16 bytes: min / max value,
     // * 8 bytes: min / max docID
     // * 4 bytes: number of documents
-    private static final long SKIP_INDEX_INTERVAL_BYTES = 29L;
+    // * 8 bytes: value count
+    private static final long SKIP_INDEX_INTERVAL_BYTES = 37L;
     // number of intervals represented as a shift to create a new level, this is 1 << 3 == 8
     // intervals.
     static final int SKIP_INDEX_LEVEL_SHIFT = 3;

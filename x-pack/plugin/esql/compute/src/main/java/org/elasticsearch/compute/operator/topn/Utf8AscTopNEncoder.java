@@ -22,15 +22,18 @@ import java.util.Arrays;
  *     we decode we undo out munging so all consumers just get normal utf-8.
  * </p>
  */
-final class UTF8TopNEncoder extends SortableTopNEncoder {
-
-    private static final int CONTINUATION_BYTE = 0b1000_0000;
+final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
+    static final int CONTINUATION_BYTE = 0b1000_0000;
     static final byte TERMINATOR = 0x00;
 
+    private final Utf8DescTopNEncoder descEncoder = new Utf8DescTopNEncoder(this);
+
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        // add one bit to every byte so that there are no "0" bytes in the provided bytes. The only "0" bytes are
-        // those defined as separators
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+        /*
+         * add one to every non-continuation byte so that there are no "0" bytes
+         * in the encoded copy. The only "0" bytes are separators.
+         */
         int end = value.offset + value.length;
         for (int i = value.offset; i < end; i++) {
             byte b = value.bytes[i];
@@ -40,14 +43,12 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
             bytesRefBuilder.append(b);
         }
         bytesRefBuilder.append(TERMINATOR);
-        return value.length + 1;
     }
 
     @Override
     public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
         scratch.bytes = bytes.bytes;
         scratch.offset = bytes.offset;
-        scratch.length = 0;
         int i = bytes.offset;
         decode: while (true) {
             int leadByte = bytes.bytes[i] & 0xff;
@@ -79,8 +80,8 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return this;
+    public TopNEncoder toSortable(boolean asc) {
+        return asc ? this : descEncoder;
     }
 
     @Override
@@ -90,7 +91,7 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "UTF8TopNEncoder";
+        return "Utf8Asc";
     }
 
     // This section very inspired by Lucene's UnicodeUtil

@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -132,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -9112,6 +9114,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
         assertThat(randomSampling.probability(), equalTo(0.1));
         assertThat(randomSampling.hash(), equalTo(0));
+    }
+
+    public void testReductionPlanForMetricsInfoReturnsNoReduction() {
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of()
+        );
+        MetricsInfo metricsInfo = new MetricsInfo(Source.EMPTY, esRelation);
+
+        FragmentExec fragment = new FragmentExec(metricsInfo);
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
+
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
     }
 
     @SuppressWarnings("SameParameterValue")

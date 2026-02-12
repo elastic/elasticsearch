@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -154,6 +155,10 @@ public class PlannerUtils {
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            // MetricsInfoExec(INITIAL) requires shard-level access (_doc) to extract _tsid and _timeseries_metadata.
+            // It cannot run on a reduce node that reads from an exchange (no _doc available).
+            // Unlike AggregateExec, MetricsInfo has no INTERMEDIATE mode, so we skip node-level reduction entirely.
+            case MetricsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }

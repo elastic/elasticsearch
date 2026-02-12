@@ -81,7 +81,7 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     protected NodeInfo<MetricsInfo> info() {
-        return NodeInfo.create(this, MetricsInfo::new, child(), attributes);
+        return NodeInfo.create(this, MetricsInfo::new, child());
     }
 
     @Override

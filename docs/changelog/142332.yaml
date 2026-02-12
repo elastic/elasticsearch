@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 142329
+pr: 142332
+summary: Fix bug with multiple spatial aggs filtering in ES|QL
+type: bug

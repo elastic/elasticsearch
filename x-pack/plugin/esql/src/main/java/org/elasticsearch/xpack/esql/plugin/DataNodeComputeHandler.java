@@ -350,7 +350,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     parentTask,
                                     computeContext,
                                     request.plan(),
-                                    NodeReduceLocalPhysicalOptimization.ENABLED,
+                                    LocalPhysicalOptimization.ENABLED,
                                     planTimeProfile,
                                     sub.acquireCompute()
                                 );
@@ -372,7 +372,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             parentTask,
                             computeContext,
                             request.plan(),
-                            NodeReduceLocalPhysicalOptimization.ENABLED,
+                            LocalPhysicalOptimization.ENABLED,
                             planTimeProfile,
                             batchListener
                         );
@@ -479,7 +479,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         CancellableTask task,
         String externalId,
         PhysicalPlan reducePlan,
-        NodeReduceLocalPhysicalOptimization nodeReduceLocalPhysicalOptimization,
+        LocalPhysicalOptimization nodeReduceLocalPhysicalOptimization,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,

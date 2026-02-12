@@ -288,7 +288,7 @@ public class ComputeService {
                     rootTask,
                     computeContext,
                     mainPlan,
-                    NodeReduceLocalPhysicalOptimization.ENABLED,
+                    LocalPhysicalOptimization.ENABLED,
                     planTimeProfile,
                     localListener.acquireCompute()
                 );
@@ -398,7 +398,7 @@ public class ComputeService {
                     rootTask,
                     computeContext,
                     coordinatorPlan,
-                    NodeReduceLocalPhysicalOptimization.ENABLED,
+                    LocalPhysicalOptimization.ENABLED,
                     planTimeProfile,
                     computeListener.acquireCompute()
                 );
@@ -482,7 +482,7 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
-                        NodeReduceLocalPhysicalOptimization.ENABLED,
+                        LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
                         localListener.acquireCompute()
                     );
@@ -657,7 +657,7 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
-        NodeReduceLocalPhysicalOptimization nodeReduceLocalPhysicalOptimization,
+        LocalPhysicalOptimization localPhysicalOptimization,
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
@@ -690,7 +690,7 @@ public class ComputeService {
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
-            var localPlan = switch (nodeReduceLocalPhysicalOptimization) {
+            var localPlan = switch (localPhysicalOptimization) {
                 case ENABLED -> PlannerUtils.localPlan(
                     plannerSettings,
                     context.flags(),
@@ -790,11 +790,7 @@ public class ComputeService {
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        ReductionPlan defaultResult = new ReductionPlan(
-            originalPlan.replaceChild(source),
-            originalPlan,
-            NodeReduceLocalPhysicalOptimization.ENABLED
-        );
+        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan, LocalPhysicalOptimization.ENABLED);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return defaultResult;
         }
@@ -802,24 +798,21 @@ public class ComputeService {
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
             originalPlan,
-            NodeReduceLocalPhysicalOptimization.ENABLED
+            LocalPhysicalOptimization.ENABLED
         );
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
-                // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
-                // we also need the original plan, since we add the project in the reduction node.
+                // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
+                // aggregations, we also need the original plan, since we add the project in the reduction node.
                 LateMaterializationPlanner.planReduceDriverTopN(
                     stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
                     originalPlan
                 )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
                     .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : defaultResult);
-            case PlannerUtils.TopNReduction topN when runNodeLevelReduction ->
-                // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
-                // preplan in advance, including all the necessary field extractions!
-                placePlanBetweenExchanges.apply(topN.plan()).withoutNodeReduceLocalPhysicalOptimization();
+            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> defaultResult;
         };

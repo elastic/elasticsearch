@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 /** This class is {@code public} for testing. */
-public enum NodeReduceLocalPhysicalOptimization {
+public enum LocalPhysicalOptimization {
     ENABLED,
     DISABLED
 }

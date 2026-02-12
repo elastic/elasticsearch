@@ -68,7 +68,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtraFS can create extraneous files in the output directory.
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtrasFS can create extraneous files in the output directory.
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
     private final Path baseFile;
@@ -273,9 +273,15 @@ public abstract class GoldenTestCase extends ESTestCase {
                         switch (reductionPlan.nodeReduceLocalPhysicalOptimization()) {
                             // If there is no local node-reduce physical optimization, there's nothing to verify!
                             case DISABLED -> {
-                                var foo = localOptimize(reductionPlan.dataNodePlan(), conf);
-                                var bar = verifyOrWrite(foo, outputPath(dualFileOutput.dataNodeOutput()));
-                                result.add(Tuple.tuple(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION, bar));
+                                result.add(
+                                    Tuple.tuple(
+                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                        verifyOrWrite(
+                                            localOptimize(reductionPlan.dataNodePlan(), conf),
+                                            outputPath(dualFileOutput.dataNodeOutput())
+                                        )
+                                    )
+                                );
                             }
                             case ENABLED -> {
                                 var finalizedResult = new ReductionPlan(
@@ -452,6 +458,7 @@ public abstract class GoldenTestCase extends ESTestCase {
          * A combination of {@link Stage#NODE_REDUCE} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
          * reduce and data node plans, and then perform local physical optimization on both.
          */
+        // TODO should result in only one plan, see https://github.com/elastic/elasticsearch/issues/142392.
         NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(
             new DualFileOutput("local_reduce_physical_optimization_reduce_driver", "local_reduce_physical_optimization_data_driver")
         );

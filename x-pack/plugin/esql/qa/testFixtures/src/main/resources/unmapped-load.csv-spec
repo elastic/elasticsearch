@@ -787,28 +787,60 @@ sample_data            | Connected to 10.1.0.2
 no_mapping_sample_data | Connected to 10.1.0.2!
 ;
 
-# Type resolution bug: event_duration is long in sample_data, unmapped (loaded) in no_mapping_sample_data; cast to DOUBLE fails to resolve
-unmappedLoadEventDurationCastToDouble
+partiallyUnmappedNonKeyword
 required_capability: unmapped_fields
-required_capability: optional_fields
+required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL event_duration = event_duration :: DOUBLE
+| EVAL event_duration = event_duration::DOUBLE
 | KEEP _index, event_duration
-| SORT event_duration, _index DESC
-| LIMIT 10
+| SORT _index, event_duration
 ;
 
 _index:keyword         | event_duration:double
 no_mapping_sample_data | 725447.0
-sample_data            | 725448.0
 no_mapping_sample_data | 1232381.0
-sample_data            | 1232382.0
 no_mapping_sample_data | 1756466.0
-sample_data            | 1756467.0
 no_mapping_sample_data | 2764888.0
-sample_data            | 2764889.0
 no_mapping_sample_data | 3450232.0
+no_mapping_sample_data | 5033754.0
+no_mapping_sample_data | 8268152.0
+sample_data            | 725448.0
+sample_data            | 1232382.0
+sample_data            | 1756467.0
+sample_data            | 2764889.0
 sample_data            | 3450233.0
+sample_data            | 5033755.0
+sample_data            | 8268153.0
+;
+
+partiallyUnmappedNonKeywordMultiType
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data, employees METADATA _index
+| EVAL event_duration = event_duration::DOUBLE
+| KEEP _index, event_duration
+| SORT _index DESC, event_duration
+| LIMIT 18
+;
+
+_index:keyword         | event_duration:double
+sample_data            | 725448.0
+sample_data            | 1232382.0
+sample_data            | 1756467.0
+sample_data            | 2764889.0
+sample_data            | 3450233.0
+sample_data            | 5033755.0
+sample_data            | 8268153.0
+no_mapping_sample_data | 725447.0
+no_mapping_sample_data | 1232381.0
+no_mapping_sample_data | 1756466.0
+no_mapping_sample_data | 2764888.0
+no_mapping_sample_data | 3450232.0
+no_mapping_sample_data | 5033754.0
+no_mapping_sample_data | 8268152.0
+employees              | null
+employees              | null
+employees              | null
+employees              | null
 ;

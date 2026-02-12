@@ -233,7 +233,10 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     }
 
     private Expression processQueryVector(Expression queryVector) {
-        if (queryVector == null || queryVector.resolved() == false || queryVector.dataType() == DENSE_VECTOR) {
+        if (queryVector == null
+            || queryVector.resolved() == false
+            || queryVector.dataType() == null
+            || queryVector.dataType() == DENSE_VECTOR) {
             return queryVector;
         }
 

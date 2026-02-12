@@ -278,7 +278,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         reason = "ensure we're skipping reroute for the right reason"
     )
     public void testRerouteIsCalledBeforeMinimumIntervalHasPassedIfNewNodesBecomeHotSpotted() {
-        final TestState testState = createRandomTestStateThatWillTriggerReroute();
+        TestState testState = createRandomTestStateThatWillTriggerReroute();
+        final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(testState.clusterState());
         final AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
         final TimeValue minimumInterval = testState.clusterSettings.get(
             WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING
@@ -288,7 +289,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
-            () -> testState.clusterState,
+            clusterStateRef::get,
             testState.mockRerouteService
         );
 
@@ -298,41 +299,14 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         reset(testState.mockRerouteService);
 
         // Now update cluster info to add another hot-spotted node
-        final AtomicBoolean thresholdIncreased = new AtomicBoolean(false);
-        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsWithExtraHotSpot = new HashMap<>();
-        for (var entry : testState.clusterInfo.getNodeUsageStatsForThreadPools().entrySet()) {
-            if (thresholdIncreased.get() == false
-                && indexingNodeBelowQueueLatencyThreshold(
-                    testState.clusterState,
-                    entry.getKey(),
-                    entry.getValue(),
-                    testState.latencyThresholdMillis
-                )) {
-                thresholdIncreased.set(true);
-                nodeUsageStatsWithExtraHotSpot.put(
-                    entry.getKey(),
-                    new NodeUsageStatsForThreadPools(
-                        entry.getKey(),
-                        Maps.transformValues(
-                            entry.getValue().threadPoolUsageStatsMap(),
-                            tpStats -> new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-                                tpStats.totalThreadPoolThreads(),
-                                randomFloatBetween(testState.highUtilizationThresholdPercent, 1.2f, true),
-                                testState.latencyThresholdMillis + randomLongBetween(1, 100_000)
-                            )
-                        )
-                    )
-                );
-            } else {
-                nodeUsageStatsWithExtraHotSpot.put(entry.getKey(), entry.getValue());
-            }
-        }
+        testState = testState.addToClusterInfoHotspot(1);
+        clusterStateRef.set(testState.clusterState());
 
         // Advance the clock by less than the re-route interval
         currentTimeMillis.addAndGet(randomLongBetween(0, minimumInterval.millis() - 1));
 
         // We should reroute again despite the minimum interval not having passed
-        writeLoadConstraintMonitor.onNewInfo(ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStatsWithExtraHotSpot).build());
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
     }
 
@@ -667,21 +641,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             Map.of(removeHotspotId, List.of(millisAdded / 1000.0)),
             hotspotFlagCounts
         );
-    }
-
-    private boolean indexingNodeBelowQueueLatencyThreshold(
-        ClusterState clusterState,
-        String nodeId,
-        NodeUsageStatsForThreadPools nodeUsageStats,
-        long latencyThresholdMillis
-    ) {
-        // this?
-        final var nodeRoles = clusterState.getNodes().get(nodeId).getRoles();
-        return nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) == false
-            && nodeRoles.contains(DiscoveryNodeRole.ML_ROLE) == false
-            && nodeUsageStats.threadPoolUsageStatsMap()
-                .get(ThreadPool.Names.WRITE)
-                .maxThreadPoolQueueLatencyMillis() < latencyThresholdMillis;
     }
 
     private TestState createRandomTestStateThatWillTriggerReroute() {

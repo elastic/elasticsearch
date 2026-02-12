@@ -1998,11 +1998,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings) throws IOException {
-        return createIndex(client, name, settings, null, null);
+        return createIndex(client, name, settings, null, null, RequestOptions.DEFAULT);
     }
 
     protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
-        return createIndex(client, name, settings, mapping, null);
+        return createIndex(client, name, settings, mapping, null, RequestOptions.DEFAULT);
     }
 
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
@@ -2013,9 +2013,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         return createIndex(client(), name, settings, mapping, aliases);
     }
 
+    protected static CreateIndexResponse createIndex(
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases,
+        RequestOptions requestOptions
+    ) throws IOException {
+        return createIndex(client(), name, settings, mapping, aliases, requestOptions);
+    }
+
     public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
         throws IOException {
-        return createIndex(client::performRequest, name, settings, mapping, aliases);
+        return createIndex(client::performRequest, name, settings, mapping, aliases, RequestOptions.DEFAULT);
+    }
+
+    public static CreateIndexResponse createIndex(
+        RestClient client,
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases,
+        RequestOptions requestOptions
+    ) throws IOException {
+        return createIndex(client::performRequest, name, settings, mapping, aliases, requestOptions);
     }
 
     protected static CreateIndexResponse createIndex(
@@ -2024,6 +2045,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         Settings settings,
         String mapping,
         String aliases
+    ) throws IOException {
+        return createIndex(execute, name, settings, mapping, aliases, RequestOptions.DEFAULT);
+    }
+
+    protected static CreateIndexResponse createIndex(
+        CheckedFunction<Request, Response, IOException> execute,
+        String name,
+        Settings settings,
+        String mapping,
+        String aliases,
+        RequestOptions requestOptions
     ) throws IOException {
         final Request request = newXContentRequest(HttpMethod.PUT, "/" + name, (builder, params) -> {
             if (settings != null) {
@@ -2053,6 +2085,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             return builder;
         });
+        request.setOptions(requestOptions);
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);

@@ -681,7 +681,7 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", false, new Setting.Validator<>() {
+    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", true, new Setting.Validator<>() {
         @Override
         public void validate(Boolean enabled) {}
 

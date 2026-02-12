@@ -258,6 +258,11 @@ public class MMROperator extends CompleteInputCollectorOperator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return false;
+    }
+
+    @Override
     public Operator.Status status() {
         return new MMROperator.Status(emitNanos, pagesReceived, pagesProcessed, rowsReceived, rowsEmitted);
     }

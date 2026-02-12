@@ -209,6 +209,38 @@ public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
     }
 
     @Override
+    public boolean isFinished() {
+        return finished && outputPages.isEmpty();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
+    }
+
+    @Override
+    public Page getOutput() {
+        if (finished == false || outputPages.isEmpty()) {
+            return null;
+        }
+
+        Page page = outputPages.removeFirst();
+        rowsEmitted += page.getPositionCount();
+
+        return page;
+    }
+
+    @Override
+    public void close() {
+        for (Page page : inputPages) {
+            page.releaseBlocks();
+        }
+        for (Page page : outputPages) {
+            page.releaseBlocks();
+        }
+    }
+
+    @Override
     public String toString() {
         return "LinearScoreEvalOperator[discriminatorPosition="
             + discriminatorPosition

@@ -22,7 +22,7 @@ public class HllStatesTests extends ComputeTestCase {
 
     public void testGroupingStateSerializedMergeRoundTrip() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
 
         final int precision = 1 << between(4, 14);
         final boolean sparse = randomBoolean();
@@ -39,7 +39,7 @@ public class HllStatesTests extends ComputeTestCase {
             }
             Block[] intermediates = new Block[1];
             try {
-                try (IntVector selected = blockFactory.newIntRangeVector(0, numGroups)) {
+                try (IntVector selected = IntVector.range(0, numGroups, blockFactory)) {
                     source.toIntermediate(intermediates, 0, selected, driverContext);
                 }
                 BytesRef scratch = new BytesRef();

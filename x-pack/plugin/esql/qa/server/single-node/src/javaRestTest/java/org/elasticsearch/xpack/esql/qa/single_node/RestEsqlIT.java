@@ -817,8 +817,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             if (type == DataType.AGGREGATE_METRIC_DOUBLE) {
                 additionalProperties += """
                         ,
-                        "metrics": ["max"],
-                        "default_metric": "max"
+                        "metrics": ["max"]
                     """;
             }
             createIndex("index-" + type.esType(), null, String.format(Locale.ROOT, """

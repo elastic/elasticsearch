@@ -5391,16 +5391,16 @@ required_capability: inline_stats_drop_groupings_fix
 FROM employees
 | KEEP salary_change, salary
 | INLINE STATS avg_salary_change = MV_AVG(salary_change), avg = AVG(salary) BY salary_change
-| INLINE STATS sum_avg_salary_change = SUM(avg_salary_change), avg = AVG(salary) BY salary_change
+| INLINE STATS sum_avg_salary_change = ROUND(SUM(avg_salary_change), 1), avg = AVG(salary) BY salary_change
 | KEEP sum_avg_salary_change
-| SORT sum_avg_salary_change
+| SORT sum_avg_salary_change DESC NULLS LAST
 | LIMIT 3
 ;
 
 sum_avg_salary_change:d        
-[-13.4, -13.4, -13.4, -13.4] 
-[-12.69, -12.69, -5.51, -12.69]
-[-11.18, -11.18]              
+[27.5, 27.5]         
+[26.8, 26.8, 26.8]   
+[26.7, 26.7]              
 ;
 
 chainedInlineStats_OneGroupingByMVField

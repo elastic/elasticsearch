@@ -18,10 +18,7 @@ import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,7 +32,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -53,14 +49,18 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.datastreams.lifecycle.transitions.steps.CloneStep.formCloneRequest;
+import static org.elasticsearch.datastreams.lifecycle.transitions.steps.CloneStep.getDLMCloneIndexName;
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction.DLM_INDEX_FOR_FORCE_MERGE_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -131,20 +131,20 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testStepNotCompletedWhenCloneNotMarkedInMetadata() {
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         ProjectState projectState = createProjectStateWithClone(indexName, cloneIndexName, null);
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepCompletedWhenCloneExistsAndMarkedInMetadata() {
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
         ProjectState projectState = createProjectStateWithCloneAndRouting(indexName, cloneIndexName, customMetadata, true);
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenShardsNotActive() {
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
         ProjectState projectState = createProjectStateWithCloneAndRouting(indexName, cloneIndexName, customMetadata, false);
         assertFalse(cloneStep.stepCompleted(index, projectState));
@@ -172,7 +172,7 @@ public class CloneStepTests extends ESTestCase {
 
     public void testExecuteDeletesExistingCloneAndRetriesClone() {
         // Create a clone index that was created more than 12 hours ago (stuck)
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         ProjectState projectState = setupStuckCloneScenario(13);
         DlmStepContext stepContext = createStepContext(projectState);
 
@@ -191,7 +191,7 @@ public class CloneStepTests extends ESTestCase {
 
         assertThat(capturedResizeRequest.get(), is(notNullValue()));
         assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
-        assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString("dlm-force-merge-clone-" + indexName));
+        assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString("dlm-fmc-"));
         assertThat(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.number_of_replicas"), equalTo("0"));
     }
 
@@ -203,7 +203,7 @@ public class CloneStepTests extends ESTestCase {
 
         assertThat("clone listener should be captured", capturedCloneListener.get(), is(notNullValue()));
 
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         CreateIndexResponse response = new CreateIndexResponse(true, true, cloneIndexName);
         capturedCloneListener.get().onResponse(response);
 
@@ -227,11 +227,55 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testGetCloneIndexCallbackNameIsDeterministic() {
-        String cloneName1 = generateExpectedCloneName(indexName);
-        String cloneName2 = generateExpectedCloneName(indexName);
+        String cloneName1 = getDLMCloneIndexName(indexName);
+        String cloneName2 = getDLMCloneIndexName(indexName);
         assertThat(cloneName1, equalTo(cloneName2));
         assertThat(cloneName1, containsString(indexName));
-        assertThat(cloneName1, containsString("dlm-force-merge-clone-"));
+        assertThat(cloneName1, containsString("dlm-fmc-"));
+    }
+
+    public void testGetDLMCloneIndexName() {
+        // Test with short name - should not be truncated
+        String shortName = "test-index";
+        String cloneName = getDLMCloneIndexName(shortName);
+        assertThat("Clone name should be deterministic", cloneName, equalTo(getDLMCloneIndexName(shortName)));
+        assertThat("Clone name should contain prefix", cloneName, containsString("dlm-fmc-"));
+        assertThat("Clone name should contain original name", cloneName, containsString(shortName));
+        int shortNameLength = cloneName.getBytes(StandardCharsets.UTF_8).length;
+        assertThat("Clone name should not exceed 255 bytes", shortNameLength <= 255, is(true));
+
+        // Test with maximum length name that doesn't need truncation
+        // 255 - 8 (prefix) - 64 (hash) - 1 (separator) = 182 bytes max for original name
+        String maxLengthName = randomAlphaOfLength(182);
+        String maxCloneName = getDLMCloneIndexName(maxLengthName);
+        int maxLength = maxCloneName.getBytes(StandardCharsets.UTF_8).length;
+        assertThat("Max length clone name should be exactly 255 bytes", maxLength, is(255));
+        assertThat("Max length clone name should contain original name", maxCloneName, containsString(maxLengthName));
+
+        // Test with name that exceeds max and needs truncation
+        String longName = randomAlphaOfLength(200);
+        String longCloneName = getDLMCloneIndexName(longName);
+        int longLength = longCloneName.getBytes(StandardCharsets.UTF_8).length;
+        assertThat("Long clone name should be exactly 255 bytes", longLength, is(255));
+        assertThat("Long clone name should be deterministic", longCloneName, equalTo(getDLMCloneIndexName(longName)));
+        assertThat("Long clone name should start with prefix", longCloneName, containsString("dlm-fmc-"));
+        // Original name should be truncated
+        assertThat("Long clone name should not contain full original name", longCloneName.contains(longName), is(false));
+
+        // Test with multi-byte UTF-8 characters - short enough to not need truncation
+        String unicodeName = "index-unicode-αβγ";
+        String unicodeCloneName = getDLMCloneIndexName(unicodeName);
+        int unicodeLength = unicodeCloneName.getBytes(StandardCharsets.UTF_8).length;
+        assertThat("Unicode clone name should not exceed 255 bytes", unicodeLength <= 255, is(true));
+
+        // Test that different names produce different clone names (due to different hashes)
+        String name1 = "index-1";
+        String name2 = "index-2";
+        assertThat(
+            "Different names should produce different clone names",
+            getDLMCloneIndexName(name1),
+            not(equalTo(getDLMCloneIndexName(name2)))
+        );
     }
 
     public void testDeleteCloneSuccessfully() {
@@ -270,7 +314,7 @@ public class CloneStepTests extends ESTestCase {
 
     public void testExecuteDeletesCloneWhenStuckForOver12Hours() {
         // Create a clone index that was created more than 12 hours ago
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         ProjectState projectState = setupStuckCloneScenario(13);
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
@@ -283,10 +327,10 @@ public class CloneStepTests extends ESTestCase {
     public void testExecuteWaitsWhenCloneExistsButNotInDeduplicatorAndNotTimedOut() {
         // Create a clone index that exists but is not in the deduplicator (completed but step not finished)
         // and was created less than 12 hours ago
-        long currentTime = System.currentTimeMillis();
+        long currentTime = Clock.systemUTC().millis();
         long creationTime = currentTime - TimeValue.timeValueHours(2).millis(); // 2 hours ago
 
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
 
         DlmStepContext stepContext = createStepContext(projectState);
@@ -301,10 +345,10 @@ public class CloneStepTests extends ESTestCase {
     public void testExecuteWaitsWhenCloneExistsOver12HoursButNotInDeduplicator() {
         // Create a clone index that exists, is not in the deduplicator, and was created > 12 hours ago
         // Since it's not in the deduplicator, it's not considered "stuck" - might be completing or already completed
-        long currentTime = System.currentTimeMillis();
+        long currentTime = Clock.systemUTC().millis();
         long creationTime = currentTime - TimeValue.timeValueHours(15).millis(); // 15 hours ago
 
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
 
         DlmStepContext stepContext = createStepContext(projectState);
@@ -316,7 +360,7 @@ public class CloneStepTests extends ESTestCase {
 
     public void testExecuteCreatesNewCloneAfterTimeoutAndCleanup() {
         // Test the full cycle: stuck clone gets deleted, then a new one is created on next run
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         ProjectState projectStateWithOldClone = setupStuckCloneScenario(14);
         DlmStepContext stepContext = createStepContext(projectStateWithOldClone);
         cloneStep.execute(stepContext);
@@ -497,12 +541,6 @@ public class CloneStepTests extends ESTestCase {
         return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client);
     }
 
-    private String generateExpectedCloneName(String originalName) {
-        String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
-            .substring(0, 8);
-        return "dlm-force-merge-clone-" + originalName + "-" + hash;
-    }
-
     private ProjectState createProjectStateWithCloneAndCreationTime(
         String sourceIndexName,
         String cloneIndexName,
@@ -539,16 +577,6 @@ public class CloneStepTests extends ESTestCase {
         return clusterState.projectState(projectId);
     }
 
-    private ResizeRequest createCloneRequest(String sourceIndex, String targetIndex) {
-        return new ResizeRequest(
-            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
-            ResizeType.CLONE,
-            sourceIndex,
-            targetIndex
-        );
-    }
-
     /**
      * Helper method to create a stuck clone scenario where:
      * - A clone index exists with the specified age in hours
@@ -558,14 +586,14 @@ public class CloneStepTests extends ESTestCase {
      * @return ProjectState with the stuck clone index
      */
     private ProjectState setupStuckCloneScenario(int hoursAgo) {
-        long currentTime = System.currentTimeMillis();
+        long currentTime = Clock.systemUTC().millis();
         long creationTime = currentTime - TimeValue.timeValueHours(hoursAgo).millis();
 
-        String cloneIndexName = generateExpectedCloneName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
 
         // Pre-populate the deduplicator to simulate a stuck in-progress request
-        ResizeRequest cloneRequest = createCloneRequest(indexName, cloneIndexName);
+        ResizeRequest cloneRequest = formCloneRequest(indexName, cloneIndexName);
         deduplicator.executeOnce(
             Tuple.tuple(projectId, cloneRequest),
             ActionListener.noop(),

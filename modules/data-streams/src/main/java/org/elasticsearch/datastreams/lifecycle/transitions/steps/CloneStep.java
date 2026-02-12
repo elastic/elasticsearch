@@ -36,6 +36,7 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -86,10 +87,10 @@ public class CloneStep implements DlmStep {
             return;
         }
 
-        String cloneIndexName = getCloneIndexName(indexName);
+        String cloneIndexName = getDLMCloneIndexName(indexName);
         if (projectMetadata.indices().containsKey(cloneIndexName)) {
             // Clone index exists but step not completed - check if it's been stuck for too long and clean up if so
-            maybeCleanUpStuckCloneTask(stepContext);
+            maybeCleanUpStuckCloneTask(cloneIndexName, stepContext);
             return;
         }
 
@@ -104,12 +105,11 @@ public class CloneStep implements DlmStep {
     /*
      * Checks if the clone index has been stuck for too long and if so, deletes it to allow a new clone attempt.
      */
-    private static void maybeCleanUpStuckCloneTask(DlmStepContext stepContext) {
+    private static void maybeCleanUpStuckCloneTask(String cloneIndexName, DlmStepContext stepContext) {
         String indexName = stepContext.indexName();
-        String cloneIndexName = getCloneIndexName(indexName);
         IndexMetadata cloneIndexMetadata = stepContext.projectState().metadata().index(cloneIndexName);
         long cloneCreationTime = cloneIndexMetadata.getCreationDate();
-        long currentTime = System.currentTimeMillis();
+        long currentTime = Clock.systemUTC().millis();
         long timeSinceCreation = currentTime - cloneCreationTime;
         if (isCloneIndexStuck(cloneIndexMetadata, timeSinceCreation, stepContext)) {
             // Clone has been stuck for > 12 hours, clean it up so a new clone can be attempted
@@ -196,7 +196,6 @@ public class CloneStep implements DlmStep {
 
     private void cloneIndex(String sourceIndex, String targetIndex, ActionListener<Void> listener, DlmStepContext stepContext) {
         ResizeRequest cloneIndexRequest = formCloneRequest(sourceIndex, targetIndex);
-        cloneIndexRequest.setTargetIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         stepContext.executeDeduplicatedRequest(
             TransportResizeAction.TYPE.name(),
             cloneIndexRequest,
@@ -281,7 +280,7 @@ public class CloneStep implements DlmStep {
     }
 
     private static void deleteCloneIndexIfExists(DlmStepContext stepContext, ActionListener<Void> listener) {
-        String cloneIndex = getCloneIndexName(stepContext.indexName());
+        String cloneIndex = getDLMCloneIndexName(stepContext.indexName());
         logger.debug("Attempting to delete index [{}]", cloneIndex);
 
         DeleteIndexRequest deleteIndexRequest = formDeleteRequest(cloneIndex);
@@ -310,7 +309,7 @@ public class CloneStep implements DlmStep {
                     listener.onResponse(null);
                 } else {
                     listener.onFailure(
-                        new ElasticsearchException(String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", cloneIndex))
+                        new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", cloneIndex))
                     );
                 }
             }, err -> {
@@ -319,14 +318,22 @@ public class CloneStep implements DlmStep {
             }));
     }
 
-    private static ResizeRequest formCloneRequest(String sourceIndex, String targetIndex) {
-        return new ResizeRequest(
+    /**
+     * Forms a resize request to clone the source index into a new index with 0 replicas.
+     * @param sourceIndex the index to be cloned
+     * @param targetIndex the name of the new index to clone into
+     * @return the resize request to clone the source index into a new index with 0 replicas
+     */
+    public static ResizeRequest formCloneRequest(String sourceIndex, String targetIndex) {
+        ResizeRequest cloneRequest = new ResizeRequest(
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
             ResizeType.CLONE,
             sourceIndex,
             targetIndex
         );
+        cloneRequest.setTargetIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        return cloneRequest;
     }
 
     private static DeleteIndexRequest formDeleteRequest(String indexName) {
@@ -353,13 +360,42 @@ public class CloneStep implements DlmStep {
             .orElse(null);
     }
 
-    /*
+    /**
      * Gets a unique name deterministically for the clone index based on the original index name.
+     * The generated name format is "dlm-fmc-{hash}-{truncated-original-name}" where the hash is a full 64-character
+     * SHA-256 hex digest of the original name to ensure uniqueness, and the original name is truncated if necessary
+     * to keep the total name length under 255 bytes.
+     *
+     * @param originalName the original index name
+     * @return a deterministic unique name for the clone index based on the original index name
      */
-    private static String getCloneIndexName(String originalName) {
-        String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)))
-            .substring(0, 8);
-        return "dlm-force-merge-clone-" + originalName + "-" + hash;
+    public static String getDLMCloneIndexName(String originalName) {
+        // Uses full SHA-256 hash (64 hex chars) to ensure uniqueness
+        String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)));
+        String prefix = "dlm-fmc-";
+        String separator = "-";
+
+        // Calculate max length for original name: 255 - prefix - hash - separator
+        int maxOriginalNameLength = 255 - prefix.length() - hash.length() - separator.length();
+
+        // Truncate original name if needed, keeping it in bytes not characters
+        String truncatedName = getTruncatedName(originalName, maxOriginalNameLength);
+
+        return prefix + hash + separator + truncatedName;
+    }
+
+    private static String getTruncatedName(String originalName, int maxOriginalNameLength) {
+        String truncatedName = originalName;
+        byte[] nameBytes = originalName.getBytes(StandardCharsets.UTF_8);
+        if (nameBytes.length > maxOriginalNameLength) {
+            // Truncate to max length, being careful with multi-byte UTF-8 characters
+            truncatedName = new String(nameBytes, 0, maxOriginalNameLength, StandardCharsets.UTF_8);
+            // Remove any partial UTF-8 character at the end
+            while (truncatedName.getBytes(StandardCharsets.UTF_8).length > maxOriginalNameLength) {
+                truncatedName = truncatedName.substring(0, truncatedName.length() - 1);
+            }
+        }
+        return truncatedName;
     }
 
 }

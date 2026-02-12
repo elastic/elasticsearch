@@ -317,7 +317,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     // Always reserve a whole page (16kiB) to buffer the results: whole pages come from the recycler, whereas growing the buffer from zero
     // involves repeatedly creating brand-new byte[] arrays, each only 12.5% oversized, and copying the contents across. It doesn't switch
-    // to recycling mode until the buffer grows to at least half-a-page (8kiB), which could in theory be as many as 70 reallocations (tho
+    // to recycling mode until the buffer grows to at least half-a-page (8kiB), which could in theory be more than 40 reallocations (tho
     // in practice it's fewer as we write more than one byte at once). This tentative-expansion behaviour makes sense for long-lived tiny
     // buffers where it's worth doing all those allocations to avoid too much oversize, but these buffers only live for a short time so
     // the overheads matter less.

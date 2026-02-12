@@ -1429,12 +1429,23 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (readFuture.isDone() == false) {
                 long bytes = fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
                 if (bytes > 0) {
-                    try (var dummy = cacheMissMetricHandler.record(bytes)) {
-                        return readFuture.get();
-                    }
+                    return recordWait(bytes, readFuture);
                 }
             }
             return readFuture.get();
+        }
+
+        /**
+         * Record a wait with the give number of bytes, with duration of the wait for the future given. This method will
+         * wait for the `future` to complete.
+         * @param bytes The bytes to record
+         * @param future the future to wait for.
+         * @return the result of the future.get()
+         */
+        public Integer recordWait(long bytes, PlainActionFuture<Integer> future) throws InterruptedException, ExecutionException {
+            try (var dummy = cacheMissMetricHandler.record(bytes)) {
+                return future.get();
+            }
         }
 
         private int readMultiRegions(

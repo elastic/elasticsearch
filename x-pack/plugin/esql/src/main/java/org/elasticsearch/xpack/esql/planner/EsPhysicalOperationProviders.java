@@ -20,6 +20,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -69,6 +70,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -333,12 +335,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
              * references to the same underlying data, but we're being a bit paranoid here.
              */
             estimatedPerRowSortSize *= 2;
+
             // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
             // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+                topNAutoStrategy(),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
@@ -371,6 +375,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
+        return unusedLimit -> {
+            if (EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled()) {
+                // Use high speed strategy for TopN - we want to parallelize searches as much as possible given the query structure
+                return LuceneSourceOperator::highSpeedAutoStrategy;
+            }
+            return query -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+        };
     }
 
     List<ValuesSourceReaderOperator.FieldInfo> extractFields(FieldExtractExec fieldExtractExec) {

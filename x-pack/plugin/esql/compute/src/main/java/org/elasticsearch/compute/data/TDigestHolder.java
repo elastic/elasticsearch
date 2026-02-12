@@ -18,9 +18,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
-import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

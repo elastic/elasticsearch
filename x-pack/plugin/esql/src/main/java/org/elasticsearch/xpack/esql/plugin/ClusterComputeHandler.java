@@ -264,7 +264,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         ReductionPlan reductionPlan = ComputeService.reductionPlan(
-            computeService.plannerSettings(),
+            computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,
             configuration.newFoldContext(),
@@ -303,6 +303,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    computeService.plannerSettings().get(),
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

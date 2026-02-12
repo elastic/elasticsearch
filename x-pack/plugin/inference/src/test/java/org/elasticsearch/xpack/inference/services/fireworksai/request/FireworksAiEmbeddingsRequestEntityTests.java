@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.fireworksai.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,8 +28,13 @@ public class FireworksAiEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model"}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "input": ["abc"],
+                "model": "model"
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     public void testXContent_WritesMultipleInputs() throws IOException {
@@ -38,8 +44,13 @@ public class FireworksAiEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"input":["abc","def"],"model":"model"}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "input": ["abc", "def"],
+                "model": "model"
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     public void testXContent_WritesDimensionsWhenNonNull() throws IOException {
@@ -49,8 +60,14 @@ public class FireworksAiEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","dimensions":100}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "input": ["abc"],
+                "model": "model",
+                "dimensions": 100
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNull() throws IOException {
@@ -60,8 +77,13 @@ public class FireworksAiEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model"}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "input": ["abc"],
+                "model": "model"
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     public void testThrows_WhenInputIsNull() {

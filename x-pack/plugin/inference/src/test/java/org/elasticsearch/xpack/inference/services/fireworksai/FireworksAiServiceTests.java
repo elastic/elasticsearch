@@ -11,7 +11,6 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -41,15 +40,14 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.net.URI;
 import java.util.EnumSet;
-import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +64,6 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
     private static final String SECRET = "secret";
     private static final String INFERENCE_ID = "id";
     private static final String DEFAULT_URL = "https://api.fireworks.ai/inference/v1/embeddings";
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     public FireworksAiServiceTests() {
         super(createTestConfiguration());
@@ -210,7 +207,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
@@ -229,9 +226,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         var settingsMap = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, MODEL));
 
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            settingsMap.putAll(
-                Map.of(ServiceFields.SIMILARITY, SIMILARITY.toString(), ServiceFields.DIMENSIONS, DIMENSIONS)
-            );
+            settingsMap.putAll(Map.of(ServiceFields.SIMILARITY, SIMILARITY.toString(), ServiceFields.DIMENSIONS, DIMENSIONS));
 
             if (parseContext == ConfigurationParseContext.PERSISTENT) {
                 settingsMap.put(FireworksAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, true);
@@ -292,15 +287,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         return new FireworksAiEmbeddingsModel(
             INFERENCE_ID,
             FireworksAiService.NAME,
-            new FireworksAiEmbeddingsServiceSettings(
-                modelId,
-                URI.create(url),
-                similarity,
-                dimensions,
-                null,
-                dimensions != null,
-                null
-            ),
+            new FireworksAiEmbeddingsServiceSettings(modelId, URI.create(url), similarity, dimensions, null, dimensions != null, null),
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

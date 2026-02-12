@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.fireworksai.embeddings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -405,10 +406,20 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"model","url":"https://api.fireworks.ai/inference/v1/embeddings",""" + """
-            "similarity":"dot_product","dimensions":1,"max_input_tokens":2,""" + """
-            "rate_limit":{"requests_per_minute":6000},"dimensions_set_by_user":false}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "model_id": "model",
+                "url": "https://api.fireworks.ai/inference/v1/embeddings",
+                "similarity": "dot_product",
+                "dimensions": 1,
+                "max_input_tokens": 2,
+                "rate_limit": {
+                    "requests_per_minute": 6000
+                },
+                "dimensions_set_by_user": false
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
@@ -426,9 +437,17 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"model","url":"https://api.fireworks.ai/inference/v1/embeddings",""" + """
-            "rate_limit":{"requests_per_minute":6000},"dimensions_set_by_user":true}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "model_id": "model",
+                "url": "https://api.fireworks.ai/inference/v1/embeddings",
+                "rate_limit": {
+                    "requests_per_minute": 6000
+                },
+                "dimensions_set_by_user": true
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
@@ -447,10 +466,19 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"model","url":"https://api.fireworks.ai/inference/v1/embeddings",""" + """
-            "similarity":"dot_product","dimensions":1,"max_input_tokens":2,""" + """
-            "rate_limit":{"requests_per_minute":6000}}"""));
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "model_id": "model",
+                "url": "https://api.fireworks.ai/inference/v1/embeddings",
+                "similarity": "dot_product",
+                "dimensions": 1,
+                "max_input_tokens": 2,
+                "rate_limit": {
+                    "requests_per_minute": 6000
+                }
+            }
+            """);
+        assertThat(xContentResult, is(expected));
     }
 
     @Override

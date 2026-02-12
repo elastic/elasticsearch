@@ -67,7 +67,9 @@ public class FireworksAiService extends SenderService {
     public static final String NAME = "fireworksai";
     private static final String SERVICE_NAME = "FireworksAI";
 
-    public static final TransportVersion INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED = TransportVersion.fromName("inference_api_fireworks_ai_service_added");
+    public static final TransportVersion INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED = TransportVersion.fromName(
+        "inference_api_fireworks_ai_service_added"
+    );
 
     // Supported embedding models: https://docs.fireworks.ai/guides/querying-embeddings-models
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING);
@@ -328,7 +330,8 @@ public class FireworksAiService extends SenderService {
                     DIMENSIONS,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
                         "The number of dimensions the resulting output embeddings should have. "
-                            + "Only supported by some models."
+                            + "Only supported by some models. For more information refer to "
+                            + "https://docs.fireworks.ai/guides/querying-embeddings-models."
                     )
                         .setLabel("Dimensions")
                         .setRequired(false)

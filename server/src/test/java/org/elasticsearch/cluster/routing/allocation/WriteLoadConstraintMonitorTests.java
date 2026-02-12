@@ -743,10 +743,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     TimeValue.timeValueMillis(queueLatencyThresholdMillis)
                 )
                 .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING.getKey(),
-                    highUtilizationThresholdPercent + "%"
-                )
-                .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
                     highUtilizationThresholdPercent + "%"
                 )
@@ -838,7 +834,6 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         return clusterInfo;
     }
 
-    // need to add another field for balance vs hotspot threshold
     private record TestState(
         long latencyThresholdMillis,
         int highUtilizationThresholdPercent,

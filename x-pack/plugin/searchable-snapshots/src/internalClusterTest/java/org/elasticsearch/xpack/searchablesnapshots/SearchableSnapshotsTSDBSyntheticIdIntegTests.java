@@ -60,6 +60,7 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     private final String INDEX = "synthetic-id-index";
     private final String SNAPSHOT = "synthetic-id-snapshot";
     private final String MOUNTED_INDEX = "mounted-" + INDEX;
+    private final String[] HOSTNAMES = new String[] { "host01", "host02", "host03", "host04" };
     private int numberOfDocuments;
     private Set<String> docIds;
     private Collection<String> deletedDocIds;
@@ -128,8 +129,8 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
         Instant now = Instant.now();
         for (int i = 0; i < numdocs; i++) {
             String source = String.format(Locale.ROOT, """
-                {"@timestamp": "%s", "hostname": "host", "metric": {"field": "cpu-load", "value": %d}}
-                """, now.plus(i, ChronoUnit.SECONDS), randomByte());
+                {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "cpu-load", "value": %d}}
+                """, now.plus(i, ChronoUnit.SECONDS), randomFrom(HOSTNAMES), randomByte());
             DocWriteResponse response = prepareIndex(index).setSource(source, XContentType.JSON).get(TEST_REQUEST_TIMEOUT);
             docIds.add(response.getId());
         }

@@ -241,7 +241,6 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
                 executorService.submit(() -> {
                     try {
-                        // Keep execution blocked so the request path times out first.
                         assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
                     } catch (InterruptedException ex) {
                         fail("Shouldn't be here");
@@ -355,6 +354,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
                 executorService.submit(() -> {
                     try {
+                        // Keep execution blocked so the request path times out first.
                         assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
                     } catch (InterruptedException ex) {
                         fail("Shouldn't be here");

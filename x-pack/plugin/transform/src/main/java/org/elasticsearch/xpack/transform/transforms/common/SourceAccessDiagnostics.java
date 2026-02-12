@@ -69,7 +69,7 @@ final class SourceAccessDiagnostics {
             }
             for (ShardSearchFailure failure : cluster.getFailures()) {
                 if (isSecurityFailure(failure)) {
-                    return "User lacks the required permissions to read source indices on remote cluster [" + alias + "].";
+                    return "User lacks the required permissions to read source indices on cluster [" + alias + "].";
                 }
             }
         }

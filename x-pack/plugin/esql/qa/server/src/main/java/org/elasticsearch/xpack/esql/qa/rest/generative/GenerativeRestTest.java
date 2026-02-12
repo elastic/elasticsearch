@@ -306,6 +306,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
      *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
      *       the expression X must contain an unmapped field name (https://github.com/elastic/elasticsearch/issues/142115)</li>
+     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields</li>
      * </ul>
      */
     private static boolean isUnmappedFieldError(String errorMessage) {
@@ -328,6 +329,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (matcher.matches()) {
             String expression = matcher.group(1);
             return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
+
+        // https://github.com/elastic/elasticsearch/issues/142390
+        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
+            return true;
         }
         return false;
     }

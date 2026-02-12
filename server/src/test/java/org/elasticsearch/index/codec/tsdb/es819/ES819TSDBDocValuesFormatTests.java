@@ -77,7 +77,6 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2259,9 +2258,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
                 d.add(new SortedNumericDocValuesField(denseNumericField, random().nextLong()));
                 d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
-                d.add(
-                    new BinaryDocValuesField(binaryVariableField, new BytesRef(randomAlphaOfLengthBetween(0, binaryVariableMaxLength)))
-                );
+                d.add(new BinaryDocValuesField(binaryVariableField, new BytesRef(randomAlphaOfLengthBetween(0, binaryVariableMaxLength))));
                 d.add(new SortedDocValuesField(sortedField, new BytesRef(randomAlphaOfLengthBetween(1, 10))));
                 iw.addDocument(d);
                 currentTimestamp += 1000L;
@@ -2275,8 +2272,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 var leafReader = reader.leaves().get(0).reader();
                 int maxDoc = leafReader.maxDoc();
                 var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
-                var docsWithDups =
-                    TestBlock.docs(IntStream.concat(IntStream.range(0, maxDoc), IntStream.of(between(0, maxDoc-1))).sorted().toArray());
+                var docsWithDups = TestBlock.docs(
+                    IntStream.concat(IntStream.range(0, maxDoc), IntStream.of(between(0, maxDoc - 1))).sorted().toArray()
+                );
 
                 {
                     // Dense numeric

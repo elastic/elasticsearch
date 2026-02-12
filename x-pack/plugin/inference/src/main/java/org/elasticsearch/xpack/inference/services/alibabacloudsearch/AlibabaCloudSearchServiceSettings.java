@@ -39,6 +39,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static final String HOST = "host";
     public static final String WORKSPACE_NAME = "workspace";
     public static final String HTTP_SCHEMA_NAME = "http_schema";
+    private static final Set<String> VALID_SCHEMAS = Set.of("https", "http");
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
@@ -66,11 +67,8 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     }
 
     private static void validateHttpSchema(String httpSchema, ValidationException validationException) {
-        if (httpSchema != null) {
-            var validSchemas = Set.of("https", "http");
-            if (validSchemas.contains(httpSchema) == false) {
-                validationException.addValidationError("Invalid value for [http_schema]. Must be one of [https, http]");
-            }
+        if (httpSchema != null && VALID_SCHEMAS.contains(httpSchema) == false) {
+            validationException.addValidationError("Invalid value for [http_schema]. Must be one of [https, http]");
         }
     }
 

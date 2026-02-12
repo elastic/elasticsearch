@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.is;
 
 public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSerializationTestCase<AlibabaCloudSearchServiceSettings> {
@@ -195,6 +197,27 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
                 )
             )
         );
+    }
+
+    public void testValidateHttpSchema_InvalidSchema_AddsValidationError() throws IOException {
+        var validationException = new ValidationException();
+        AlibabaCloudSearchServiceSettings.validateHttpSchema("invalid-http-schema", validationException);
+        assertThat(
+            validationException.getMessage(),
+            is("Validation Failed: 1: Invalid value for [http_schema]. Must be one of [https, http];")
+        );
+    }
+
+    public void testValidateHttpSchema_HttpsSchema_Success() throws IOException {
+        var validationException = new ValidationException();
+        AlibabaCloudSearchServiceSettings.validateHttpSchema("https", validationException);
+        assertThat(validationException.validationErrors(), is(emptyCollectionOf(String.class)));
+    }
+
+    public void testValidateHttpSchema_HttpSchema_Success() throws IOException {
+        var validationException = new ValidationException();
+        AlibabaCloudSearchServiceSettings.validateHttpSchema("http", validationException);
+        assertThat(validationException.validationErrors(), is(emptyCollectionOf(String.class)));
     }
 
     @Override

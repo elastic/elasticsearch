@@ -11,14 +11,16 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.index.ActionLoggingFields;
 
+import java.util.Optional;
+
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
     public static final String LOGGER_NAME = "esql.activitylog";
 
     @Override
-    public ESLogMessage produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        return msg.field(ES_FIELDS_PREFIX + "query", context.getQuery());
+        return Optional.of(msg.field(ES_FIELDS_PREFIX + "query", context.getQuery()));
     }
 
     @Override

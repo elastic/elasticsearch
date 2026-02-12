@@ -21,6 +21,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Optional;
+
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -58,10 +60,6 @@ public class ActivityLoggerTests extends ESTestCase {
         return new ESLogMessage().with(randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
-    private Level randomLogLevel() {
-        return randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN);
-    }
-
     public void testLogActionDisabled() {
         TestContext context = new TestContext(100);
         actionLogger.logAction(context);
@@ -74,7 +72,7 @@ public class ActivityLoggerTests extends ESTestCase {
 
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
+        when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
 
         actionLogger.logAction(context);
 
@@ -96,7 +94,7 @@ public class ActivityLoggerTests extends ESTestCase {
         TestContext context = new TestContext(TimeValue.timeValueMillis(150).nanos());
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.produce(context, loggingFields)).thenReturn(randomMessage);
+        when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
 
         actionLogger.logAction(context);
 

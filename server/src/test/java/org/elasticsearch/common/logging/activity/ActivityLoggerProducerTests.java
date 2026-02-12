@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
@@ -33,8 +34,8 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     public void setup() {
         producer = new ActivityLogProducer<>() {
             @Override
-            public ESLogMessage produce(ActivityLoggerContext ctx, ActionLoggingFields additionalFields) {
-                return produceCommon(ctx, additionalFields);
+            public Optional<ESLogMessage> produce(ActivityLoggerContext ctx, ActionLoggingFields additionalFields) {
+                return Optional.of(produceCommon(ctx, additionalFields));
             }
 
             @Override
@@ -71,7 +72,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     }
 
     public void testSuccess() {
-        ESLogMessage message = producer.produce(makeSuccessContext(), makeFields());
+        ESLogMessage message = producer.produce(makeSuccessContext(), makeFields()).get();
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task"));
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
@@ -85,7 +86,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     }
 
     public void testProduceCommonFailure() {
-        ESLogMessage message = producer.produce(makeFailContext(), makeFields());
+        ESLogMessage message = producer.produce(makeFailContext(), makeFields()).get();
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task2"));
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("failure"));

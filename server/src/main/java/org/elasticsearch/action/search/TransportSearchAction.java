@@ -185,7 +185,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final ActivityLogger<SearchLogContext> actionLogger;
+    private final ActivityLogger<SearchLogContext> activityLogger;
 
     @Inject
     public TransportSearchAction(
@@ -238,7 +238,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
-        this.actionLogger = new ActivityLogger<>(
+        this.activityLogger = new ActivityLogger<>(
             "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
@@ -363,7 +363,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         executeRequest(
             (SearchTask) task,
             searchRequest,
-            actionLogger.wrap(listener, new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest)),
+            activityLogger.wrap(listener, new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest)),
             AsyncSearchActionProvider::new,
             true
         );

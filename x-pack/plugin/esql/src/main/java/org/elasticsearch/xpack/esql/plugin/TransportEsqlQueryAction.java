@@ -95,7 +95,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
-    private final ActivityLogger<EsqlLogContext> actionLog;
+    private final ActivityLogger<EsqlLogContext> activityLogger;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -200,7 +200,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactoryProvider.blockFactory()
         );
 
-        this.actionLog = new ActivityLogger<>(
+        this.activityLogger = new ActivityLogger<>(
             EsqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
@@ -280,7 +280,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planTimeProfile,
             resultListener
         );
-        final var loggingListener = this.actionLog.wrap(listener, new EsqlLogContextBuilder(task, request));
+        final var loggingListener = this.activityLogger.wrap(listener, new EsqlLogContextBuilder(task, request));
         planExecutor.esql(
             request,
             sessionId,

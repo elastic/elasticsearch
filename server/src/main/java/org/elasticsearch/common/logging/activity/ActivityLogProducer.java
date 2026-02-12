@@ -12,6 +12,7 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
 
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,7 +29,10 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
 
-    ESLogMessage produce(Context context, ActionLoggingFields additionalFields);
+    /**
+     * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
+     */
+    Optional<ESLogMessage> produce(Context context, ActionLoggingFields additionalFields);
 
     String loggerName();
 

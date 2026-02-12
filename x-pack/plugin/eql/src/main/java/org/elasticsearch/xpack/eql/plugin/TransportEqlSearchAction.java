@@ -77,7 +77,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final PlanExecutor planExecutor;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
-    private final ActivityLogger<EqlLogContext> actionLog;
+    private final ActivityLogger<EqlLogContext> activityLogger;
 
     @Inject
     public TransportEqlSearchAction(
@@ -115,7 +115,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             threadPool,
             bigArrays
         );
-        this.actionLog = new ActivityLogger<>(
+        this.activityLogger = new ActivityLogger<>(
             EqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EqlLogProducer(),
@@ -173,7 +173,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
-        listener = actionLog.wrap(listener, new EqlLogContextBuilder(task, request));
+        listener = activityLogger.wrap(listener, new EqlLogContextBuilder(task, request));
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,

@@ -11,6 +11,7 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -61,7 +63,6 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
     // Whether to include authentication information in the log
     public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
         ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        // Named to match slowlog, we may reconsider this naming
         "include.user",
         key -> boolSetting(key, true, Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
@@ -114,10 +115,8 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         if (enabled == false || (threshold > -1 && context.getTookInNanos() < threshold)) {
             return;
         }
-        var event = producer.produce(context, additionalFields);
-        if (event != null) {
-            writer.write(logLevel, event);
-        }
+        Optional<ESLogMessage> event = producer.produce(context, additionalFields);
+        event.ifPresent(logMessage -> writer.write(logLevel, logMessage));
     }
 
     public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {

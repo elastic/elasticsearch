@@ -78,7 +78,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
-    private final ActivityLogger<SqlLogContext> actionLog;
+    private final ActivityLogger<SqlLogContext> activityLogger;
 
     @Inject
     public TransportSqlQueryAction(
@@ -116,7 +116,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             threadPool,
             bigArrays
         );
-        this.actionLog = new ActivityLogger<>(
+        this.activityLogger = new ActivityLogger<>(
             SqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new SqlLogProducer(),
@@ -128,7 +128,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        listener = actionLog.wrap(listener, new SqlLogContextBuilder(task, request));
+        listener = activityLogger.wrap(listener, new SqlLogContextBuilder(task, request));
         if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
             asyncTaskManagementService.asyncExecute(
                 request,

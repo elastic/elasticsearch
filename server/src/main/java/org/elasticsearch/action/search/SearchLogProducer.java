@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.ActionLoggingFields;
 
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_SETTINGS_PREFIX;
@@ -42,14 +43,14 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
     }
 
     @Override
-    public ESLogMessage produce(SearchLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(SearchLogContext context, ActionLoggingFields additionalFields) {
         if (Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
             // Exclude no-match pattern searches, there's not much use in them
-            return null;
+            return Optional.empty();
         }
         // Exclude system searches, based on option
         if (logSystemSearches == false && context.isSystemSearch(systemChecker)) {
-            return null;
+            return Optional.empty();
         }
         ESLogMessage msg = produceCommon(context, additionalFields);
         msg.field(ES_FIELDS_PREFIX + "query", context.getQuery());
@@ -58,7 +59,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
         if (context.isSystemSearch(systemChecker)) {
             msg.field(ES_FIELDS_PREFIX + "is_system", true);
         }
-        return msg;
+        return Optional.of(msg);
     }
 
     @Override

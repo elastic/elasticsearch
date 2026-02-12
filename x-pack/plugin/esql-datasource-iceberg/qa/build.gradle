@@ -67,6 +67,12 @@ dependencies {
 // Test resources (iceberg-fixtures) are now local to this module
 // in src/javaRestTest/resources/
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+  exclude '**/*.avro'
+  exclude '**/.*.crc'
+}
+
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1

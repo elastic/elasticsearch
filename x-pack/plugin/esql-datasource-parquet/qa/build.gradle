@@ -44,6 +44,10 @@ dependencies {
 // The parquet fixtures (employees.parquet and parquet-basic.csv-spec) are included
 // directly in this module's javaRestTest/resources directory
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+}
+
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1

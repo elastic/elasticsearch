@@ -2607,6 +2607,99 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
     }
 
+    public void testImplicitTimestampSortForTsQuery() {
+        // TS query without STATS or SORT should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithKeep() {
+        // TS query with KEEP should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithExplicitLimit() {
+        // TS query with explicit LIMIT should still have implicit sort below the user's limit
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host | LIMIT 5", analyzer);
+
+        // AddImplicitLimit wraps the user's Limit in a cap Limit
+        var outerLimit = as(plan, Limit.class);
+        var innerLimit = as(outerLimit.child(), Limit.class);
+        // The OrderBy should be injected below the innermost Limit
+        var orderBy = as(innerLimit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testNoImplicitTimestampSortWithStats() {
+        // TS query with STATS should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | STATS avg(rate(network.bytes_in))", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortWithExplicitSort() {
+        // TS query with explicit sort should keep it
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | SORT host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var orderChild = as(orders.get(0).child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("host"));
+    }
+
+    public void testNoImplicitTimestampSortWhenTimestampDropped() {
+        // TS query with @timestamp dropped
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | DROP @timestamp", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortForNotTsQuery() {
+        // Not TS query should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("FROM test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
     public void testRateRequiresCounterTypes() {
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";

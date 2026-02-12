@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
@@ -160,7 +161,7 @@ public class EsqlSession {
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
-    private final ByteSizeValue intermediateLocalRelationMaxSize;
+    private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
 
@@ -183,6 +184,7 @@ public class EsqlSession {
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ProjectMetadata projectMetadata,
+        PlannerSettings plannerSettings,
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -201,7 +203,7 @@ public class EsqlSession {
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
-        this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
+        this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.projectMetadata = projectMetadata;
@@ -562,8 +564,11 @@ public class EsqlSession {
         List<Page> pages = result.pages();
         checkPagesBelowSize(
             pages,
-            intermediateLocalRelationMaxSize,
-            actual -> "sub-plan execution results too large [" + ByteSizeValue.ofBytes(actual) + "] > " + intermediateLocalRelationMaxSize
+            plannerSettings.intermediateLocalRelationMaxSize(),
+            actual -> "sub-plan execution results too large ["
+                + ByteSizeValue.ofBytes(actual)
+                + "] > "
+                + plannerSettings.intermediateLocalRelationMaxSize()
         );
         List<Attribute> schema = result.schema();
 

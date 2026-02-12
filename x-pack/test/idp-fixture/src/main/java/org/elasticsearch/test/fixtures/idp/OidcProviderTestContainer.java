@@ -24,7 +24,7 @@ public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestC
     private static final int SSL_PORT = 8443;
 
     /** Time to wait for /c2id/jwks.json to become available after copying override.properties. */
-    private static final Duration JWKS_READY_TIMEOUT = Duration.ofSeconds(60);
+    private static final Duration JWKS_READY_TIMEOUT = Duration.ofSeconds(120);
 
     /**
      * for packer caching only

@@ -71,7 +71,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
-        BulkByScrollParallelizationHelper.startSlicedAction(
+        BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
             UpdateByQueryAction.INSTANCE,

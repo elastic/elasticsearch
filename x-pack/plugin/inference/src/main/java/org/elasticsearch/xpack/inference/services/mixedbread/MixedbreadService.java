@@ -68,7 +68,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     public static final String NAME = "mixedbread";
     public static final String SERVICE_NAME = "Mixedbread";
 
-    static final int EMBEDDING_MAX_BATCH_SIZE = 20;
+    private static final int EMBEDDING_MAX_BATCH_SIZE = 20;
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     /**

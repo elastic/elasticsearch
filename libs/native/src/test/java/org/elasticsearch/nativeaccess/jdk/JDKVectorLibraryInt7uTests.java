@@ -225,7 +225,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         try {
             return (int) getVectorDistance().getHandle(
                 function,
-                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.DataType.INT7U,
                 VectorSimilarityFunctions.Operation.SINGLE
             ).invokeExact(a, b, length);
         } catch (Throwable t) {
@@ -235,7 +235,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
         try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT7, VectorSimilarityFunctions.Operation.BULK)
+            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.BULK)
                 .invokeExact(a, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
@@ -254,7 +254,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         try {
             getVectorDistance().getHandle(
                 function,
-                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.DataType.INT7U,
                 VectorSimilarityFunctions.Operation.BULK_OFFSETS
             ).invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {

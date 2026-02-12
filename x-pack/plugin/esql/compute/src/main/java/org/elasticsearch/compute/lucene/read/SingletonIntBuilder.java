@@ -81,6 +81,13 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
     }
 
     @Override
+    public BlockLoader.SingletonIntBuilder appendInts(int[] values, int from, int length) {
+        System.arraycopy(values, from, values, count, length);
+        count += length;
+        return this;
+    }
+
+    @Override
     public void close() {
         blockFactory.adjustBreaker(-valuesSize(values.length));
     }

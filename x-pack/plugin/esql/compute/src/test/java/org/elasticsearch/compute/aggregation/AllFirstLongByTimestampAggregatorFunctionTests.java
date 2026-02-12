@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.aggregation.FirstLastAggregatorTestingUtils.GroundTruthFirstLastAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -14,10 +15,11 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
-import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -84,23 +86,17 @@ public class AllFirstLongByTimestampAggregatorFunctionTests extends AggregatorFu
         );
 
         // Run each page through separate aggregators
-        List<Page> intermediatePage1 = drive(
-            simpleWithMode(AggregatorMode.INITIAL).get(driverContext),
-            List.of(page1).iterator(),
-            driverContext
-        );
-        List<Page> intermediatePage2 = drive(
-            simpleWithMode(AggregatorMode.INITIAL).get(driverContext),
-            List.of(page2).iterator(),
-            driverContext
-        );
+        List<Page> intermediatePages1 = new TestDriverRunner().builder(driverContext)
+            .input(page1)
+            .run(simpleWithMode(AggregatorMode.INITIAL));
+        List<Page> intermediatePages2 = new TestDriverRunner().builder(driverContext)
+            .input(page2)
+            .run(simpleWithMode(AggregatorMode.INITIAL));
 
-        List<Page> pages = new ArrayList<>();
-        pages.addAll(intermediatePage1);
-        pages.addAll(intermediatePage2);
+        Iterator<Page> finalInput = Iterators.concat(intermediatePages1.iterator(), intermediatePages2.iterator());
 
         // Combine intermediate results (this calls combineIntermediate to expose the bug)
-        List<Page> results = drive(simpleWithMode(AggregatorMode.FINAL).get(driverContext), pages.iterator(), driverContext);
+        List<Page> results = new TestDriverRunner().builder(driverContext).input(finalInput).run(simpleWithMode(AggregatorMode.FINAL));
 
         assertThat(results, hasSize(1));
         Block result = results.get(0).getBlock(0);

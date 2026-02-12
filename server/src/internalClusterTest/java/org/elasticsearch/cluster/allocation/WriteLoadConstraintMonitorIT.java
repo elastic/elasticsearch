@@ -51,9 +51,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         final float utilizationThreshold = utilizationThresholdPercent / 100.0f;
         final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis, utilizationThresholdPercent);
         internalCluster().startMasterOnlyNode(settings);
-        final String utilizationThresholdString = internalCluster().clusterService().getClusterSettings().get(
-            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING
-        ).formatNoTrailingZerosPercent();
+        final String utilizationThresholdString = internalCluster().clusterService()
+            .getClusterSettings()
+            .get(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING)
+            .formatNoTrailingZerosPercent();
         final String dataNodeOne = internalCluster().startDataOnlyNode(settings);
         final String dataNodeTwo = internalCluster().startDataOnlyNode(settings);
         // Maintain a third node so that there's always at least one non-hot-spotting node that can receive shards.

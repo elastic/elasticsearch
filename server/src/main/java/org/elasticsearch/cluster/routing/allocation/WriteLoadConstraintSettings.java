@@ -101,7 +101,6 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
-
     /**
      * When the decider is {@link WriteLoadDeciderStatus#ENABLED}, the write-load monitor will call
      * {@link RerouteService#reroute(String, Priority, ActionListener)} when we see tasks being delayed by this amount of time
@@ -165,11 +164,9 @@ public class WriteLoadConstraintSettings {
         );
 
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
-        clusterSettings.initializeAndWatch(
-            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING,
-            value -> {
-                highUtilizationHotspotThreshold = value.getAsRatio();
-                highUtilizationBalanceThresholdString = value.formatNoTrailingZerosPercent();
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING, value -> {
+            highUtilizationHotspotThreshold = value.getAsRatio();
+            highUtilizationBalanceThresholdString = value.formatNoTrailingZerosPercent();
         });
     }
 

@@ -122,12 +122,15 @@ public class MMROperator extends CompleteInputCollectorOperator {
                 createOutputPages();
             }
 
-            Page page = outputPages.removeFirst();
-            rowsEmitted += page.getPositionCount();
-            return page;
+            if (outputPages.isEmpty() == false) {
+                Page page = outputPages.removeFirst();
+                rowsEmitted += page.getPositionCount();
+                return page;
+            }
         } finally {
             emitNanos = System.nanoTime() - emitStart;
         }
+        return null;
     }
 
     public record PagePositionDocVector(int page, int position, RankDoc doc, VectorData vector) {}

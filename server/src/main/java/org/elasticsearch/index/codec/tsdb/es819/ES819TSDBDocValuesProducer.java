@@ -1686,7 +1686,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         int docCount = meta.readInt();
         int maxDocID = meta.readInt();
         int minDocID = meta.readInt();
-        long valueCount =  meta.readLong();
+        long valueCount = meta.readLong();
 
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID, minDocID, valueCount);
     }
@@ -2694,7 +2694,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final long[] minValue;
         final long[] maxValue;
         final int[] docCount;
-        final long[]  valueCount;
+        final long[] valueCount;
         int levels;
 
         ES819TSDBDocValuesSkipper(DocValuesSkipperEntry entry) {

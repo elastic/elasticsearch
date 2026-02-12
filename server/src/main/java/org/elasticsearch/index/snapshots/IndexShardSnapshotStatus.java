@@ -238,11 +238,14 @@ public class IndexShardSnapshotStatus {
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {
-        if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
+        final Stage previousStage = stage.getAndSet(Stage.FAILURE);
+        if (previousStage != Stage.FAILURE) {
             abortListeners.onResponse(AbortStatus.NO_ABORT);
             // Only set totalTimeMillis when the snapshot had actually started
             if (startTimeMillis != 0) {
                 this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
+            } else {
+                assert previousStage == Stage.INIT : "Missing start time despite being in stage: " + previousStage;
             }
             this.failure = failure;
         }

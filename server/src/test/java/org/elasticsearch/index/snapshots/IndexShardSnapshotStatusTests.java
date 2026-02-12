@@ -40,6 +40,11 @@ public class IndexShardSnapshotStatusTests extends ESTestCase {
                 assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSED));
             }
             case IndexShardSnapshotStatus.Stage.FAILURE -> {
+                // Maybe we were pausing when we failed
+                if (randomBoolean()) {
+                    status.pauseIfNotCompleted(listener -> listener.onResponse(null));
+                    assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.PAUSING));
+                }
                 status.moveToFailed(endTime, "failed before start");
                 assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.FAILURE));
             }

@@ -101,15 +101,6 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
-    /**
-     * The duration for which we need to see "high" utilization before we consider the low threshold exceeded
-     */
-    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_BALANCE_DURATION_SETTING = Setting.timeSetting(
-        SETTING_PREFIX + "high_utilization_balance_duration",
-        TimeValue.timeValueMinutes(10),
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     /**
      * When the decider is {@link WriteLoadDeciderStatus#ENABLED}, the write-load monitor will call

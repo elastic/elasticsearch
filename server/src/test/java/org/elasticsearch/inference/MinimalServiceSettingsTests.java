@@ -10,13 +10,21 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.hamcrest.Matchers.is;
 
 public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCase<MinimalServiceSettings> {
 
@@ -26,6 +34,63 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     private static final String SERVICE_B = "service-b";
     private static final String SERVICE = "service";
     private static final String OTHER_SERVICE = "other-service";
+
+    private static final MinimalServiceSettings MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA = new MinimalServiceSettings(
+        SERVICE_A,
+        TaskType.TEXT_EMBEDDING,
+        TEST_DIMENSIONS_384,
+        SimilarityMeasure.COSINE,
+        DenseVectorFieldMapper.ElementType.FLOAT,
+        EndpointMetadata.EMPTY_INSTANCE
+    );
+
+    private static final String MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON = """
+        {
+          "service": "service-a",
+          "task_type": "text_embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        }
+        """;
+
+    private static final MinimalServiceSettings MINIMAL_SERVICE_SETTINGS_WITH_METADATA = new MinimalServiceSettings(
+        SERVICE_A,
+        TaskType.TEXT_EMBEDDING,
+        384,
+        SimilarityMeasure.COSINE,
+        DenseVectorFieldMapper.ElementType.FLOAT,
+        new EndpointMetadata(
+            new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
+            new EndpointMetadata.Internal("fingerprint", 1L),
+            new EndpointMetadata.Display("name")
+        )
+    );
+
+    private static final String MINIMAL_SERVICE_SETTINGS_WITH_METADATA_JSON = """
+        {
+          "service": "service-a",
+          "task_type": "text_embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float",
+          "metadata": {
+            "heuristics": {
+              "properties": ["heuristic1", "heuristic2"],
+              "status": "beta",
+              "release_date": "2025-01-01",
+              "end_of_life_date": "2025-12-31"
+            },
+            "internal": {
+              "fingerprint": "fingerprint",
+              "version": 1
+            },
+            "display": {
+              "name": "name"
+            }
+          }
+        }
+        """;
 
     public static MinimalServiceSettings randomInstance() {
         TaskType taskType = randomFrom(TaskType.values());
@@ -301,5 +366,21 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             EndpointMetadata.EMPTY_INSTANCE
         );
         assertFalse(settings.canMergeWith(other));
+    }
+
+    public void testToXContentMinimalServiceSettingsWithoutMetadata() throws IOException {
+        var builder = XContentFactory.contentBuilder(XContentType.JSON);
+        MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        var json = Strings.toString(builder);
+
+        assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON)));
+    }
+
+    public void testToXContentMinimalServiceSettingsWithEndpointMetadata() throws IOException {
+        var builder = XContentFactory.contentBuilder(XContentType.JSON);
+        MINIMAL_SERVICE_SETTINGS_WITH_METADATA.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        var json = Strings.toString(builder);
+
+        assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITH_METADATA_JSON)));
     }
 }

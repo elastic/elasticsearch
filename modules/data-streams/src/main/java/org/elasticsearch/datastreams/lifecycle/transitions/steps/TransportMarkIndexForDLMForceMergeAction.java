@@ -63,6 +63,10 @@ public class TransportMarkIndexForDLMForceMergeAction extends TransportMasterNod
 
     @Override
     protected ClusterBlockException checkBlock(MarkIndexForDLMForceMergeAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        if (globalBlock != null) {
+            return globalBlock;
+        }
+        return state.blocks().indexBlockedException(request.getProjectId(), ClusterBlockLevel.METADATA_WRITE, request.getSourceIndex());
     }
 }

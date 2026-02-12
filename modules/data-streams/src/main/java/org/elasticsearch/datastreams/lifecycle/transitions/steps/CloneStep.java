@@ -86,14 +86,14 @@ public class CloneStep implements DlmStep {
             return;
         }
 
-        String cloneIndexName = getDLMCloneIndexName(indexName);
-        if (projectMetadata.indices().containsKey(cloneIndexName)) {
+        String cloneIndex = getDLMCloneIndexName(indexName);
+        if (projectMetadata.indices().containsKey(cloneIndex)) {
             // Clone index exists but step not completed - check if it's been stuck for too long and clean up if so
-            maybeCleanUpStuckCloneTask(cloneIndexName, stepContext);
+            maybeCleanUpStuckCloneTask(cloneIndex, stepContext);
             return;
         }
 
-        cloneIndex(indexName, cloneIndexName, ActionListener.noop(), stepContext);
+        cloneIndex(indexName, cloneIndex, ActionListener.noop(), stepContext);
     }
 
     @Override
@@ -101,12 +101,20 @@ public class CloneStep implements DlmStep {
         return "Clone Index";
     }
 
-    /*
+    /**
      * Checks if the clone index has been stuck for too long and if so, deletes it to allow a new clone attempt.
      */
-    private static void maybeCleanUpStuckCloneTask(String cloneIndexName, DlmStepContext stepContext) {
+    private static void maybeCleanUpStuckCloneTask(String cloneIndex, DlmStepContext stepContext) {
         String indexName = stepContext.indexName();
-        IndexMetadata cloneIndexMetadata = stepContext.projectState().metadata().index(cloneIndexName);
+        IndexMetadata cloneIndexMetadata = stepContext.projectState().metadata().index(cloneIndex);
+        if (cloneIndexMetadata == null) {
+            logger.debug(
+                "Clone index [{}] for index [{}] not found in project metadata during stuck clone check, it may have been deleted",
+                cloneIndex,
+                indexName
+            );
+            return;
+        }
         long cloneCreationTime = cloneIndexMetadata.getCreationDate();
         long currentTime = Clock.systemUTC().millis();
         long timeSinceCreation = currentTime - cloneCreationTime;
@@ -114,7 +122,7 @@ public class CloneStep implements DlmStep {
             // Clone has been stuck for > 12 hours, clean it up so a new clone can be attempted
             logger.info(
                 "DLM cleaning up clone index [{}] for index [{}] as it has been in progress for [{}ms], exceeding timeout of [{}ms]",
-                cloneIndexName,
+                cloneIndex,
                 indexName,
                 timeSinceCreation,
                 CLONE_TIMEOUT.millis()
@@ -122,9 +130,9 @@ public class CloneStep implements DlmStep {
             deleteCloneIndexIfExists(
                 stepContext,
                 ActionListener.wrap(
-                    resp -> logger.info("DLM successfully cleaned up clone index [{}] for index [{}]", cloneIndexName, indexName),
+                    resp -> logger.info("DLM successfully cleaned up clone index [{}] for index [{}]", cloneIndex, indexName),
                     err -> logger.error(
-                        () -> Strings.format("DLM failed to clean up clone index [%s] for index [%s]", cloneIndexName, indexName),
+                        () -> Strings.format("DLM failed to clean up clone index [%s] for index [%s]", cloneIndex, indexName),
                         err
                     )
                 )
@@ -134,7 +142,7 @@ public class CloneStep implements DlmStep {
             logger.debug(
                 "DLM clone index [{}] for index [{}] exists and has been in progress for [{}ms], "
                     + "waiting for completion or timeout of [{}ms]",
-                cloneIndexName,
+                cloneIndex,
                 indexName,
                 timeSinceCreation,
                 CLONE_TIMEOUT.millis()
@@ -148,57 +156,53 @@ public class CloneStep implements DlmStep {
     }
 
     private static class CloneIndexResizeActionListener implements ActionListener<CreateIndexResponse> {
-        private final String sourceIndexName;
-        private final String targetIndexName;
+        private final String originalIndex;
+        private final String cloneIndex;
         private final ActionListener<Void> listener;
         private final DlmStepContext stepContext;
 
         private CloneIndexResizeActionListener(
-            String sourceIndexName,
-            String targetIndexName,
+            String originalIndex,
+            String cloneIndex,
             ActionListener<Void> listener,
             DlmStepContext stepContext
         ) {
-            this.sourceIndexName = sourceIndexName;
-            this.targetIndexName = targetIndexName;
+            this.originalIndex = originalIndex;
+            this.cloneIndex = cloneIndex;
             this.listener = listener;
             this.stepContext = stepContext;
         }
 
         @Override
         public void onResponse(CreateIndexResponse createIndexResponse) {
-            logger.debug("DLM successfully cloned index [{}] to index [{}]", sourceIndexName, targetIndexName);
+            logger.debug("DLM successfully cloned index [{}] to index [{}]", originalIndex, cloneIndex);
             // on success, write the cloned index name to the custom metadata of the index metadata of original index
-            markIndexToBeForceMerged(sourceIndexName, targetIndexName, stepContext, listener.delegateFailure((l, v) -> {
-                logger.info(
-                    "DLM successfully marked index [{}] to be force merged for source index [{}]",
-                    targetIndexName,
-                    sourceIndexName
-                );
+            markIndexToBeForceMerged(originalIndex, cloneIndex, stepContext, listener.delegateFailure((l, v) -> {
+                logger.info("DLM successfully marked index [{}] to be force merged for source index [{}]", cloneIndex, originalIndex);
                 l.onResponse(null);
             }));
         }
 
         @Override
         public void onFailure(Exception e) {
-            logger.error(() -> Strings.format("DLM failed to clone index [%s] to index [%s]", sourceIndexName, targetIndexName), e);
+            logger.error(() -> Strings.format("DLM failed to clone index [%s] to index [%s]", originalIndex, cloneIndex), e);
             deleteCloneIndexIfExists(stepContext, listener.delegateFailure((l, v) -> {
                 logger.info(
                     "DLM successfully deleted clone index [{}] after failed attempt to clone index [{}]",
-                    targetIndexName,
-                    sourceIndexName
+                    cloneIndex,
+                    originalIndex
                 );
                 l.onFailure(e);
             }));
         }
     }
 
-    private void cloneIndex(String sourceIndex, String targetIndex, ActionListener<Void> listener, DlmStepContext stepContext) {
-        ResizeRequest cloneIndexRequest = formCloneRequest(sourceIndex, targetIndex);
+    private void cloneIndex(String originalIndex, String cloneIndex, ActionListener<Void> listener, DlmStepContext stepContext) {
+        ResizeRequest cloneIndexRequest = formCloneRequest(originalIndex, cloneIndex);
         stepContext.executeDeduplicatedRequest(
             TransportResizeAction.TYPE.name(),
             cloneIndexRequest,
-            Strings.format("DLM service encountered an error when trying to clone index [%s]", sourceIndex),
+            Strings.format("DLM service encountered an error when trying to clone index [%s]", originalIndex),
             (req, unused) -> cloneIndexCallback(stepContext.projectId(), cloneIndexRequest, listener, stepContext)
         );
     }
@@ -210,31 +214,31 @@ public class CloneStep implements DlmStep {
         DlmStepContext stepContext
     ) {
         assert cloneRequest.indices() != null && cloneRequest.indices().length == 1 : "DLM should clone one index at a time";
-        String sourceIndex = cloneRequest.getSourceIndex();
-        String targetIndex = cloneRequest.getTargetIndexRequest().index();
-        logger.trace("DLM issuing request to clone index [{}] to index [{}]", sourceIndex, targetIndex);
+        String originalIndex = cloneRequest.getSourceIndex();
+        String cloneIndex = cloneRequest.getTargetIndexRequest().index();
+        logger.trace("DLM issuing request to clone index [{}] to index [{}]", originalIndex, cloneIndex);
         CloneIndexResizeActionListener responseListener = new CloneIndexResizeActionListener(
-            sourceIndex,
-            targetIndex,
+            originalIndex,
+            cloneIndex,
             listener,
             stepContext
         );
         stepContext.client().projectClient(projectId).execute(TransportResizeAction.TYPE, cloneRequest, responseListener);
     }
 
-    /*
+    /**
      * Updates the custom metadata of the index metadata of the source index to mark the target index as that to be force merged by DLM.
      * This method performs the update asynchronously using a transport action.
      */
     private static void markIndexToBeForceMerged(
-        String sourceIndex,
+        String originalIndex,
         String indexToBeForceMerged,
         DlmStepContext stepContext,
         ActionListener<Void> listener
     ) {
-        MarkIndexForDLMForceMergeAction.Request markIndexForForceMergeRequest = formMarkIndexForForceMergeRequest(
+        MarkIndexForDLMForceMergeAction.Request markIndexForForceMergeRequest = new MarkIndexForDLMForceMergeAction.Request(
             stepContext.projectId(),
-            sourceIndex,
+            originalIndex,
             indexToBeForceMerged
         );
         stepContext.executeDeduplicatedRequest(
@@ -243,7 +247,7 @@ public class CloneStep implements DlmStep {
             Strings.format(
                 "DLM service encountered an error when trying to mark index [%s] to be force merged for source index [%s]",
                 indexToBeForceMerged,
-                sourceIndex
+                originalIndex
             ),
             (req, unused) -> markIndexToBeForceMergedCallback(markIndexForForceMergeRequest, stepContext, listener)
         );
@@ -280,9 +284,16 @@ public class CloneStep implements DlmStep {
 
     private static void deleteCloneIndexIfExists(DlmStepContext stepContext, ActionListener<Void> listener) {
         String cloneIndex = getDLMCloneIndexName(stepContext.indexName());
+        if (stepContext.projectState().metadata().indices().containsKey(cloneIndex) == false) {
+            logger.debug("Clone index [{}] does not exist, no need to delete", cloneIndex);
+            listener.onResponse(null);
+            return;
+        }
+
         logger.debug("Attempting to delete index [{}]", cloneIndex);
 
-        DeleteIndexRequest deleteIndexRequest = formDeleteRequest(cloneIndex);
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(cloneIndex).indicesOptions(IGNORE_MISSING_OPTIONS)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         stepContext.executeDeduplicatedRequest(
             TransportDeleteIndexAction.TYPE.name(),
             deleteIndexRequest,
@@ -319,41 +330,29 @@ public class CloneStep implements DlmStep {
 
     /**
      * Forms a resize request to clone the source index into a new index with 0 replicas.
-     * @param sourceIndex the index to be cloned
-     * @param targetIndex the name of the new index to clone into
+     * @param originalIndex the index to be cloned
+     * @param cloneIndex the name of the new index to clone into
      * @return the resize request to clone the source index into a new index with 0 replicas
      */
-    public static ResizeRequest formCloneRequest(String sourceIndex, String targetIndex) {
+    public static ResizeRequest formCloneRequest(String originalIndex, String cloneIndex) {
         ResizeRequest cloneRequest = new ResizeRequest(
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
             ResizeType.CLONE,
-            sourceIndex,
-            targetIndex
+            originalIndex,
+            cloneIndex
         );
         cloneRequest.setTargetIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         return cloneRequest;
     }
 
-    private static DeleteIndexRequest formDeleteRequest(String indexName) {
-        return new DeleteIndexRequest(indexName).indicesOptions(IGNORE_MISSING_OPTIONS).masterNodeTimeout(TimeValue.MAX_VALUE);
-    }
-
-    private static MarkIndexForDLMForceMergeAction.Request formMarkIndexForForceMergeRequest(
-        ProjectId projectId,
-        String sourceIndex,
-        String indexToBeForceMerged
-    ) {
-        return new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, indexToBeForceMerged);
-    }
-
-    /*
+    /**
      * Returns the name of index to be force merged by DLM from the custom metadata of the index metadata of the source index.
      * If no such index has been marked in the custom metadata, returns null.
      */
     @Nullable
-    private static String getIndexToBeForceMerged(String sourceIndex, ProjectState projectState) {
-        return Optional.ofNullable(projectState.metadata().index(sourceIndex))
+    private static String getIndexToBeForceMerged(String originalIndex, ProjectState projectState) {
+        return Optional.ofNullable(projectState.metadata().index(originalIndex))
             .map(indexMetadata -> indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
             .map(customMetadata -> customMetadata.get(DLM_INDEX_FOR_FORCE_MERGE_KEY))
             .orElse(null);
@@ -361,7 +360,7 @@ public class CloneStep implements DlmStep {
 
     /**
      * Gets a unique name deterministically for the clone index based on the original index name.
-     * The generated name format is "dlm-fmc-{hash}-{truncated-original-name}" where the hash is a full 64-character
+     * The generated name format is "dlm-clone-{hash}-{truncated-original-name}" where the hash is a full 64-character
      * SHA-256 hex digest of the original name to ensure uniqueness, and the original name is truncated if necessary
      * to keep the total name length under 255 bytes.
      *
@@ -371,7 +370,7 @@ public class CloneStep implements DlmStep {
     public static String getDLMCloneIndexName(String originalName) {
         // Uses full SHA-256 hash (64 hex chars) to ensure uniqueness
         String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)));
-        String prefix = "dlm-fmc-";
+        String prefix = "dlm-clone-";
         String separator = "-";
 
         // Calculate max length for original name: 255 - prefix - hash - separator

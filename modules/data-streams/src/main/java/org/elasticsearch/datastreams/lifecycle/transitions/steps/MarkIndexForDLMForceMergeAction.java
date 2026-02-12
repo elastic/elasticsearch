@@ -52,6 +52,15 @@ public class MarkIndexForDLMForceMergeAction {
 
         public Request(ProjectId projectId, String sourceIndex, String indexToBeForceMerged) {
             super(INFINITE_MASTER_NODE_TIMEOUT);
+            if (projectId == null) {
+                throw new IllegalArgumentException("project id must not be null");
+            }
+            if (Strings.isNullOrEmpty(sourceIndex)) {
+                throw new IllegalArgumentException("source index must not be null or empty");
+            }
+            if (Strings.isNullOrEmpty(indexToBeForceMerged)) {
+                throw new IllegalArgumentException("index to be force merged must not be null or empty");
+            }
             this.projectId = projectId;
             this.sourceIndex = sourceIndex;
             this.indexToBeForceMerged = indexToBeForceMerged;
@@ -86,24 +95,7 @@ public class MarkIndexForDLMForceMergeAction {
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (projectId == null) {
-                validationException = new ActionRequestValidationException();
-                validationException.addValidationError("project id must not be null");
-            }
-            if (Strings.isNullOrEmpty(sourceIndex)) {
-                if (validationException == null) {
-                    validationException = new ActionRequestValidationException();
-                }
-                validationException.addValidationError("source index must not be null or empty");
-            }
-            if (Strings.isNullOrEmpty(indexToBeForceMerged)) {
-                if (validationException == null) {
-                    validationException = new ActionRequestValidationException();
-                }
-                validationException.addValidationError("index to be force merged must not be null or empty");
-            }
-            return validationException;
+            return null;
         }
     }
 

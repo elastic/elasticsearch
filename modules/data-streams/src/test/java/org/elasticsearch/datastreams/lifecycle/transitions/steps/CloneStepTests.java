@@ -191,7 +191,7 @@ public class CloneStepTests extends ESTestCase {
 
         assertThat(capturedResizeRequest.get(), is(notNullValue()));
         assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
-        assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString("dlm-fmc-"));
+        assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString("dlm-clone-"));
         assertThat(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.number_of_replicas"), equalTo("0"));
     }
 
@@ -222,8 +222,8 @@ public class CloneStepTests extends ESTestCase {
         ElasticsearchException exception = new ElasticsearchException("clone failed");
         capturedCloneListener.get().onFailure(exception);
 
-        // Should attempt to delete the clone index
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        // Should NOT attempt to delete the clone index since it was never created in metadata
+        assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
 
     public void testGetCloneIndexCallbackNameIsDeterministic() {
@@ -231,7 +231,7 @@ public class CloneStepTests extends ESTestCase {
         String cloneName2 = getDLMCloneIndexName(indexName);
         assertThat(cloneName1, equalTo(cloneName2));
         assertThat(cloneName1, containsString(indexName));
-        assertThat(cloneName1, containsString("dlm-fmc-"));
+        assertThat(cloneName1, containsString("dlm-clone-"));
     }
 
     public void testGetDLMCloneIndexName() {
@@ -239,14 +239,14 @@ public class CloneStepTests extends ESTestCase {
         String shortName = "test-index";
         String cloneName = getDLMCloneIndexName(shortName);
         assertThat("Clone name should be deterministic", cloneName, equalTo(getDLMCloneIndexName(shortName)));
-        assertThat("Clone name should contain prefix", cloneName, containsString("dlm-fmc-"));
+        assertThat("Clone name should contain prefix", cloneName, containsString("dlm-clone-"));
         assertThat("Clone name should contain original name", cloneName, containsString(shortName));
         int shortNameLength = cloneName.getBytes(StandardCharsets.UTF_8).length;
         assertThat("Clone name should not exceed 255 bytes", shortNameLength <= 255, is(true));
 
         // Test with maximum length name that doesn't need truncation
-        // 255 - 8 (prefix) - 64 (hash) - 1 (separator) = 182 bytes max for original name
-        String maxLengthName = randomAlphaOfLength(182);
+        // 255 - 10 (prefix) - 64 (hash) - 1 (separator) = 180 bytes max for original name
+        String maxLengthName = randomAlphaOfLength(180);
         String maxCloneName = getDLMCloneIndexName(maxLengthName);
         int maxLength = maxCloneName.getBytes(StandardCharsets.UTF_8).length;
         assertThat("Max length clone name should be exactly 255 bytes", maxLength, is(255));
@@ -258,7 +258,7 @@ public class CloneStepTests extends ESTestCase {
         int longLength = longCloneName.getBytes(StandardCharsets.UTF_8).length;
         assertThat("Long clone name should be exactly 255 bytes", longLength, is(255));
         assertThat("Long clone name should be deterministic", longCloneName, equalTo(getDLMCloneIndexName(longName)));
-        assertThat("Long clone name should start with prefix", longCloneName, containsString("dlm-fmc-"));
+        assertThat("Long clone name should start with prefix", longCloneName, containsString("dlm-clone-"));
         // Original name should be truncated
         assertThat("Long clone name should not contain full original name", longCloneName.contains(longName), is(false));
 
@@ -409,8 +409,8 @@ public class CloneStepTests extends ESTestCase {
         return clusterState.projectState(projectId);
     }
 
-    private ProjectState createProjectStateWithClone(String sourceIndexName, String cloneIndexName, Map<String, String> customMetadata) {
-        IndexMetadata.Builder sourceIndexBuilder = IndexMetadata.builder(sourceIndexName)
+    private ProjectState createProjectStateWithClone(String originalIndexName, String cloneIndexName, Map<String, String> customMetadata) {
+        IndexMetadata.Builder originalIndexBuilder = IndexMetadata.builder(originalIndexName)
             .settings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -421,7 +421,7 @@ public class CloneStepTests extends ESTestCase {
             .numberOfReplicas(1);
 
         if (customMetadata != null) {
-            sourceIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
+            originalIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
         }
 
         IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
@@ -431,7 +431,7 @@ public class CloneStepTests extends ESTestCase {
             .build();
 
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
-            .put(sourceIndexBuilder.build(), false)
+            .put(originalIndexBuilder.build(), false)
             .put(cloneIndexMetadata, false);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
@@ -440,12 +440,12 @@ public class CloneStepTests extends ESTestCase {
     }
 
     private ProjectState createProjectStateWithCloneAndRouting(
-        String sourceIndexName,
+        String originalIndexName,
         String cloneIndexName,
         Map<String, String> customMetadata,
         boolean allShardsActive
     ) {
-        IndexMetadata.Builder sourceIndexBuilder = IndexMetadata.builder(sourceIndexName)
+        IndexMetadata.Builder originalIndexBuilder = IndexMetadata.builder(originalIndexName)
             .settings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -456,10 +456,10 @@ public class CloneStepTests extends ESTestCase {
             .numberOfReplicas(1);
 
         if (customMetadata != null) {
-            sourceIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
+            originalIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
         }
 
-        IndexMetadata sourceIndexMetadata = sourceIndexBuilder.build();
+        IndexMetadata originalIndexMetadata = originalIndexBuilder.build();
 
         IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
@@ -468,7 +468,7 @@ public class CloneStepTests extends ESTestCase {
             .build();
 
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
-            .put(sourceIndexMetadata, false)
+            .put(originalIndexMetadata, false)
             .put(cloneIndexMetadata, false);
 
         // Routing should reflect the index that will be force merged (the clone)
@@ -542,12 +542,12 @@ public class CloneStepTests extends ESTestCase {
     }
 
     private ProjectState createProjectStateWithCloneAndCreationTime(
-        String sourceIndexName,
+        String originalIndexName,
         String cloneIndexName,
         Map<String, String> customMetadata,
         long creationTimeMillis
     ) {
-        IndexMetadata.Builder sourceIndexBuilder = IndexMetadata.builder(sourceIndexName)
+        IndexMetadata.Builder originalIndexBuilder = IndexMetadata.builder(originalIndexName)
             .settings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -558,7 +558,7 @@ public class CloneStepTests extends ESTestCase {
             .numberOfReplicas(1);
 
         if (customMetadata != null) {
-            sourceIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
+            originalIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
         }
 
         IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
@@ -569,7 +569,7 @@ public class CloneStepTests extends ESTestCase {
             .build();
 
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
-            .put(sourceIndexBuilder.build(), false)
+            .put(originalIndexBuilder.build(), false)
             .put(cloneIndexMetadata, false);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();

@@ -125,7 +125,7 @@ and filter pushdown. Used by `LakehouseConnector` and available for direct use b
 | [StorageProvider](lakehouse/StorageProvider.java) | SPI for accessing files in a storage system (S3, GCS, HDFS) |
 | [StorageObject](lakehouse/StorageObject.java) | Read handle for a single object (sync + async) |
 | [StorageEntry](lakehouse/StorageEntry.java) | Metadata record from directory listing (path, length, lastModified) |
-| [StorageIterator](lakehouse/StorageIterator.java) | Closeable iterator over storage entries |
+| [StorageIterator](lakehouse/StorageIterator.java) | Storage-specific iterator over entries (extends CloseableIterator) |
 | [StorageProviderFactory](lakehouse/StorageProviderFactory.java) | Factory for creating StorageProvider instances |
 
 **Format reading:**

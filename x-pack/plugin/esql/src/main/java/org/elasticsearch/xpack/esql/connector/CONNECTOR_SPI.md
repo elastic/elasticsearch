@@ -178,45 +178,37 @@ and filter pushdown. Used by `LakehouseConnector` and available for direct use b
 | [JdbcConnector](sql/JdbcConnector.java) | SQL example: reads from a database via JDBC |
 | [JdbcPlan](sql/JdbcPlan.java) | Plan node holding table name and built SQL |
 
-### Architecture Overview
+### Core SPI: Component Composition
+
+How core SPI concepts are used in each query phase:
 
 ```
-                              ┌──────────────────────────────────────────────┐
-                              │              Core SPI (connector/)           │
-                              │                                              │
-                              │  Connector ─── ConnectorPlan ─── ConnectorExec
-                              │      │              │                        │
-                              │      │         ConnectorPartition            │
-                              │      │                                       │
-                              │  ConnectorSourceDescriptor                   │
-                              │  ConnectorCapabilities                       │
-                              │  ConnectorPushdownRule                       │
-                              └──────────────┬──────────────┬────────────────┘
-                                             │              │
-                    ┌────────────────────────┐ ┌────────────────────────────┐
-                    │  Lakehouse (lakehouse/) │ │      SQL (sql/)            │
-                    │                        │ │                            │
-                    │  LakehouseConnector     │ │  SqlConnector              │
-                    │  LakehousePlan          │ │  SqlPlan                   │
-                    │                        │ │                            │
-                    │  StorageProvider ───┐   │ │  SqlBuilder                │
-                    │  FormatReader ──────┤   │ │  PushFilter/Limit/OrderBy  │
-                    │  TableCatalog ──────┤   │ │  PushAggregate + BuildSql  │
-                    │  FilterPushdown ────┘   │ │                            │
-                    └────────────┬───────────┘ └─────────────┬──────────────┘
-                                 │                           │
-                    ┌────────────┴───────────┐ ┌─────────────┴──────────────┐
-                    │  Concrete connectors    │ │  Concrete connectors       │
-                    │                        │ │                            │
-                    │  IcebergConnector       │ │  JdbcConnector             │
-                    │  DeltaLakeConnector     │ │  PostgresConnector         │
-                    │  ParquetConnector       │ │  OracleConnector           │
-                    └────────────────────────┘ └────────────────────────────┘
+  Phase              Connector method                   Key concepts
+  ═════              ════════════════                   ════════════
+
+  RESOLVE            Connector.resolve()
+                     ConnectorSourceDescriptor ─────────────────────► ConnectorPlan
+                     (FROM clause: type + config + expression)        (schema + source info)
+
+  OPTIMIZE           Connector.optimizationRules()
+                     ConnectorPushdownRule ──► pushDown(plan) ──────► ConnectorPlan'
+                     (fold Filter/Limit/etc. into plan leaf)          (with pushed-down ops)
+
+  PHYSICAL PLAN      Connector.createPhysicalPlan()
+                     ConnectorPlan' ────────────────────────────────► ConnectorExec
+                     (optimized logical plan)                         (physical wrapper)
+
+  PARTITION          Connector.planPartitions()
+                     ConnectorExec + DistributionHints ─────────────► ConnectorPartition[]
+                     (plan + target parallelism)                      (units of parallel work)
+
+  EXECUTE            Connector.createSourceOperator()
+                     ConnectorPartition ────────────────────────────► SourceOperator
+                     (one unit of work)                               (produces Pages)
 ```
 
-**Core SPI** defines the contract every connector must follow. **Lakehouse** and **SQL** are two
-independent tracks built on top, each providing reusable base classes and optimization rules.
-Concrete connectors extend one track and fill in the connector-specific details.
+`ConnectorCapabilities` determines which phases run — coordinator-only connectors skip
+PARTITION (single `CoordinatorPartition` is used instead).
 
 ---
 
@@ -335,37 +327,35 @@ the [`lakehouse`](lakehouse/) package that separates storage access from format 
 | [TableCatalog](lakehouse/TableCatalog.java) | (Optional) Table catalog integration | Iceberg, Delta Lake, Hudi |
 | [FilterPushdownSupport](lakehouse/FilterPushdownSupport.java) | (Optional) Filter pushdown | Partition pruning, row-group filtering |
 
-### Component Composition
+### Lakehouse: Component Composition
+
+How lakehouse SPI concepts are used in each query phase:
 
 ```
-                         LakehouseConnector
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                  │
-              ▼                 ▼                  ▼
-      StorageProvider      FormatReader       TableCatalog
-      (file access)       (file reading)      (optional)
-              │                 │                  │
-              │                 │                  │
-  ┌───────────┴──┐    ┌────────┴───┐    ┌─────────┴──────┐
-  │ newObject()  │    │ metadata() │    │ canHandle()    │
-  │ listObjects()│    │ read()     │    │ metadata()     │
-  │ exists()     │    │            │    │ planScan()     │
-  └──────────────┘    └────────────┘    └────────────────┘
-         │                  │                   │
-         ▼                  ▼                   ▼
-    S3, GCS,          Parquet, ORC,       Iceberg, Delta,
-    HDFS, Local       CSV, Avro           Hudi
-                                                │
-                                                ▼
-                                       FilterPushdownSupport
-                                       (partition pruning,
-                                        row-group filtering)
+  Phase              Components used                    Data flow
+  ═════              ═══════════════                    ═════════
+
+  RESOLVE            TableCatalog (if available)
+                       catalog.canHandle() ──► catalog.metadata() ─────► SourceMetadata
+                     StorageProvider + FormatReader (fallback)              (schema + stats)
+                       storage.newObject() ──► format.metadata() ──────► SourceMetadata
+
+  OPTIMIZE           FilterPushdownSupport (opt-in)
+                       fps.pushFilters(expressions) ───────────────────► pushed + remainder
+                                                                          (split filters)
+
+  PARTITION          StorageProvider
+                       storage.listObjects() ──► StorageEntry[] ───────► FileTask[]
+                       partitionTasks(tasks, parallelism) ─────────────► ConnectorPartition[]
+
+  EXECUTE            StorageProvider + FormatReader
+                       storage.newObject(path) ──► StorageObject
+                       format.read(object, columns, filter) ──────────► Pages
 ```
 
-**StorageProvider** and **FormatReader** are always required — they provide file access and reading.
-**TableCatalog** and **FilterPushdownSupport** are optional — they add catalog integration and
-filter pushdown for formats that support them (e.g., Iceberg).
+**StorageProvider** and **FormatReader** participate in every phase — resolution, partitioning,
+and execution. **TableCatalog** and **FilterPushdownSupport** are optional and add catalog
+integration and filter pushdown for formats that support them (e.g., Iceberg).
 
 ### Combinations
 
@@ -474,32 +464,33 @@ Where `my_db` is registered as:
 }
 ```
 
-### SQL Pushdown Pipeline
+### SQL: Component Composition
+
+How SQL SPI concepts are used in each query phase:
 
 ```
-ES|QL plan tree                    SqlConnector rules            JdbcPlan state
-═══════════════                    ══════════════════            ══════════════
+  Phase              Components used                    Data flow
+  ═════              ═══════════════                    ═════════
 
-  Limit 100                         PushLimitToSql               limit: 100
-     │                                   │
-  TopN(name ASC)                    PushOrderByToSql             orderBy: [name ASC]
-     │                                   │
-  Filter(age > 21)                  PushFilterToSql              filter: age > 21
-     │                                   │
-  JdbcPlan(users)                        │                       tableName: "users"
-                                         │
-                                    BuildSql (final rule)
-                                         │
-                                         ▼
-                                    builtSql: "SELECT name, age
-                                      FROM users
-                                      WHERE age > 21
-                                      ORDER BY name ASC
-                                      LIMIT 100"
+  RESOLVE            SqlConnector (database driver)
+                       connect + read schema ──────────────────────────► SqlPlan
+                                                                         (table + columns)
+
+  OPTIMIZE           PushFilterToSql ──► translateFilter() ────────────► SqlPlan.filter
+                     PushLimitToSql ───────────────────────────────────► SqlPlan.limit
+                     PushOrderByToSql ──► translateOrderBy() ──────────► SqlPlan.orderBy
+                     PushAggregateToSql ──► translateAggregates() ─────► SqlPlan.aggregation
+                     BuildSql ──► buildSql(plan) ──────────────────────► SqlPlan.builtSql
+                                                                         (complete SQL string)
+
+  EXECUTE            SqlConnector (coordinator-only)
+                       execute(builtSql) ──────────────────────────────► Pages
+                       (single query, no partitioning)                   (results)
 ```
 
-Each rule removes one ES|QL plan node and accumulates the operation into `JdbcPlan`.
-The final `BuildSql` rule translates the accumulated operations into a single SQL string.
+Each optimization rule removes one ES|QL plan node and accumulates the operation into `SqlPlan`.
+The final `BuildSql` rule translates all accumulated state into a single SQL string. There is no
+PARTITION phase — SQL connectors are coordinator-only.
 
 ### Key classes
 

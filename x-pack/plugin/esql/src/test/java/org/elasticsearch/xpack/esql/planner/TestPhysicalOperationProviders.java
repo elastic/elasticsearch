@@ -319,6 +319,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         return switch (extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName().string(), blockCopier)) {
             case BlockResultMissing unused -> getNullsBlock(indexDoc);
             case BlockResultSuccess success -> {
+                if (success.block.elementType() != PlannerUtils.toElementType(conversion.field().dataType().widenSmallNumeric())
+                    && success.block.elementType() == PlannerUtils.toElementType(conversion.dataType().widenSmallNumeric())) {
+                    // Block is already in the correct type, we can skip the conversion.
+                    yield success.block;
+                }
                 try (var converter = new TypeConverter(conversion).build(context)) {
                     yield converter.convert(success.block);
                 }

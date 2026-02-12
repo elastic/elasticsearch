@@ -43,8 +43,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     ) throws IOException {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
             && input instanceof MemorySegmentAccessInput msai
-            && queryBits == 4
-            && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
+            && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
             MemorySegment ms = msai.segmentSliceOrNull(0, input.length());
             if (ms != null) {
                 return new MemorySegmentESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, ms);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.iceberg;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -17,6 +18,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -44,7 +46,7 @@ public class MessageTemplates {
      * @throws IOException if the file cannot be read
      */
     public static MessageTemplates load(String resourcePath) throws IOException {
-        MessageTemplates templates = new MessageTemplates(System.err);
+        MessageTemplates templates = new MessageTemplates(stderr());
         templates.loadFromResource(resourcePath);
         return templates;
     }
@@ -62,7 +64,7 @@ public class MessageTemplates {
      * Create a MessageTemplates instance using System.err.
      */
     public MessageTemplates() {
-        this(System.err);
+        this(stderr());
     }
 
     /**
@@ -129,7 +131,7 @@ public class MessageTemplates {
      * @param args format arguments
      */
     public void printf(String format, Object... args) {
-        out.printf(format, args);
+        out.printf(Locale.ROOT, format, args);
     }
 
     /**
@@ -213,9 +215,9 @@ public class MessageTemplates {
         if (bytes < 1024) {
             return bytes + " B";
         } else if (bytes < 1024 * 1024) {
-            return String.format("%.1f KB", bytes / 1024.0);
+            return String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0);
         } else {
-            return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+            return String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
         }
     }
 
@@ -223,6 +225,11 @@ public class MessageTemplates {
      * Format time as MM:SS.
      */
     public static String formatTime(long minutes, long seconds) {
-        return String.format("%d:%02d", minutes, seconds);
+        return String.format(Locale.ROOT, "%d:%02d", minutes, seconds);
+    }
+
+    @SuppressForbidden(reason = "System.err is intentional for this interactive manual testing tool")
+    private static PrintStream stderr() {
+        return System.err;
     }
 }

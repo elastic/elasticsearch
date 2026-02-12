@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -25,8 +26,11 @@ import org.junit.rules.TestRule;
 
 import java.io.PrintStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Booleans.parseBoolean;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
@@ -80,7 +84,7 @@ public class InteractiveFixtureManual extends ESRestTestCase {
     /** Fixed port for S3/HTTP fixture */
     private static final int S3_FIXTURE_PORT = 9345;
 
-    private static final PrintStream out = System.err;
+    private static final PrintStream out = stderr();
 
     /** S3 HTTP fixture serving test data on fixed port */
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture(S3_FIXTURE_PORT);
@@ -120,10 +124,10 @@ public class InteractiveFixtureManual extends ESRestTestCase {
     private static final int WAIT_MINUTES = Integer.parseInt(System.getProperty("tests.fixture.wait_minutes", "0"));
 
     // Whether to show all loaded fixtures
-    private static final boolean SHOW_BLOBS = Boolean.parseBoolean(System.getProperty("tests.fixture.show_blobs", "false"));
+    private static final boolean SHOW_BLOBS = parseBoolean(System.getProperty("tests.fixture.show_blobs", "false"));
 
     // Whether to show S3 request logs during interactive session
-    private static final boolean SHOW_LOGS = Boolean.parseBoolean(System.getProperty("tests.fixture.show_logs", "true"));
+    private static final boolean SHOW_LOGS = parseBoolean(System.getProperty("tests.fixture.show_logs", "true"));
 
     // Message templates for output
     private MessageTemplates messages;
@@ -215,13 +219,13 @@ public class InteractiveFixtureManual extends ESRestTestCase {
             messages.print("fixtures_show_all");
             blobs.keySet().stream().sorted().forEach(key -> {
                 long size = blobs.get(key).length();
-                out.printf("  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
+                out.printf(Locale.ROOT, "  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
             });
         } else {
             messages.print("fixtures_show_key");
             blobs.keySet().stream().filter(key -> key.contains("employees") || key.contains("standalone")).sorted().forEach(key -> {
                 long size = blobs.get(key).length();
-                out.printf("  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
+                out.printf(Locale.ROOT, "  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
             });
             messages.print("fixtures_footer");
         }
@@ -293,14 +297,19 @@ public class InteractiveFixtureManual extends ESRestTestCase {
         byType.entrySet()
             .stream()
             .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-            .forEach(entry -> out.printf("    %-25s %5d%n", entry.getKey(), entry.getValue()));
+            .forEach(entry -> out.printf(Locale.ROOT, "    %-25s %5d%n", entry.getKey(), entry.getValue()));
 
         out.println();
         out.println("  Unique paths accessed:");
-        logs.stream().map(S3RequestLog::getPath).distinct().sorted().limit(20).forEach(path -> out.printf("    %s%n", path));
+        logs.stream().map(S3RequestLog::getPath).distinct().sorted().limit(20).forEach(path -> out.printf(Locale.ROOT, "    %s%n", path));
 
         if (logs.stream().map(S3RequestLog::getPath).distinct().count() > 20) {
             out.println("    ... (showing first 20 paths)");
         }
+    }
+
+    @SuppressForbidden(reason = "System.err is intentional for this interactive manual testing tool")
+    private static PrintStream stderr() {
+        return System.err;
     }
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.Paths;
+import org.elasticsearch.core.PathUtils;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
@@ -68,7 +68,7 @@ public class Clusters {
         URL resourceUrl = Clusters.class.getResource("/iceberg-fixtures");
         if (resourceUrl != null && resourceUrl.getProtocol().equals("file")) {
             try {
-                return Paths.get(resourceUrl.toURI()).toAbsolutePath().toString();
+                return PathUtils.get(resourceUrl.toURI()).toAbsolutePath().toString();
             } catch (URISyntaxException e) {
                 throw new IllegalStateException("Failed to resolve fixtures path", e);
             }

@@ -918,6 +918,41 @@ public class VerifierTests extends ESTestCase {
         query("row ul = to_ul(1) | eval result = null == ul");
     }
 
+    /**
+     * Test that null in IN expressions is valid and doesn't produce type incompatibility errors.
+     * Null should be compatible with any type in IN lists.
+     */
+    public void testNullInExpressionValidation() {
+        // null in IN list with integer field
+        query("from test | where emp_no in (1, null)");
+        query("from test | where emp_no in (null)");
+        query("from test | where emp_no in (1, 2, null)");
+
+        // null value tested against IN list
+        query("ROW x = null | WHERE x in (1, 2, 3)");
+        query("ROW x = null | WHERE x in (\"foo\", \"bar\")");
+
+        // null in IN list with keyword field
+        query("from test | where first_name in (\"Georgi\", null)");
+        query("from test | where first_name in (null)");
+
+        // null in IN list with datetime field
+        query("from test | where hire_date in (null)");
+
+        // null in IN list with unsigned_long
+        query("row ul = to_ul(1) | where ul in (to_ul(1), null)");
+        query("row ul = to_ul(1) | where ul in (null)");
+
+        // null value IN unsigned_long list
+        query("ROW x = null | WHERE x in (to_ul(1), to_ul(2))");
+
+        // EVAL with IN containing null
+        query("ROW x = 1 | EVAL result = x in (1, null)");
+        query("ROW x = 1 | EVAL result = x in (null)");
+        query("ROW x = null | EVAL result = x in (1, 2)");
+        query("ROW x = null | EVAL result = x in (null)");
+    }
+
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"

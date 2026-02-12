@@ -460,3 +460,127 @@ ROW x = null, y = "hello" | EVAL t = concat(x, " world") == y | KEEP t
 t:boolean
 null
 ;
+
+
+###############################################
+# Null in IN expression tests
+###############################################
+
+# integer value IN list containing null — value matches, result is true
+rowIntegerInWithNullMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1 | EVAL result = x IN (1, null) | KEEP result
+;
+
+result:boolean
+true
+;
+
+
+# integer value IN list containing only null — no match, result is null
+rowIntegerInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1 | EVAL result = x IN (null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# integer value IN list with null — value does not match non-null entries, result is null
+rowIntegerInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = 5 | EVAL result = x IN (1, 2, null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null value IN list of integers — result is null
+rowNullInIntegerList
+required_capability: fix_null_comparison_type_check
+
+ROW x = null | EVAL result = x IN (1, 2, 3) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null value IN list containing null — result is null (null == null is null, not true)
+rowNullInNullList
+required_capability: fix_null_comparison_type_check
+
+ROW x = null | EVAL result = x IN (null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# keyword value IN list containing null — value matches
+rowKeywordInWithNullMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = "foo" | EVAL result = x IN ("foo", null) | KEEP result
+;
+
+result:boolean
+true
+;
+
+
+# keyword value IN list with null — no match
+rowKeywordInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = "foo" | EVAL result = x IN ("bar", null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# field IN list with null — matching rows returned
+fieldInWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (10001, 10002, null) | SORT emp_no | KEEP emp_no | LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+;
+
+
+# field IN list with only null — no rows match
+fieldInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (null) | KEEP emp_no | LIMIT 1
+;
+
+emp_no:integer
+;
+
+
+# WHERE with IN containing null filters correctly
+fieldInWithNullWhereFilter
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (10001, null) AND first_name IS NOT NULL | SORT emp_no | KEEP emp_no, first_name | LIMIT 1
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;

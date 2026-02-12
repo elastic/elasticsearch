@@ -37,7 +37,6 @@ import org.elasticsearch.index.Index;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.util.Locale;
 import java.util.Optional;
 
 import static org.apache.logging.log4j.LogManager.getLogger;

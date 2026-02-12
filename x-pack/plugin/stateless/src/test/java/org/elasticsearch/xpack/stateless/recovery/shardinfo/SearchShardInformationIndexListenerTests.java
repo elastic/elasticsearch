@@ -20,8 +20,10 @@ package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -48,6 +50,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -58,7 +61,6 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -99,7 +101,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     );
     private final CountDownLatch latch = new CountDownLatch(1);
     private final LatchedActionListener<Void> latchedActionListener = new LatchedActionListener<>(ActionListener.noop(), latch);
-    private final Client client = mock(Client.class);
+    private final RecordingClient client = new RecordingClient();
     private MockLog mockLog;
 
     @Before
@@ -143,14 +145,13 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         // ensure listener was called
         assertThat(latch.getCount(), equalTo(0L));
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), any());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-        assertThat(request.getNodeId(), nullValue());
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
+        assertThat(execution.request().getNodeId(), nullValue());
 
         assertEmptyMetrics();
     }
@@ -170,14 +171,13 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), any());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-        assertThat(request.getNodeId(), equalTo("relocating_node_id"));
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
+        assertThat(execution.request().getNodeId(), equalTo("relocating_node_id"));
 
         assertEmptyMetrics();
     }
@@ -197,22 +197,15 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-
-        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
 
         reset(indexShard);
-        responseListener.onResponse(new TransportFetchSearchShardInformationAction.Response(0));
+        execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(0));
         // no interactions with the indexshard if acquired time is set to 0
         verifyNoInteractions(indexShard);
 
@@ -234,22 +227,15 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-
-        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
 
         reset(indexShard);
-        responseListener.onFailure(new RuntimeException("any error"));
+        execution.listener().onFailure(new RuntimeException("any error"));
         verify(indexShard, times(1)).shardId();
         verifyNoMoreInteractions(indexShard);
     }
@@ -269,23 +255,16 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-
-        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
 
         reset(indexShard);
         when(indexShard.state()).thenReturn(IndexShardState.CLOSED);
-        responseListener.onResponse(new TransportFetchSearchShardInformationAction.Response(123));
+        execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(123));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<ActionListener<Void>> voidListenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
@@ -313,23 +292,16 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-
-        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
 
         reset(indexShard);
         when(indexShard.state()).thenReturn(IndexShardState.CLOSED);
-        responseListener.onResponse(new TransportFetchSearchShardInformationAction.Response(123));
+        execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(123));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<ActionListener<Void>> voidListenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
@@ -360,26 +332,19 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-
-        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
 
         reset(indexShard);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
 
         // change time before execution
         time.addAndGet(20);
-        responseListener.onResponse(new TransportFetchSearchShardInformationAction.Response(123));
+        execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(123));
 
         // capture the `waitForEngineOrClosedShard()` argument and execute it
         @SuppressWarnings("unchecked")
@@ -447,7 +412,8 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), any(), any());
+        assertThat(client.executionCount(), equalTo(1));
+        assertThat(client.lastExecution().action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
 
         // simulate a settings update
         Settings updatedSettings = Settings.builder()
@@ -455,12 +421,10 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
             .build();
         clusterSettings.applySettings(updatedSettings);
 
-        reset(client);
-
         CountDownLatch updateSettingsLatch = new CountDownLatch(1);
         LatchedActionListener<Void> updateSettingsActionListener = new LatchedActionListener<>(ActionListener.noop(), latch);
         listener.beforeIndexShardRecovery(indexShard, indexSettings, updateSettingsActionListener);
-        verifyNoInteractions(client);
+        assertThat(client.executionCount(), equalTo(0));
         assertThat(updateSettingsLatch.getCount(), equalTo(1L));
     }
 
@@ -479,22 +443,15 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
 
-        ArgumentCaptor<ActionRequest> argument = ArgumentCaptor.forClass(ActionRequest.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<TransportFetchSearchShardInformationAction.Response>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
-        verify(client).execute(eq(TransportFetchSearchShardInformationAction.TYPE), argument.capture(), listenerCaptor.capture());
-        assertThat(argument.getValue(), instanceOf(TransportFetchSearchShardInformationAction.Request.class));
-
-        TransportFetchSearchShardInformationAction.Request request = (TransportFetchSearchShardInformationAction.Request) argument
-            .getValue();
-        assertThat(request.getShardId(), equalTo(shardId));
-
-        ActionListener<TransportFetchSearchShardInformationAction.Response> responseListener = listenerCaptor.getValue();
+        assertThat(client.executionCount(), equalTo(1));
+        RecordingClient.Execution<
+            TransportFetchSearchShardInformationAction.Request,
+            TransportFetchSearchShardInformationAction.Response> execution = client.lastExecution();
+        assertThat(execution.action(), equalTo(TransportFetchSearchShardInformationAction.TYPE));
+        assertThat(execution.request().getShardId(), equalTo(shardId));
 
         reset(indexShard);
-        responseListener.onResponse(TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE);
+        execution.listener().onResponse(TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE);
         verify(indexShard, times(1)).shardId();
         verifyNoMoreInteractions(indexShard);
 
@@ -539,5 +496,38 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
             ShardRouting.Role.SEARCH_ONLY
         ).initialize(nodeId, null, randomNonNegativeLong());
+    }
+
+    private static class RecordingClient extends AbstractClient {
+
+        record Execution<Request extends ActionRequest, Response extends ActionResponse>(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {}
+
+        private final List<Execution<?, ?>> executions = new ArrayList<>();
+
+        RecordingClient() {
+            super(Settings.EMPTY, null, null);
+        }
+
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            executions.add(new Execution<>(action, request, listener));
+        }
+
+        int executionCount() {
+            return executions.size();
+        }
+
+        @SuppressWarnings("unchecked")
+        <Request extends ActionRequest, Response extends ActionResponse> Execution<Request, Response> lastExecution() {
+            return (Execution<Request, Response>) executions.removeLast();
+        }
     }
 }

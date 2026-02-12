@@ -18,6 +18,7 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -202,6 +203,20 @@ public class CsvTestsDataLoader {
         "histogram_standard_index.csv"
     ).withSetting("settings-histogram_time_series_index.json");
     private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -629,7 +644,14 @@ public class CsvTestsDataLoader {
             bFloat16ElementTypeSupported,
             tDigestMetricFieldSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+                ESRestTestCase.createIndex(
+                    restClient,
+                    indexName,
+                    indexSettings,
+                    indexMapping,
+                    null,
+                    DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
+                );
             }
         );
         if (timeSeriesOnly == false) {

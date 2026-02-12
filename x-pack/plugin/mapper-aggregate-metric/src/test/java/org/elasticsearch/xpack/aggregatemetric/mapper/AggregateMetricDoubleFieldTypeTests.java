@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 
 public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
 
-    protected AggregateMetricDoubleFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
+    protected AggregateMetricDoubleFieldType createDefaultFieldType(String name, Map<String, String> meta) {
         EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = new EnumMap<>(Metric.class);
         for (Metric m : List.of(Metric.min, Metric.max)) {
             String subfieldName = subfieldName(name, m);
@@ -57,45 +57,45 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
             );
             metricFields.put(m, subfield);
         }
-        return new AggregateMetricDoubleFieldType(name, null, defaultMetric, metricFields, meta);
+        return new AggregateMetricDoubleFieldType(name, null, metricFields, meta);
     }
 
     public void testTermQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         Query query = fieldType.termQuery(55.2, MOCK_CONTEXT);
         assertThat(query, equalTo(DoubleField.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         Query query = fieldType.termsQuery(asList(55.2, 500.3), MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
     }
 
     public void testRangeQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, MOCK_CONTEXT);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 
     public void testFetchSourceValueWithOneMetric() throws IOException {
-        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.min);
+        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
         final double min = 45.8;
         final Map<String, Object> metric = Collections.singletonMap("min", min);
         assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
     public void testFetchSourceValueWithMultipleMetrics() throws IOException {
-        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
         final double max = 45.8;
         final double min = 14.2;
         final Map<String, Object> metric = Map.of("min", min, "max", max);
         assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
-    /** Tests that aggregate_metric_double uses the default_metric subfield's doc-values as values in scripts */
+    /** Tests that aggregate_metric_double uses the average subfield's doc-values as values in scripts */
     public void testUsedInScript() throws IOException {
-        final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
+        final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap());
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
                 List.of(

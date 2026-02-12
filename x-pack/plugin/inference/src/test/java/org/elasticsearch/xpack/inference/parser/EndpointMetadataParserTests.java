@@ -23,6 +23,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.E
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.RELEASE_DATE_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.STATUS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.INTERNAL_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
@@ -93,7 +94,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var metadataMap = new HashMap<String, Object>();
         metadataMap.put(HEURISTICS_FIELD_NAME, heuristicsMap);
-        metadataMap.put(EndpointMetadata.INTERNAL_FIELD_NAME, internalMap);
+        metadataMap.put(INTERNAL_FIELD_NAME, internalMap);
         metadataMap.put(DISPLAY_FIELD_NAME, displayMap);
 
         var rootMap = new HashMap<String, Object>();

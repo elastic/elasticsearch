@@ -87,6 +87,21 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (unresolved.isEmpty()) {
             return plan;
         }
+
+        // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
+        // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
+        // ResolveRefs will wire them up in the next iteration of the resolution batch.
+        Set<String> childOutputNames = new java.util.HashSet<>();
+        for (LogicalPlan child : plan.children()) {
+            for (Attribute attr : child.output()) {
+                childOutputNames.add(attr.name());
+            }
+        }
+        unresolved.removeIf(ua -> childOutputNames.contains(ua.name()));
+        if (unresolved.isEmpty()) {
+            return plan;
+        }
+
         var unresolvedLinkedSet = unresolvedLinkedSet(unresolved);
         var transformed = load ? load(plan, unresolvedLinkedSet) : nullify(plan, unresolvedLinkedSet);
         return transformed.equals(plan) ? plan : refreshPlan(transformed, unresolved);
@@ -279,7 +294,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     public static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
         List<UnresolvedAttribute> unresolved = new ArrayList<>();
         Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
-            if (ua.getClass() == UnresolvedAttribute.class && ua.customMessage()) {
+            if (ua.getClass() == UnresolvedAttribute.class) {
                 unresolved.add(ua);
             }
         };

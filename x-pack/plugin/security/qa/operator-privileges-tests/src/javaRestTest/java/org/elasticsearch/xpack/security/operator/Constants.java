@@ -631,6 +631,7 @@ public class Constants {
         "indices:data/write/otlp/metrics",
         "indices:data/write/prometheus/remote_write",
         "indices:data/write/reindex",
+        "indices:data/write/reindex/resume",
         "indices:data/write/update",
         "indices:data/write/update/byquery",
         "indices:monitor/data_stream/mappings/get",

@@ -17,6 +17,7 @@ module org.elasticsearch.entitlement.instrumentation {
 
     requires static org.elasticsearch.base; // for SuppressForbidden
     requires org.elasticsearch.logging;
+    requires static org.elasticsearch.entitlement.bridge; // for NotEntitledException
 
     provides InstrumentationService with InstrumentationServiceImpl;
 }

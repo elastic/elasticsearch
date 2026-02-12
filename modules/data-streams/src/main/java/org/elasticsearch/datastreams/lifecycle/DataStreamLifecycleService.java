@@ -480,6 +480,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
+     * Formats an execution time in milliseconds to a human-readable string using {@link TimeValue}.
+     */
+    static String formatExecutionTime(long executionTimeMillis) {
+        return executionTimeMillis + "ms/" + TimeValue.timeValueMillis(executionTimeMillis).toString();
+    }
+
+    /**
      * Processes Data Lifecycle Management (DLM) actions for the given data stream.
      * <p>
      * For each configured {@link DlmAction}, this method:
@@ -530,6 +537,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 continue;
             }
 
+            long actionStartTime = nowSupplier.getAsLong();
+
             List<Index> indicesEligibleForAction;
             if (action.appliesToFailureStore()) {
                 indicesEligibleForAction = dataStream.getIndicesOlderThan(
@@ -558,7 +567,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             for (Index index : indicesEligibleForAction) {
+                long findStepStartTime = nowSupplier.getAsLong();
                 DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
+                if (logger.isTraceEnabled()) {
+                    long findStepDuration = nowSupplier.getAsLong() - findStepStartTime;
+                    logger.trace(
+                        "Finding first incomplete step for action [{}] on datastream [{}] index [{}] took [{}]",
+                        action.name(),
+                        dataStream.getName(),
+                        index.getName(),
+                        formatExecutionTime(findStepDuration)
+                    );
+                }
 
                 if (stepToExecute != null) {
                     try {
@@ -567,10 +587,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             stepToExecute.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            action.name()
+                            index.getName()
                         );
+                        long stepStartTime = nowSupplier.getAsLong();
                         DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
                         stepToExecute.execute(dlmStepContext);
+                        if (logger.isTraceEnabled()) {
+                            long stepDuration = nowSupplier.getAsLong() - stepStartTime;
+                            logger.trace(
+                                "Executed step [{}] for action [{}] on datastream [{}] index [{}] in [{}]",
+                                stepToExecute.stepName(),
+                                action.name(),
+                                dataStream.getName(),
+                                index.getName(),
+                                formatExecutionTime(stepDuration)
+                            );
+                        }
                     } catch (Exception ex) {
                         logger.warn(
                             logger.getMessageFactory()
@@ -588,6 +620,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     indicesProcessed.add(index);
                 }
             }
+            if (logger.isTraceEnabled()) {
+                long actionDuration = nowSupplier.getAsLong() - actionStartTime;
+                logger.trace(
+                    "Data stream lifecycle action [{}] for data stream [{}] completed in [{}]",
+                    action.name(),
+                    dataStream.getName(),
+                    formatExecutionTime(actionDuration)
+                );
+            }
         }
         return indicesProcessed;
     }
@@ -596,23 +637,30 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DlmStep stepToExecute = null;
         for (DlmStep step : action.steps().reversed()) {
             try {
+                long checkStartTime = nowSupplier.getAsLong();
                 if (step.stepCompleted(index, projectState) == false) {
                     stepToExecute = step;
-                    logger.trace(
-                        "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete",
-                        step.stepName(),
-                        action.name(),
-                        dataStream.getName(),
-                        index.getName()
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete, checked in [{}]",
+                            step.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            index.getName(),
+                            formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
+                        );
+                    }
                 } else {
-                    logger.trace(
-                        "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete",
-                        step.stepName(),
-                        action.name(),
-                        dataStream.getName(),
-                        index.getName()
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete, checked in [{}]",
+                            step.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            index.getName(),
+                            formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
+                        );
+                    }
                     break;
                 }
             } catch (Exception ex) {

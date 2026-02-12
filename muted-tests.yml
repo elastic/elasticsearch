@@ -377,9 +377,6 @@ tests:
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testAutoModeSupportedVectorType
   issue: https://github.com/elastic/elasticsearch/issues/142072
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFieldDataStats
-  issue: https://github.com/elastic/elasticsearch/issues/142078
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079

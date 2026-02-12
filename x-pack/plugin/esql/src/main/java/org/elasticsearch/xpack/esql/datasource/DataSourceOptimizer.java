@@ -14,21 +14,18 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Runs data source-provided optimization rules as a separate pass after the main
  * {@code LogicalPlanOptimizer}.
  *
- * <p>This utility:
- * <ol>
- *   <li>Walks the logical plan tree to find all {@link DataSourcePlan} leaf nodes</li>
- *   <li>Collects {@link DataSource#optimizationRules()} from each distinct data source</li>
- *   <li>Runs the collected rules as a single batch</li>
- * </ol>
+ * <p>Constructed with all registered data sources. Rules are collected once at
+ * construction time — the rule set is fixed and does not depend on which plan
+ * is being optimized. Each rule is responsible for pattern-matching on the plan
+ * nodes it cares about (including verifying data source identity via
+ * {@code plan.dataSource() == this}).
  *
  * <p>The separate pass ensures that data source rules see a fully simplified/normalized
  * tree (constant folding done, boolean logic simplified, redundant operations removed).
@@ -41,8 +38,13 @@ final class DataSourceOptimizer extends RuleExecutor<LogicalPlan> {
 
     private final List<Rule<?, LogicalPlan>> dataSourceRules;
 
-    private DataSourceOptimizer(List<Rule<?, LogicalPlan>> dataSourceRules) {
-        this.dataSourceRules = dataSourceRules;
+    /**
+     * Create an optimizer with rules from all registered data sources.
+     *
+     * @param dataSources All registered data sources
+     */
+    DataSourceOptimizer(Collection<DataSource> dataSources) {
+        this.dataSourceRules = collectDataSourceRules(dataSources);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -56,44 +58,36 @@ final class DataSourceOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     /**
-     * Optimize a logical plan by running data source-provided rules.
+     * Optimize a logical plan by running the fixed set of data source rules.
      *
-     * <p>No-op if the plan contains no data source plan nodes or data sources provide no rules.
+     * <p>No-op if no data sources provided rules at construction time.
      *
      * @param plan The plan already processed by the main {@code LogicalPlanOptimizer}
      * @return The optimized plan
      */
-    public static LogicalPlan optimize(LogicalPlan plan) {
-        List<Rule<?, LogicalPlan>> rules = collectDataSourceRules(plan);
-        if (rules.isEmpty()) {
+    LogicalPlan optimize(LogicalPlan plan) {
+        if (dataSourceRules.isEmpty()) {
             return plan;
         }
-        logger.debug("Running [{}] data source optimization rules", rules.size());
+        logger.debug("Running [{}] data source optimization rules", dataSourceRules.size());
         logger.trace("DataSource optimization input plan:\n{}", plan);
-        DataSourceOptimizer optimizer = new DataSourceOptimizer(rules);
-        LogicalPlan optimized = optimizer.execute(plan);
+        LogicalPlan optimized = execute(plan);
         logger.trace("DataSource optimization output plan:\n{}", optimized);
         return optimized;
     }
 
     /**
-     * Walk the plan tree and collect optimization rules from all distinct data sources.
+     * Collect optimization rules from all registered data sources.
      */
-    private static List<Rule<?, LogicalPlan>> collectDataSourceRules(LogicalPlan plan) {
-        Set<DataSource> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+    private static List<Rule<?, LogicalPlan>> collectDataSourceRules(Collection<DataSource> dataSources) {
         List<Rule<?, LogicalPlan>> rules = new ArrayList<>();
-
-        plan.forEachDown(LogicalPlan.class, p -> {
-            if (p instanceof DataSourcePlan cp) {
-                DataSource dataSource = cp.dataSource();
-                if (seen.add(dataSource)) {
-                    List<Rule<?, LogicalPlan>> dataSourceRules = dataSource.optimizationRules();
-                    logger.trace("Collected [{}] rules from data source [{}]", dataSourceRules.size(), dataSource.type());
-                    rules.addAll(dataSourceRules);
-                }
+        for (DataSource dataSource : dataSources) {
+            List<Rule<?, LogicalPlan>> dataSourceRules = dataSource.optimizationRules();
+            if (dataSourceRules.isEmpty() == false) {
+                logger.trace("Collected [{}] rules from data source [{}]", dataSourceRules.size(), dataSource.type());
+                rules.addAll(dataSourceRules);
             }
-        });
-
+        }
         return rules;
     }
 }

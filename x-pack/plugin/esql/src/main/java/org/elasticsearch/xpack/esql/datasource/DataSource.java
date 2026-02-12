@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -130,17 +131,19 @@ public interface DataSource {
     /**
      * Return optimization rules that push ES|QL operations into this data source's plan nodes.
      *
-     * <p><b>Called by:</b> {@link DataSourceOptimizer}, which runs as a separate pass after
-     * the main {@code LogicalPlanOptimizer} completes. This ensures data source rules see a
+     * <p><b>Called by:</b> {@link DataSourceOptimizer}, which collects rules from all
+     * registered data sources and runs them as a separate pass after the main
+     * {@code LogicalPlanOptimizer} completes. This ensures data source rules see a
      * fully simplified/normalized tree (constant folding done, boolean logic simplified).
      *
      * <p><b>Rule pattern:</b> Each rule pattern-matches on a standard ES|QL plan node
      * (e.g., {@code Filter}, {@code Limit}) whose child is a data source plan node, and
      * rewrites the tree by folding the operation into the data source plan.
      *
-     * <p><b>Identity guard:</b> Rules MUST verify that the child data source plan belongs
-     * to this data source instance (via {@code plan.dataSource() == this}) to avoid
-     * interfering with other data sources in the same query.
+     * <p><b>Identity guard:</b> Since rules from all registered data sources run on every
+     * plan, each rule MUST verify that the child data source plan belongs to this data
+     * source instance (via {@code plan.dataSource() == this}) to avoid interfering with
+     * other data sources in the same query.
      *
      * <p>Base classes ({@link org.elasticsearch.xpack.esql.datasource.lakehouse.LakehouseDataSource},
      * {@link org.elasticsearch.xpack.esql.datasource.sql.SqlDataSource}) provide default
@@ -158,15 +161,16 @@ public interface DataSource {
      * <p><b>Called by:</b> {@code LogicalPlanOptimizer} after the main optimization pass.
      * This is internal wiring, not part of the data source SPI.
      *
-     * <p>Walks the plan tree, collects {@link #optimizationRules()} from each data source
-     * found in the tree, and runs them as a single batch. No-op if the plan contains
-     * no data source plan nodes.
+     * <p>Collects {@link #optimizationRules()} from all registered data sources and runs
+     * them as a single batch. Each rule internally pattern-matches on the plan nodes it
+     * handles and skips nodes belonging to other data sources.
      *
      * @param plan The plan already processed by the main optimizer
+     * @param dataSources All registered data sources
      * @return The plan with data source optimizations applied
      */
-    static LogicalPlan applyOptimizationRules(LogicalPlan plan) {
-        return DataSourceOptimizer.optimize(plan);
+    static LogicalPlan applyOptimizationRules(LogicalPlan plan, Collection<DataSource> dataSources) {
+        return new DataSourceOptimizer(dataSources).optimize(plan);
     }
 
     // =========================================================================

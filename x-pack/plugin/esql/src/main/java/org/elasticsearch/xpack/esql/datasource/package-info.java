@@ -19,7 +19,7 @@
  *   <li><b>Logical Optimization</b> -
  *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#applyOptimizationRules DataSource.applyOptimizationRules()}
  *       collects {@link org.elasticsearch.xpack.esql.datasource.DataSource#optimizationRules() rules}
- *       from data sources and runs them as a separate pass after the main optimizer</li>
+ *       from all registered data sources and runs them as a separate pass after the main optimizer</li>
  *   <li><b>Physical Planning</b> - {@code Mapper} calls
  *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#createPhysicalPlan}</li>
  *   <li><b>Work Distribution</b> - Physical planner calls

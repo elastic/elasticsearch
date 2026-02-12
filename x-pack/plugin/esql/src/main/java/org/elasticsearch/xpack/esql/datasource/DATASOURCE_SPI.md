@@ -279,9 +279,9 @@ PARTITION (single `CoordinatorPartition` is used instead).
 
 **How it works:**
 [`DataSource.applyOptimizationRules()`](DataSource.java) runs as a **separate pass** after the main `LogicalPlanOptimizer`:
-1. Walks the plan tree to find all [`DataSourcePlan`](DataSourcePlan.java) leaf nodes
-2. Collects [`optimizationRules()`](DataSource.java) from each distinct data source
-3. Runs the collected rules as a single batch (`Limiter.ONCE`)
+1. Collects [`optimizationRules()`](DataSource.java) from all registered data sources
+2. Runs the collected rules as a single batch (`Limiter.ONCE`)
+3. Each rule pattern-matches on plan nodes it handles and skips nodes from other data sources
 
 **Rule pattern:** Each rule pattern-matches on a standard ES|QL plan node (e.g., `Filter`, `Limit`) whose child is the data source's plan leaf. If the operation is translatable, the rule folds it into the leaf and removes the parent node. If not, the plan stays unchanged and ES|QL evaluates the operation. The [`DataSourcePushdownRule`](DataSourcePushdownRule.java) helper class handles the common guard logic (child type check + data source identity check) so rules only need to implement `pushDown()`.
 

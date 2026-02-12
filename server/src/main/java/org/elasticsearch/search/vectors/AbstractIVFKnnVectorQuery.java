@@ -41,10 +41,12 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentFingerprintAnchors;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -320,11 +322,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     /**
-     * collect metadata for all segments to enable budget allocation
+     * collect metadata for all segments to enable budget allocation.
+     * Uses segment fingerprint for affinity when present (no per-segment centroid scoring);
+     * otherwise falls back to global-centroid score only.
      */
     private List<SegmentMetadata> collectSegmentMetadata(List<LeafReaderContext> leafReaderContexts, String field) throws IOException {
         List<SegmentMetadata> segmentMetadata = new ArrayList<>(leafReaderContexts.size());
         float[] queryVector = getQuery();
+        float[] queryFingerprint = null;
+        float[][] anchors = null;
+
         for (LeafReaderContext context : leafReaderContexts) {
             LeafReader leafReader = context.reader();
             FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
@@ -344,12 +351,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     KnnVectorsReader vectorReader = segmentReader.getVectorReader();
                     IVFVectorsReader reader = unwrapReader(vectorReader);
                     if (reader != null) {
-                        float[] globalCentroid = reader.getGlobalCentroid(fieldInfo);
-
-                        if (similarityFunction == COSINE) {
-                            VectorUtil.l2normalize(queryVector);
-                        }
-
                         if (queryVector.length != fieldInfo.getVectorDimension()) {
                             throw new IllegalArgumentException(
                                 "vector query dimension: "
@@ -358,20 +359,39 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                     + fieldInfo.getVectorDimension()
                             );
                         }
+                        if (similarityFunction == COSINE) {
+                            VectorUtil.l2normalize(queryVector);
+                        }
 
+                        float[] globalCentroid = reader.getGlobalCentroid(fieldInfo);
                         float globalCentroidScore = similarityFunction.compare(queryVector, globalCentroid);
-                        float bestCentroidScore = reader.getBestCentroidScore(
-                            fieldInfo,
-                            queryVector,
-                            floatVectorValues.size()
-                        );
+
+                        float affinityScore;
+                        float[] segmentFp = reader.getSegmentFingerprint(fieldInfo);
+                        if (segmentFp != null) {
+                            if (queryFingerprint == null) {
+                                anchors = SegmentFingerprintAnchors.getAnchors(
+                                    fieldInfo.getVectorDimension(),
+                                    similarityFunction
+                                );
+                                queryFingerprint = SegmentFingerprintAnchors.computeQueryFingerprint(
+                                    queryVector,
+                                    similarityFunction,
+                                    anchors
+                                );
+                            }
+                            affinityScore = SegmentFingerprintAnchors.affinityFromFingerprints(queryFingerprint, segmentFp);
+                        } else {
+                            affinityScore = Float.NaN;
+                        }
+
                         int numCentroids = reader.getNumCentroids(fieldInfo);
                         int vectorCount = floatVectorValues.size();
                         segmentMetadata.add(
                             new SegmentMetadata(
                                 context,
                                 globalCentroidScore,
-                                bestCentroidScore,
+                                affinityScore,
                                 similarityFunction,
                                 vectorCount,
                                 numCentroids,
@@ -482,7 +502,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 segmentVisitRatios[i] = Math.min(1f, segmentVisitRatios[i]);
             }
         }
-
+        System.err.println(Arrays.toString(segmentVisitRatios));
         return segmentVisitRatios;
     }
 

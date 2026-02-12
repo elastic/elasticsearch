@@ -47,6 +47,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.IVF_META_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_SEGMENT_FINGERPRINT;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -184,6 +185,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
+        float[] segmentFingerprint = null;
+        if (versionMeta >= VERSION_SEGMENT_FINGERPRINT && centroidLength > 0) {
+            segmentFingerprint = new float[SegmentFingerprintAnchors.K];
+            for (int i = 0; i < SegmentFingerprintAnchors.K; i++) {
+                segmentFingerprint[i] = Float.intBitsToFloat(input.readInt());
+            }
+        }
         return doReadField(
             input,
             rawVectorFormat,
@@ -196,7 +204,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             postingListOffset,
             postingListLength,
             globalCentroid,
-            globalCentroidDp
+            globalCentroidDp,
+            segmentFingerprint
         );
     }
 
@@ -212,7 +221,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp
+        float globalCentroidDp,
+        float[] segmentFingerprint
     ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
@@ -391,6 +401,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final float[] globalCentroid;
         protected final float globalCentroidDp;
         protected final int bulkSize;
+        protected final float[] segmentFingerprint;
 
         protected FieldEntry(
             String rawVectorFormatName,
@@ -404,7 +415,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            int bulkSize
+            int bulkSize,
+            float[] segmentFingerprint
         ) {
             this.rawVectorFormatName = rawVectorFormatName;
             this.useDirectIOReads = useDirectIOReads;
@@ -418,6 +430,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             this.globalCentroid = globalCentroid;
             this.globalCentroidDp = globalCentroidDp;
             this.bulkSize = bulkSize;
+            this.segmentFingerprint = segmentFingerprint;
         }
 
         @Override
@@ -457,6 +470,19 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         public int getBulkSize() {
             return bulkSize;
         }
+
+        /** Segment fingerprint for allocation (K floats), or null if not present (e.g. old segments). */
+        public float[] segmentFingerprint() {
+            return segmentFingerprint;
+        }
+    }
+
+    /**
+     * Returns the segment fingerprint for allocation (K floats), or null if not present.
+     */
+    public float[] getSegmentFingerprint(FieldInfo fieldInfo) {
+        FieldEntry entry = fields.get(fieldInfo.number);
+        return entry == null ? null : entry.segmentFingerprint();
     }
 
     public abstract PostingVisitor getPostingVisitor(

@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_SEGMENT_FINGERPRINT;
 
 /**
  * Base class for IVF vectors writer.
@@ -212,7 +213,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             Preconditioner preconditioner = createPreconditioner(fieldWriter.fieldInfo().getVectorDimension());
             if (fieldWriter.delegate == null) {
                 // field is not float, we just write meta information
-                writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null, 0, 0);
+                writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, null);
                 continue;
             }
             // build a float vector values with random access
@@ -257,7 +258,18 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             long preconditionerOffset = ivfCentroids.getFilePointer();
             writePreconditioner(preconditioner, ivfCentroids);
             long preconditionerLength = ivfCentroids.getFilePointer() - preconditionerOffset;
-            // write meta file
+            // write meta file (with segment fingerprint for allocation when version supports it)
+            float[][] anchors = SegmentFingerprintAnchors.getAnchors(
+                fieldWriter.fieldInfo.getVectorDimension(),
+                fieldWriter.fieldInfo.getVectorSimilarityFunction()
+            );
+            float[] segmentFingerprint = writeVersion >= VERSION_SEGMENT_FINGERPRINT
+                ? SegmentFingerprintAnchors.computeSegmentFingerprint(
+                    centroidAssignments.centroids(),
+                    fieldWriter.fieldInfo.getVectorSimilarityFunction(),
+                    anchors
+                )
+                : null;
             writeMeta(
                 fieldWriter.fieldInfo,
                 centroidSupplier.size(),
@@ -267,7 +279,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 postingListLength,
                 globalCentroid,
                 preconditionerOffset,
-                preconditionerLength
+                preconditionerLength,
+                segmentFingerprint
             );
         }
     }
@@ -298,7 +311,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
-            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0);
+            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, null);
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -313,7 +326,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         long postingListLength,
         float[] globalCentroid,
         long preconditionerOffset,
-        long preconditionerLength
+        long preconditionerLength,
+        float[] segmentFingerprint
     ) throws IOException {
         ivfMeta.writeInt(field.number);
         ivfMeta.writeString(rawVectorFormatName);
@@ -332,6 +346,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             buffer.asFloatBuffer().put(globalCentroid);
             ivfMeta.writeBytes(buffer.array(), buffer.array().length);
             ivfMeta.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(globalCentroid, globalCentroid)));
+        }
+        // Write fingerprint before doWriteMeta so format-specific meta (e.g. ESNext bulkSize/quantEncoding) follows it
+        if (writeVersion >= VERSION_SEGMENT_FINGERPRINT && segmentFingerprint != null && segmentFingerprint.length == SegmentFingerprintAnchors.K) {
+            for (float v : segmentFingerprint) {
+                ivfMeta.writeInt(Float.floatToIntBits(v));
+            }
         }
         doWriteMeta(ivfMeta, field, numCentroids, preconditionerOffset, preconditionerLength);
     }
@@ -391,7 +411,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         }
         if (numVectors == 0) {
             long centroidOffset = ivfCentroids.getFilePointer();
-            writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0);
+            writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, null);
             return;
         }
         // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
@@ -442,7 +462,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             try {
                 if (numCentroids == 0) {
                     centroidOffset = ivfCentroids.getFilePointer();
-                    writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0);
+                    writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, null);
                     CodecUtil.writeFooter(centroidTemp);
                     IOUtils.close(centroidTemp);
                     return;
@@ -485,7 +505,18 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     long preconditionerOffset = ivfCentroids.getFilePointer();
                     writePreconditioner(preconditioner, ivfCentroids);
                     long preconditionerLength = ivfCentroids.getFilePointer() - preconditionerOffset;
-                    // write meta
+                    // write meta (with segment fingerprint for allocation when version supports it)
+                    float[][] mergeAnchors = SegmentFingerprintAnchors.getAnchors(
+                        fieldInfo.getVectorDimension(),
+                        fieldInfo.getVectorSimilarityFunction()
+                    );
+                    float[] mergeSegmentFingerprint = writeVersion >= VERSION_SEGMENT_FINGERPRINT
+                        ? SegmentFingerprintAnchors.computeSegmentFingerprint(
+                            centroidSupplier,
+                            fieldInfo.getVectorSimilarityFunction(),
+                            mergeAnchors
+                        )
+                        : null;
                     writeMeta(
                         fieldInfo,
                         centroidSupplier.size(),
@@ -495,7 +526,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         postingListLength,
                         calculatedGlobalCentroid,
                         preconditionerOffset,
-                        preconditionerLength
+                        preconditionerLength,
+                        mergeSegmentFingerprint
                     );
                 }
             } finally {

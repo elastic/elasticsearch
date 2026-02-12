@@ -301,7 +301,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp
+        float globalCentroidDp,
+        float[] segmentFingerprint
     ) throws IOException {
         int bulkSize = input.readInt();
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
@@ -325,7 +326,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             quantEncoding,
             bulkSize,
             preconditionerOffset,
-            preconditionerLength
+            preconditionerLength,
+            segmentFingerprint
         );
     }
 
@@ -368,7 +370,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
             int bulkSize,
             long preconditionerOffset,
-            long preconditionerLength
+            long preconditionerLength,
+            float[] segmentFingerprint
         ) {
             super(
                 rawVectorFormat,
@@ -382,7 +385,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 postingListLength,
                 globalCentroid,
                 globalCentroidDp,
-                bulkSize
+                bulkSize,
+                segmentFingerprint
             );
             this.quantEncoding = quantEncoding;
             this.preconditionerOffset = preconditionerOffset;

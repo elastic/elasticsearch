@@ -208,7 +208,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp
+        float globalCentroidDp,
+        float[] segmentFingerprint
     ) {
         // nothing more to read
         return new FieldEntry(
@@ -223,7 +224,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            BULK_SIZE
+            BULK_SIZE,
+            segmentFingerprint
         );
     }
 

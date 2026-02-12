@@ -13,7 +13,7 @@ Practical use cases include:
 - **Retrieval augmented generation (RAG) workflows**: Provide more diverse context to the LLM, reducing redundancy in the prompt
 
 The retriever uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf) diversification to discard results that are too similar to each other.
-Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.
+Similarity is determined based on the `field` parameter and any provided `query_vector` or `query_vector_builder`.
 :::{note}
 The ordering of results returned from the inner retriever is preserved.
 :::
@@ -29,7 +29,8 @@ The ordering of results returned from the inner retriever is preserved.
 :   (Required, string)
 
     The name of the field that will use its values for the diversification process.
-    The field must be a `dense_vector` type.
+    The field type must be a `dense_vector` or a `semantic_text` field with dense vector embeddings.
+    If this is a `semantic_text` field, you must provide a `query_vector` or `query_vector_builder`.
 
 `rank_window_size`
 :   (Optional, integer)

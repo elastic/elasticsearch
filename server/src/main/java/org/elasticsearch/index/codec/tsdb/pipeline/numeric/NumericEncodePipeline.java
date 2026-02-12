@@ -32,7 +32,6 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.QuantizeDouble
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.RleEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.XorCodecStage;
 
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;

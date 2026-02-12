@@ -51,9 +51,9 @@ public final class Lz4DecodeStage implements PayloadDecoder {
     private static void readBytesToLongs(final byte[] src, final long[] values, int count) {
         for (int i = 0; i < count; i++) {
             final int off = i * Long.BYTES;
-            values[i] = (src[off] & 0xFFL) | ((src[off + 1] & 0xFFL) << 8) | ((src[off + 2] & 0xFFL) << 16)
-                | ((src[off + 3] & 0xFFL) << 24) | ((src[off + 4] & 0xFFL) << 32) | ((src[off + 5] & 0xFFL) << 40)
-                | ((src[off + 6] & 0xFFL) << 48) | ((src[off + 7] & 0xFFL) << 56);
+            values[i] = (src[off] & 0xFFL) | ((src[off + 1] & 0xFFL) << 8) | ((src[off + 2] & 0xFFL) << 16) | ((src[off + 3] & 0xFFL) << 24)
+                | ((src[off + 4] & 0xFFL) << 32) | ((src[off + 5] & 0xFFL) << 40) | ((src[off + 6] & 0xFFL) << 48) | ((src[off + 7] & 0xFFL)
+                    << 56);
         }
     }
 

@@ -86,8 +86,7 @@ public final class Lz4EncodeStage implements PayloadEncoder {
 
     @Override
     public boolean equals(Object o) {
-        return this == o
-            || (o instanceof Lz4EncodeStage that && blockSize == that.blockSize && highCompression == that.highCompression);
+        return this == o || (o instanceof Lz4EncodeStage that && blockSize == that.blockSize && highCompression == that.highCompression);
     }
 
     @Override

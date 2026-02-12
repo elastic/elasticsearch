@@ -61,9 +61,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 
 import java.io.IOException;
-
 import java.util.Arrays;
-
 
 import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;

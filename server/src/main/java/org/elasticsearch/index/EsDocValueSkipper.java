@@ -17,5 +17,7 @@ public abstract class EsDocValueSkipper extends DocValuesSkipper {
      *
      * @return the global count of values
      */
-    public abstract int valueCount();
+    public abstract long valueCount();
+
+    public abstract long valueCount(int level);
 }

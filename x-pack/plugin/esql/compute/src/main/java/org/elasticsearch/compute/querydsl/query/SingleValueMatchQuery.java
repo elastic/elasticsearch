@@ -229,12 +229,11 @@ public final class SingleValueMatchQuery extends Query {
             if (lfd instanceof LeafNumericFieldData) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
                 // TODO: check doc values skippers
-                DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldData.getFieldName());
-                if (skipper == null) {
-                    throw new UnsupportedOperationException("********* Null?");
-                }
-                if (skipper instanceof EsDocValueSkipper esDocValueSkipper) {
-                    throw new UnsupportedOperationException("********* yay, we got here");
+                DocValuesSkipper s = reader.getDocValuesSkipper(fieldData.getFieldName());
+                if (s instanceof EsDocValueSkipper skipper) {
+                    if (skipper.valueCount() == skipper.docCount()) {
+                        continue;
+                    }
                 }
                 if (singleton != null) {
                     singleton.nextDoc();
@@ -251,11 +250,10 @@ public final class SingleValueMatchQuery extends Query {
                 SortedDocValues singleton = DocValues.unwrapSingleton(reader.getSortedSetDocValues(fieldData.getFieldName()));
                 // TODO: check doc values skippers
                 DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldData.getFieldName());
-                if (skipper == null) {
-                    throw new UnsupportedOperationException("********* Null?");
-                }
                 if (skipper instanceof EsDocValueSkipper esDocValueSkipper) {
-                    throw new UnsupportedOperationException("********* yay, we got here");
+                    if (esDocValueSkipper.valueCount() == esDocValueSkipper.docCount()) {
+                        continue;
+                    }
                 }
                 if (singleton != null) {
                     singleton.nextDoc();

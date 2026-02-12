@@ -1069,7 +1069,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         void accumulate(long value) {
             minValue = Math.min(minValue, value);
             maxValue = Math.max(maxValue, value);
-            valueCount++;
         }
 
         void accumulate(SkipAccumulator other) {
@@ -1129,6 +1128,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             for (int i = 1, end = values.docValueCount(); i < end; ++i) {
                 accumulator.accumulate(values.nextValue());
             }
+            accumulator.valueCount += values.docValueCount();
         }
 
         if (accumulators.isEmpty() == false) {
@@ -1147,7 +1147,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         assert globalDocCount <= maxDocId + 1;
         meta.writeInt(globalDocCount);
         meta.writeInt(maxDocId);
-        // meta.writeLong(globalValueCount);
+        meta.writeLong(globalValueCount);
     }
 
     private void writeLevels(List<SkipAccumulator> accumulators) throws IOException {

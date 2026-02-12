@@ -3745,14 +3745,11 @@ public class VerifierTests extends ESTestCase {
     private static QueryParams toQueryParams(Object... params) {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
-            if (param == null) {
-                parameters.add(paramAsConstant(null, null));
-            } else if (param instanceof String) {
-                parameters.add(paramAsConstant(null, param));
-            } else if (param instanceof Number) {
-                parameters.add(paramAsConstant(null, param));
-            } else {
-                throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
+            switch (param) {
+                case null -> parameters.add(paramAsConstant(null, null));
+                case String s -> parameters.add(paramAsConstant(null, s));
+                case Number number -> parameters.add(paramAsConstant(null, number));
+                default -> throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
         return new QueryParams(parameters);

@@ -315,6 +315,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         SearchSourceBuilder builder = sourceBuilder.from(0)
             .excludeVectors(false)
+            .trackScores(true)
             .storedFields(sfCtx)
             .fetchSource(fsCtx)
             .fetchField(InferenceMetadataFieldsMapper.NAME)

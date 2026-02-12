@@ -35,12 +35,18 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
     }
 
     public void testTimeSeriesFieldTypeMergeMetricWithDimensionThrows() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TimeSeriesFieldType.METRIC.merge(TimeSeriesFieldType.DIMENSION));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeSeriesFieldType.METRIC.merge(TimeSeriesFieldType.DIMENSION)
+        );
         assertThat(e.getMessage(), equalTo("Time Series Metadata conflict.  Cannot merge [DIMENSION] with [METRIC]."));
     }
 
     public void testTimeSeriesFieldTypeMergeDimensionWithMetricThrows() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TimeSeriesFieldType.DIMENSION.merge(TimeSeriesFieldType.METRIC));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeSeriesFieldType.DIMENSION.merge(TimeSeriesFieldType.METRIC)
+        );
         assertThat(e.getMessage(), equalTo("Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION]."));
     }
 

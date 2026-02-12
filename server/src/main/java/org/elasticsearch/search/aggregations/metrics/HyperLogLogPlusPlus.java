@@ -160,22 +160,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     void upgradeToHll(long bucketOrd) {
-        // We need to copy values into an arrays as we will override
-        // the values on the buffer
         hll.ensureCapacity(bucketOrd + 1);
-        // It's safe to reuse lc's readSpare because we're single threaded.
-        final AbstractLinearCounting.HashesIterator hashes = lc.values(bucketOrd);
-        try {
-            int size = hashes.size();
-            hll.reset(bucketOrd);
-            for (int i = 0; i < size; i++) {
-                hashes.next();
-                hll.collectEncoded(bucketOrd, hashes.value());
-            }
-            algorithm.set(bucketOrd);
-        } finally {
-            lc.closeBucket(bucketOrd);
-        }
+        hll.reset(bucketOrd);
+        lc.copyToHll(bucketOrd, hll);
+        algorithm.set(bucketOrd);
     }
 
     public void combine(long bucket, BytesRef other) throws IOException {
@@ -487,14 +475,18 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
         }
 
-        private void closeBucket(long bucketOrd) {
-            if (bucketOrd < cells.size()) {
-                LinearCountingCell cell = cells.get(bucketOrd);
-                if (cell != null) {
-                    closeCell(cell);
-                    cells.set(bucketOrd, null);
+        void copyToHll(long bucketOrd, HyperLogLog hll) {
+            final LinearCountingCell cell = bucketOrd < cells.size() ? cells.get(bucketOrd) : null;
+            if (cell == null) {
+                return;
+            }
+            for (int v : cell.values) {
+                if (v != 0) {
+                    hll.collectEncoded(bucketOrd, v);
                 }
             }
+            closeCell(cell);
+            cells.set(bucketOrd, null);
         }
 
         long maxOrd() {

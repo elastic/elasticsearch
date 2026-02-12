@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
@@ -463,13 +462,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(e), r.asScript());
             } else {
-                // Check if bounds are foldable for native RangeQuery
-                if (r.lower().foldable() && r.upper().foldable()) {
-                    query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Ranges.doTranslate(r, handler);
-                } else {
-                    // Fall back to script query for non-foldable bounds (e.g., DATE_ADD with field reference)
-                    query = new ScriptQuery(r.source(), r.asScript());
-                }
+                query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Ranges.doTranslate(r, handler);
             }
             return new QueryTranslation(query, aggFilter);
         }

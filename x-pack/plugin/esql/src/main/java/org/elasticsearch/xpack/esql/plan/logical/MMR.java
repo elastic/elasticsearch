@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,17 +21,23 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
 
 public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordinator, PostAnalysisVerificationAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Mmr", MMR::new);
     public static final String LAMBDA_OPTION_NAME = "lambda";
     private static final List<String> VALID_MMR_OPTION_NAMES = List.of(LAMBDA_OPTION_NAME);
 
@@ -38,8 +45,6 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     private final Expression limit;
     private final Expression queryVector;
     private final Expression options;
-
-    private Double lambdaValue;
 
     public MMR(
         Source source,
@@ -52,8 +57,16 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
-        this.queryVector = queryVector;
+        this.queryVector = processQueryVector(queryVector);
         this.options = options;
+    }
+
+    public MMR(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        this.diversifyField = in.readNamedWriteable(Attribute.class);
+        this.limit = in.readNamedWriteable(Expression.class);
+        this.queryVector = in.readOptionalNamedWriteable(Expression.class);
+        this.options = in.readOptionalNamedWriteable(Expression.class);
     }
 
     public Attribute diversifyField() {
@@ -70,10 +83,6 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
 
     public Expression options() {
         return options;
-    }
-
-    public Double lambdaValue() {
-        return lambdaValue;
     }
 
     @Override
@@ -93,12 +102,17 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
+        return ENTRY.name;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
+        source().writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(diversifyField);
+        out.writeNamedWriteable(limit);
+        out.writeOptionalNamedWriteable(queryVector);
+        out.writeOptionalNamedWriteable(options);
     }
 
     @Override
@@ -107,7 +121,8 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         MMR mmr = (MMR) o;
-        return Objects.equals(this.diversifyField, mmr.diversifyField)
+        return Objects.equals(this.child(), mmr.child())
+            && Objects.equals(this.diversifyField, mmr.diversifyField)
             && Objects.equals(this.limit, mmr.limit)
             && Objects.equals(this.queryVector, mmr.queryVector)
             && Objects.equals(this.options, mmr.options);
@@ -125,7 +140,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     @Override
     public void postAnalysisVerification(Failures failures) {
         if (false == hasLimitedInput(this)) {
-            failures.add(new Failure(this, "MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+            failures.add(fail(this, "MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
         }
 
         if (diversifyField.dataType() != DataType.DENSE_VECTOR) {
@@ -133,24 +148,26 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
 
         // ensure LIMIT value is integer
-        if (limit instanceof Literal litLimit && litLimit.dataType() == INTEGER) {
-            int limitValue = (Integer) litLimit.value();
-            if (limitValue < 1) {
-                failures.add(fail(this, "MMR limit must be a positive integer"));
-            }
-        } else {
+        Integer limitValue = getMMRLimitValue(limit);
+        if (limitValue == null || limitValue < 1) {
             failures.add(fail(this, "MMR limit must be a positive integer"));
         }
 
         // ensure query_vector, if given, is resolved to a DENSE_VECTOR type
-        if (queryVector != null) {
-            if (queryVector.resolved() && queryVector.dataType() != DataType.DENSE_VECTOR) {
-                failures.add(fail(this, "MMR query vector must be resolved to a dense vector type"));
-            }
+        if (isValidQueryVector() == false) {
+            failures.add(fail(this, "MMR query vector must be resolved to a dense vector type"));
         }
 
         // ensure lambda, if given, is between 0.0 and 1.0
         postAnalysisOptionsVerification(failures);
+    }
+
+    private boolean isValidQueryVector() {
+        if (queryVector == null || queryVector.dataType() == DENSE_VECTOR) {
+            return true;
+        }
+
+        return queryVector.resolved() && queryVector.dataType().isNumeric();
     }
 
     private void postAnalysisOptionsVerification(Failures failures) {
@@ -163,12 +180,14 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
             return;
         }
 
-        Map<String, Expression> optionsMap = ((MapExpression) options).keyFoldedMap();
+        Map<String, Expression> optionsMap = new HashMap<>(((MapExpression) options).keyFoldedMap());
 
         try {
-            // set our Lambda value if we have it so it makes it easier to get it later without having to parse the expression
             Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-            this.lambdaValue = extractLambdaFromMMROptions(lambdaValueExpression);
+            Float extractedLambda = extractLambdaFromMMROptions(lambdaValueExpression);
+            if (extractedLambda != null && (extractedLambda < 0.0f || extractedLambda > 1.0f)) {
+                failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
+            }
         } catch (RuntimeException rtEx) {
             failures.add(fail(this, rtEx.getMessage()));
         }
@@ -185,17 +204,50 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
     }
 
-    public static Double extractLambdaFromMMROptions(Expression lambdaExpression) {
+    public static Float tryExtractLambdaFromOptions(Expression optionsInput) {
+        if (optionsInput instanceof MapExpression optionsMap) {
+            Map<String, Expression> optionsValues = new HashMap<>(optionsMap.keyFoldedMap());
+            Expression lambdaValueExpression = optionsValues.getOrDefault(MMR.LAMBDA_OPTION_NAME, null);
+            if (lambdaValueExpression != null) {
+                return extractLambdaFromMMROptions(lambdaValueExpression);
+            }
+        }
+        return null;
+    }
+
+    public static Float extractLambdaFromMMROptions(Expression lambdaExpression) {
         if (lambdaExpression != null) {
             if (lambdaExpression instanceof Literal litLambdaValue) {
-                Double retValue = (Double) litLambdaValue.value();
-                if (retValue != null && retValue >= 0.0 && retValue <= 1.0) {
-                    return retValue;
-                }
+                return ((Double) litLambdaValue.value()).floatValue();
             }
-            throw new RuntimeException("MMR lambda value must be a number between 0.0 and 1.0");
         }
 
         return null;
+    }
+
+    public static Integer getMMRLimitValue(Expression limitExpression) {
+        if (limitExpression instanceof Literal litLimit && litLimit.dataType() == INTEGER) {
+            return (Integer) litLimit.value();
+        }
+        return null;
+    }
+
+    private Expression processQueryVector(Expression queryVector) {
+        if (queryVector == null
+            || queryVector.resolved() == false
+            || queryVector.dataType() == null
+            || queryVector.dataType() == DENSE_VECTOR) {
+            return queryVector;
+        }
+
+        if (queryVector.dataType().isNumeric()) {
+            return new ToDenseVector(queryVector.source(), queryVector);
+        }
+
+        if (queryVector instanceof Literal litQueryVector && litQueryVector.dataType() == KEYWORD) {
+            return new ToDenseVector(queryVector.source(), queryVector);
+        }
+
+        return queryVector;
     }
 }

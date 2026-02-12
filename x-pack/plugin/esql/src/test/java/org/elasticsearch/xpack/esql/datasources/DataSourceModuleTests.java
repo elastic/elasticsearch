@@ -469,7 +469,7 @@ public class DataSourceModuleTests extends ESTestCase {
         while (spiIterator.hasNext()) {
             Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
             try {
-                DataSourcePlugin plugin = pluginClass.getDeclaredConstructor().newInstance();
+                DataSourcePlugin plugin = pluginClass.getConstructor().newInstance();
                 instantiatedPlugins.add(plugin);
 
                 // Track the classloader of the instantiated object

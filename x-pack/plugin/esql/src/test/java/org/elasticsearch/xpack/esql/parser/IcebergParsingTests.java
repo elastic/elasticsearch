@@ -43,10 +43,10 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
     public void testIcebergCommandWithParameters() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        var plan = query(
-            "EXTERNAL \"s3://bucket/table\" WITH { \"access_key\": \"AKIAIOSFODNN7EXAMPLE\", "
-                + "\"secret_key\": \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\" }"
-        );
+        var plan = query("""
+            "EXTERNAL "s3://bucket/table"
+                WITH { "access_key": "AKIAIOSFODNN7EXAMPLE", "secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" }"
+            """);
 
         assertThat(plan, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation iceberg = as(plan, UnresolvedExternalRelation.class);

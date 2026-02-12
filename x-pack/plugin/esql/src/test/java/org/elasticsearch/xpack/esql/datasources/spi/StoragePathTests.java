@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.test.ESTestCase;
 
+@SuppressWarnings("RegexpMultiline")
 public class StoragePathTests extends ESTestCase {
 
     // -- isPattern --

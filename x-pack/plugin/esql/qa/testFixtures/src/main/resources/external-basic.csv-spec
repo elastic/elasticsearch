@@ -1,7 +1,7 @@
 // Shared tests for standalone external files (Parquet, CSV, etc.)
 // Uses {{employees}} template that gets replaced with the actual path based on storage backend and format
 
-readAllEmployees#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+readAllEmployees
 EXTERNAL "{{employees}}"
 | KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
 | SORT emp_no
@@ -15,7 +15,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date       
 10005          | "Kyoichi"          | "Maliniak"        | 1955-01-21T00:00:00.000Z | "M"            | 1989-09-12T00:00:00.000Z | 1                 | 2.05          | 63528          | true
 ;
 
-selectSpecificColumns#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+selectSpecificColumns
 EXTERNAL "{{employees}}"
 | KEEP emp_no, first_name, last_name, salary
 | SORT emp_no
@@ -29,7 +29,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
 10005          | "Kyoichi"          | "Maliniak"        | 63528
 ;
 
-filterByEmployeeNumber#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+filterByEmployeeNumber
 EXTERNAL "{{employees}}"
 | WHERE emp_no == 10001
 | KEEP emp_no, first_name, last_name;
@@ -38,7 +38,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10001          | "Georgi"           | "Facello"
 ;
 
-filterBySalaryRange#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+filterBySalaryRange
 EXTERNAL "{{employees}}"
 | WHERE salary > 60000 AND salary < 70000
 | KEEP emp_no, first_name, salary
@@ -53,7 +53,7 @@ emp_no:integer | first_name:keyword | salary:integer
 10016          | "Kazuhito"         | 61358
 ;
 
-filterByGender#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+filterByGender
 EXTERNAL "{{employees}}"
 | WHERE gender == "F"
 | KEEP emp_no, first_name, last_name, gender
@@ -66,7 +66,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword
 10007          | "Tzvetan"          | "Zielinski"       | "F"
 ;
 
-filterByEmploymentStatus#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+filterByEmploymentStatus
 EXTERNAL "{{employees}}"
 | WHERE still_hired == false
 | KEEP emp_no, first_name, last_name, still_hired
@@ -79,7 +79,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | still_hired:boolean
 10009          | "Sumant"           | "Peac"            | false
 ;
 
-aggregateCount#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+aggregateCount
 EXTERNAL "{{employees}}"
 | STATS count = COUNT(*);
 
@@ -87,7 +87,7 @@ count:long
 100
 ;
 
-aggregateByGender#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+aggregateByGender
 EXTERNAL "{{employees}}"
 | STATS count = COUNT(*) BY gender
 | SORT gender;
@@ -98,7 +98,7 @@ count:long | gender:keyword
 10         | null
 ;
 
-aggregateAverageSalary#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+aggregateAverageSalary
 EXTERNAL "{{employees}}"
 | STATS avg_salary = AVG(salary);
 
@@ -106,7 +106,7 @@ avg_salary:double
 48248.55
 ;
 
-aggregateSalaryStats#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+aggregateSalaryStats
 EXTERNAL "{{employees}}"
 | STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
 
@@ -114,7 +114,7 @@ min_salary:integer | max_salary:integer | avg_salary:double
 25324              | 74999              | 48248.55
 ;
 
-aggregateSalaryByGender#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+aggregateSalaryByGender
 EXTERNAL "{{employees}}"
 | STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
 | SORT gender;
@@ -125,7 +125,7 @@ avg_salary:double    | count:long | gender:keyword
 48760.5              | 10         | null
 ;
 
-filterAndSort#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+filterAndSort
 EXTERNAL "{{employees}}"
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
@@ -140,7 +140,7 @@ emp_no:integer | first_name:keyword | salary:integer
 10019          | "Lillian"          | 73717
 ;
 
-evalComputedColumn#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+evalComputedColumn
 EXTERNAL "{{employees}}"
 | EVAL annual_bonus = salary * 0.1
 | KEEP emp_no, first_name, salary, annual_bonus
@@ -153,7 +153,7 @@ emp_no:integer | first_name:keyword | salary:integer | annual_bonus:double
 10003          | "Parto"            | 61805          | 6180.5
 ;
 
-complexQuery#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+complexQuery
 EXTERNAL "{{employees}}"
 | WHERE still_hired == true AND salary > 55000
 | EVAL salary_category = CASE(salary < 60000, "standard", salary < 70000, "senior", "principal")
@@ -168,7 +168,7 @@ count:long | avg_salary:double | salary_category:keyword
 
 // Sub-field columns (languages.long, height.float, height.scaled_float, height.half_float)
 
-selectAdditionalColumns#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+selectAdditionalColumns
 EXTERNAL "{{employees}}"
 | KEEP emp_no, first_name, `languages.long`, avg_worked_seconds
 | SORT emp_no
@@ -182,7 +182,7 @@ emp_no:integer | first_name:keyword | languages.long:long | avg_worked_seconds:l
 10005          | "Kyoichi"          | 1                   | 244294991
 ;
 
-selectHeightVariants#[skip:-8.18.99, reason:EXTERNAL command requires dev mode]
+selectHeightVariants
 EXTERNAL "{{employees}}"
 | EVAL height_float_rounded = ROUND(`height.float`, 2), height_half_float_rounded = ROUND(`height.half_float`, 2)
 | KEEP emp_no, height, height_float_rounded, `height.scaled_float`, height_half_float_rounded

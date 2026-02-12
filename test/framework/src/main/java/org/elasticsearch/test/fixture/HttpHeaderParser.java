@@ -55,6 +55,10 @@ public enum HttpHeaderParser {
      */
     public record Range(long start, Long end) {
 
+        public Range(long start, long end) {
+            this(start, (Long) end);
+        }
+
         /**
          * Returns true if this is an open-ended range (no end specified).
          */

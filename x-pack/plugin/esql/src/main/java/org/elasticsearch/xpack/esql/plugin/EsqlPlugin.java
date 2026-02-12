@@ -214,7 +214,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         while (spiIterator.hasNext()) {
             Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
             try {
-                allDataSourcePlugins.add(pluginClass.getDeclaredConstructor().newInstance());
+                allDataSourcePlugins.add(pluginClass.getConstructor().newInstance());
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to instantiate DataSourcePlugin: " + pluginClass.getName(), e);
             }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -33,6 +34,7 @@ import java.util.Random;
  * temp directories with empty files. Validates the full discovery pipeline
  * (path parsing -> prefix extraction -> listing -> glob filtering).
  */
+@SuppressWarnings("RegexpMultiline")
 public class GlobDiscoveryLocalTests extends ESTestCase {
 
     private Path fixtureRoot;
@@ -279,7 +281,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-            Path dirPath = Path.of(prefix.path());
+            Path dirPath = PathUtils.get(prefix.path());
             if (Files.exists(dirPath) == false || Files.isDirectory(dirPath) == false) {
                 return emptyIterator();
             }
@@ -328,7 +330,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         @Override
         public boolean exists(StoragePath path) {
-            return Files.exists(Path.of(path.path()));
+            return Files.exists(PathUtils.get(path.path()));
         }
 
         @Override
@@ -391,7 +393,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         @Override
         public boolean exists() {
-            return Files.exists(Path.of(path.path()));
+            return Files.exists(PathUtils.get(path.path()));
         }
 
         @Override

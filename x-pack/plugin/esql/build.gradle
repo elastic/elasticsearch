@@ -93,6 +93,12 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+  exclude '**/*.avro'
+  exclude '**/.*.crc'
+}
+
 
 def generatedPath = "src/main/generated"
 def projectDirectory = project.layout.projectDirectory

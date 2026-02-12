@@ -105,7 +105,12 @@ public class ExternalSourceResolver {
                             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                             String exceptionMessage = e.getMessage();
                             String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
-                            String errorMessage = String.format("Failed to resolve external source [%s]: %s", path, errorDetail);
+                            String errorMessage = String.format(
+                                Locale.ROOT,
+                                "Failed to resolve external source [%s]: %s",
+                                path,
+                                errorDetail
+                            );
                             listener.onFailure(new RuntimeException(errorMessage, e));
                             return;
                         }

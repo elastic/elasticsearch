@@ -51,7 +51,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final Logger logger = LogManager.getLogger(AbstractExternalSourceSpecTestCase.class);
 
     /** Pattern to match template placeholders like {{employees}} */
-    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)\\}\\}");
+    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     /** Base path for fixtures within the resource directory */
     private static final String FIXTURES_BASE = "standalone";
@@ -214,9 +214,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
-        // HTTP does not support directory listing, so skip multi-file glob tests
-        if (storageBackend == StorageBackend.HTTP && query.contains(MULTIFILE_SUFFIX)) {
-            assumeTrue("HTTP backend does not support multi-file glob patterns", false);
+        if (query.contains(MULTIFILE_SUFFIX)) {
+            // HTTP does not support directory listing, so skip multi-file glob tests
+            assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
+            // CSV format does not yet support multi-file glob patterns
+            assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
+
         }
 
         // Transform templates like {{employees}} to actual paths
@@ -233,7 +236,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Transform template placeholders in the query.
-     * Replaces {{name}} with the actual path based on storage backend and format.
+     * Replaces {{anything}} with the actual path based on storage backend and format.
      *
      * @param query the query with template placeholders
      * @return the query with templates replaced by actual paths

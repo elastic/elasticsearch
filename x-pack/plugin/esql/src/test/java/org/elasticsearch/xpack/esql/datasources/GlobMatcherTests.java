@@ -63,6 +63,7 @@ public class GlobMatcherTests extends ESTestCase {
         assertFalse(m.matches("file1.txt"));
     }
 
+    @SuppressWarnings("RegexpMultiline")
     public void testNeedsRecursion() {
         assertTrue(new GlobMatcher("**/*.parquet").needsRecursion());
         assertTrue(new GlobMatcher("data/**" + "/file.csv").needsRecursion());

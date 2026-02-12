@@ -60,6 +60,7 @@ final class GlobMatcher {
      *   <li>{@code [!abc]} or {@code [^abc]} matches any single character not in the set</li>
      * </ul>
      */
+    @SuppressWarnings("RegexpMultiline")
     static String globToRegex(String glob) {
         StringBuilder regex = new StringBuilder();
         int i = 0;

@@ -13,9 +13,10 @@ steps:
           provider: aws
           imagePrefix: elasticsearch-aws-ubuntu-2404-nvidia
           instanceType: m7a.8xlarge
-          diskSizeGb: 350
+          diskSizeGb: 150
           diskType: gp3
           diskName: /dev/sda1
+          buildDirectory: /dev/shm/bk
           ipv6Only: true
         env:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

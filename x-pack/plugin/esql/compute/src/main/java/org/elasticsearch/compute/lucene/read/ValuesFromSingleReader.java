@@ -68,12 +68,12 @@ class ValuesFromSingleReader extends ValuesReader {
             loadFromSingleLeaf(
                 Long.MAX_VALUE, // Effectively disable splitting pages when we're not loading in order
                 unshuffled,
-                new ValuesReaderDocs(docs).mapped(forwards),
+                new ValuesReaderDocs(docs).mapped(forwards, 0, docs.getPositionCount()),
                 0
             );
             final int[] backwards = docs.shardSegmentDocMapBackwards();
             for (int i = 0; i < unshuffled.length; i++) {
-                target[i] = unshuffled[i].filter(backwards);
+                target[i] = unshuffled[i].filter(false, backwards);
                 unshuffled[i].close();
                 unshuffled[i] = null;
             }

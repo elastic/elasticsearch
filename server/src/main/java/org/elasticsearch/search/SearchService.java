@@ -892,7 +892,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchContextId contextId = request.readerId();
         if (contextId != null && sessionId.equals(contextId.getSessionId())) {
             final ReaderContext readerContext = activeReaders.get(contextId);
-            if (readerContext != null && readerContext.isForcedExpired() == false) {
+            if (readerContext != null && readerContext.isRelocating() == false) {
                 return readerContext.indexShard();
             }
         }
@@ -2301,6 +2301,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Rewriteable.rewriteAndFetch(
             request.getRewriteable(),
             indicesService.getDataRewriteContext(request::nowInMillis),
+            threadPool.executor(Names.SEARCH),
             request.readerId() == null
                 ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
                 : listener.safeMap(r -> request)

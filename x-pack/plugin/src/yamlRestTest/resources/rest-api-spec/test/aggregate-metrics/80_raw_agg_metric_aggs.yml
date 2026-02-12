@@ -4,8 +4,12 @@
 ###############################################################################################################
 
 setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
   # Setup aggregate index with field metric of type aggregate_metric_double
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test_metric_aggregate
         body:
@@ -58,10 +62,6 @@ setup:
 
 ---
 "Test mixed aggregations":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: test_metric_*
@@ -93,10 +93,6 @@ setup:
 
 ---
 "Test mixed aggregations with query":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: test_metric_*

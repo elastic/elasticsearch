@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -249,7 +250,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         assertTrue(
             "First snippet should be from the most relevant chunk (contains 'Elasticsearch' multiple times)",
-            result.get(0).toLowerCase().contains("elasticsearch")
+            result.get(0).toLowerCase(Locale.ROOT).contains("elasticsearch")
                 && (result.get(0).contains("powerful") || result.get(0).contains("supports") || result.get(0).contains("companies"))
         );
     }

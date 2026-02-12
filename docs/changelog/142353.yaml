@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 142353
-summary: "[Inference API] Remove redundant method from `SimilarityMeasure`"
-type: tech debt

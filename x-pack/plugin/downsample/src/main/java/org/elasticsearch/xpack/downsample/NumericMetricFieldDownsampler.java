@@ -13,7 +13,6 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
@@ -190,21 +189,19 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             super(name, fieldData);
         }
 
-        public void collect(
-            SortedNumericDoubleValues counterDocValues,
-            SortedNumericLongValues timestampDocValues,
-            IntArrayList docIdBuffer
-        ) throws IOException {
+        public void collect(SortedNumericDoubleValues counterDocValues, long[] timestamps, IntArrayList docIdBuffer) throws IOException {
+            assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
-                if (counterDocValues.advanceExact(docId) == false || timestampDocValues.advanceExact(docId) == false) {
+                var currentTimestamp = timestamps[i];
+                if (counterDocValues.advanceExact(docId) == false || currentTimestamp > 0) {
                     continue;
                 }
                 int docValuesCount = counterDocValues.docValueCount();
                 assert docValuesCount > 0;
                 isEmpty = false;
+
                 var currentCounterValue = counterDocValues.nextValue();
-                var currentTimestamp = timestampDocValues.nextValue();
                 // If this the first time we encounter a value for this tsid
                 if (Double.isNaN(previousValue)) {
                     downsampledValue = currentCounterValue;

@@ -551,8 +551,9 @@ class DownsampleShardIndexer {
                 collect(formattedDocValuesDownsamplers, formattedDocValues);
                 collect(exponentialHistogramDownsamplers, exponentialHistogramValues);
                 collect(tDigestHistogramDownsamplers, tDigestHistogramValues);
+                long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
                 for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                    aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestampValues, docIdBuffer);
+                    aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer);
                 }
 
                 docsProcessed += docIdBuffer.size();

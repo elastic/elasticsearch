@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntDoubleHashMap;
-import org.apache.lucene.internal.hppc.IntLongHashMap;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,7 +25,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
             new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
-        SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 70, 60, 50, 40, 30, 20, 10);
+        long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 64, 32, 16, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer);
         producer.updateResetDataPoints(resetDataPoints);
@@ -46,7 +44,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
             new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
-        SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 70, 60, 50, 40, 30, 20, 10);
+        long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
         producer.collect(counterValues, timeValues, docIdBuffer);
         producer.updateResetDataPoints(resetDataPoints);
@@ -76,7 +74,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
             new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
-        SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 30, 20, 10);
+        long[] timeValues = new long[] { 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 7, 0, 1);
         producer.collect(counterValues, timeValues, docIdBuffer);
         producer.updateResetDataPoints(resetDataPoints);
@@ -102,7 +100,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
             new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
         // Bucket #2
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
-        SortedNumericLongValues timeValues = createTimestampValuesInstance(docIdBuffer, 70, 60, 50);
+        long[] timeValues = new long[] { 70, 60, 50 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 6, 5, 4);
         producer.collect(counterValues, timeValues, docIdBuffer);
         producer.updateResetDataPoints(resetDataPoints);
@@ -113,7 +111,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
         // Bucket #1
         docIdBuffer = IntArrayList.from(3, 2, 1, 0);
-        timeValues = createTimestampValuesInstance(docIdBuffer, 40, 30, 20, 10);
+        timeValues = new long[] { 40, 30, 20, 10 };
         counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer);
         producer.updateResetDataPoints(resetDataPoints);
@@ -157,30 +155,4 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
             }
         };
     }
-
-    static SortedNumericLongValues createTimestampValuesInstance(IntArrayList docIdBuffer, long... values) {
-        return new SortedNumericLongValues() {
-
-            final IntLongHashMap docIdToValue = IntLongHashMap.from(docIdBuffer.toArray(), values);
-
-            int currentDocId = -1;
-
-            @Override
-            public boolean advanceExact(int target) {
-                currentDocId = target;
-                return docIdToValue.containsKey(target);
-            }
-
-            @Override
-            public long nextValue() {
-                return docIdToValue.get(currentDocId);
-            }
-
-            @Override
-            public int docValueCount() {
-                return 1;
-            }
-        };
-    }
-
 }

@@ -72,7 +72,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
 
     /**
-     * Retrieve field value fetchers for a list of fields.
+     * Create field downsamplers for the provided list of fields.
      */
     static List<AbstractFieldDownsampler<?>> create(
         SearchExecutionContext context,
@@ -105,6 +105,9 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         return Collections.unmodifiableList(downsamplers);
     }
 
+    /**
+     * Create a single field downsamplers for the provided field.
+     */
     private static AbstractFieldDownsampler<?> create(
         String fieldName,
         MappedFieldType fieldType,
@@ -121,7 +124,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
         if (NumericMetricFieldDownsampler.supportsFieldType(fieldType)) {
-            return NumericMetricFieldDownsampler.create(fieldName, fieldType.getMetricType(), fieldData, samplingMethod, extraDataPoints);
+            return NumericMetricFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod, extraDataPoints);
         }
         // TODO: Support POSITION in downsampling
         if (fieldType.getMetricType() == POSITION) {

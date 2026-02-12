@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -274,14 +273,26 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields,
             Map<String, String> meta
         ) {
-            super(
-                name,
-                metricFields.containsKey(Metric.max) ? metricFields.get(Metric.max).indexType() : IndexType.docValuesOnly(),
-                false,
-                meta
-            );
+            super(name, metricFields.get(derivedDefaultMetric(name, metricFields)).indexType(), false, meta);
             this.metricType = metricType;
             this.metricFields = metricFields;
+        }
+
+        private Metric derivedDefaultMetric() {
+            return derivedDefaultMetric(name(), metricFields);
+        }
+
+        private static Metric derivedDefaultMetric(String name, EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
+            if (metricFields.containsKey(Metric.max)) {
+                return Metric.max;
+            }
+            // We iterate on the metrics to ensure that we have a deterministic order in metrics
+            for (Metric metric : Metric.values()) {
+                if (metricFields.containsKey(metric)) {
+                    return metric;
+                }
+            }
+            throw new IllegalStateException("No metric found for aggregate metric field [" + name + "]");
         }
 
         /**
@@ -289,16 +300,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
-            if (metricFields.containsKey(Metric.max)) {
-                return metricFields.get(Metric.max);
-            }
-            // We iterate on the metrics to ensure that we have a deterministic order in metrics
-            for (Metric metric : Metric.values()) {
-                if (metricFields.containsKey(metric)) {
-                    return metricFields.get(metric);
-                }
-            }
-            throw new IllegalStateException("No delegate field type found for aggregate metric field [" + name() + "]");
+            return metricFields.get(derivedDefaultMetric());
         }
 
         @Override
@@ -429,7 +431,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
                         @Override
                         public SortedNumericDoubleValues getAggregateMetricValues() {
-                            return getAggregateMetricValues(Metric.max);
+                            return getAggregateMetricValues(derivedDefaultMetric());
                         }
 
                         @Override
@@ -468,7 +470,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    return new SortedNumericSortField(subfieldName(name(), Metric.max), SortField.Type.DOUBLE, reverse);
+                    return new SortedNumericSortField(subfieldName(name(), derivedDefaultMetric()), SortField.Type.DOUBLE, reverse);
                 }
 
                 @Override
@@ -502,7 +504,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     case AMD_MAX -> Metric.max;
                     case AMD_MIN -> Metric.min;
                     case AMD_SUM -> Metric.sum;
-                    case AMD_DEFAULT -> Metric.max; // TODO: temporary until we combine https://github.com/elastic/elasticsearch/pull/141331
+                    case AMD_DEFAULT -> derivedDefaultMetric(); // TODO: temporary until we combine
+                                                                // https://github.com/elastic/elasticsearch/pull/141331
                     default -> null;
                 };
                 if (metric == null) {

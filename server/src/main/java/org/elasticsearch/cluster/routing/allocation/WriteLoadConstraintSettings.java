@@ -160,6 +160,7 @@ public class WriteLoadConstraintSettings {
     private volatile double highUtilizationBalanceThreshold;
     private volatile TimeValue queueLatencyThreshold;
     private volatile double highUtilizationHotspotThreshold;
+    private volatile String highUtilizationBalanceThresholdString;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -175,8 +176,10 @@ public class WriteLoadConstraintSettings {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING,
-            value -> highUtilizationHotspotThreshold = value.getAsRatio()
-        );
+            value -> {
+                highUtilizationHotspotThreshold = value.getAsRatio();
+                highUtilizationBalanceThresholdString = value.formatNoTrailingZerosPercent();
+        });
     }
 
     public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
@@ -201,6 +204,10 @@ public class WriteLoadConstraintSettings {
      */
     public double getHighUtilizationHotspotThreshold() {
         return this.highUtilizationHotspotThreshold;
+    }
+
+    public String getHighUtilizationHotspotThresholdString() {
+        return this.highUtilizationBalanceThresholdString;
     }
 
     /**

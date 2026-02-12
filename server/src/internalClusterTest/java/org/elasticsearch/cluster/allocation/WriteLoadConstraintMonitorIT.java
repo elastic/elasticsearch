@@ -49,9 +49,11 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         final long queueLatencyThresholdMillis = randomLongBetween(50_000, 100_000);
         final int utilizationThresholdPercent = randomIntBetween(70, 99);
         final float utilizationThreshold = utilizationThresholdPercent / 100.0f;
-        final String utilizationThresholdLogged = Strings.format("%.2f", utilizationThreshold).substring(0, 3);
         final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis, utilizationThresholdPercent);
         internalCluster().startMasterOnlyNode(settings);
+        final String utilizationThresholdString = internalCluster().clusterService().getClusterSettings().get(
+            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING
+        ).formatNoTrailingZerosPercent();
         final String dataNodeOne = internalCluster().startDataOnlyNode(settings);
         final String dataNodeTwo = internalCluster().startDataOnlyNode(settings);
         // Maintain a third node so that there's always at least one non-hot-spotting node that can receive shards.
@@ -84,11 +86,11 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                     """
                         Nodes [%s] are hot-spotting, of 3 total ingest nodes. Reroute for hot-spotting has never previously been called. \
                         Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s] and the \
-                        utilization threshold is [%s*]. Triggering reroute.
+                        utilization threshold is [%s]. Triggering reroute.
                         """,
                     getNodeId(dataNodeOne) + "/" + dataNodeOne,
                     TimeValue.timeValueMillis(queueLatencyThresholdMillis),
-                    utilizationThresholdLogged
+                    utilizationThresholdString
                 )
             )
         );
@@ -124,11 +126,11 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                     """
                         Nodes [*] are hot-spotting, of 3 total ingest nodes. \
                         Reroute for hot-spotting was last called [*] ago. Previously hot-spotting nodes are [%s]. \
-                        The write thread pool queue latency threshold is [%s] and the utilization threshold is [%s*]. Triggering reroute.
+                        The write thread pool queue latency threshold is [%s] and the utilization threshold is [%s]. Triggering reroute.
                         """,
                     getNodeId(dataNodeOne) + "/" + dataNodeOne,
                     TimeValue.timeValueMillis(queueLatencyThresholdMillis),
-                    utilizationThresholdLogged
+                    utilizationThresholdString
                 )
             )
         );

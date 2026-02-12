@@ -178,13 +178,13 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 final String explain = Strings.format(
                     """
                         Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread pool \
-                        utilization of [%f] that exceeds the utilization threshold of [%f]. This node is hot-spotting. Shard write load \
+                        utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard write load \
                         [%s]. Should move shard(s) away""",
                     node.getShortNodeDescription(),
                     nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                     nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
                     nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                    nodeWriteThreadPoolUtilizationThreshold,
+                    writeLoadConstraintSettings.getHighUtilizationHotspotThresholdString(),
                     shardWriteLoad == null ? "unknown" : shardWriteLoad
                 );
                 if (logger.isDebugEnabled()) {
@@ -201,12 +201,12 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             NAME,
             """
                 Node [%s]'s queue latency of [%d] does not exceed the latency threshold of [%s], or the thread pool utilization of [%f] \
-                does not exceed the utilization threshold of [%f]""",
+                does not exceed the utilization threshold of [%s]""",
             node.getShortNodeDescription(),
             nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
             nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
             nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-            nodeWriteThreadPoolUtilizationThreshold
+            writeLoadConstraintSettings.getHighUtilizationHotspotThresholdString()
         );
     }
 

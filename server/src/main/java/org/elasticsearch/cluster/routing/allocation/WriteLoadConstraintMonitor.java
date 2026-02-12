@@ -187,7 +187,7 @@ public class WriteLoadConstraintMonitor {
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
                     nodeSummary(lastHotspotNodes),
                     writeLoadConstraintSettings.getQueueLatencyThreshold(),
-                    writeLoadConstraintSettings.getHighUtilizationHotspotThreshold()
+                    writeLoadConstraintSettings.getHighUtilizationHotspotThresholdString()
                 );
             }
             final String reason = "hot-spotting detected by write load constraint monitor";

@@ -414,10 +414,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
 
-                SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Integer>>>newForked(l2 -> {
+                SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Long>>>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Integer> regionsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit,
                             batchedCompoundCommit,
@@ -433,28 +433,28 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         referencedCompoundCommit.referencedInternalFiles()
                                     )
                                 );
-                                regionsToWarm.compute(
+                                offsetsToWarm.compute(
                                     referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
-                                    (blobFile, maxRegionToWarm) -> {
-                                        var regionIdx = warmingService.regionsToWarmForCC(referencedCompoundCommit);
-                                        return maxRegionToWarm == null ? regionIdx : Math.max(maxRegionToWarm, regionIdx);
+                                    (blobFile, maxOffsetToWarm) -> {
+                                        var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                        return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
                                     }
                                 );
                             },
-                            l2.map(aVoid -> new Tuple<>(blobFileRanges, regionsToWarm))
+                            l2.map(aVoid -> new Tuple<>(blobFileRanges, offsetsToWarm))
                         );
                     } else {
                         l2.onResponse(null);
                     }
-                }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndRegionsToWarm) -> {
-                    if (blobFileRangesAndRegionsToWarm != null) {
-                        searchDirectory.updateCommit(compoundCommit, blobFileRangesAndRegionsToWarm.v1());
+                }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndOffsetsToWarm) -> {
+                    if (blobFileRangesAndOffsetsToWarm != null) {
+                        searchDirectory.updateCommit(compoundCommit, blobFileRangesAndOffsetsToWarm.v1());
                         warmingService.warmCacheForShardRecovery(
                             SEARCH,
                             indexShard,
                             compoundCommit,
                             searchDirectory,
-                            blobFileRangesAndRegionsToWarm.v2()
+                            blobFileRangesAndOffsetsToWarm.v2()
                         );
                     } else {
                         searchDirectory.updateCommit(compoundCommit);

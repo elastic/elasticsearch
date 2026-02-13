@@ -771,7 +771,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Integer> regionsToWarm
+                    @Nullable Map<BlobFile, Long> endOffsetsToWarm
                 ) {}
             };
         }

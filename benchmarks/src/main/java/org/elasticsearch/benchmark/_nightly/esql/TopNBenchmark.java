@@ -41,10 +41,13 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -53,7 +56,6 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class TopNBenchmark {
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE
@@ -66,8 +68,11 @@ public class TopNBenchmark {
     private static final String DOUBLES = "doubles";
     private static final String BOOLEANS = "booleans";
     private static final String BYTES_REFS = "bytes_refs";
-    private static final String TWO_LONGS = "two_" + LONGS;
-    private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
+
+    private static final String ASC = "_asc";
+    private static final String DESC = "_desc";
+
+    private static final String AND = "_and_";
 
     static {
         LogConfigurator.configureESLogging();
@@ -89,7 +94,20 @@ public class TopNBenchmark {
         }
     }
 
-    @Param({ LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
+    @Param(
+        {
+            LONGS + ASC,
+            LONGS + DESC,
+            INTS + ASC,
+            DOUBLES + ASC,
+            BOOLEANS + ASC,
+            BYTES_REFS + ASC,
+            LONGS + ASC + AND + LONGS + ASC,
+            LONGS + ASC + AND + LONGS + DESC,
+            LONGS + DESC + AND + LONGS + DESC,
+            LONGS + ASC + AND + BYTES_REFS + ASC,
+            LONGS + DESC + AND + BYTES_REFS + DESC }
+    )
     public String data;
 
     @Param({ "true", "false" })
@@ -105,28 +123,10 @@ public class TopNBenchmark {
     public int topCount;
 
     private static Operator operator(String data, int topCount, boolean sortedInput) {
-        int count = switch (data) {
-            case LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS -> 1;
-            case TWO_LONGS, LONGS_AND_BYTES_REFS -> 2;
-            default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
-        };
-        List<ElementType> elementTypes = switch (data) {
-            case LONGS -> List.of(ElementType.LONG);
-            case INTS -> List.of(ElementType.INT);
-            case DOUBLES -> List.of(ElementType.DOUBLE);
-            case BOOLEANS -> List.of(ElementType.BOOLEAN);
-            case BYTES_REFS -> List.of(ElementType.BYTES_REF);
-            case TWO_LONGS -> List.of(ElementType.LONG, ElementType.LONG);
-            case LONGS_AND_BYTES_REFS -> List.of(ElementType.LONG, ElementType.BYTES_REF);
-            default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
-        };
-        List<TopNEncoder> encoders = switch (data) {
-            case LONGS, INTS, DOUBLES, BOOLEANS -> List.of(TopNEncoder.DEFAULT_SORTABLE);
-            case BYTES_REFS -> List.of(TopNEncoder.UTF8);
-            case TWO_LONGS -> List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE);
-            case LONGS_AND_BYTES_REFS -> List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.UTF8);
-            default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
-        };
+        String[] dataSpec = data.split("_and_");
+        List<ElementType> elementTypes = Arrays.stream(dataSpec).map(TopNBenchmark::elementType).toList();
+        List<TopNEncoder> encoders = Arrays.stream(dataSpec).map(TopNBenchmark::encoder).toList();
+        List<TopNOperator.SortOrder> sortOrders = IntStream.range(0, dataSpec.length).mapToObj(c -> sortOrder(c, dataSpec[c])).toList();
         CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
             CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
@@ -139,10 +139,43 @@ public class TopNBenchmark {
             topCount,
             elementTypes,
             encoders,
-            IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, true, false)).toList(),
+            sortOrders,
             8 * 1024,
             sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED
         );
+    }
+
+    private static ElementType elementType(String data) {
+        return switch (data.replace(ASC, "").replace(DESC, "")) {
+            case LONGS -> ElementType.LONG;
+            case INTS -> ElementType.INT;
+            case DOUBLES -> ElementType.DOUBLE;
+            case BOOLEANS -> ElementType.BOOLEAN;
+            case BYTES_REFS -> ElementType.BYTES_REF;
+            default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
+        };
+    }
+
+    private static TopNEncoder encoder(String data) {
+        return switch (data.replace(ASC, "").replace(DESC, "")) {
+            case LONGS, INTS, DOUBLES, BOOLEANS -> TopNEncoder.DEFAULT_SORTABLE;
+            case BYTES_REFS -> TopNEncoder.UTF8;
+            default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
+        };
+    }
+
+    private static boolean ascDesc(String data) {
+        if (data.endsWith(ASC)) {
+            return true;
+        } else if (data.endsWith(DESC)) {
+            return false;
+        } else {
+            throw new IllegalArgumentException("data neither asc nor desc: " + data);
+        }
+    }
+
+    private static TopNOperator.SortOrder sortOrder(int channel, String data) {
+        return new TopNOperator.SortOrder(channel, ascDesc(data), false);
     }
 
     private static void checkExpected(int topCount, List<Page> pages) {
@@ -151,64 +184,55 @@ public class TopNBenchmark {
         }
     }
 
-    private static Page page(String data) {
-        return switch (data) {
-            case TWO_LONGS -> new Page(block(LONGS), block(LONGS));
-            case LONGS_AND_BYTES_REFS -> new Page(block(LONGS), block(BYTES_REFS));
-            default -> new Page(block(data));
-        };
+    private static Page page(boolean sortedInput, String data) {
+        String[] dataSpec = data.split("_and_");
+        return new Page(Arrays.stream(dataSpec).map(d -> block(sortedInput, d)).toArray(Block[]::new));
     }
 
     // This creates blocks with uniformly random distributed and sorted data
-    private static Block block(String data) {
-        return switch (data) {
+    private static Block block(boolean sortedInput, String data) {
+        return switch (data.replace(ASC, "").replace(DESC, "")) {
             case LONGS -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-
-                new Random().longs(BLOCK_LENGTH, 0, Long.MAX_VALUE).sorted().forEachOrdered(builder::appendLong);
-
+                maybeSort(sortedInput, data, new Random().longs(BLOCK_LENGTH, 0, Long.MAX_VALUE).boxed()).forEach(builder::appendLong);
                 yield builder.build();
             }
             case INTS -> {
                 var builder = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
-
-                new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).sorted().forEachOrdered(builder::appendInt);
-
+                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).boxed()).forEach(builder::appendInt);
                 yield builder.build();
             }
             case DOUBLES -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
-
-                new Random().doubles(BLOCK_LENGTH, 0, Double.MAX_VALUE).sorted().forEachOrdered(builder::appendDouble);
-
+                maybeSort(sortedInput, data, new Random().doubles(BLOCK_LENGTH, 0, Double.MAX_VALUE).boxed()).forEach(
+                    builder::appendDouble
+                );
                 yield builder.build();
             }
             case BOOLEANS -> {
                 BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
-
-                int falseCount = BLOCK_LENGTH / 2;
-                int trueCount = BLOCK_LENGTH - falseCount;
-
-                for (int i = 0; i < falseCount; i++) {
-                    builder.appendBoolean(false);
-                }
-                for (int i = 0; i < trueCount; i++) {
-                    builder.appendBoolean(true);
-                }
-
+                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 1).boxed()).forEach(i -> builder.appendBoolean(i == 1));
                 yield builder.build();
             }
             case BYTES_REFS -> {
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
-                new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE)
-                    .mapToObj(Integer::toString)
-                    .sorted()
-                    .forEachOrdered(s -> builder.appendBytesRef(new BytesRef(s)));
-
+                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).boxed()).forEach(
+                    i -> builder.appendBytesRef(new BytesRef(i.toString()))
+                );
                 yield builder.build();
             }
             default -> throw new UnsupportedOperationException("unsupported data [" + data + "]");
         };
+    }
+
+    private static <T extends Comparable<T>> List<T> maybeSort(boolean sortedInput, String data, Stream<T> randomValues) {
+        List<T> values = new ArrayList<>();
+        randomValues.forEachOrdered(values::add);
+        if (sortedInput) {
+            values.sort(Comparator.naturalOrder());
+            return ascDesc(data) ? values : values.reversed();
+        }
+        return values;
     }
 
     @Benchmark
@@ -219,7 +243,7 @@ public class TopNBenchmark {
 
     private static void run(String data, int topCount, boolean sortedInput) {
         try (Operator operator = operator(data, topCount, sortedInput)) {
-            Page page = page(data);
+            Page page = page(sortedInput, data);
             for (int i = 0; i < 1024; i++) {
                 operator.addInput(page.shallowCopy());
             }

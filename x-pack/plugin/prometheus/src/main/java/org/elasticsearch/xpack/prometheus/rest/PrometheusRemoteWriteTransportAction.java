@@ -65,10 +65,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private static final Logger logger = LogManager.getLogger(PrometheusRemoteWriteTransportAction.class);
 
     private static final String METRIC_NAME_LABEL = "__name__";
-    // TODO: Make the target index configurable
-    private static final String TARGET_INDEX = "metrics-generic.prometheus-default";
-    private static final String DYNAMIC_TEMPLATE_COUNTER = "counter";
-    private static final String DYNAMIC_TEMPLATE_GAUGE = "gauge";
+    private static final String METRICS_DATA_STREAM_PREFIX = "metrics-";
 
     private final Client client;
 
@@ -110,10 +107,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                     continue;
                 }
 
-                String dynamicTemplate = inferMetricType(metricName);
-
                 for (Sample sample : timeSeries.getSamplesList()) {
-                    IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, dynamicTemplate);
+                    IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, request.dataset, request.namespace);
                     bulkRequestBuilder.add(indexRequest);
                 }
             }
@@ -167,22 +162,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         return null;
     }
 
-    /**
-     * Infers the metric type based on naming conventions.
-     * Metrics ending with "_total", "_bucket", "_count", or "_sum" are treated as counters,
-     * all other metrics are gauges.
-     */
-    static String inferMetricType(String metricName) {
-        if (metricName.endsWith("_total")
-            || metricName.endsWith("_bucket")
-            || metricName.endsWith("_count")
-            || metricName.endsWith("_sum")) {
-            return DYNAMIC_TEMPLATE_COUNTER;
-        }
-        return DYNAMIC_TEMPLATE_GAUGE;
-    }
-
-    private IndexRequest buildIndexRequest(TimeSeries timeSeries, Sample sample, String metricName, String dynamicTemplate)
+    private IndexRequest buildIndexRequest(TimeSeries timeSeries, Sample sample, String metricName, String dataset, String namespace)
         throws IOException {
         try (XContentBuilder builder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             builder.startObject();
@@ -191,10 +171,11 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             builder.field("@timestamp", sample.getTimestamp());
 
             // data_stream fields
+            String fullDataset = dataset + ".prometheus";
             builder.startObject("data_stream");
             builder.field("type", "metrics");
-            builder.field("dataset", "generic.prometheus");
-            builder.field("namespace", "default");
+            builder.field("dataset", fullDataset);
+            builder.field("namespace", namespace);
             builder.endObject();
 
             // labels - all labels including __name__
@@ -203,16 +184,16 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 builder.field(label.getName(), label.getValue());
             }
             builder.endObject();
+            builder.startObject("metrics");
 
             // metric value - field named after the metric
             builder.field(metricName, sample.getValue());
 
             builder.endObject();
+            builder.endObject();
 
-            return new IndexRequest(TARGET_INDEX).opType(DocWriteRequest.OpType.CREATE)
-                .setRequireDataStream(true)
-                .source(builder)
-                .setDynamicTemplates(Map.of(metricName, dynamicTemplate));
+            String targetIndex = METRICS_DATA_STREAM_PREFIX + fullDataset + "-" + namespace;
+            return new IndexRequest(targetIndex).opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(builder);
         }
     }
 
@@ -289,14 +270,20 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     public static class RemoteWriteRequest extends ActionRequest implements CompositeIndicesRequest {
         private final BytesReference remoteWriteRequest;
+        private final String dataset;
+        private final String namespace;
 
         public RemoteWriteRequest(StreamInput in) throws IOException {
             super(in);
             remoteWriteRequest = in.readBytesReference();
+            dataset = in.readString();
+            namespace = in.readString();
         }
 
-        public RemoteWriteRequest(BytesReference remoteWriteRequest) {
+        public RemoteWriteRequest(BytesReference remoteWriteRequest, String dataset, String namespace) {
             this.remoteWriteRequest = remoteWriteRequest;
+            this.dataset = dataset;
+            this.namespace = namespace;
         }
 
         @Override
@@ -308,6 +295,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBytesReference(remoteWriteRequest);
+            out.writeString(dataset);
+            out.writeString(namespace);
         }
     }
 

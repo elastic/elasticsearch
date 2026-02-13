@@ -20,9 +20,7 @@ import java.net.URLConnection;
 import java.nio.file.Path;
 
 /**
- * Contains one "check" method for each distinct kind of check we do
- * (as opposed to {@link org.elasticsearch.entitlement.bridge.EntitlementChecker},
- * which has a method for each distinct <em>>method</em> we instrument).
+ * Contains one "check" method for each distinct kind of check we do.
  */
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public interface PolicyChecker {

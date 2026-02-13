@@ -78,11 +78,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     public void checkIntegrity() throws IOException {}
 
     @Override
-    public FieldsProducer getMergeInstance() {
-        return new TSDBSyntheticIdFieldsProducer(fieldInfos, docValuesProducer, maxDocs);
-    }
-
-    @Override
     public Terms terms(String field) throws IOException {
         assert FIELDS_NAMES.contains(field) : field;
         return new Terms() {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
  * <a href="https://docs.cohere.com/reference/rerank-1">See api docs for details.</a>
  * </p>
  */
-public class CohereRerankTaskSettings implements TaskSettings {
+public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "cohere_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -170,6 +171,11 @@ public class CohereRerankTaskSettings implements TaskSettings {
 
     public Integer getTopNDocumentsOnly() {
         return topNDocumentsOnly;
+    }
+
+    @Override
+    public Integer getTopN() {
+        return getTopNDocumentsOnly();
     }
 
     public Boolean getReturnDocuments() {

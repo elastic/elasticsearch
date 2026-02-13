@@ -2,8 +2,11 @@ setup:
   - requires:
       cluster_features: [ "mapper.exponential_histogram_type" ]
       reason: exponential_histogram field type was introduced
+      test_runner_features: [ allowed_warnings ]
   # Create an index template for the data stream with aggregate_metric_double field
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.put_index_template:
         name: test_data_stream_template
         body:
@@ -19,6 +22,8 @@ setup:
 
   # Create the data stream
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create_data_stream:
         name: test-data-stream
 

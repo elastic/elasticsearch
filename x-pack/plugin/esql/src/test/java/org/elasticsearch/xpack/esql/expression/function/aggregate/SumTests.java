@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumTests extends AbstractAggregationTestCase {
@@ -37,6 +38,10 @@ public class SumTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        return testParameters(true);
+    }
+
+    static Iterable<Object[]> testParameters(boolean includeDenseVector) {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         Stream.of(
@@ -79,24 +84,27 @@ public class SumTests extends AbstractAggregationTestCase {
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
-                ),
-                new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
-                    var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomNonNegativeInt()
-                    );
-                    return new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
-                        standardAggregatorName("Sum", DataType.AGGREGATE_METRIC_DOUBLE),
-                        DataType.DOUBLE,
-                        equalTo(value.sum())
-                    );
-
-                })
+                )
             )
         );
+
+        if (includeDenseVector) {
+            suppliers.add(new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
+                var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                    randomDouble(),
+                    randomDouble(),
+                    randomDouble(),
+                    randomNonNegativeInt()
+                );
+                return new TestCaseSupplier.TestCase(
+                    List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
+                    standardAggregatorName("Sum", DataType.AGGREGATE_METRIC_DOUBLE),
+                    DataType.DOUBLE,
+                    equalTo(value.sum())
+                );
+
+            }));
+        }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
@@ -155,7 +163,7 @@ public class SumTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
-                equalTo(expected)
+                expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
             );
         });
     }

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
-
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
@@ -63,8 +60,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@SuppressForbidden(value = "Don't commit hardcoded repeats")
-@Repeat(iterations = 10)
 public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
 
     @Override

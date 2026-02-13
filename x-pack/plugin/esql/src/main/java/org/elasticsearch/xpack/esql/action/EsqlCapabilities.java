@@ -392,6 +392,9 @@ public class EsqlCapabilities {
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
 
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
+
         /**
          * Fix determination of CRS types in spatial functions when folding.
          */

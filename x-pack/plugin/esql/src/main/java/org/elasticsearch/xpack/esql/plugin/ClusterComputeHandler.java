@@ -305,7 +305,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     ),
                     coordinatorPlan,
                     computeService.plannerSettings().get(),
-                    LocalPhysicalOptimization.ENABLED,
+                    LocalPhysicalOptimization.DISABLED,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

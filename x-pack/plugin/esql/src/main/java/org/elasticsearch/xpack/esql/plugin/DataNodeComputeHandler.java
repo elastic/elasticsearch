@@ -680,7 +680,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         CancellableTask task,
         String externalId,
         PhysicalPlan reducePlan,
-        LocalPhysicalOptimization localPhysicalOptimization,
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,
@@ -738,7 +737,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     ),
                     reducePlan,
                     plannerSettings,
-                    localPhysicalOptimization,
+                    LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
@@ -812,7 +811,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             (CancellableTask) task,
             sessionId,
             reductionPlan.nodeReducePlan(),
-            reductionPlan.localPhysicalOptimization(),
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,

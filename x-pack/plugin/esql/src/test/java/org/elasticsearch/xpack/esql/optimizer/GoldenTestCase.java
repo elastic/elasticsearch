@@ -327,45 +327,17 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (stages.contains(Stage.NODE_REDUCE)) {
                         var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
                         result.addAll(
-                            addDualPlanResult(
-                                Stage.NODE_REDUCE,
-                                reductionPlan,
-                                dualFileOutput.nodeReduceOutput(),
-                                dualFileOutput.dataNodeOutput()
-                            )
+                            addNodeReduceDualPlanResult(reductionPlan, dualFileOutput.nodeReduceOutput(), dualFileOutput.dataNodeOutput())
                         );
                     }
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        switch (reductionPlan.localPhysicalOptimization()) {
-                            // If there is no local node-reduce physical optimization, there's nothing to verify!
-                            case DISABLED -> {
-                                result.add(
-                                    Tuple.tuple(
-                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                        verifyOrWrite(
-                                            localOptimize(reductionPlan.dataNodePlan(), conf),
-                                            outputPath(dualFileOutput.dataNodeOutput())
-                                        )
-                                    )
-                                );
-                            }
-                            case ENABLED -> {
-                                var finalizedResult = new ReductionPlan(
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), conf),
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), conf),
-                                    reductionPlan.localPhysicalOptimization()
-                                );
-                                result.addAll(
-                                    addDualPlanResult(
-                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                        finalizedResult,
-                                        dualFileOutput.nodeReduceOutput(),
-                                        dualFileOutput.dataNodeOutput()
-                                    )
-                                );
-                            }
-                        }
+                        var dualFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
+                        result.add(
+                            Tuple.tuple(
+                                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                verifyOrWrite(localOptimize(reductionPlan.dataNodePlan(), conf), outputPath(dualFileOutput.output()))
+                            )
+                        );
                     }
                 }
             }
@@ -378,12 +350,9 @@ public abstract class GoldenTestCase extends ESTestCase {
             CREATED
         }
 
-        private List<Tuple<Stage, TestResult>> addDualPlanResult(
-            Stage stage,
-            ReductionPlan plan,
-            String nodeReduceName,
-            String dataNodeName
-        ) throws IOException {
+        private List<Tuple<Stage, TestResult>> addNodeReduceDualPlanResult(ReductionPlan plan, String nodeReduceName, String dataNodeName)
+            throws IOException {
+            var stage = Stage.NODE_REDUCE;
             var reduceResult = verifyOrWrite(plan.nodeReducePlan(), outputPath(nodeReduceName));
             var dataResult = verifyOrWrite(plan.dataNodePlan(), outputPath(dataNodeName));
             var result = new ArrayList<Tuple<Stage, TestResult>>();
@@ -646,13 +615,10 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
         /**
-         * A combination of {@link Stage#NODE_REDUCE} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
-         * reduce and data node plans, and then perform local physical optimization on both.
+         * A {@link Stage#LOCAL_PHYSICAL_OPTIMIZATION} performed after splitting the node reduce and data node plans. Sicne the node-reduce
+         * driver isn't performing local physical optimization, there is only one output to test here.
          */
-        // TODO should result in only one plan, see https://github.com/elastic/elasticsearch/issues/142392.
-        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(
-            new DualFileOutput("local_reduce_physical_optimization_reduce_driver", "local_reduce_physical_optimization_data_driver")
-        );
+        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_reduce_physical_optimization_data_driver"));
 
         private final StageOutput fileOutput;
 
@@ -660,12 +626,6 @@ public abstract class GoldenTestCase extends ESTestCase {
             this.fileOutput = fileOutput;
         }
     }
-
-    private sealed interface TestOutput {}
-
-    private record SingleTestOutput(String output) implements TestOutput {}
-
-    private record DualTestOutput(String nodeReduceOutput, String dataNodeOutput) implements TestOutput {}
 
     private static String normalize(String s) {
         return s.lines().map(String::strip).collect(Collectors.joining("\n"));

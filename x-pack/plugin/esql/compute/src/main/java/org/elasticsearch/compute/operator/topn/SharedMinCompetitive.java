@@ -9,10 +9,12 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -57,6 +59,12 @@ public class SharedMinCompetitive implements Releasable {
         }
     }
 
+    /**
+     * Read the min competitive value. This will return {@code null} if there
+     * isn't yet a min competitive value. Otherwise, this will return a
+     * {@link Page} that contains single-position, single-valued {@link Block}s.
+     */
+    @Nullable
     public Page get(BlockFactory blockFactory) {
         try (BreakingBytesRefBuilder copy = new BreakingBytesRefBuilder(blockFactory.breaker(), "min_competitive_copy")) {
             synchronized (value) {

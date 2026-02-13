@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -38,7 +39,7 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
     public void testOneOffer() {
         long v = randomLong();
         try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
-            offerLong(minCompetitive, v);
+            offerLong(blockFactory().breaker(), minCompetitive, v);
             try (Page p = minCompetitive.get(blockFactory())) {
                 assertThat(p.getPositionCount(), equalTo(1));
                 assertThat(p.getBlockCount(), equalTo(1));
@@ -52,8 +53,9 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         int count = 10_000;
         long[] values = randomLongs().limit(count).toArray();
         try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
+            CircuitBreaker breaker = blockFactory().breaker();
             for (long v : values) {
-                offerLong(minCompetitive, v);
+                offerLong(breaker, minCompetitive, v);
             }
             try (Page p = minCompetitive.get(blockFactory())) {
                 assertThat(p.getPositionCount(), equalTo(1));
@@ -73,11 +75,12 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         try {
             try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
                 for (int t = 0; t < threads; t++) {
+                    CircuitBreaker breaker = blockFactory().breaker();
                     long[] values = randomLongs().limit(count).toArray();
                     max = Math.max(max, Arrays.stream(values).max().getAsLong());
                     wait.add(exec.submit(() -> {
                         for (long v : values) {
-                            offerLong(minCompetitive, v);
+                            offerLong(breaker, minCompetitive, v);
                         }
                     }));
                 }
@@ -105,10 +108,10 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         );
     }
 
-    private void offerLong(SharedMinCompetitive minCompetitive, long l) {
+    private void offerLong(CircuitBreaker breaker, SharedMinCompetitive minCompetitive, long l) {
         try (
             Block block = blockFactory().newConstantLongBlockWith(l, 1);
-            BreakingBytesRefBuilder b = new BreakingBytesRefBuilder(blockFactory().breaker(), "work");
+            BreakingBytesRefBuilder b = new BreakingBytesRefBuilder(breaker, "work");
         ) {
             KeyExtractor extractor = longExtractor(block);
             extractor.writeKey(b, 0);

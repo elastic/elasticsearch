@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -266,6 +267,11 @@ public class LuceneSourceOperator extends LuceneOperator {
             } else {
                 throw new CollectionTerminatedException();
             }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            return LeafCollector.super.competitiveIterator();
         }
     }
 

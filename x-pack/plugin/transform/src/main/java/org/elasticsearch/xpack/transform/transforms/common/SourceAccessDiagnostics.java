@@ -31,6 +31,7 @@ final class SourceAccessDiagnostics {
      * <ol>
      *   <li>CCS cluster-level failures for security exceptions (SKIPPED or FAILED clusters)</li>
      *   <li>Top-level shard failures for security exceptions</li>
+     *   <li>Remote CCS clusters with 0 total shards (security may have silently filtered all indices)</li>
      *   <li>Falls back to a generic "deleted or closed" message</li>
      * </ol>
      */
@@ -43,6 +44,11 @@ final class SourceAccessDiagnostics {
         String shardSecurityError = findShardSecurityFailure(response);
         if (shardSecurityError != null) {
             return shardSecurityError;
+        }
+
+        String zeroShardsError = findRemoteClusterWithZeroShards(response);
+        if (zeroShardsError != null) {
+            return zeroShardsError;
         }
 
         return SOURCE_INDICES_MISSING;
@@ -91,6 +97,39 @@ final class SourceAccessDiagnostics {
                 return "User lacks the required permissions to read from the source indices.";
             }
         }
+        return null;
+    }
+
+    /**
+     * Checks for remote CCS clusters that completed successfully but searched zero shards.
+     * This pattern typically occurs when the security module silently filters out all
+     * matching indices because the user lacks the required permissions. With lenient
+     * index options, unauthorized indices are treated as unavailable, so no security
+     * exception is thrown — the search simply returns zero results.
+     *
+     * <p>Only remote clusters are inspected. A local cluster with zero shards is considered
+     * legitimate (e.g., a wildcard pattern before data exists — see #95562).
+     */
+    private static String findRemoteClusterWithZeroShards(SearchResponse response) {
+        SearchResponse.Clusters clusters = response.getClusters();
+        if (clusters == null || clusters.getTotal() == 0) {
+            return null;
+        }
+
+        for (String alias : clusters.getClusterAliases()) {
+            if (alias.isEmpty()) {
+                continue; // skip the local cluster
+            }
+            SearchResponse.Cluster cluster = clusters.getCluster(alias);
+            if (cluster == null) {
+                continue;
+            }
+            Integer totalShards = cluster.getTotalShards();
+            if (cluster.getStatus() == SearchResponse.Cluster.Status.SUCCESSFUL && totalShards != null && totalShards == 0) {
+                return "User lacks the required permissions to read source indices on cluster [" + alias + "].";
+            }
+        }
+
         return null;
     }
 

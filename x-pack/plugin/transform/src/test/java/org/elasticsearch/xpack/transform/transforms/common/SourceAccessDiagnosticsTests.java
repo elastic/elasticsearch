@@ -208,6 +208,58 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
         }
     }
 
+    public void testRemoteClusterSuccessfulWithZeroShards_returnsClusterPermissionsMessage() {
+        SearchResponse.Cluster remoteCluster = new SearchResponse.Cluster(
+            "my_remote_cluster",
+            "remote_test_index*",
+            false,
+            SearchResponse.Cluster.Status.SUCCESSFUL,
+            0,
+            0,
+            0,
+            0,
+            Collections.emptyList(),
+            null,
+            false
+        );
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("my_remote_cluster", remoteCluster));
+
+        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, ShardSearchFailure.EMPTY_ARRAY);
+        try {
+            String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
+            assertThat(message, containsString("lacks the required permissions"));
+            assertThat(message, containsString("my_remote_cluster"));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testLocalClusterSuccessfulWithZeroShards_returnsFallbackMessage() {
+        // A local cluster ("") with 0 shards is legitimate — the indices may not exist yet (#95562).
+        SearchResponse.Cluster localCluster = new SearchResponse.Cluster(
+            "",
+            "test_index*",
+            false,
+            SearchResponse.Cluster.Status.SUCCESSFUL,
+            0,
+            0,
+            0,
+            0,
+            Collections.emptyList(),
+            null,
+            false
+        );
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("", localCluster));
+
+        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, ShardSearchFailure.EMPTY_ARRAY);
+        try {
+            String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
+            assertThat(message, equalTo(SourceAccessDiagnostics.SOURCE_INDICES_MISSING));
+        } finally {
+            response.decRef();
+        }
+    }
+
     public void testClusterSuccessfulWithNonSecurityShardFailures_returnsFallbackMessage() {
         ShardSearchFailure nonSecurityFailure = new ShardSearchFailure(new IndexNotFoundException("missing_index"));
 

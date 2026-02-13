@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -164,7 +163,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
 
         var withRefreshBlock = randomBoolean();
         if (withRefreshBlock) {
-            setState(clusterService, clusterStateWithRefreshBlock(clusterService.state(), shardId, Metadata.DEFAULT_PROJECT_ID));
+            setState(clusterService, clusterStateWithRefreshBlock(clusterService.state(), shardId, ProjectId.DEFAULT));
         }
 
         final var future = new PlainActionFuture<ActionResponse.Empty>();
@@ -196,7 +195,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
                     .blocks(
                         ClusterBlocks.builder()
                             .blocks(clusterService.state().blocks())
-                            .removeIndexBlock(Metadata.DEFAULT_PROJECT_ID, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK)
+                            .removeIndexBlock(ProjectId.DEFAULT, shardId.getIndexName(), IndexMetadata.INDEX_REFRESH_BLOCK)
                     )
             );
         }
@@ -231,7 +230,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             }
         };
 
-        setState(clusterService, clusterStateWithRefreshBlock(clusterService.state(), shardId, Metadata.DEFAULT_PROJECT_ID));
+        setState(clusterService, clusterStateWithRefreshBlock(clusterService.state(), shardId, ProjectId.DEFAULT));
 
         final var countDownLatch = new CountDownLatch(1);
         final var request = new UnpromotableShardRefreshRequest(

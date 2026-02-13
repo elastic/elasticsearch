@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
@@ -34,7 +35,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
@@ -114,9 +114,11 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         }
 
         var clusterStateObserver = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
+        var state = clusterStateObserver.setAndGetObservedState();
         var index = request.shardId().getIndex();
+        ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
 
-        if (isIndexBlockedForRefresh(index, clusterStateObserver.setAndGetObservedState()) == false) {
+        if (isIndexBlockedForRefresh(projectMetadata, index, state) == false) {
             listener.onResponse(null);
             return;
         }
@@ -141,15 +143,14 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
                     )
                 );
             }
-        }, clusterState -> isIndexBlockedForRefresh(index, clusterState) == false);
+        }, clusterState -> isIndexBlockedForRefresh(projectMetadata, index, clusterState) == false);
     }
 
-    private static boolean isIndexBlockedForRefresh(Index index, ClusterState state) {
-        Optional<ProjectMetadata> project = state.metadata().lookupProject(index);
-        if (project.isEmpty()) {
+    private static boolean isIndexBlockedForRefresh(@Nullable ProjectMetadata projectMetadata, Index index, ClusterState state) {
+        if (projectMetadata == null) {
             return false;
         }
-        return state.blocks().hasIndexBlock(project.get().id(), index.getName(), INDEX_REFRESH_BLOCK);
+        return state.blocks().hasIndexBlock(projectMetadata.id(), index.getName(), INDEX_REFRESH_BLOCK);
     }
 
     @Override

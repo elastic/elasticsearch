@@ -102,7 +102,10 @@ import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskParams;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
@@ -443,9 +446,19 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             );
 
             entries.add(
-                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new)
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::new
+                )
             );
-            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::readDiffFrom
+                )
+            );
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     Metadata.ProjectCustom.class,
@@ -463,6 +476,23 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                         in
                     )
                 )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    CCMEnablementService.EnablementMetadata.NAME,
+                    CCMEnablementService.EnablementMetadata::new
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    CCMEnablementService.EnablementMetadata.NAME,
+                    in -> AbstractNamedDiffable.readDiffFrom(Metadata.ProjectCustom.class, CCMEnablementService.EnablementMetadata.NAME, in)
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, AuthorizationPoller.TASK_NAME, AuthorizationTaskParams::new)
             );
 
             // Retrieve the cluster state from a random node, and serialize and deserialize it.

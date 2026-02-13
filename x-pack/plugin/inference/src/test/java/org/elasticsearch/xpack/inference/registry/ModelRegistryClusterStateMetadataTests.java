@@ -30,14 +30,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCase<ModelRegistryMetadata> {
-    public static ModelRegistryMetadata randomInstance() {
+public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSerializingTestCase<ModelRegistryClusterStateMetadata> {
+    public static ModelRegistryClusterStateMetadata randomInstance() {
         return randomInstance(randomBoolean(), true);
     }
 
-    public static ModelRegistryMetadata randomInstance(boolean isUpgraded, boolean acceptsEmpty) {
+    public static ModelRegistryClusterStateMetadata randomInstance(boolean isUpgraded, boolean acceptsEmpty) {
         if (rarely() && acceptsEmpty) {
-            return isUpgraded ? ModelRegistryMetadata.EMPTY_UPGRADED : ModelRegistryMetadata.EMPTY_NOT_UPGRADED;
+            return isUpgraded ? ModelRegistryClusterStateMetadata.EMPTY_UPGRADED : ModelRegistryClusterStateMetadata.EMPTY_NOT_UPGRADED;
         }
         int size = randomIntBetween(1, 5);
 
@@ -47,7 +47,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         }
 
         if (isUpgraded) {
-            return new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+            return new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
         }
 
         Set<String> deletedIDs = new HashSet<>();
@@ -55,39 +55,42 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         for (int i = 0; i < size; i++) {
             deletedIDs.add(randomAlphaOfLength(10));
         }
-        return new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), deletedIDs);
+        return new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), deletedIDs);
     }
 
     @Override
-    protected ModelRegistryMetadata createTestInstance() {
+    protected ModelRegistryClusterStateMetadata createTestInstance() {
         return randomInstance();
     }
 
     @Override
-    protected ModelRegistryMetadata mutateInstance(ModelRegistryMetadata instance) {
+    protected ModelRegistryClusterStateMetadata mutateInstance(ModelRegistryClusterStateMetadata instance) {
         int choice = randomIntBetween(0, 2);
         switch (choice) {
             case 0: // Mutate modelMap
                 var models = new HashMap<>(instance.getModelMap());
                 models.put(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance());
                 if (instance.isUpgraded()) {
-                    return new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+                    return new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
                 } else {
-                    return new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), new HashSet<>(instance.getTombstones()));
+                    return new ModelRegistryClusterStateMetadata(
+                        ImmutableOpenMap.builder(models).build(),
+                        new HashSet<>(instance.getTombstones())
+                    );
                 }
             case 1: // Mutate tombstones
                 if (instance.getTombstones() == null) {
-                    return new ModelRegistryMetadata(instance.getModelMap(), Set.of(randomAlphaOfLength(10)));
+                    return new ModelRegistryClusterStateMetadata(instance.getModelMap(), Set.of(randomAlphaOfLength(10)));
                 } else {
                     var tombstones = new HashSet<>(instance.getTombstones());
                     tombstones.add(randomAlphaOfLength(10));
-                    return new ModelRegistryMetadata(instance.getModelMap(), tombstones);
+                    return new ModelRegistryClusterStateMetadata(instance.getModelMap(), tombstones);
                 }
             case 2: // Mutate isUpgraded
                 if (instance.isUpgraded()) {
-                    return new ModelRegistryMetadata(instance.getModelMap(), new HashSet<>());
+                    return new ModelRegistryClusterStateMetadata(instance.getModelMap(), new HashSet<>());
                 } else {
-                    return new ModelRegistryMetadata(instance.getModelMap());
+                    return new ModelRegistryClusterStateMetadata(instance.getModelMap());
                 }
             default:
                 throw new IllegalStateException("Unexpected value: " + choice);
@@ -98,19 +101,23 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Collections.singletonList(
-                new NamedWriteableRegistry.Entry(ModelRegistryMetadata.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new)
+                new NamedWriteableRegistry.Entry(
+                    ModelRegistryClusterStateMetadata.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::new
+                )
             )
         );
     }
 
     @Override
-    protected ModelRegistryMetadata doParseInstance(XContentParser parser) throws IOException {
-        return ModelRegistryMetadata.fromXContent(parser);
+    protected ModelRegistryClusterStateMetadata doParseInstance(XContentParser parser) throws IOException {
+        return ModelRegistryClusterStateMetadata.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<ModelRegistryMetadata> instanceReader() {
-        return ModelRegistryMetadata::new;
+    protected Writeable.Reader<ModelRegistryClusterStateMetadata> instanceReader() {
+        return ModelRegistryClusterStateMetadata::new;
     }
 
     public void testUpgrade() {
@@ -143,7 +150,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var newMetadata = metadata.withAddedModel(inferenceId, settings);
         assertThat(newMetadata, sameInstance(metadata));
@@ -154,17 +161,21 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var newInferenceId = "new_id";
         var newSettings = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
         // ensure metadata hasn't changed
-        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build())));
         assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
-            is(new ModelRegistryMetadata(ImmutableOpenMap.builder(Map.of(inferenceId, settings, newInferenceId, newSettings)).build()))
+            is(
+                new ModelRegistryClusterStateMetadata(
+                    ImmutableOpenMap.builder(Map.of(inferenceId, settings, newInferenceId, newSettings)).build()
+                )
+            )
         );
     }
 
@@ -174,17 +185,17 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
 
         var newSettings = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
         // ensure metadata hasn't changed
-        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId))));
+        assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId))));
         assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
             is(
-                new ModelRegistryMetadata(
+                new ModelRegistryClusterStateMetadata(
                     ImmutableOpenMap.builder(Map.of(inferenceId, settings, newInferenceId, newSettings)).build(),
                     new HashSet<>()
                 )
@@ -197,10 +208,13 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var newMetadata = metadata.withAddedModels(
-            List.of(new ModelRegistry.ModelAndSettings(inferenceId, settings), new ModelRegistry.ModelAndSettings(inferenceId, settings))
+            List.of(
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId, settings),
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId, settings)
+            )
         );
         assertThat(newMetadata, sameInstance(metadata));
     }
@@ -211,13 +225,13 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings, inferenceId2, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var newMetadata = metadata.withAddedModels(
             List.of(
-                new ModelRegistry.ModelAndSettings(inferenceId, settings),
-                new ModelRegistry.ModelAndSettings(inferenceId, settings),
-                new ModelRegistry.ModelAndSettings(inferenceId2, settings)
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId, settings),
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId, settings),
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings)
             )
         );
         assertThat(newMetadata, sameInstance(metadata));
@@ -228,7 +242,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var inferenceId2 = "new_id";
         var settings2 = MinimalServiceSettingsTests.randomInstance();
@@ -236,19 +250,19 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings3 = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModels(
             List.of(
-                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings2),
                 // This should be ignored since it's a duplicate
-                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
-                new ModelRegistry.ModelAndSettings(inferenceId3, settings3)
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings2),
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId3, settings3)
             )
         );
         // ensure metadata hasn't changed
-        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build())));
         assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
             is(
-                new ModelRegistryMetadata(
+                new ModelRegistryClusterStateMetadata(
                     ImmutableOpenMap.builder(Map.of(inferenceId, settings, inferenceId2, settings2, inferenceId3, settings3)).build()
                 )
             )
@@ -260,26 +274,30 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var inferenceId2 = "new_id";
         var settings2 = MinimalServiceSettingsTests.randomInstance();
         var settings3 = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModels(
             List.of(
-                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings2),
                 // This should be ignored since it's a duplicate inference id
-                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings2),
                 // This should replace the existing settings for inferenceId2
-                new ModelRegistry.ModelAndSettings(inferenceId2, settings3)
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId2, settings3)
             )
         );
         // ensure metadata hasn't changed
-        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build())));
         assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
-            is(new ModelRegistryMetadata(ImmutableOpenMap.builder(Map.of(inferenceId, settings, inferenceId2, settings3)).build()))
+            is(
+                new ModelRegistryClusterStateMetadata(
+                    ImmutableOpenMap.builder(Map.of(inferenceId, settings, inferenceId2, settings3)).build()
+                )
+            )
         );
     }
 
@@ -290,24 +308,24 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings = MinimalServiceSettingsTests.randomInstance();
 
         var models = new HashMap<>(Map.of(inferenceId, settings));
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
 
         var newSettings = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModels(
             List.of(
                 // This will cause the new settings to be used for inferenceId
-                new ModelRegistry.ModelAndSettings(inferenceId, newSettings),
-                new ModelRegistry.ModelAndSettings(newInferenceId, newSettings),
-                new ModelRegistry.ModelAndSettings(newInferenceId2, newSettings)
+                new ModelRegistryMetadataTask.ModelAndSettings(inferenceId, newSettings),
+                new ModelRegistryMetadataTask.ModelAndSettings(newInferenceId, newSettings),
+                new ModelRegistryMetadataTask.ModelAndSettings(newInferenceId2, newSettings)
             )
         );
         // ensure metadata hasn't changed
-        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId))));
+        assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId))));
         assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
             is(
-                new ModelRegistryMetadata(
+                new ModelRegistryClusterStateMetadata(
                     ImmutableOpenMap.builder(Map.of(inferenceId, newSettings, newInferenceId, newSettings, newInferenceId2, newSettings))
                         .build(),
                     new HashSet<>()
@@ -324,7 +342,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var settings1 = MinimalServiceSettings.chatCompletion(serviceA);
         var settings2 = MinimalServiceSettings.sparseEmbedding(serviceA);
         var models = Map.of(endpointId1, settings1, endpointId2, settings2);
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
         assertThat(serviceEndpoints, is(Set.of(endpointId1, endpointId2)));
@@ -352,7 +370,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
             nullEndpoint2,
             nullServiceNameSettings2
         );
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
         assertThat(serviceEndpoints, is(Set.of(endpointId1, endpointId2)));
@@ -366,7 +384,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
         var settings = MinimalServiceSettings.chatCompletion(serviceA);
         var models = Map.of(endpointId, settings);
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var serviceEndpoints = metadata.getServiceInferenceIds(serviceB);
         assertThat(serviceEndpoints, is(empty()));
@@ -374,7 +392,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
     public void testGetServiceInferenceIds_ReturnsEmptySetForEmptyModelMap() {
         var serviceA = "service_a";
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.of());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.of());
 
         var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
         assertThat(serviceEndpoints, is(empty()));
@@ -386,7 +404,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
         var settings = MinimalServiceSettings.chatCompletion(serviceA);
         var models = Map.of(endpointId, settings);
-        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
 
         var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
         expectThrows(UnsupportedOperationException.class, () -> serviceEndpoints.add("newId"));

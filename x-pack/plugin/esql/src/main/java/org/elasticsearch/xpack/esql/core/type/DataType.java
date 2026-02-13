@@ -1079,7 +1079,7 @@ public enum DataType implements Writeable {
          * the oldest versions should be 8.19.x and 9.0.x.
          * We can thus choose any transport version as long as it's on 9.0 and was backported to 8.18.
          */
-        private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
             "cohere_bit_embedding_type_support_added"
         );
         public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(

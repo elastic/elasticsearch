@@ -34,6 +34,10 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
+    // These two booleans are carried here from PreAnalyzer to support AggregateMetricDouble and DenseVector fields
+    // in older(9.2.0) versions, If all nodes in the cluster are on or after 9.2.1 or 9.3.0 this code doesn't do anything.
+    private final boolean useAggregateMetricDoubleWhenNotSupported;
+    private final boolean useDenseVectorWhenNotSupported;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -44,7 +48,9 @@ public class AnalyzerContext {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         TransportVersion minimumVersion,
-        UnmappedResolution unmappedResolution
+        UnmappedResolution unmappedResolution,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -55,6 +61,8 @@ public class AnalyzerContext {
         this.inferenceResolution = inferenceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
+        this.useAggregateMetricDoubleWhenNotSupported = useAggregateMetricDoubleWhenNotSupported;
+        this.useDenseVectorWhenNotSupported = useDenseVectorWhenNotSupported;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -81,7 +89,9 @@ public class AnalyzerContext {
             enrichResolution,
             inferenceResolution,
             minimumVersion,
-            unmappedResolution
+            unmappedResolution,
+            false,
+            false
         );
     }
 
@@ -129,6 +139,14 @@ public class AnalyzerContext {
         return unmappedResolution;
     }
 
+    public boolean useAggregateMetricDoubleWhenNotSupported() {
+        return useAggregateMetricDoubleWhenNotSupported;
+    }
+
+    public boolean useDenseVectorWhenNotSupported() {
+        return useDenseVectorWhenNotSupported;
+    }
+
     public Set<String> allowedTags() {
         Set<String> result = new HashSet<>();
         result.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
@@ -165,7 +183,9 @@ public class AnalyzerContext {
             result.enrichResolution(),
             result.inferenceResolution(),
             result.minimumTransportVersion(),
-            unmappedResolution
+            unmappedResolution,
+            result.useAggregateMetricDoubleWhenNotSupported(),
+            result.useDenseVectorWhenNotSupported()
         );
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -55,8 +57,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.referencesAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.referencesDenseVector;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -66,6 +71,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -1438,12 +1446,15 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         assertThat(
-            error("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
+            errorOnSupportedTransportVersionForDenseVector("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
         String fieldName = "KNN".equals(functionName) ? "vector" : "title";
         assertThat(
-            error("from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation, fullTextAnalyzer),
+            errorOnSupportedTransportVersionForDenseVector(
+                "from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation,
+                fullTextAnalyzer
+            ),
             containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
     }
@@ -1567,7 +1578,7 @@ public class VerifierTests extends ESTestCase {
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
         throws Exception {
         assertThat(
-            error("from test | eval y = " + functionInvocation, fullTextAnalyzer),
+            errorOnSupportedTransportVersionForDenseVector("from test | eval y = " + functionInvocation, fullTextAnalyzer),
             containsString(
                 "["
                     + functionName
@@ -1577,12 +1588,12 @@ public class VerifierTests extends ESTestCase {
             )
         );
         assertThat(
-            error("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),
+            errorOnSupportedTransportVersionForDenseVector("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
 
         );
         assertThat(
-            error("from test | stats max_id = max(id) by " + functionInvocation, fullTextAnalyzer),
+            errorOnSupportedTransportVersionForDenseVector("from test | stats max_id = max(id) by " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
         );
         if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
@@ -1682,7 +1693,7 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " can't be used with ISNOTNULL",
-                error("from test | where " + functionInvocation + " is not null", fullTextAnalyzer)
+                errorOnSupportedTransportVersionForDenseVector("from test | where " + functionInvocation + " is not null", fullTextAnalyzer)
             );
             assertEquals(
                 "1:19: Invalid condition ["
@@ -1692,7 +1703,7 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " can't be used with ISNULL",
-                error("from test | where " + functionInvocation + " is null", fullTextAnalyzer)
+                errorOnSupportedTransportVersionForDenseVector("from test | where " + functionInvocation + " is null", fullTextAnalyzer)
             );
             assertEquals(
                 "1:19: Invalid condition ["
@@ -1702,7 +1713,10 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " can't be used with IN",
-                error("from test | where " + functionInvocation + " in (\"hello\", \"world\")", fullTextAnalyzer)
+                errorOnSupportedTransportVersionForDenseVector(
+                    "from test | where " + functionInvocation + " in (\"hello\", \"world\")",
+                    fullTextAnalyzer
+                )
             );
         }
         assertEquals(
@@ -1715,7 +1729,10 @@ public class VerifierTests extends ESTestCase {
                 + "] "
                 + functionType
                 + " can't be used with COALESCE",
-            error("from test | where coalesce(" + functionInvocation + ", " + functionInvocation + ")", fullTextAnalyzer)
+            errorOnSupportedTransportVersionForDenseVector(
+                "from test | where coalesce(" + functionInvocation + ", " + functionInvocation + ")",
+                fullTextAnalyzer
+            )
         );
         assertEquals(
             "1:19: argument of [concat("
@@ -1723,7 +1740,7 @@ public class VerifierTests extends ESTestCase {
                 + ", \"a\")] must be [string], found value ["
                 + functionInvocation
                 + "] type [boolean]",
-            error("from test | where concat(" + functionInvocation + ", \"a\")", fullTextAnalyzer)
+            errorOnSupportedTransportVersionForDenseVector("from test | where concat(" + functionInvocation + ", \"a\")", fullTextAnalyzer)
         );
     }
 
@@ -2546,7 +2563,7 @@ public class VerifierTests extends ESTestCase {
                     query(query, fullTextAnalyzer);
                 } catch (InvalidArgumentException e) {
                     // Conversion is not possible, query should fail
-                    String error = error(query, fullTextAnalyzer);
+                    String error = errorOnSupportedTransportVersionForDenseVector(query, fullTextAnalyzer);
                     assertThat(error, containsString("Invalid option [" + optionName + "]"));
                     assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
                 }
@@ -2555,11 +2572,17 @@ public class VerifierTests extends ESTestCase {
             // MapExpression are not allowed as option values
             String query = String.format(Locale.ROOT, queryTemplate, optionName, "{ \"abc\": 123 }");
 
-            assertThat(error(query, fullTextAnalyzer), containsString("Invalid option [" + optionName + "]"));
+            assertThat(
+                errorOnSupportedTransportVersionForDenseVector(query, fullTextAnalyzer),
+                containsString("Invalid option [" + optionName + "]")
+            );
         }
 
         String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
-        assertThat(error(errorQuery, fullTextAnalyzer), containsString("Invalid option [unknown_option]"));
+        assertThat(
+            errorOnSupportedTransportVersionForDenseVector(errorQuery, fullTextAnalyzer),
+            containsString("Invalid option [unknown_option]")
+        );
     }
 
     private static String exampleValueForType(DataType currentType) {
@@ -2608,7 +2631,7 @@ public class VerifierTests extends ESTestCase {
 
     private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
         assertThat(
-            error("from test | where " + functionInvocation, fullTextAnalyzer),
+            errorOnSupportedTransportVersionForDenseVector("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
         );
     }
@@ -2723,7 +2746,10 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            error("from test metadata _score | stats c = max(_score) where " + functionInvocation, fullTextAnalyzer),
+            errorOnSupportedTransportVersionForDenseVector(
+                "from test metadata _score | stats c = max(_score) where " + functionInvocation,
+                fullTextAnalyzer
+            ),
             containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
         );
     }
@@ -3093,7 +3119,10 @@ public class VerifierTests extends ESTestCase {
     public void testLimitBeforeInlineStats_WithTS() {
         assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
         assertThat(
-            error("TS k8s | STATS m=max(network.eth0.tx) BY pod, cluster | LIMIT 5 | INLINE STATS max(m) BY pod"),
+            errorOnSupportedTransportVersionForAggregateMetricDouble(
+                "TS k8s | STATS m=max(network.eth0.tx) BY pod, cluster | LIMIT 5 | INLINE STATS max(m) BY pod",
+                defaultAnalyzer
+            ),
             containsString(
                 "1:67: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
                     + "but was [INLINE STATS max(m) BY pod] after [LIMIT 5] [@1:57]"
@@ -3265,9 +3294,18 @@ public class VerifierTests extends ESTestCase {
             | WHERE emp_no > 10000
             | SORT is_rehired, still_hired
             """);
-        assertThat(errorMessage, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
-        assertThat(errorMessage, containsString("Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]"));
-        assertThat(errorMessage, containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"));
+        assertThat(
+            errorMessage,
+            containsString("Column [emp_no] has conflicting or unsupported data types in subqueries: [integer, long]")
+        );
+        assertThat(
+            errorMessage,
+            containsString("Column [is_rehired] has conflicting or unsupported data types in subqueries: [boolean, keyword]")
+        );
+        assertThat(
+            errorMessage,
+            containsString("Column [still_hired] has conflicting or unsupported data types in subqueries: [boolean, keyword]")
+        );
     }
 
     // Fork inside subquery is tested in LogicalPlanOptimizerTests
@@ -3301,6 +3339,42 @@ public class VerifierTests extends ESTestCase {
             | KEEP emp_no, languages, language_name
             """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
         assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
+    }
+
+    public void testSubqueryInFromWithNewDataTypes() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // pick a transport version that does not support dense_vector
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(
+            Build.current().isSnapshot() ? ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION : ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
+        String errorMessage = errorOnExactTransportVersion("""
+            FROM (FROM colors | WHERE knn(rgb_vector, "007800")), (FROM languages) metadata _score
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, defaultAnalyzer, transportVersion, VerificationException.class);
+        assertThat(errorMessage, containsString("1:31: Cannot use field [rgb_vector] with unsupported type [dense_vector]"));
+
+        errorMessage = errorOnExactTransportVersion("""
+            FROM colors, (FROM languages) metadata _score
+            | where knn(rgb_vector, "007800")
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, defaultAnalyzer, transportVersion, VerificationException.class);
+        assertThat(
+            errorMessage,
+            containsString("Column [rgb_vector] has conflicting or unsupported data types in subqueries: [dense_vector, keyword]")
+        );
+
+        errorMessage = errorOnExactTransportVersion("""
+            FROM (FROM colors | WHERE knn(rgb_vector, "007800")), (FROM languages) metadata _score
+            | where knn(rgb_vector, "007800")
+            | sort _score desc, color asc
+            | keep color, rgb_vector, language_name
+            | limit 10
+            """, defaultAnalyzer, transportVersion, VerificationException.class);
+        assertThat(errorMessage, containsString("1:31: Cannot use field [rgb_vector] with unsupported type [dense_vector]"));
     }
 
     public void testChunkFunctionInvalidInputs() {
@@ -3645,8 +3719,24 @@ public class VerifierTests extends ESTestCase {
         query(query, defaultAnalyzer);
     }
 
+    /*
+     * Analyze a query with a transport version that supports DenseVector or AggregateMetricDouble data types if the query uses them.
+     * Call this method if want to analyze queries against a transport version that supports AggregateMetricDouble and DenseVector.
+     */
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+        LogicalPlan parsed = EsqlParser.INSTANCE.parseQuery(query);
+        TransportVersion transportVersion = null;
+        if (referencesAggregateMetricDouble(parsed)) {
+            transportVersion = ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
+        }
+        if (referencesDenseVector(parsed)) {
+            transportVersion = ESQL_DENSE_VECTOR_CREATED_VERSION;
+        }
+        if (transportVersion != null) {
+            analyze(parsed, analyzer, transportVersion);
+        } else {
+            analyzer.analyze(parsed);
+        }
     }
 
     private String error(String query) {
@@ -3662,7 +3752,27 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, TransportVersion transportVersion, Object... params) {
-        return error(query, transportVersion, VerificationException.class, params);
+        return error(query, defaultAnalyzer, transportVersion, VerificationException.class, params);
+    }
+
+    /*
+     * Return an error message on a transport version that supports AggregateMetricDouble data types if the query uses them.
+     * Call this method when testing errors against a transport version that supports AggregateMetricDouble.
+     */
+    public static String errorOnSupportedTransportVersionForAggregateMetricDouble(String query, Analyzer analyzer, Object... params) {
+        LogicalPlan parsed = EsqlParser.INSTANCE.parseQuery(query);
+        TransportVersion transportVersion = referencesAggregateMetricDouble(parsed) ? ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION : null;
+        return error(query, analyzer, transportVersion, VerificationException.class, params);
+    }
+
+    /*
+     * Return an error message on a transport version that supports DenseVector data type if the query uses them.
+     * Call this method when testing errors against a transport version that supports DenseVector.
+     */
+    public static String errorOnSupportedTransportVersionForDenseVector(String query, Analyzer analyzer, Object... params) {
+        LogicalPlan parsed = EsqlParser.INSTANCE.parseQuery(query);
+        TransportVersion transportVersion = referencesDenseVector(parsed) ? ESQL_DENSE_VECTOR_CREATED_VERSION : null;
+        return error(query, analyzer, transportVersion, VerificationException.class, params);
     }
 
     public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
@@ -3694,10 +3804,36 @@ public class VerifierTests extends ESTestCase {
         return message.substring(index + pattern.length());
     }
 
-    private String error(String query, TransportVersion transportVersion, Class<? extends Exception> exception, Object... params) {
-        MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) defaultAnalyzer.context();
-        try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
-            return error(query, defaultAnalyzer, exception, params);
+    private static String error(
+        String query,
+        Analyzer analyzer,
+        TransportVersion transportVersion,
+        Class<? extends Exception> exception,
+        Object... params
+    ) {
+        if (transportVersion != null) {
+            MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) analyzer.context();
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+                return error(query, analyzer, exception, params);
+            }
+        } else {
+            return error(query, analyzer, exception, params);
+        }
+    }
+
+    private static String errorOnExactTransportVersion(
+        String query,
+        Analyzer analyzer,
+        TransportVersion transportVersion,
+        Class<? extends Exception> exception
+    ) {
+        if (transportVersion != null) {
+            MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) analyzer.context();
+            try (var restore = mutableContext.setTemporaryTransportVersion(transportVersion, false, false)) {
+                return error(query, analyzer, exception);
+            }
+        } else {
+            return error(query, analyzer, exception);
         }
     }
 

@@ -216,6 +216,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     private TaskId assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(TaskId taskId) {
+        ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX); // replicas won't be allocated
         assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
         final GetResponse getTaskResponse = client().prepareGet(TaskResultsService.TASK_INDEX, taskId.toString()).get();
         assertThat("task exists in .tasks index", getTaskResponse.isExists(), is(true));

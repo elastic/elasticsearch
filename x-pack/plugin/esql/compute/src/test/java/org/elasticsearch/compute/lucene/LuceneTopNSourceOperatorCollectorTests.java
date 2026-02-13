@@ -52,18 +52,13 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testTopScoreDocCollectorManagerIsReused() throws IOException {
-        var factory = createFactory(100, true, List.of(), DataPartitioning.SHARD);
+        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
-
-        // First call should create the manager
         var manager1 = provider.getTopScoreDocCollectorManager();
         assertThat(manager1, notNullValue());
 
-        // Subsequent calls should return the SAME instance
         var manager2 = provider.getTopScoreDocCollectorManager();
         assertThat(manager1, sameInstance(manager2));
-
-        // Even after creating multiple collectors from it
         manager1.newCollector();
         manager1.newCollector();
         var manager3 = provider.getTopScoreDocCollectorManager();
@@ -72,27 +67,21 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     public void testTopFieldCollectorManagerReuseForSameSort() throws IOException {
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        var factory = createFactory(100, false, sorts, DataPartitioning.SHARD);
+        var factory = createFactory(false, sorts, DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
-
         Sort fieldSort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
 
-        // First call creates manager
         var manager1 = provider.getTopFieldCollectorManager(fieldSort);
         assertThat(manager1, notNullValue());
-
-        // Same Sort returns same manager
         var manager2 = provider.getTopFieldCollectorManager(fieldSort);
         assertThat(manager1, sameInstance(manager2));
-
-        // Even after creating collectors
         manager1.newCollector();
         var manager3 = provider.getTopFieldCollectorManager(fieldSort);
         assertThat(manager1, sameInstance(manager3));
     }
 
     public void testDifferentSortsGetDifferentManagers() throws IOException {
-        var factory = createFactory(100, false, List.of(), DataPartitioning.SHARD);
+        var factory = createFactory(false, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
         Sort sort1 = new Sort(SortField.FIELD_SCORE);
@@ -101,48 +90,36 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var manager1 = provider.getTopFieldCollectorManager(sort1);
         var manager2 = provider.getTopFieldCollectorManager(sort2);
 
-        // Different sorts should get different managers
         assertThat(manager1, not(sameInstance(manager2)));
-
-        // But same sort should still return the same manager
         var manager1Again = provider.getTopFieldCollectorManager(sort1);
         assertThat(manager1, sameInstance(manager1Again));
     }
 
     public void testLazyInitializationOfTopScoreDocCollectorManager() throws IOException {
-        var factory = createFactory(100, true, List.of(), DataPartitioning.SHARD);
+        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
-        // Manager should not be created yet
         assertThat(provider.topScoreDocCollectorManager, nullValue());
 
-        // First access triggers initialization
         var manager = provider.getTopScoreDocCollectorManager();
-
-        // Now it should be initialized
         assertThat(provider.topScoreDocCollectorManager, notNullValue());
         assertThat(provider.topScoreDocCollectorManager, sameInstance(manager));
     }
 
     public void testLazyInitializationOfTopFieldCollectorManager() throws IOException {
-        var factory = createFactory(100, false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
-
-        // Cache should be empty initially
         assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
-
         Sort sort = new Sort(SortField.FIELD_DOC);
 
-        // First access triggers initialization
         var manager = provider.getTopFieldCollectorManager(sort);
 
-        // Now it should be in the cache
         assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
         assertThat(provider.topFieldCollectorManagers.get(sort), sameInstance(manager));
     }
 
     public void testConcurrentAccessToTopScoreDocCollectorManager() throws Exception {
-        var factory = createFactory(100, true, List.of(), DataPartitioning.SHARD);
+        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
         int numThreads = 20;
@@ -186,7 +163,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testConcurrentAccessToTopFieldCollectorManager() throws Exception {
-        var factory = createFactory(100, false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
         Sort sort = new Sort(SortField.FIELD_DOC);
@@ -231,71 +208,57 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testDifferentFactoriesHaveDifferentProviders() throws IOException {
-        // Create providers directly to avoid resource leaks from creating multiple factories
         var provider1 = new LuceneTopNSourceOperator.PerShardCollectorProvider(100, true, List.of());
         var provider2 = new LuceneTopNSourceOperator.PerShardCollectorProvider(100, true, List.of());
 
-        // Different providers should be different instances
         assertThat(provider1, not(sameInstance(provider2)));
 
-        // And different underlying managers
         var manager1 = provider1.getTopScoreDocCollectorManager();
         var manager2 = provider2.getTopScoreDocCollectorManager();
         assertThat(manager1, not(sameInstance(manager2)));
     }
 
     public void testProviderWithoutScoreDoesNotCreateTopScoreDocCollectorManagerEagerly() throws IOException {
-        var factory = createFactory(100, false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
-        // Should remain null since it hasn't been accessed yet (lazy initialization)
         assertThat(provider.topScoreDocCollectorManager, nullValue());
 
-        // Accessing will create one (even with needsScore=false, the provider doesn't prevent this)
-        // The actual usage logic prevents calling this method when needsScore=false
         var manager = provider.getTopScoreDocCollectorManager();
         assertThat(manager, notNullValue());
         assertThat(provider.topScoreDocCollectorManager, sameInstance(manager));
     }
 
     public void testNewPerShardCollectorCreatesDifferentCollectorInstances() throws IOException {
-        var factory = createFactory(100, true, List.of(), DataPartitioning.SHARD);
+        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
         var ctx = createMockShardContext(0);
 
-        // Create multiple collectors
         var collector1 = provider.newPerShardCollector(ctx);
         var collector2 = provider.newPerShardCollector(ctx);
 
-        // Each call should create a NEW collector instance
         assertThat(collector1, not(sameInstance(collector2)));
         assertThat(collector1.collector, not(sameInstance(collector2.collector)));
     }
 
     public void testNewTopDocsCollectorReusesManagersButCreatesNewCollectors() throws IOException {
-        var factory = createFactory(100, true, List.of(), DataPartitioning.SHARD);
+        var factory = createFactory(true, List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
-
         Sort relevanceSort = Sort.RELEVANCE;
 
-        // Create multiple collectors with the same sort
         var collector1 = provider.newTopDocsCollector(relevanceSort);
         var collector2 = provider.newTopDocsCollector(relevanceSort);
         var collector3 = provider.newTopDocsCollector(relevanceSort);
 
-        // Each should be a different collector instance
         assertThat(collector1, not(sameInstance(collector2)));
         assertThat(collector2, not(sameInstance(collector3)));
-
-        // But they should all come from the same manager (verify by checking the manager is reused)
         var manager1 = provider.getTopScoreDocCollectorManager();
         var manager2 = provider.getTopScoreDocCollectorManager();
         assertThat(manager1, sameInstance(manager2));
     }
 
     public void testMultipleOperatorsShareProvider() throws Exception {
-        // Use needsScore=false since our buildSort() always returns field-based sorting
-        var factory = createFactory(10, false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
 
         int numOperators = 4;
         var operators = new ArrayList<LuceneTopNSourceOperator>();
@@ -305,21 +268,17 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                 operators.add((LuceneTopNSourceOperator) factory.get(createDriverContext()));
             }
 
-            // Verify all share the same provider
             var sharedProvider = operators.get(0).perShardCollectorProvider;
             for (var op : operators) {
                 assertThat(op.perShardCollectorProvider, sameInstance(sharedProvider));
             }
 
-            // Verify the provider has the expected configuration
             assertThat(sharedProvider, notNullValue());
 
-            // Access the TopFieldCollectorManager cache to verify it's shared
             var sort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
             var manager1 = sharedProvider.getTopFieldCollectorManager(sort);
             var manager2 = sharedProvider.getTopFieldCollectorManager(sort);
             assertThat(manager1, sameInstance(manager2));
-
         } finally {
             IOUtils.close(operators);
         }
@@ -349,7 +308,6 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     private LuceneTopNSourceOperator.Factory createFactory(
-        int limit,
         boolean needsScore,
         List<SortBuilder<?>> sorts,
         DataPartitioning partitioning
@@ -365,11 +323,11 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             queryFunction,
             partitioning,
             LuceneSourceOperator.Factory::autoStrategy,
-            1,
+            randomIntBetween(1, 10),
             10000,
-            limit,
+            randomIntBetween(10, 100),
             sorts,
-            8,
+            randomIntBetween(10, 20),
             needsScore
         );
     }

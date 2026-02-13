@@ -307,11 +307,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         };
     }
 
-    private LuceneTopNSourceOperator.Factory createFactory(
-        boolean needsScore,
-        List<SortBuilder<?>> sorts,
-        DataPartitioning partitioning
-    ) throws IOException {
+    private LuceneTopNSourceOperator.Factory createFactory(boolean needsScore, List<SortBuilder<?>> sorts, DataPartitioning partitioning)
+        throws IOException {
         setupIndex(100);
         ShardContext ctx = createMockShardContext(0);
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(

@@ -139,9 +139,6 @@ public class MMROperator extends CompleteInputCollectorOperator {
         // gather our documents and their vectors
         List<PagePositionDocVector> docsAndVectors = gatherAllDocsAndVectors();
 
-        // set our doc ranks and final mappings for diversification
-        docsAndVectors.sort(Comparator.comparing(PagePositionDocVector::doc));
-
         // keep this mapping so we know where the docs came from
         Map<Integer, Tuple<Integer, Integer>> mapRankToPageAndPosition = new HashMap<>();
         List<RankDoc> docs = new ArrayList<>();
@@ -202,6 +199,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
         int pageCounter = 0;
         for (Page inputPage : inputPages) {
             var pagePositionsToKeep = filtersByPagePosition.getOrDefault(pageCounter, null);
+            pageCounter++;
             if (pagePositionsToKeep == null || pagePositionsToKeep.isEmpty()) {
                 continue;
             }

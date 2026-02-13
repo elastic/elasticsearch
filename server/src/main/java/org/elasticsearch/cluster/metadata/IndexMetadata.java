@@ -47,6 +47,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -2561,13 +2563,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             String indexModeString = settings.get(IndexSettings.MODE.getKey());
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
-            boolean useTimeSeriesSyntheticId = false;
-            if (isTsdb && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
-                var setting = settings.get(IndexSettings.SYNTHETIC_ID.getKey());
-                if (setting != null && setting.equalsIgnoreCase(Boolean.TRUE.toString())) {
-                    useTimeSeriesSyntheticId = true;
-                }
-            }
+            var syntheticIdSetting = settings.get(IndexSettings.SYNTHETIC_ID.getKey());
+            String codecSetting = settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey());
+            boolean useTimeSeriesSyntheticId = isTsdb
+                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)
+                && (codecSetting == null || codecSetting.equalsIgnoreCase(CodecService.DEFAULT_CODEC))
+                && (syntheticIdSetting == null || syntheticIdSetting.equalsIgnoreCase(Boolean.TRUE.toString()));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

@@ -681,7 +681,40 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", true, new Setting.Validator<>() {
+    /**
+    * The {@link IndexMode "mode"} of the index.
+    */
+    public static final Setting<IndexMode> MODE = Setting.enumSetting(
+        IndexMode.class,
+        "index.mode",
+        IndexMode.STANDARD,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(IndexMode value) {}
+
+            @Override
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
+        IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+        IndexMode indexMode = MODE.get(settings);
+        String codec = INDEX_CODEC_SETTING.get(settings);
+        return IndexMode.TIME_SERIES.equals(indexMode)
+            && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec)
+            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+    }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean enabled) {}
 
@@ -704,7 +737,7 @@ public final class IndexSettings {
                 }
 
                 var codecName = (String) settings.get(INDEX_CODEC_SETTING);
-                if (codecName.equals(CodecService.DEFAULT_CODEC) == false) {
+                if (codecName.equalsIgnoreCase(CodecService.DEFAULT_CODEC) == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -743,32 +776,6 @@ public final class IndexSettings {
             return list.iterator();
         }
     }, Property.IndexScope, Property.Final);
-
-    /**
-     * The {@link IndexMode "mode"} of the index.
-     */
-    public static final Setting<IndexMode> MODE = Setting.enumSetting(
-        IndexMode.class,
-        "index.mode",
-        IndexMode.STANDARD,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(IndexMode value) {}
-
-            @Override
-            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
-                value.validateWithOtherSettings(settings);
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final,
-        Property.ServerlessPublic
-    );
 
     private static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {

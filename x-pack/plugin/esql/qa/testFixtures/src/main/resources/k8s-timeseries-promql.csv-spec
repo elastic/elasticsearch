@@ -523,6 +523,29 @@ result:double          | step:datetime            | cluster:keyword | pod:keywor
 0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
 ;
 
+post_processing_stats_global
+required_capability: promql_command_v0
+required_capability: promql_post_processing_stats
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes=MAX(bytes);
+
+max_bytes:double
+972.0
+;
+
+post_processing_stats_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_post_processing_stats
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes=MAX(bytes) BY cluster
+| SORT cluster;
+
+max_bytes:double | cluster:keyword
+931.0            | prod
+972.0            | qa
+238.0            | staging
+;
+
 // used as a reference for comparison filtering tests
 max_bytes_per_cluster
 required_capability: promql_command_v0

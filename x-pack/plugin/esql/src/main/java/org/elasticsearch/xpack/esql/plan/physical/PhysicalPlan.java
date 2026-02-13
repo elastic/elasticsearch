@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.physical.sidechannel.SharedBackchannelOffer;
 
 import java.util.List;
 
@@ -28,5 +29,4 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
 
     @Override
     public abstract boolean equals(Object obj);
-
 }

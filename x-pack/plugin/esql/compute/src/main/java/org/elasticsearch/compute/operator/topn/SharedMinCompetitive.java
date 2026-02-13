@@ -14,7 +14,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.SideChannel;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -24,7 +27,7 @@ import java.util.List;
  * A thread safe, shared holder for the min competitive value from a
  * set of {@link TopNOperator}s.
  */
-public class SharedMinCompetitive implements Releasable {
+public class SharedMinCompetitive extends AbstractRefCounted implements SideChannel {
     private final BreakingBytesRefBuilder value;
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
@@ -102,7 +105,7 @@ public class SharedMinCompetitive implements Releasable {
     }
 
     @Override
-    public void close() {
+    protected void closeInternal() {
         value.close();
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.TargetProjects;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashSet;
 import java.util.List;
@@ -94,7 +95,7 @@ public class IndexAbstractionResolver {
             if (localIndexExpression == null) {
                 // (there can be an exclusion without any local index expressions)
                 // nothing to resolve locally so skip resolve abstraction call
-                resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
+                handleRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, indexRewriteResult.remoteExpressions());
                 continue;
             }
 
@@ -177,14 +178,14 @@ public class IndexAbstractionResolver {
                     }
                     resolvedExpressionsBuilder.addExpressions(originalIndexExpression, new HashSet<>(), SUCCESS, remoteExpressions);
                 } else {
-                    maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
+                    handleRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 }
             } else {
                 if (minus) {
                     resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
                     // Exclusion from local indices is done by excludeFromLocalExpressions.
                     // No need to add itself unless it has remote expressions.
-                    maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
+                    handleRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 } else {
                     resolvedExpressionsBuilder.addExpressions(originalIndexExpression, resolvedIndices, SUCCESS, remoteExpressions);
                 }
@@ -194,7 +195,7 @@ public class IndexAbstractionResolver {
             resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
             if (minus) {
                 resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
-                maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
+                handleRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
             } else {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
@@ -231,13 +232,30 @@ public class IndexAbstractionResolver {
         }
     }
 
-    private static void maybeAddWithRemoteExpressions(
+    private static void handleRemoteExpressions(
         ResolvedIndexExpressions.Builder resolvedExpressionsBuilder,
         String originalIndexExpression,
         Set<String> remoteExpressions
     ) {
         if (false == remoteExpressions.isEmpty()) {
-            resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, remoteExpressions);
+            if (originalIndexExpression.charAt(0) == '-') {
+                resolvedExpressionsBuilder.excludeRemoteExpressions(
+                    originalIndexExpression.substring(1),
+                    originalIndexExpression,
+                    remoteExpressions
+                );
+            } else {
+                var split = RemoteClusterAware.splitIndexName(originalIndexExpression);
+                if (split[1].charAt(0) == '-') {
+                    resolvedExpressionsBuilder.excludeRemoteExpressions(
+                        split[0] + ":" + split[1].substring(1),
+                        originalIndexExpression,
+                        remoteExpressions
+                    );
+                } else {
+                    resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, remoteExpressions);
+                }
+            }
         }
     }
 

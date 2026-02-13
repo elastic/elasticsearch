@@ -46,6 +46,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
@@ -125,6 +126,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -286,6 +288,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof SparklineGenerateEmptyBucketsExec sparkline) {
+            return planSparklineGenerateEmptyBuckets(sparkline, context);
         }
 
         // source nodes
@@ -942,6 +946,23 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(rsx.child(), context);
         var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
         return source.with(new SampleOperator.Factory(probability), source.layout);
+    }
+
+    private PhysicalOperation planSparklineGenerateEmptyBuckets(
+        SparklineGenerateEmptyBucketsExec sparkline,
+        LocalExecutionPlannerContext context
+    ) {
+        PhysicalOperation source = plan(sparkline.child(), context);
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(sparkline.value());
+        for (Expression grouping : sparkline.groupings()) {
+            layout.append(Expressions.attribute(grouping));
+        }
+
+        return source.with(
+            new SparklineGenerateEmptyBucketsOperator.Factory(sparkline.dateBucketRounding(), sparkline.minDate(), sparkline.maxDate()),
+            layout.build()
+        );
     }
 
     /**

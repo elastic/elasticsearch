@@ -8,15 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.SparklineAggregatorFunction;
-import org.elasticsearch.core.Strings;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,9 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,10 +31,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
-public class Sparkline extends AggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
+public class Sparkline extends AggregateFunction implements AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Sparkline",
@@ -149,6 +139,22 @@ public class Sparkline extends AggregateFunction implements ToAggregator, Aggreg
         return NodeInfo.create(this, Sparkline::new, field(), key, filter(), window(), buckets, from, to);
     }
 
+    public Expression key() {
+        return key;
+    }
+
+    public Expression buckets() {
+        return buckets;
+    }
+
+    public Expression from() {
+        return from;
+    }
+
+    public Expression to() {
+        return to;
+    }
+
     @Override
     public Sparkline replaceChildren(List<Expression> newChildren) {
         return new Sparkline(
@@ -168,7 +174,7 @@ public class Sparkline extends AggregateFunction implements ToAggregator, Aggreg
         return new Sparkline(source(), field(), key, filter, window(), buckets, from, to);
     }
 
-    @Override
+    /*@Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type != LONG) {
@@ -191,7 +197,7 @@ public class Sparkline extends AggregateFunction implements ToAggregator, Aggreg
         var minDate = foldToLong(FoldContext.small(), bucketExpr.from());
         var maxDate = foldToLong(FoldContext.small(), bucketExpr.to());
         return new SparklineAggregatorFunction.SparklineAggregatorFunctionSupplier(rounding, minDate, maxDate, supplier);
-    }
+    }*/
 
     private long foldToLong(FoldContext ctx, Expression e) {
         Object value = Foldables.valueOf(ctx, e);

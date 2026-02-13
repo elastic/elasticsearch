@@ -259,30 +259,39 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     static class RolesSync {
-        private boolean inProgress;
-        private boolean pending;
+        private static final int IDLE = 0;
+        private static final int RUNNING = 1;
+        private static final int RUNNING_PENDING = 2;
 
-        synchronized boolean startSync() {
-            if (inProgress == false) {
-                inProgress = true;
-                return true;
+        private final AtomicInteger state = new AtomicInteger(IDLE);
+
+        boolean startSync() {
+            while (true) {
+                int s = state.get();
+                if (s == IDLE) {
+                    if (state.compareAndSet(IDLE, RUNNING)) return true;
+                } else if (s == RUNNING) {
+                    if (state.compareAndSet(RUNNING, RUNNING_PENDING)) return false;
+                } else {
+                    return false; // already RUNNING_PENDING
+                }
             }
-            pending = true;
-            return false;
         }
 
-        synchronized boolean endSync() {
-            assert inProgress : "endSync should only be called when a sync is in progress";
-            if (pending) {
-                pending = false;
-                return true;
+        boolean endSync() {
+            while (true) {
+                int s = state.get();
+                assert s != IDLE : "endSync should only be called when a sync is in progress";
+                if (s == RUNNING_PENDING) {
+                    if (state.compareAndSet(RUNNING_PENDING, RUNNING)) return true;
+                } else {
+                    if (state.compareAndSet(RUNNING, IDLE)) return false;
+                }
             }
-            inProgress = false;
-            return false;
         }
 
-        synchronized boolean inProgress() {
-            return inProgress;
+        boolean inProgress() {
+            return state.get() != IDLE;
         }
     }
 

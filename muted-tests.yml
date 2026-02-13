@@ -401,9 +401,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
   method: testInstantVectorExpected
   issue: https://github.com/elastic/elasticsearch/issues/142420
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/142422
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFieldDataStats
   issue: https://github.com/elastic/elasticsearch/issues/142424

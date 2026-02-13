@@ -22,7 +22,7 @@ public enum OperationPurpose {
     CLUSTER_STATE("ClusterState"),
     INDICES("Indices"),
     TRANSLOG("Translog"),
-    RESHARD("Reshard");
+    RESHARDING("Resharding");
 
     private final String key;
 

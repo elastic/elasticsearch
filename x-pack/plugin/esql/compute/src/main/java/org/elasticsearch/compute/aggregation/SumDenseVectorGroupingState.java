@@ -59,6 +59,11 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
 
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        if (sums == null) {
+            blocks[offset] = driverContext.blockFactory().newConstantNullBlock(selected.getPositionCount());
+            return;
+        }
+
         try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
@@ -78,6 +83,9 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
     }
 
     Block toValuesBlock(IntVector selected, DriverContext driverContext) {
+        if (sums == null) {
+            return driverContext.blockFactory().newConstantNullBlock(selected.getPositionCount());
+        }
         try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);

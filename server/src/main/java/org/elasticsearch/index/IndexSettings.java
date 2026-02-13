@@ -729,12 +729,30 @@ public final class IndexSettings {
                         )
                     );
                 }
+
+                var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) == false
+                    && indexVersion.equals(IndexVersions.ZERO) == false) {
+                    // We validate settings in different places before a real indexVersion has been assigned or
+                    // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
+                    // and we don't want to fail those validations. At index creation time we _will_ validate with
+                    // the creation version.
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                            SYNTHETIC_ID.getKey(),
+                            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                            indexVersion
+                        )
+                    );
+                }
             }
         }
 
         @Override
         public Iterator<Setting<?>> settings() {
-            List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING);
+            List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING, SETTING_INDEX_VERSION_CREATED);
             return list.iterator();
         }
     }, Property.IndexScope, Property.Final);
@@ -1268,26 +1286,17 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
-        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
-        if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
+        useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
                     "The setting [%s] is set to [%s] but index metadata has a different value [%s].",
                     SYNTHETIC_ID.getKey(),
-                    useSyntheticId,
+                    useTimeSeriesSyntheticId,
                     indexMetadata.useTimeSeriesSyntheticId()
                 )
             );
-        }
-        if (useSyntheticId) {
-            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
-            assert indexMetadata.useTimeSeriesSyntheticId();
-            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
-            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
-            useTimeSeriesSyntheticId = true;
-        } else {
-            useTimeSeriesSyntheticId = false;
         }
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {

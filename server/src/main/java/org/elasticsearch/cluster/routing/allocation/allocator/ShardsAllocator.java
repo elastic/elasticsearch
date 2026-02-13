@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
+import java.util.function.Function;
+
 /**
  * <p>
  * A {@link ShardsAllocator} is the main entry point for shard allocation on nodes in the cluster.
@@ -81,4 +83,16 @@ public interface ShardsAllocator {
      * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
      */
     ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation);
+
+    /**
+     * Bulk explain over a bunch of shards
+     */
+    default Function<ShardRouting, ShardAllocationDecision> explainShardAllocationAsync(final RoutingAllocation allocation) {
+        return new Function<ShardRouting, ShardAllocationDecision>() {
+            @Override
+            public ShardAllocationDecision apply(ShardRouting shardRouting) {
+                return explainShardAllocation(shardRouting, allocation);
+            }
+        };
+    }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -220,7 +219,7 @@ public class CacheFileReader {
                             return read;
                         }
                     }));
-                    bytesRead += FutureUtils.get(readFuture);
+                    bytesRead += cacheFile.recordWait(len, readFuture);
                 } else {
                     throw e;
                 }

@@ -97,6 +97,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             builtInAnalyzers.add(randomStats("french"));
         }
         Map<String, SynonymsStats> synonymsStats = randomSynonymsStats();
+        int analyzersWithMultipleSynonymSetGraphFilters = randomIntBetween(0, 10);
+        int indicesWithMultipleSynonymSetGraphFilters = randomIntBetween(0, analyzersWithMultipleSynonymSetGraphFilters);
 
         return new AnalysisStats(
             charFilters,
@@ -107,13 +109,15 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             builtInTokenizers,
             builtInTokenFilters,
             builtInAnalyzers,
-            synonymsStats
+            synonymsStats,
+            analyzersWithMultipleSynonymSetGraphFilters,
+            indicesWithMultipleSynonymSetGraphFilters
         );
     }
 
     @Override
     protected AnalysisStats mutateInstance(AnalysisStats instance) {
-        switch (randomInt(8)) {
+        switch (randomInt(9)) {
             case 0 -> {
                 Set<IndexFeatureStats> charFilters = new HashSet<>(instance.getUsedCharFilterTypes());
                 if (charFilters.removeIf(s -> s.getName().equals("pattern_replace")) == false) {
@@ -128,7 +132,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 1 -> {
@@ -145,7 +151,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 2 -> {
@@ -162,7 +170,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 3 -> {
@@ -179,7 +189,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 4 -> {
@@ -196,7 +208,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 5 -> {
@@ -213,7 +227,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     builtInTokenizers,
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 6 -> {
@@ -230,7 +246,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     builtInTokenFilters,
                     instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 7 -> {
@@ -247,7 +265,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
                     builtInAnalyzers,
-                    instance.getUsedSynonyms()
+                    instance.getUsedSynonyms(),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
                 );
             }
             case 8 -> {
@@ -260,7 +280,28 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenizers(),
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers(),
-                    randomValueOtherThan(instance.getUsedSynonyms(), AnalysisStatsTests::randomSynonymsStats)
+                    randomValueOtherThan(instance.getUsedSynonyms(), AnalysisStatsTests::randomSynonymsStats),
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
+                );
+            }
+            case 9 -> {
+                int newAnalyzerCount = randomValueOtherThan(
+                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
+                    () -> randomIntBetween(0, 10)
+                );
+                return new AnalysisStats(
+                    instance.getUsedCharFilterTypes(),
+                    instance.getUsedTokenizerTypes(),
+                    instance.getUsedTokenFilterTypes(),
+                    instance.getUsedAnalyzerTypes(),
+                    instance.getUsedBuiltInCharFilters(),
+                    instance.getUsedBuiltInTokenizers(),
+                    instance.getUsedBuiltInTokenFilters(),
+                    instance.getUsedBuiltInAnalyzers(),
+                    instance.getUsedSynonyms(),
+                    newAnalyzerCount,
+                    randomIntBetween(0, newAnalyzerCount)
                 );
             }
             default -> throw new AssertionError();
@@ -445,5 +486,247 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         expectedSynonymStats.put("inline", expectedSynonymInlineStats);
 
         assertEquals(expectedSynonymStats, analysisStats.getUsedSynonyms());
+    }
+
+    public void testMultipleSynonymSetGraphFiltersStats() {
+        // Index with an analyzer that has two synonym_graph filters backed by synonyms_set
+        final String settingsWithMultiple = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "syn_graph_1": {
+                      "type": "synonym_graph",
+                      "synonyms_set": "set-1"
+                    },
+                    "syn_graph_2": {
+                      "type": "synonym_graph",
+                      "synonyms_set": "set-2"
+                    }
+                  },
+                  "analyzer": {
+                    "my_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["syn_graph_1", "syn_graph_2"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings1 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithMultiple, XContentType.JSON).build();
+        IndexMetadata index1 = new IndexMetadata.Builder("idx_multiple").settings(settings1).build();
+
+        // Index with an analyzer that has only one synonym_graph filter backed by synonyms_set (should not count)
+        final String settingsWithSingle = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "syn_graph_only": {
+                      "type": "synonym_graph",
+                      "synonyms_set": "set-1"
+                    }
+                  },
+                  "analyzer": {
+                    "single_syn_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["syn_graph_only"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings2 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithSingle, XContentType.JSON).build();
+        IndexMetadata index2 = new IndexMetadata.Builder("idx_single").settings(settings2).build();
+
+        // Index with two analyzers, each having multiple synonym_graph filters backed by synonyms_set
+        final String settingsWithTwoAnalyzers = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "sg_a": {
+                      "type": "synonym_graph",
+                      "synonyms_set": "set-a"
+                    },
+                    "sg_b": {
+                      "type": "synonym_graph",
+                      "synonyms_set": "set-b"
+                    },
+                    "sg_c": {
+                      "type": "synonym_graph",
+                      "synonyms_set": "set-c"
+                    }
+                  },
+                  "analyzer": {
+                    "analyzer_one": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["sg_a", "sg_b"]
+                    },
+                    "analyzer_two": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["sg_b", "sg_c"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings3 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithTwoAnalyzers, XContentType.JSON)
+            .build();
+        IndexMetadata index3 = new IndexMetadata.Builder("idx_two_analyzers").settings(settings3).build();
+
+        Metadata metadata = new Metadata.Builder().build().withAddedIndex(index1).withAddedIndex(index2).withAddedIndex(index3);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+
+        // 3 analyzers total with multiple synonym_graph (synonyms_set) filters: my_analyzer, analyzer_one, analyzer_two
+        assertEquals(3, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
+        // 2 indices have at least one such analyzer: idx_multiple and idx_two_analyzers
+        assertEquals(2, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+    }
+
+    public void testMultipleSynonymSetGraphFiltersOnlyCountsSynonymsSet() {
+        // An analyzer with two synonym_graph filters, but only one uses synonyms_set, the other uses inline synonyms.
+        // Should NOT be counted since only one filter is backed by synonyms_set.
+        final String settingsSource = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "syn_set_filter": {
+                      "type": "synonym_graph",
+                      "synonyms_set": "my-set"
+                    },
+                    "syn_inline_filter": {
+                      "type": "synonym_graph",
+                      "synonyms": ["foo, bar"]
+                    }
+                  },
+                  "analyzer": {
+                    "mixed_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["syn_set_filter", "syn_inline_filter"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_mixed").settings(settings).build();
+
+        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+
+        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
+        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+    }
+
+    public void testNoMultipleSynonymSetGraphFilters() {
+        // Index with no synonym filters at all
+        final String settingsSource = """
+            {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "simple_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["lowercase"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_none").settings(settings).build();
+
+        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+
+        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
+        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+    }
+
+    public void testMultipleInlineSynonymGraphNotCounted() {
+        // An analyzer with two synonym_graph filters using inline synonyms should NOT be counted
+        final String settingsSource = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "sg_inline_1": {
+                      "type": "synonym_graph",
+                      "synonyms": ["foo, bar"]
+                    },
+                    "sg_inline_2": {
+                      "type": "synonym_graph",
+                      "synonyms": ["baz, qux"]
+                    }
+                  },
+                  "analyzer": {
+                    "double_inline_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["sg_inline_1", "sg_inline_2"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_inline_only").settings(settings).build();
+
+        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+
+        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
+        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+    }
+
+    public void testSynonymTypeNotCountedAsMultipleSynonymSetGraph() {
+        // An analyzer with two plain "synonym" (not synonym_graph) filters with synonyms_set should NOT be counted
+        final String settingsSource = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "syn_1": {
+                      "type": "synonym",
+                      "synonyms_set": "set-1"
+                    },
+                    "syn_2": {
+                      "type": "synonym",
+                      "synonyms_set": "set-2"
+                    }
+                  },
+                  "analyzer": {
+                    "double_synonym_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["syn_1", "syn_2"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_synonym_only").settings(settings).build();
+
+        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+
+        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
+        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
     }
 }

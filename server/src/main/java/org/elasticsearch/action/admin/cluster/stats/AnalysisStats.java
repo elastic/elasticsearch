@@ -69,6 +69,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, SynonymsStats> usedSynonyms = new HashMap<>();
         final Set<String> synonymsIdsUsedInIndices = new HashSet<>();
         final Set<String> synonymsIdsUsed = new HashSet<>();
+        int analyzersWithMultipleSynonymSetGraphFilters = 0;
+        int indicesWithMultipleSynonymSetGraphFilters = 0;
 
         final int mappingCount = metadata.projects().values().stream().mapToInt(p -> p.getMappingsByHash().size()).sum();
         final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(mappingCount);
@@ -93,7 +95,19 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
 
                 Settings indexSettings = indexMetadata.getSettings();
                 Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
+                Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
+
+                // Build a set of filter names that are synonym_graph filters backed by a synonyms_set source.
+                Set<String> synonymSetGraphFilterNames = new HashSet<>();
+                for (Map.Entry<String, Settings> entry : tokenFilterSettings.entrySet()) {
+                    Settings filterSettings = entry.getValue();
+                    if ("synonym_graph".equals(filterSettings.get("type")) && filterSettings.get("synonyms_set") != null) {
+                        synonymSetGraphFilterNames.add(entry.getKey());
+                    }
+                }
+
                 usedBuiltInAnalyzers.keySet().removeAll(analyzerSettings.keySet());
+                boolean indexHasMultipleSynonymSetGraphFilters = false;
                 for (Settings analyzerSetting : analyzerSettings.values()) {
                     final String analyzerType = analyzerSetting.get("type", "custom");
                     IndexFeatureStats stats = usedAnalyzerTypes.computeIfAbsent(analyzerType, IndexFeatureStats::new);
@@ -102,6 +116,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
                         stats.indexCount++;
                     }
 
+                    int synonymSetGraphFilterCount = 0;
                     for (String charFilter : analyzerSetting.getAsList("char_filter")) {
                         stats = usedBuiltInCharFilters.computeIfAbsent(charFilter, IndexFeatureStats::new);
                         stats.count++;
@@ -125,7 +140,18 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
                         if (indexTokenFilters.add(filter)) {
                             stats.indexCount++;
                         }
+                        if (synonymSetGraphFilterNames.contains(filter)) {
+                            synonymSetGraphFilterCount++;
+                        }
                     }
+
+                    if (synonymSetGraphFilterCount > 1) {
+                        analyzersWithMultipleSynonymSetGraphFilters++;
+                        indexHasMultipleSynonymSetGraphFilters = true;
+                    }
+                }
+                if (indexHasMultipleSynonymSetGraphFilters) {
+                    indicesWithMultipleSynonymSetGraphFilters++;
                 }
 
                 Map<String, Settings> charFilterSettings = indexSettings.getGroups("index.analysis.char_filter");
@@ -136,7 +162,6 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
                 usedBuiltInTokenizers.keySet().removeAll(tokenizerSettings.keySet());
                 aggregateAnalysisTypes(tokenizerSettings.values(), usedTokenizerTypes, indexTokenizerTypes);
 
-                Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
                 usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
                 aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
                 aggregateSynonymsStats(
@@ -178,7 +203,9 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInTokenizers.values(),
             usedBuiltInTokenFilters.values(),
             usedBuiltInAnalyzers.values(),
-            usedSynonyms
+            usedSynonyms,
+            analyzersWithMultipleSynonymSetGraphFilters,
+            indicesWithMultipleSynonymSetGraphFilters
         );
     }
 
@@ -254,6 +281,16 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
 
     private final Map<String, SynonymsStats> usedSynonyms;
 
+    /**
+     * Number of analyzers across the cluster whose filter chain contains more than one synonym_graph filter backed by a synonyms_set.
+     */
+    private final int analyzersWithMultipleSynonymSetGraphFilters;
+
+    /**
+     * Number of indices that contain at least one analyzer with more than one synonym_graph filter backed by a synonyms_set.
+     */
+    private final int indicesWithMultipleSynonymSetGraphFilters;
+
     AnalysisStats(
         Collection<IndexFeatureStats> usedCharFilters,
         Collection<IndexFeatureStats> usedTokenizers,
@@ -263,7 +300,9 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         Collection<IndexFeatureStats> usedBuiltInTokenizers,
         Collection<IndexFeatureStats> usedBuiltInTokenFilters,
         Collection<IndexFeatureStats> usedBuiltInAnalyzers,
-        Map<String, SynonymsStats> usedSynonyms
+        Map<String, SynonymsStats> usedSynonyms,
+        int analyzersWithMultipleSynonymSetGraphFilters,
+        int indicesWithMultipleSynonymSetGraphFilters
     ) {
         this.usedCharFilters = sort(usedCharFilters);
         this.usedTokenizers = sort(usedTokenizers);
@@ -274,6 +313,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         this.usedBuiltInTokenFilters = sort(usedBuiltInTokenFilters);
         this.usedBuiltInAnalyzers = sort(usedBuiltInAnalyzers);
         this.usedSynonyms = new TreeMap<>(usedSynonyms);
+        this.analyzersWithMultipleSynonymSetGraphFilters = analyzersWithMultipleSynonymSetGraphFilters;
+        this.indicesWithMultipleSynonymSetGraphFilters = indicesWithMultipleSynonymSetGraphFilters;
     }
 
     public AnalysisStats(StreamInput input) throws IOException {
@@ -286,6 +327,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedSynonyms = input.readImmutableMap(SynonymsStats::new);
+        analyzersWithMultipleSynonymSetGraphFilters = input.readVInt();
+        indicesWithMultipleSynonymSetGraphFilters = input.readVInt();
     }
 
     @Override
@@ -299,6 +342,8 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
         out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
+        out.writeVInt(analyzersWithMultipleSynonymSetGraphFilters);
+        out.writeVInt(indicesWithMultipleSynonymSetGraphFilters);
     }
 
     /**
@@ -361,12 +406,29 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         return usedSynonyms;
     }
 
+    /**
+     * Return the number of analyzers across the cluster whose filter chain contains more than one synonym_graph filter backed by a
+     * synonyms_set.
+     */
+    public int getAnalyzersWithMultipleSynonymSetGraphFilters() {
+        return analyzersWithMultipleSynonymSetGraphFilters;
+    }
+
+    /**
+     * Return the number of indices that contain at least one analyzer with more than one synonym_graph filter backed by a synonyms_set.
+     */
+    public int getIndicesWithMultipleSynonymSetGraphFilters() {
+        return indicesWithMultipleSynonymSetGraphFilters;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalysisStats that = (AnalysisStats) o;
-        return Objects.equals(usedCharFilters, that.usedCharFilters)
+        return analyzersWithMultipleSynonymSetGraphFilters == that.analyzersWithMultipleSynonymSetGraphFilters
+            && indicesWithMultipleSynonymSetGraphFilters == that.indicesWithMultipleSynonymSetGraphFilters
+            && Objects.equals(usedCharFilters, that.usedCharFilters)
             && Objects.equals(usedTokenizers, that.usedTokenizers)
             && Objects.equals(usedTokenFilters, that.usedTokenFilters)
             && Objects.equals(usedAnalyzers, that.usedAnalyzers)
@@ -388,7 +450,9 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInTokenizers,
             usedBuiltInTokenFilters,
             usedBuiltInAnalyzers,
-            usedSynonyms
+            usedSynonyms,
+            analyzersWithMultipleSynonymSetGraphFilters,
+            indicesWithMultipleSynonymSetGraphFilters
         );
     }
 
@@ -414,6 +478,10 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         toXContentCollection(builder, params, "built_in_analyzers", usedBuiltInAnalyzers);
         builder.field("synonyms");
         builder.map(usedSynonyms);
+        builder.startObject("multiple_synonym_set_graph_filters");
+        builder.field("analyzer_count", analyzersWithMultipleSynonymSetGraphFilters);
+        builder.field("index_count", indicesWithMultipleSynonymSetGraphFilters);
+        builder.endObject();
         builder.endObject();
 
         return builder;

@@ -124,7 +124,7 @@ public class Reindexer {
     public void lookupRemoteVersion(Task task, ReindexRequest request, ActionListener<Void> listener) {
         // If we're reindexing from a remote source, then we need to determine the remote version to decide whether we use
         // scroll search or point-in-time search
-        if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
+         if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
             RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
                 @Override
                 public void onResponse(Version version) {
@@ -304,7 +304,6 @@ public class Reindexer {
          */
         private final IdFieldMapper destinationIndexIdMapper;
 
-        // TODO -Move this upwards into the reindexer so when we make the Rest client it doesn't need to remake it
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
@@ -367,7 +366,6 @@ public class Reindexer {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 assert sslConfig != null : "Reindex ssl config must be set";
-                // TODO - Remove? Remember, we only use this REST client for remote cases which is orthogonal to whether we use PIT
                 RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads);
                 return new RemoteScrollableHitSource(
                     logger,

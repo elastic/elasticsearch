@@ -203,6 +203,8 @@ public class CsvTestsDataLoader {
         "histogram_standard_index.csv"
     ).withSetting("settings-histogram_time_series_index.json");
     private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
+    private static final TestDataset MMR_TEXT_VECTOR_KEYWORD = new TestDataset("mmr_text_vector_keyword");
+
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
@@ -297,7 +299,8 @@ public class CsvTestsDataLoader {
         Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
         Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
         Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX),
-        Map.entry(MANY_NUMBERS.indexName, MANY_NUMBERS)
+        Map.entry(MANY_NUMBERS.indexName, MANY_NUMBERS),
+        Map.entry(MMR_TEXT_VECTOR_KEYWORD.indexName, MMR_TEXT_VECTOR_KEYWORD)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

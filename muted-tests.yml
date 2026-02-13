@@ -419,6 +419,45 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/142426
+- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
+  method: testWithNulls
+  issue: https://github.com/elastic/elasticsearch/issues/142434
+- class: org.elasticsearch.compute.operator.MMROperatorTests
+  method: testSimpleLargeInput
+  issue: https://github.com/elastic/elasticsearch/issues/142437
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with query vector variable}
+  issue: https://github.com/elastic/elasticsearch/issues/142438
+- class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
+  method: testIndexPoints
+  issue: https://github.com/elastic/elasticsearch/issues/142439
+- class: org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormatTests
+  method: testSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/142393
+- class: org.elasticsearch.compute.operator.MMROperatorTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/142436
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.Simple MMR diversification}
+  issue: https://github.com/elastic/elasticsearch/issues/142441
+- class: org.elasticsearch.xpack.esql.core.util.RemoteClusterUtilsTests
+  method: testQualifyAndJoinIndices
+  issue: https://github.com/elastic/elasticsearch/issues/142442
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with static query vector high lambda}
+  issue: https://github.com/elastic/elasticsearch/issues/142444
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with byte vector and query vector}
+  issue: https://github.com/elastic/elasticsearch/issues/142445
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with static query vector low lambda}
+  issue: https://github.com/elastic/elasticsearch/issues/142446
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with bit vector and query vector}
+  issue: https://github.com/elastic/elasticsearch/issues/142447
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with hex string bit vector and query vector}
+  issue: https://github.com/elastic/elasticsearch/issues/142448
 
 # Examples:
 #

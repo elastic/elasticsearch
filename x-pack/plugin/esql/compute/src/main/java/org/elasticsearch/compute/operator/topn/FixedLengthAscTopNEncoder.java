@@ -10,20 +10,21 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
-class FixedLengthTopNEncoder extends SortableTopNEncoder {
+class FixedLengthAscTopNEncoder extends SortableAscTopNEncoder {
     private final int length;
+    private final FixedLengthDescTopNEncoder descEncoder;
 
-    FixedLengthTopNEncoder(int length) {
+    FixedLengthAscTopNEncoder(int length) {
         this.length = length;
+        this.descEncoder = new FixedLengthDescTopNEncoder(length, this);
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }
         bytesRefBuilder.append(value);
-        return length;
     }
 
     @Override
@@ -41,12 +42,12 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
 
     @Override
     public String toString() {
-        return "FixedLengthTopNEncoder[" + length + "]";
+        return "FixedLengthAsc[" + length + "]";
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return this;
+    public TopNEncoder toSortable(boolean asc) {
+        return asc ? this : descEncoder;
     }
 
     @Override

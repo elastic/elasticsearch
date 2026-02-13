@@ -319,7 +319,6 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             partitioning,
-            LuceneSourceOperator.Factory::autoStrategy,
             randomIntBetween(1, 10),
             10000,
             randomIntBetween(10, 100),

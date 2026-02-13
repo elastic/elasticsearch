@@ -250,8 +250,24 @@ public interface BlockLoader {
         @Nullable
         BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
 
+        /**
+         * Converts the length of each binary value associated with documents into a {@link NumericDocValues} representation.
+         * The {@code NumericDocValues} returned provides access to the length of each binary value for each document and
+         * this can be accesed via {@link NumericDocValues#longValue()}.
+         *
+         * @return a {@link NumericDocValues} instance containing the length values, or {@code null} if
+         *         unable to load the values due to unsupported underlying data or other constraints.
+         */
         NumericDocValues toLengthValues();
 
+        /**
+         * Creates a {@link DocIdSetIterator} that matches documents based on the specified length value.
+         * The returned iterator will iterate over all documents whose length value equals the given length.
+         *
+         * @param length the length value to match against the documents.
+         * @return a {@link DocIdSetIterator} to iterate over documents matching the specified length value.
+         * @throws IOException if an I/O error occurs while reading the length values.
+         */
         default DocIdSetIterator lengthIterator(int length) throws IOException {
             NumericDocValues lengthReader = toLengthValues();
             assert lengthReader != null;

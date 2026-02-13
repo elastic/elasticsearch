@@ -743,8 +743,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             continue;
                         }
 
-                        int numDocsInBlock = blockEndDocId - blockStartDocId;
                         if (blockId != currentBlockId) {
+                            int numDocsInBlock = blockEndDocId - blockStartDocId;
                             decompressOffsets(blockId, numDocsInBlock);
                         }
 

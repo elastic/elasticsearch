@@ -206,7 +206,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     public void testCanAllocateToTargetWhenSourceFinishesVacate() {
         final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState state = prepareState(projectId, NODE_A.getId(), NODE_B.getName());
-        // Randomly assigne a shard on NODE_C
+        // Randomly assign a shard on NODE_C
         if (randomBoolean()) {
             state = ClusterState.builder(state)
                 .putRoutingTable(

@@ -1429,9 +1429,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (readFuture.isDone() == false) {
                 long bytes = fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
                 if (bytes > 0) {
-                    try (var dummy = cacheMissMetricHandler.record(bytes)) {
-                        return readFuture.get();
-                    }
+                    return recordWait(bytes, readFuture);
                 }
             }
             return readFuture.get();
@@ -1485,14 +1483,25 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     )
                     .sum();
                 if (bytes > 0) {
-                    try (var dummy = cacheMissMetricHandler.record(bytes)) {
-                        readsComplete.get();
-                    }
+                    recordWait(bytes, readsComplete);
                 }
 
             }
             readsComplete.get();
             return bytesRead.get();
+        }
+
+        /**
+         * Record a wait with the give number of bytes, with duration of the wait for the future given. This method will
+         * wait for the `future` to complete.
+         * @param bytes The bytes to record
+         * @param future the future to wait for.
+         * @return the result of the future.get()
+         */
+        public <T> T recordWait(long bytes, PlainActionFuture<T> future) throws InterruptedException, ExecutionException {
+            try (var dummy = cacheMissMetricHandler.record(bytes)) {
+                return future.get();
+            }
         }
 
         private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion, int writeOffset) {

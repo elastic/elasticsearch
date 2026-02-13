@@ -9,18 +9,16 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
-class FloatVectorValuesSlice extends FloatVectorValues {
+final class ClusteringFloatVectorValuesSlice extends ClusteringFloatVectorValues {
 
-    private final FloatVectorValues allValues;
+    private final ClusteringFloatVectorValues allValues;
     private final int[] slice;
 
-    FloatVectorValuesSlice(FloatVectorValues allValues, int[] slice) {
+    ClusteringFloatVectorValuesSlice(ClusteringFloatVectorValues allValues, int[] slice) {
         assert slice != null;
         assert slice.length <= allValues.size();
         this.allValues = allValues;
@@ -48,11 +46,11 @@ class FloatVectorValuesSlice extends FloatVectorValues {
     }
 
     @Override
-    public FloatVectorValues copy() throws IOException {
-        return new FloatVectorValuesSlice(this.allValues.copy(), this.slice);
+    public ClusteringFloatVectorValuesSlice copy() throws IOException {
+        return new ClusteringFloatVectorValuesSlice(this.allValues.copy(), this.slice);
     }
 
-    static FloatVectorValues createRandomSlice(FloatVectorValues origin, int k, long seed) {
+    static ClusteringFloatVectorValues createRandomSlice(ClusteringFloatVectorValues origin, int k, long seed) {
         if (k >= origin.size()) {
             return origin;
         }
@@ -60,7 +58,7 @@ class FloatVectorValuesSlice extends FloatVectorValues {
         int[] samples = reservoirSample(origin.size(), k, seed);
         // sort to prevent random backwards access weirdness
         Arrays.sort(samples);
-        return new FloatVectorValuesSlice(origin, samples);
+        return new ClusteringFloatVectorValuesSlice(origin, samples);
     }
 
     /**

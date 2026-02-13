@@ -17,12 +17,12 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Entity representing the request body for Mixedbread rerank requests.
+ * Entity representing the request body for Mixedbread embeddings requests.
  *
- * @param input the input to be truncated
+ * @param input the input to use for embeddings
  * @param modelId the model identifier
  * @param dimensions specifies the dimensionality of the generated embedding vector
- * @param prompt the query text used to rank the provided documents by relevance
+ * @param prompt used by the model for embedding generation
  * @param normalized specifies whether to normalize the embeddings
  * @param encodingFormat specifies the encoding format of the embeddings
  */

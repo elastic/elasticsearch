@@ -105,7 +105,7 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
 
     /**
      * Helper method to build a task settings map for testing.
-     * @param prompt the query text used to rank the provided documents by relevance
+     * @param prompt used by the model for embedding generation
      * @param normalized specifies whether to normalize the embeddings
      * @return a map representing the task settings
      */

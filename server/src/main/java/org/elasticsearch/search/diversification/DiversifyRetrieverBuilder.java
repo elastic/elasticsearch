@@ -9,12 +9,14 @@
 
 package org.elasticsearch.search.diversification;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -39,7 +41,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,7 +51,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.search.diversification.ResultDiversification.getVectorComparisonScore;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.elasticsearch.search.vectors.VectorDataUtils.extractVectorDataFromObject;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -372,12 +376,14 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             RankDocWithSearchHit asRankDoc = (RankDocWithSearchHit) scoreDocs[i];
             results[i] = asRankDoc;
             try {
-                VectorData vector = getFieldVectorForSearchHit(asRankDoc);
+                VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext.getQueryVector());
                 if (vector != null) {
                     fieldVectors.put(asRankDoc.rank, vector);
                 }
             } catch (IllegalArgumentException e) {
                 throw new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e);
+            } catch (IOException ioEx) {
+                throw new UncheckedIOException(ioEx);
             }
         }
 
@@ -465,18 +471,23 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);
     }
 
-    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc) throws IllegalArgumentException {
+    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, @Nullable VectorData queryVectorData)
+        throws IllegalArgumentException, IOException {
+
         // first try and see if it's an inference field
-        VectorData vector = tryGetVectorFromInferenceField(doc.hit);
+        VectorData vector = tryGetVectorFromInferenceField(doc.hit, queryVectorData);
         if (vector != null) {
             return vector;
         }
 
         var field = doc.hit.getFields().getOrDefault(diversificationField, null);
-        return field == null ? null : extractFieldVectorData(field.getValues());
+        return field == null ? null : extractVectorDataFromObject(field.getValues());
     }
 
-    private VectorData tryGetVectorFromInferenceField(SearchHit hit) throws IllegalArgumentException {
+    private static final VectorSimilarityFunction queryVectorSimilarityFunction = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+
+    private VectorData tryGetVectorFromInferenceField(SearchHit hit, @Nullable VectorData queryVectorData) throws IllegalArgumentException,
+        IOException {
         var inferenceFields = hit.getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
         if (inferenceFields == null) {
             return null;
@@ -489,84 +500,50 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.getOrDefault(diversificationField, null);
-            if (fieldValue instanceof ResultDiversificationDenseVectorSupplier vectorSupplier) {
-                // we can rely on the fact that the query vector here is realized from the rewrite above
-                return vectorSupplier.getDocumentVectorForSearchHit(
-                    diversificationField,
-                    hit,
-                    queryVector == null ? null : queryVector.get()
-                );
+            if (fieldValue instanceof DenseVectorSupplierField vectorSupplier) {
+                if (queryVectorData == null) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "[%s] or [%s] must be supplied when retrieving search hit document vectors for a [%s] field.",
+                            QUERY_VECTOR_FIELD.getPreferredName(),
+                            QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                            vectorSupplier.getSupplierFieldName()
+                        )
+                    );
+                }
+
+                List<VectorData> fieldVectors = vectorSupplier.getDenseVectorDataForSearchHit(diversificationField, hit);
+                if (fieldVectors == null || fieldVectors.isEmpty()) {
+                    return null;
+                }
+
+                if (fieldVectors.getFirst().isFloat() != queryVectorData.isFloat()) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "supplied query vector is incompatible with search hit document vectors for the [%s] field.",
+                            vectorSupplier.getSupplierFieldName()
+                        )
+                    );
+                }
+
+                int bestScoringVectorIndex = 0;
+                float currentHighestScore = Float.NEGATIVE_INFINITY;
+                for (int i = 0; i < fieldVectors.size(); i++) {
+                    VectorData vector = fieldVectors.get(i);
+                    if (vector == null) {
+                        continue;
+                    }
+                    float score = getVectorComparisonScore(queryVectorSimilarityFunction, vector, queryVectorData);
+                    if (score > currentHighestScore) {
+                        bestScoringVectorIndex = i;
+                        currentHighestScore = score;
+                    }
+                }
+
+                return fieldVectors.get(bestScoringVectorIndex);
             }
         }
 
         return null;
-    }
-
-    private VectorData extractFieldVectorData(Object fieldValue) {
-        if (fieldValue == null) {
-            return null;
-        }
-
-        var thisFieldValue = fieldValue;
-
-        if (fieldValue instanceof List<?> asList && asList.isEmpty() == false) {
-            if (asList.getFirst().getClass().isArray()) {
-                // if it's a multivalued field, get the first value
-                thisFieldValue = asList.getFirst();
-            } else {
-                thisFieldValue = asList.toArray();
-            }
-        }
-
-        if (thisFieldValue instanceof Object[] objectArray) {
-            if (objectArray.length == 0) {
-                return null;
-            }
-
-            if (objectArray[0] instanceof Byte) {
-                thisFieldValue = Arrays.stream(objectArray).map(x -> (Byte) x).toArray(Byte[]::new);
-            }
-
-            if (objectArray[0] instanceof Float) {
-                thisFieldValue = Arrays.stream(objectArray).map(x -> (Float) x).toArray(Float[]::new);
-            }
-        }
-
-        switch (thisFieldValue) {
-            case float[] floatArray -> {
-                return new VectorData(floatArray);
-            }
-            case byte[] byteArray -> {
-                return new VectorData(byteArray);
-            }
-            case Float[] boxedFloatArray -> {
-                return new VectorData(unboxedFloatArray(boxedFloatArray));
-            }
-            case Byte[] boxedByteArray -> {
-                return new VectorData(unboxedByteArray(boxedByteArray));
-            }
-            default -> {
-            }
-        }
-
-        return null;
-    }
-
-    private static float[] unboxedFloatArray(Float[] array) {
-        float[] unboxedArray = new float[array.length];
-        int bIndex = 0;
-        for (Float b : array) {
-            unboxedArray[bIndex++] = b;
-        }
-        return unboxedArray;
-    }
-
-    private static byte[] unboxedByteArray(Byte[] array) {
-        byte[] unboxedArray = new byte[array.length];
-        int bIndex = 0;
-        for (Byte b : array) {
-            unboxedArray[bIndex++] = b;
-        }
-        return unboxedArray;
     }
 }

@@ -224,72 +224,28 @@ public class SemanticTextChunkUtils {
         return queries;
     }
 
-    public static int getSemanticTextFieldEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
-        return switch (elementType) {
-            case FLOAT, BFLOAT16, BYTE -> dimensions;
-            case BIT -> {
-                assert dimensions % Byte.SIZE == 0;
-                yield dimensions / Byte.SIZE;
-            }
-        };
-    }
-
     public static VectorData getTextEmbeddingVectorFromChunk(
         SemanticTextField.Chunk chunk,
-        int embeddingLength,
         XContentType contentType,
         DenseVectorFieldMapper.ElementType elementType
-    ) {
+    ) throws IOException {
         BytesReference embeddingsBytes = chunk.rawEmbeddings();
         if (embeddingsBytes == null) {
             return null;
         }
 
-        double[] values = parseDenseVectorFromBytes(chunk.rawEmbeddings(), embeddingLength, contentType);
-        if (values == null) {
+        XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, embeddingsBytes, contentType);
+
+        // forward to the start token
+        parser.nextToken();
+        VectorData parsedVector = VectorData.parseXContent(parser);
+        if (parsedVector == null) {
             return null;
         }
 
-        return switch (elementType) {
-            case FLOAT, BFLOAT16 -> new VectorData(floatArrayOf(values));
-            case BYTE, BIT -> new VectorData(byteArrayOf(values));
-        };
-    }
-
-    private static float[] floatArrayOf(double[] doublesArray) {
-        var floatArray = new float[doublesArray.length];
-        for (int i = 0; i < doublesArray.length; i++) {
-            floatArray[i] = (float) doublesArray[i];
+        if (elementType == DenseVectorFieldMapper.ElementType.BIT || elementType == DenseVectorFieldMapper.ElementType.BYTE) {
+            return new VectorData(parsedVector.asByteVector());
         }
-        return floatArray;
-    }
-
-    private static byte[] byteArrayOf(double[] doublesArray) {
-        // It's fine to not check if the double values are out of range here because if any are, equality assertions on the expected vs.
-        // actual chunks will fail downstream
-        byte[] byteArray = new byte[doublesArray.length];
-        for (int i = 0; i < doublesArray.length; i++) {
-            byteArray[i] = (byte) doublesArray[i];
-        }
-        return byteArray;
-    }
-
-    private static double[] parseDenseVectorFromBytes(BytesReference value, int numDims, XContentType contentType) {
-        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, value, contentType)) {
-            parser.nextToken();
-            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-                return null;
-            }
-            double[] values = new double[numDims];
-            for (int i = 0; i < numDims; i++) {
-                if (parser.nextToken() == XContentParser.Token.END_ARRAY) {
-                    return values;
-                }
-                values[i] = parser.doubleValue();
-            }
-            return values;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return parsedVector;
     }
 }

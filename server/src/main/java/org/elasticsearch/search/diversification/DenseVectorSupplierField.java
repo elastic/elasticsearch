@@ -9,11 +9,14 @@
 
 package org.elasticsearch.search.diversification;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.VectorData;
 
-public interface ResultDiversificationDenseVectorSupplier {
-    VectorData getDocumentVectorForSearchHit(String diversificationField, SearchHit hit, @Nullable VectorData queryVector)
-        throws IllegalArgumentException;
+import java.io.IOException;
+import java.util.List;
+
+public interface DenseVectorSupplierField {
+    List<VectorData> getDenseVectorDataForSearchHit(String fieldName, SearchHit hit) throws IOException;
+
+    String getSupplierFieldName();
 }

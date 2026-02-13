@@ -28,7 +28,7 @@ public abstract class ResultDiversification<C extends ResultDiversificationConte
 
     public abstract RankDoc[] diversify(RankDoc[] docs) throws IOException;
 
-    protected float getVectorComparisonScore(
+    public static float getVectorComparisonScore(
         VectorSimilarityFunction similarityFunction,
         VectorData thisDocVector,
         VectorData comparisonVector

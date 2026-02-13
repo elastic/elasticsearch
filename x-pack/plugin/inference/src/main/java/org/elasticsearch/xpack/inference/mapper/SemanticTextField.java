@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -21,7 +20,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.diversification.ResultDiversificationDenseVectorSupplier;
+import org.elasticsearch.search.diversification.DenseVectorSupplierField;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -46,7 +45,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getSemanticTextFieldEmbeddingLength;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
 
 /**
@@ -66,7 +64,7 @@ public record SemanticTextField(
     @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
-) implements ToXContentObject, ResultDiversificationDenseVectorSupplier {
+) implements ToXContentObject, DenseVectorSupplierField {
 
     static final String TEXT_FIELD = "text";
     static final String INFERENCE_FIELD = "inference";
@@ -345,78 +343,36 @@ public record SemanticTextField(
         return new Chunk(text, -1, -1, chunk.bytesReference());
     }
 
-    private static final VectorSimilarityFunction queryVectorSimilarityFunction = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+    @Override
+    public String getSupplierFieldName() {
+        return SemanticTextFieldMapper.CONTENT_TYPE;
+    }
 
     @Override
-    public VectorData getDocumentVectorForSearchHit(String diversificationField, SearchHit hit, @Nullable VectorData queryVector)
-        throws IllegalArgumentException {
+    public List<VectorData> getDenseVectorDataForSearchHit(String fieldName, SearchHit hit) throws IOException {
         if (this.inference == null || this.inference.chunks() == null) {
             return null;
         }
 
-        if (this.inference().modelSettings().taskType() != TaskType.TEXT_EMBEDDING) {
-            throw new IllegalArgumentException(
-                "[semantic_text] field task type must be [text_embedding] when retrieving search hit document vectors."
-            );
-        }
-
-        if (queryVector == null) {
-            throw new IllegalArgumentException(
-                "[query_vector] or [query_vector_builder] must be supplied "
-                    + "when retrieving search hit document vectors for a [semantic_text] field."
-            );
-        }
-
-        DenseVectorFieldMapper.ElementType elementType = this.inference().modelSettings().elementType();
-
-        boolean useFloatForComparison = queryVector.isFloat();
-        boolean isCompatibleVectors = elementType != null && switch (elementType) {
-            case FLOAT, BFLOAT16 -> useFloatForComparison;
-            case BIT, BYTE -> useFloatForComparison == false;
-        };
-
-        if (isCompatibleVectors == false) {
-            throw new IllegalArgumentException(
-                "supplied query vector is incompatible with search hit document vectors for the [semantic_text] field."
-            );
-        }
-
-        Integer dimensions = this.inference().modelSettings().dimensions();
-        if (dimensions == null) {
+        if (this.inference().modelSettings() == null || this.inference().modelSettings().taskType() != TaskType.TEXT_EMBEDDING) {
             return null;
         }
 
-        int embeddingLength = getSemanticTextFieldEmbeddingLength(elementType, dimensions);
-        List<Chunk> chunks = this.inference.chunks().getOrDefault(diversificationField, Collections.emptyList());
+        DenseVectorFieldMapper.ElementType elementType = this.inference().modelSettings().elementType();
+        if (elementType == null) {
+            return null;
+        }
+
+        List<Chunk> chunks = this.inference.chunks().getOrDefault(fieldName, Collections.emptyList());
         if (chunks.isEmpty()) {
             return null;
         }
 
         List<VectorData> chunkVectors = new ArrayList<>();
         for (Chunk chunk : chunks) {
-            chunkVectors.add(getTextEmbeddingVectorFromChunk(chunk, embeddingLength, contentType, elementType));
+            chunkVectors.add(getTextEmbeddingVectorFromChunk(chunk, contentType, elementType));
         }
 
-        int bestScoringChunk = 0;
-        float currentHighestScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < chunkVectors.size(); i++) {
-            VectorData vector = chunkVectors.get(i);
-            if (vector == null) {
-                continue;
-            }
-            float score = getVectorComparisonScore(vector, queryVector);
-            if (score > currentHighestScore) {
-                bestScoringChunk = i;
-                currentHighestScore = score;
-            }
-        }
-
-        return chunkVectors.get(bestScoringChunk);
-    }
-
-    private float getVectorComparisonScore(VectorData v1, VectorData v2) {
-        return v1.isFloat()
-            ? SemanticTextField.queryVectorSimilarityFunction.compare(v1.floatVector(), v2.floatVector())
-            : SemanticTextField.queryVectorSimilarityFunction.compare(v1.byteVector(), v2.byteVector());
+        return chunkVectors;
     }
 }

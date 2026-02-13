@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -191,11 +190,9 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
-    public void testGetVectorFromSearchHit() throws IOException {
+    public void testGetDenseVectorsFromSearchHit() throws IOException {
         for (int i = 0; i < 10; i++) {
             Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-            DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
-            int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
 
             List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
             var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
@@ -210,25 +207,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 chunkVectors.add(thisVector);
             }
 
-            var queryVector = switch (elementType) {
-                case FLOAT, BFLOAT16 -> new VectorData(randomFloatVectorOfLength(embeddingLength));
-                case BIT, BYTE -> new VectorData(randomByteArrayOfLength(embeddingLength));
-            };
-
-            VectorSimilarityFunction vectorComparison = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-
-            int bestVector = 0;
-            float bestScore = Float.NEGATIVE_INFINITY;
-            for (int v = 0; v < chunkVectors.size(); v++) {
-                float score = queryVector.isFloat()
-                    ? vectorComparison.compare(chunkVectors.get(v).floatVector(), queryVector.floatVector())
-                    : vectorComparison.compare(chunkVectors.get(v).byteVector(), queryVector.byteVector());
-                if (score > bestScore) {
-                    bestVector = v;
-                    bestScore = score;
-                }
-            }
-
             var field = semanticTextFieldFromChunkedInferenceResults(
                 useLegacyFormat,
                 "testfield",
@@ -240,88 +218,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             );
 
             var searchHit = new SearchHit(1);
-            var vector = field.getDocumentVectorForSearchHit("testfield", searchHit, queryVector);
-            searchHit.decRef();
-
-            assertEquals(chunkVectors.get(bestVector), vector);
-        }
-    }
-
-    public void testGetVectorFromSearchHitInvalidForSparseEmbedding() throws IOException {
-        Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
-
-        List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
-        var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
-
-        var field = semanticTextFieldFromChunkedInferenceResults(
-            useLegacyFormat,
-            "testfield",
-            model,
-            generateRandomChunkingSettings(),
-            inputs,
-            inferenceResults,
-            randomFrom(XContentType.values())
-        );
-
-        var searchHit = new SearchHit(1);
-        try {
-            var ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> { field.getDocumentVectorForSearchHit("testfield", searchHit, null); }
-            );
-            assertEquals(
-                "[semantic_text] field task type must be [text_embedding] when retrieving search hit document vectors.",
-                ex.getMessage()
-            );
-        } finally {
-            searchHit.decRef();
-        }
-    }
-
-    public void testGetVectorFromSearchHitInvalidQueryVector() throws IOException {
-        Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
-        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
-
-        List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
-        var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
-
-        var field = semanticTextFieldFromChunkedInferenceResults(
-            useLegacyFormat,
-            "testfield",
-            model,
-            generateRandomChunkingSettings(),
-            inputs,
-            inferenceResults,
-            randomFrom(XContentType.values())
-        );
-
-        var searchHit = new SearchHit(1);
-        try {
-            var exMissingQueryVector = expectThrows(IllegalArgumentException.class, () -> {
-                field.getDocumentVectorForSearchHit("testfield", searchHit, null);
-            });
-            assertEquals(
-                "[query_vector] or [query_vector_builder] must be supplied "
-                    + "when retrieving search hit document vectors for a [semantic_text] field.",
-                exMissingQueryVector.getMessage()
-            );
-
-            var incompatibleQueryVector = switch (elementType) {
-                case FLOAT, BFLOAT16 -> new VectorData(randomByteArrayOfLength(embeddingLength));
-                case BIT, BYTE -> new VectorData(randomFloatVectorOfLength(embeddingLength));
-            };
-
-            var exIncompatibleQueryVector = expectThrows(IllegalArgumentException.class, () -> {
-                field.getDocumentVectorForSearchHit("testfield", searchHit, incompatibleQueryVector);
-            });
-            assertEquals(
-                "supplied query vector is incompatible with search hit document vectors for the [semantic_text] field.",
-                exIncompatibleQueryVector.getMessage()
-            );
-        } finally {
-            searchHit.decRef();
+            try {
+                var vectors = field.getDenseVectorDataForSearchHit("testfield", searchHit);
+                assertEquals(chunkVectors, vectors);
+            } finally {
+                searchHit.decRef();
+            }
         }
     }
 

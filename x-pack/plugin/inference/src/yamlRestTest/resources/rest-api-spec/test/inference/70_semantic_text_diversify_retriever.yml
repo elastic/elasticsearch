@@ -252,7 +252,7 @@ setup:
 ---
 "Validate diversification does not work with sparse vector data":
   - do:
-      catch: /\[semantic_text\] field task type must be \[text_embedding\] when retrieving search hit document vectors/
+      catch: /Failed to retrieve vectors for field \[content\]. Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
       search:
         index: test-result-diversification-sparse-semantic-text-index
         body:
@@ -262,6 +262,7 @@ setup:
               field: "content"
               lambda: 0.9
               size: 3
+              query_vector: "7e7e"
               retriever:
                 standard:
                   query:

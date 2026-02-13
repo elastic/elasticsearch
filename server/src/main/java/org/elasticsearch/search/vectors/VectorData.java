@@ -71,7 +71,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
     public String stringVector() {
         return stringVector;
     }
-  
+
     public int size() {
         if (floatVector != null) {
             return floatVector.length;

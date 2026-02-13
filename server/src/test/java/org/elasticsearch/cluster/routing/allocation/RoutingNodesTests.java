@@ -180,8 +180,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Await all shards reallocate");
         clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
 
-        assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
-        assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
+        assertThat(clusterState.routingTable(projectId).index("test").size(), equalTo(3));
+        assertThat(clusterState.routingTable(projectId).index("test1").size(), equalTo(3));
 
         assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(4));
         assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(4));
@@ -350,7 +350,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).count(), equalTo(2L));
 
         logger.info("kill one node");
-        IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(projectId).index("test").shard(0);
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId()))
             .build();

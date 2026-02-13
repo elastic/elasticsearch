@@ -82,6 +82,7 @@ import java.util.function.LongSupplier;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
 import static org.elasticsearch.index.VersionType.INTERNAL;
+import static org.elasticsearch.reindex.TransportReindexAction.REINDEX_PIT_SEARCH_ENABLED;
 
 public class Reindexer {
 
@@ -123,7 +124,7 @@ public class Reindexer {
     public void lookupRemoteVersion(Task task, ReindexRequest request, ActionListener<Void> listener) {
         // If we're reindexing from a remote source, then we need to determine the remote version to decide whether we use
         // scroll search or point-in-time search
-        if (request.getRemoteInfo() != null) {
+        if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
             RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
                 @Override
                 public void onResponse(Version version) {
@@ -362,29 +363,6 @@ public class Reindexer {
 
         @Override
         protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
-
-            // TODO:
-            /*
-                // We're enabling PIT so make the right decisions
-                // Done similarly to clusterService.state().clusterFeatures().clusterHasFeature(...)
-                If feature flag set:
-                    If local request:
-                        Use ClientPittableHitSource
-                    else:
-                        If remote node is PIT compatible:
-                            Use RemotePittableHitSouce
-                        else:
-                            Use RemoteScrollableHitSource
-                // PIT is not enabled because the cluster is old
-                else:
-                    // Old logic
-             */
-
-            /*
-                NOTE: By making the PIT decision here we need to refactor very little ... However, we need to open the PIT
-                in parallisation helper ... so we need to know then ...
-             */
-
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());

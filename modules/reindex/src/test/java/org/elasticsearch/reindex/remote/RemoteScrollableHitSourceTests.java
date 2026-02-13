@@ -486,15 +486,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
         RemoteInfo remoteInfo = remoteInfo();
         TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient, remoteInfo) {
-            // @Override
-            // void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
-            // if (mockRemoteVersion) {
-            // listener.onResponse(Version.CURRENT);
-            // } else {
-            // super.lookupRemoteVersion(listener);
-            // }
-            // }
-
             @Override
             protected void doStart(RejectAwareActionListener<Response> searchListener) {
                 // Short‑circuit version lookup by setting it to current

@@ -45,6 +45,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * A feature flag to guard the work to make use point-in-time searching during reindexing rather than scroll
      * while it is under development.
      */
+    // TODO - DELETE. Only needed for local development
     static boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search_enabled").isEnabled();
 
     protected final ReindexValidator reindexValidator;

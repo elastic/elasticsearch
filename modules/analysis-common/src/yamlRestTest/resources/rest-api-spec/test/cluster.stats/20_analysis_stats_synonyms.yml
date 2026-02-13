@@ -104,3 +104,87 @@
   - match: { indices.analysis.synonyms.paths.index_count: 1 }
   - match: { indices.analysis.synonyms.sets.count: 3 }
   - match: { indices.analysis.synonyms.sets.index_count: 3 }
+
+---
+"get cluster stats returns multiple synonym set graph filter stats":
+
+  - requires:
+      cluster_features: ["cluster.stats.multiple_synonym_set_graph_filters"]
+      reason: "multiple synonym set graph filter stats"
+
+  # Indices from the previous test have no analyzers, so counts start at zero
+  - do:
+      cluster.stats: {}
+
+  - match: { indices.analysis.multiple_synonym_set_graph_filters.analyzer_count: 0 }
+  - match: { indices.analysis.multiple_synonym_set_graph_filters.index_count: 0 }
+
+  # Create synonym sets so that synonyms_set + updateable filters can be instantiated
+  - do:
+      synonyms.put_synonym:
+        id: test-set-1
+        body:
+          synonyms_set:
+            - synonyms: "foo, bar"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-set-2
+        body:
+          synonyms_set:
+            - synonyms: "baz, qux"
+
+  # Analyzer with two synonym_graph filters backed by synonyms_set (SHOULD count)
+  - do:
+      indices.create:
+        index: test-multiple-synset-graph
+        body:
+          settings:
+            analysis:
+              filter:
+                syn_graph_1:
+                  type: synonym_graph
+                  synonyms_set: test-set-1
+                  updateable: true
+                syn_graph_2:
+                  type: synonym_graph
+                  synonyms_set: test-set-2
+                  updateable: true
+              analyzer:
+                double_synset_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ "syn_graph_1", "syn_graph_2" ]
+          mappings:
+            properties:
+              content:
+                type: text
+                analyzer: standard
+                search_analyzer: double_synset_analyzer
+
+  # Analyzer with two inline synonym_graph filters (should NOT count)
+  - do:
+      indices.create:
+        index: test-inline-graph
+        body:
+          settings:
+            analysis:
+              filter:
+                inline_sg_1:
+                  type: synonym_graph
+                  synonyms: [ "foo, bar" ]
+                inline_sg_2:
+                  type: synonym_graph
+                  synonyms: [ "baz, qux" ]
+              analyzer:
+                double_inline_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ "inline_sg_1", "inline_sg_2" ]
+
+  - do:
+      cluster.stats: {}
+
+  # Only test-multiple-synset-graph should count: 1 analyzer, 1 index
+  - match: { indices.analysis.multiple_synonym_set_graph_filters.analyzer_count: 1 }
+  - match: { indices.analysis.multiple_synonym_set_graph_filters.index_count: 1 }

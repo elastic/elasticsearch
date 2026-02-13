@@ -117,196 +117,88 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
 
     @Override
     protected AnalysisStats mutateInstance(AnalysisStats instance) {
+        Set<IndexFeatureStats> charFilters = instance.getUsedCharFilterTypes();
+        Set<IndexFeatureStats> tokenizers = instance.getUsedTokenizerTypes();
+        Set<IndexFeatureStats> tokenFilters = instance.getUsedTokenFilterTypes();
+        Set<IndexFeatureStats> analyzers = instance.getUsedAnalyzerTypes();
+        Set<IndexFeatureStats> builtInCharFilters = instance.getUsedBuiltInCharFilters();
+        Set<IndexFeatureStats> builtInTokenizers = instance.getUsedBuiltInTokenizers();
+        Set<IndexFeatureStats> builtInTokenFilters = instance.getUsedBuiltInTokenFilters();
+        Set<IndexFeatureStats> builtInAnalyzers = instance.getUsedBuiltInAnalyzers();
+        Map<String, SynonymsStats> synonyms = instance.getUsedSynonyms();
+        int analyzerCount = instance.getAnalyzersWithMultipleSynonymSetGraphFilters();
+        int indexCount = instance.getIndicesWithMultipleSynonymSetGraphFilters();
+
         switch (randomInt(9)) {
             case 0 -> {
-                Set<IndexFeatureStats> charFilters = new HashSet<>(instance.getUsedCharFilterTypes());
+                charFilters = new HashSet<>(charFilters);
                 if (charFilters.removeIf(s -> s.getName().equals("pattern_replace")) == false) {
                     charFilters.add(randomStats("pattern_replace"));
                 }
-                return new AnalysisStats(
-                    charFilters,
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
             case 1 -> {
-                Set<IndexFeatureStats> tokenizers = new HashSet<>(instance.getUsedTokenizerTypes());
+                tokenizers = new HashSet<>(tokenizers);
                 if (tokenizers.removeIf(s -> s.getName().equals("whitespace")) == false) {
                     tokenizers.add(randomStats("whitespace"));
                 }
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    tokenizers,
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
             case 2 -> {
-                Set<IndexFeatureStats> tokenFilters = new HashSet<>(instance.getUsedTokenFilterTypes());
+                tokenFilters = new HashSet<>(tokenFilters);
                 if (tokenFilters.removeIf(s -> s.getName().equals("stop")) == false) {
                     tokenFilters.add(randomStats("stop"));
                 }
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    tokenFilters,
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
             case 3 -> {
-                Set<IndexFeatureStats> analyzers = new HashSet<>(instance.getUsedAnalyzerTypes());
+                analyzers = new HashSet<>(analyzers);
                 if (analyzers.removeIf(s -> s.getName().equals("english")) == false) {
                     analyzers.add(randomStats("english"));
                 }
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    analyzers,
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
             case 4 -> {
-                Set<IndexFeatureStats> builtInCharFilters = new HashSet<>(instance.getUsedBuiltInCharFilters());
+                builtInCharFilters = new HashSet<>(builtInCharFilters);
                 if (builtInCharFilters.removeIf(s -> s.getName().equals("html_strip")) == false) {
                     builtInCharFilters.add(randomStats("html_strip"));
                 }
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    builtInCharFilters,
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
             case 5 -> {
-                Set<IndexFeatureStats> builtInTokenizers = new HashSet<>(instance.getUsedBuiltInTokenizers());
+                builtInTokenizers = new HashSet<>(builtInTokenizers);
                 if (builtInTokenizers.removeIf(s -> s.getName().equals("keyword")) == false) {
                     builtInTokenizers.add(randomStats("keyword"));
                 }
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    builtInTokenizers,
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
             case 6 -> {
-                Set<IndexFeatureStats> builtInTokenFilters = new HashSet<>(instance.getUsedBuiltInTokenFilters());
+                builtInTokenFilters = new HashSet<>(builtInTokenFilters);
                 if (builtInTokenFilters.removeIf(s -> s.getName().equals("trim")) == false) {
                     builtInTokenFilters.add(randomStats("trim"));
                 }
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    builtInTokenFilters,
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
             case 7 -> {
-                Set<IndexFeatureStats> builtInAnalyzers = new HashSet<>(instance.getUsedBuiltInAnalyzers());
+                builtInAnalyzers = new HashSet<>(builtInAnalyzers);
                 if (builtInAnalyzers.removeIf(s -> s.getName().equals("french")) == false) {
                     builtInAnalyzers.add(randomStats("french"));
                 }
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    builtInAnalyzers,
-                    instance.getUsedSynonyms(),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
             }
-            case 8 -> {
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    randomValueOtherThan(instance.getUsedSynonyms(), AnalysisStatsTests::randomSynonymsStats),
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    instance.getIndicesWithMultipleSynonymSetGraphFilters()
-                );
-            }
+            case 8 -> synonyms = randomValueOtherThan(synonyms, AnalysisStatsTests::randomSynonymsStats);
             case 9 -> {
-                int newAnalyzerCount = randomValueOtherThan(
-                    instance.getAnalyzersWithMultipleSynonymSetGraphFilters(),
-                    () -> randomIntBetween(0, 10)
-                );
-                return new AnalysisStats(
-                    instance.getUsedCharFilterTypes(),
-                    instance.getUsedTokenizerTypes(),
-                    instance.getUsedTokenFilterTypes(),
-                    instance.getUsedAnalyzerTypes(),
-                    instance.getUsedBuiltInCharFilters(),
-                    instance.getUsedBuiltInTokenizers(),
-                    instance.getUsedBuiltInTokenFilters(),
-                    instance.getUsedBuiltInAnalyzers(),
-                    instance.getUsedSynonyms(),
-                    newAnalyzerCount,
-                    randomIntBetween(0, newAnalyzerCount)
-                );
+                analyzerCount = randomValueOtherThan(analyzerCount, () -> randomIntBetween(0, 10));
+                indexCount = randomIntBetween(0, analyzerCount);
             }
             default -> throw new AssertionError();
         }
 
+        return new AnalysisStats(
+            charFilters,
+            tokenizers,
+            tokenFilters,
+            analyzers,
+            builtInCharFilters,
+            builtInTokenizers,
+            builtInTokenFilters,
+            builtInAnalyzers,
+            synonyms,
+            analyzerCount,
+            indexCount
+        );
     }
 
     public void testAccountsRegularIndices() {
@@ -497,11 +389,13 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                   "filter": {
                     "syn_graph_1": {
                       "type": "synonym_graph",
-                      "synonyms_set": "set-1"
+                      "synonyms_set": "set-1",
+                      "updateable": true
                     },
                     "syn_graph_2": {
                       "type": "synonym_graph",
-                      "synonyms_set": "set-2"
+                      "synonyms_set": "set-2",
+                      "updateable": true
                     }
                   },
                   "analyzer": {
@@ -526,7 +420,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                   "filter": {
                     "syn_graph_only": {
                       "type": "synonym_graph",
-                      "synonyms_set": "set-1"
+                      "synonyms_set": "set-1",
+                      "updateable": true
                     }
                   },
                   "analyzer": {
@@ -551,15 +446,18 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                   "filter": {
                     "sg_a": {
                       "type": "synonym_graph",
-                      "synonyms_set": "set-a"
+                      "synonyms_set": "set-a",
+                      "updateable": true
                     },
                     "sg_b": {
                       "type": "synonym_graph",
-                      "synonyms_set": "set-b"
+                      "synonyms_set": "set-b",
+                      "updateable": true
                     },
                     "sg_c": {
                       "type": "synonym_graph",
-                      "synonyms_set": "set-c"
+                      "synonyms_set": "set-c",
+                      "updateable": true
                     }
                   },
                   "analyzer": {
@@ -601,7 +499,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                   "filter": {
                     "syn_set_filter": {
                       "type": "synonym_graph",
-                      "synonyms_set": "my-set"
+                      "synonyms_set": "my-set",
+                      "updateable": true
                     },
                     "syn_inline_filter": {
                       "type": "synonym_graph",
@@ -702,11 +601,13 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                   "filter": {
                     "syn_1": {
                       "type": "synonym",
-                      "synonyms_set": "set-1"
+                      "synonyms_set": "set-1",
+                      "updateable": true
                     },
                     "syn_2": {
                       "type": "synonym",
-                      "synonyms_set": "set-2"
+                      "synonyms_set": "set-2",
+                      "updateable": true
                     }
                   },
                   "analyzer": {

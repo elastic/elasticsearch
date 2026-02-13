@@ -193,8 +193,16 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         @Nullable RateLimitSettings rateLimitSettings,
         Boolean dimensionsSetByUser
     ) {
-        this(modelId, createOptionalUri(url), dimensions, encodingFormat,
-            similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
+        this(
+            modelId,
+            createOptionalUri(url),
+            dimensions,
+            encodingFormat,
+            similarity,
+            maxInputTokens,
+            rateLimitSettings,
+            dimensionsSetByUser
+        );
     }
 
     @Override

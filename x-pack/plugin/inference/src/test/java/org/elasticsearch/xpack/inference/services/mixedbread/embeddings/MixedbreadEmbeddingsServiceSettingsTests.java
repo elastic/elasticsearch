@@ -78,7 +78,15 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultUri_DefaultRateLimit() throws IOException {
         var serviceSettings = new MixedbreadEmbeddingsServiceSettings(
-            TestUtils.MODEL_ID, (URI) null, null, null, null, null, null, TestUtils.DIMENSIONS_SET_BY_USER_TRUE);
+            TestUtils.MODEL_ID,
+            (URI) null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+        );
         assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
             {
                 "model_id":"model_id_value",

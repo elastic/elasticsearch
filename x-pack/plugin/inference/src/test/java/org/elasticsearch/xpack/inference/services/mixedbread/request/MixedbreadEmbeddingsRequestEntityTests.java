@@ -46,7 +46,14 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_SingleRequest_WritesMinimalFields() throws IOException {
         var entity = new MixedbreadEmbeddingsRequestEntity(
-            List.of("abc"), TestUtils.MODEL_ID, null, null, null, null, TestUtils.DIMENSIONS_SET_BY_USER_TRUE);
+            List.of("abc"),
+            TestUtils.MODEL_ID,
+            null,
+            null,
+            null,
+            null,
+            TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+        );
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {
@@ -58,7 +65,14 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_MultipleRequests_WritesAllFieldsIfDefined() throws IOException {
         var entity = new MixedbreadEmbeddingsRequestEntity(
-            List.of("abc", "def"), TestUtils.MODEL_ID, null, null, null, null, TestUtils.DIMENSIONS_SET_BY_USER_TRUE);
+            List.of("abc", "def"),
+            TestUtils.MODEL_ID,
+            null,
+            null,
+            null,
+            null,
+            TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+        );
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {
@@ -70,7 +84,14 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_MultipleRequests_WritesMinimalFields() throws IOException {
         var entity = new MixedbreadEmbeddingsRequestEntity(
-            List.of("abc", "def"), TestUtils.MODEL_ID, null, null, null, null, TestUtils.DIMENSIONS_SET_BY_USER_TRUE);
+            List.of("abc", "def"),
+            TestUtils.MODEL_ID,
+            null,
+            null,
+            null,
+            null,
+            TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+        );
 
         assertThat(getXContentResult(entity), equalToIgnoringWhitespaceInJsonString("""
             {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 
@@ -20,13 +19,13 @@ import java.util.List;
 /**
  * Unified class that can represent on-heap and off-heap vector values.
  */
-public final class KmeansFloatVectorValues extends FloatVectorValues {
+public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
 
     private final VectorSupplier vectors;
     private final DocSupplier docs;
     private final int numVectors;
 
-    private KmeansFloatVectorValues(VectorSupplier vectors, DocSupplier docs, int numVectors) {
+    private KMeansFloatVectorValues(VectorSupplier vectors, DocSupplier docs, int numVectors) {
         this.vectors = vectors;
         this.docs = docs;
         this.numVectors = numVectors;
@@ -35,10 +34,10 @@ public final class KmeansFloatVectorValues extends FloatVectorValues {
     /**
      * Build an instance from on-heap data structures.
      */
-    public static KmeansFloatVectorValues build(List<float[]> vectors, int[] docs, int dim) {
+    public static KMeansFloatVectorValues build(List<float[]> vectors, int[] docs, int dim) {
         VectorSupplier vectorSupplier = new OnHeapVectorSupplier(vectors, dim);
         DocSupplier docSupplier = docs == null ? null : new OnHeapDocSupplier(docs);
-        return new KmeansFloatVectorValues(vectorSupplier, docSupplier, vectors.size());
+        return new KMeansFloatVectorValues(vectorSupplier, docSupplier, vectors.size());
     }
 
     /**
@@ -46,7 +45,7 @@ public final class KmeansFloatVectorValues extends FloatVectorValues {
      * little endian floats one after the other. Docs are expected to be written as little endian ints
      * one after the other.
      */
-    public static KmeansFloatVectorValues build(IndexInput vectors, IndexInput docs, int numVectors, int dims) throws IOException {
+    public static KMeansFloatVectorValues build(IndexInput vectors, IndexInput docs, int numVectors, int dims) throws IOException {
         long vectorLength = (long) dims * Float.BYTES;
         float[] vector = new float[dims];
         VectorSupplier vectorSupplier = new OffHeapVectorSupplier(vectors, vector, vectorLength);
@@ -57,7 +56,7 @@ public final class KmeansFloatVectorValues extends FloatVectorValues {
             RandomAccessInput randomDocs = docs.randomAccessSlice(0, docs.length());
             docSupplier = new OffHeapDocSupplier(docs, randomDocs);
         }
-        return new KmeansFloatVectorValues(vectorSupplier, docSupplier, numVectors);
+        return new KMeansFloatVectorValues(vectorSupplier, docSupplier, numVectors);
     }
 
     @Override
@@ -66,8 +65,8 @@ public final class KmeansFloatVectorValues extends FloatVectorValues {
     }
 
     @Override
-    public FloatVectorValues copy() {
-        return new KmeansFloatVectorValues(vectors.copy(), docs != null ? docs.copy() : null, numVectors);
+    public ClusteringFloatVectorValues copy() {
+        return new KMeansFloatVectorValues(vectors.copy(), docs != null ? docs.copy() : null, numVectors);
     }
 
     @Override

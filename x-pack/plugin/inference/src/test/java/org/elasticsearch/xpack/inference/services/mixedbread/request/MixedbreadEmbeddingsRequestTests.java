@@ -35,7 +35,7 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
         var request = createRequest(TestUtils.CUSTOM_URL, null, null);
         var requestMap = getEntityAsMap(request);
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("input"), is(List.of(INPUT)));
         assertThat(requestMap.get("model"), is(TestUtils.MODEL_ID));
     }
@@ -43,7 +43,7 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_WithAllFieldsSets() throws IOException {
         var request = createRequest(TestUtils.CUSTOM_URL, TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         var requestMap = getEntityAsMap(request);
-        assertThat(requestMap, aMapWithSize(5));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("input"), is(List.of(INPUT)));
         assertThat(requestMap.get("model"), is(TestUtils.MODEL_ID));
         assertThat(requestMap.get("prompt"), is(TestUtils.PROMPT_INITIAL_VALUE));

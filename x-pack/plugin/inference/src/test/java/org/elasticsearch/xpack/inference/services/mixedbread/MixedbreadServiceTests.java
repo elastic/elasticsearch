@@ -323,7 +323,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                     null,
                     MAX_INPUT_TOKENS_VALUE,
                     null,
-                    TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+                    null
                 );
             } else {
                 return MixedbreadEmbeddingsServiceSettingsTests.getServiceSettingsMap(

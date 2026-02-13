@@ -37,7 +37,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 /**
@@ -87,7 +86,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
                     );
                 }
                 dimensionsSetByUser = dimensions != null;
-                ;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
@@ -175,15 +173,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         @Nullable RateLimitSettings rateLimitSettings,
         Boolean dimensionsSetByUser
     ) {
-        this(
-            modelId,
-            createOptionalUri(url),
-            dimensions,
-            similarity,
-            maxInputTokens,
-            rateLimitSettings,
-            dimensionsSetByUser
-        );
+        this(modelId, createOptionalUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
     }
 
     @Override
@@ -225,7 +215,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     }
 
     public Boolean dimensionsSetByUser() {
-        return dimensionsSetByUser;
+        return this.dimensionsSetByUser;
     }
 
     @Override

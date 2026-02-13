@@ -37,8 +37,7 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
                 "model": "model_id_value",
                 "dimensions": 3,
                 "prompt": "prompt_initial_value",
-                "normalized": false,
-                "encoding_format": "float"
+                "normalized": false
             }
             """));
     }

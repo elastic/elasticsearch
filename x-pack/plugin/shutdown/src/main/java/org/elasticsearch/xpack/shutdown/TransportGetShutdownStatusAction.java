@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -278,20 +279,27 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         // Get all shard explanations
-        var unmovableShards = currentState.getRoutingNodes()
+        List<ShardRouting> shardsToExplain = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
-            .peek(s -> cancellableTask.ensureNotCancelled())
-            .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
+            .collect(Collectors.toList());
+        cancellableTask.ensureNotCancelled();
+
+        List<ShardAllocationDecision> shardDecisions = allocationService.explainAssignedShardAllocations(shardsToExplain, allocation);
+
+        List<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShards = new ArrayList<>(shardsToExplain.size());
+        for (int i = 0; i < shardsToExplain.size(); i++) {
+            ShardRouting shard = shardsToExplain.get(i);
+            ShardAllocationDecision decision = shardDecisions.get(i);
+
             // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
-            .filter(pair -> {
-                assert pair.v2().getMoveDecision().cannotRemain()
-                    : "shard [" + pair + "] can remain on node [" + nodeId + "], but that node is shutting down";
-                return pair.v2().getMoveDecision().cannotRemain();
-            })
-            // These shards will move as soon as possible
-            .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
-            .toList();
+            MoveDecision moveDecision = decision.getMoveDecision();
+            assert moveDecision.cannotRemain()
+                : "shard [" + shard + "/" + decision + "] can remain on node [" + nodeId + "], but that node is shutting down";
+            if (moveDecision.cannotRemain() && moveDecision.getAllocationDecision().equals(AllocationDecision.YES) == false) {
+                unmovableShards.add(new Tuple<>(shard, decision));
+            }
+        }
 
         // If there's no relocating shards and shards still on this node, we need to figure out why
         AtomicInteger shardsToIgnoreForFinalStatus = new AtomicInteger(0);

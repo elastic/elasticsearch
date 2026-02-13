@@ -265,6 +265,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights
         );
+        return explainShardAllocation(balancer, shard, allocation);
+    }
+
+    private ShardAllocationDecision explainShardAllocation(
+        Balancer balancer,
+        final ShardRouting shard,
+        final RoutingAllocation allocation
+    ) {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         final ProjectIndex index = new ProjectIndex(allocation, shard);
@@ -277,6 +285,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
+    }
+
+    @Override
+    public List<ShardAllocationDecision> explainShardAllocations(final List<ShardRouting> shards, final RoutingAllocation allocation) {
+        Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancingWeightsFactory.create(),
+            balancerSettings.completeEarlyOnShardAssignmentChange(),
+            logInvalidWeights
+        );
+
+        List<ShardAllocationDecision> shardDecisions = new ArrayList<>(shards.size());
+        for (ShardRouting shard : shards) {
+            shardDecisions.add(explainShardAllocation(balancer, shard, allocation));
+        }
+
+        return shardDecisions;
     }
 
     private void failAllocationOfNewPrimaries(RoutingAllocation allocation) {

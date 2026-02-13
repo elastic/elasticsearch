@@ -909,7 +909,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
-        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
 
@@ -957,14 +957,6 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static URL getResource(String name) {
-        URL result = CsvTestsDataLoader.class.getResource(name);
-        if (result == null) {
-            throw new IllegalArgumentException("Cannot find resource " + name);
-        }
-        return result;
-    }
-
     public static InputStream getResourceStream(String name) {
         return Objects.requireNonNull(CsvTestsDataLoader.class.getResourceAsStream(name), "Cannot find resource " + name);
     }
@@ -977,14 +969,13 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
-        logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
+    private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
+        logger.debug("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(dataset), dataset.loadSettings());
 
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
-            URL data = getResource("/data/" + dataset.dataFileName);
-            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields);
+            loadCsvData(client, dataset.indexName, dataset.streamData(), dataset.allowSubFields);
         }
     }
 
@@ -1015,7 +1006,6 @@ public class CsvTestsDataLoader {
 
     record ColumnHeader(String name, String type) {}
 
-    @SuppressWarnings("unchecked")
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
      * The structure of the file is as follows:
@@ -1030,8 +1020,7 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    public static void loadCsvData(RestClient client, String indexName, InputStream resource, boolean allowSubFields)
-        throws IOException {
+    public static void loadCsvData(RestClient client, String indexName, InputStream resource, boolean allowSubFields) throws IOException {
 
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
@@ -1369,21 +1358,16 @@ public class CsvTestsDataLoader {
 
     public record ViewConfig(String name) {
         public String loadQuery() {
-            try {
-                return readTextFile(getResource("/views/" + name + ".esql"));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            return getResourceString("/views/" + name + ".esql");
         }
     }
 
     public record EnrichConfig(String policyName, String policyFileName) {
         public String loadPolicy() {
-            try {
-                return readTextFile(getResource("/" + policyFileName));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            return getResourceString("/enrich/policy/" + policyFileName);
+        }
+        public InputStream streamPolicy() {
+            return getResourceStream("/enrich/policy/" + policyFileName);
         }
     }
 

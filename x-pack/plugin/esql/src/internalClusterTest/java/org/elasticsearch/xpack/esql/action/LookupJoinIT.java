@@ -171,7 +171,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
 
                 // Load CSV data if available
                 if (dataset.dataFileName() != null) {
-                    CsvTestsDataLoader.loadCsvData(restClient, indexName, dataset.streamData(), dataset.allowSubFields(), logger);
+                    CsvTestsDataLoader.loadCsvData(restClient, indexName, dataset.streamData(), dataset.allowSubFields());
                 }
 
                 refresh(indexName);

@@ -557,7 +557,7 @@ public class CsvTests extends ESTestCase {
     private static EnrichResolution loadEnrichPolicies() {
         EnrichResolution enrichResolution = new EnrichResolution();
         for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
-            EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
+            EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig);
             CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
@@ -581,11 +581,11 @@ public class CsvTests extends ESTestCase {
         return enrichResolution;
     }
 
-    private static EnrichPolicy loadEnrichPolicyMapping(String policyFileName) {
-        try (var policy = CsvTestsDataLoader.getResourceStream("/enrich/policy/" + policyFileName)) {
-            return EnrichPolicy.fromXContent(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy));
+    private static EnrichPolicy loadEnrichPolicyMapping(CsvTestsDataLoader.EnrichConfig p) {
+        try {
+            return EnrichPolicy.fromXContent(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, p.streamPolicy()));
         } catch (IOException e) {
-            throw new IllegalArgumentException("Cannot read resource " + policyFileName);
+            throw new IllegalArgumentException("Cannot parse resource " + p.policyName());
         }
     }
 

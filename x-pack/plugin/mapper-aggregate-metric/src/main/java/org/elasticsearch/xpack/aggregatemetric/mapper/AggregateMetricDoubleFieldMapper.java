@@ -20,7 +20,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -53,15 +51,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.runtime.DoubleScriptFieldRangeQuery;
-import org.elasticsearch.search.runtime.DoubleScriptFieldTermQuery;
-import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
@@ -271,8 +265,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
     );
 
     public static final class AggregateMetricDoubleFieldType extends SimpleMappedFieldType {
-        private static final Script EMPTY_SCRIPT = new Script("");
         private final EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
+        // If there is only one metric configured for this field, we delegate to the field.
         private final Metric singleMetric;
         private final MetricType metricType;
 
@@ -282,41 +276,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields,
             Map<String, String> meta
         ) {
-            // TODO double check doc values here
             super(
                 name,
-                metricFields.containsKey(Metric.max) ? metricFields.get(Metric.max).indexType() : IndexType.docValuesOnly(),
+                // If it contains a single metric, we use the index type of that metric, otherwise we default to doc values only
+                metricFields.size() == 1 ? metricFields.values().iterator().next().indexType() : IndexType.docValuesOnly(),
                 false,
                 meta
             );
             this.metricType = metricType;
             this.metricFields = metricFields;
             this.singleMetric = metricFields.size() == 1 ? metricFields.keySet().iterator().next() : null;
-        }
-
-        private Metric derivedDefaultMetric() {
-            return derivedDefaultMetric(name(), metricFields);
-        }
-
-        private static Metric derivedDefaultMetric(String name, EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
-            if (metricFields.containsKey(Metric.max)) {
-                return Metric.max;
-            }
-            // We iterate on the metrics to ensure that we have a deterministic order in metrics
-            for (Metric metric : Metric.values()) {
-                if (metricFields.containsKey(metric)) {
-                    return metric;
-                }
-            }
-            throw new IllegalStateException("No metric found for aggregate metric field [" + name + "]");
-        }
-
-        /**
-         * Return a delegate field type which is max if it exists or any other metric.
-         * @return a field type
-         */
-        private NumberFieldMapper.NumberFieldType delegateFieldType() {
-            return metricFields.get(derivedDefaultMetric());
         }
 
         @Override
@@ -335,11 +304,13 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
-            return metricFields.values().iterator().next().mayExistInIndex(context);    // TODO how does searching actually work here?
+            assert metricFields.isEmpty() == false : "aggregate metric double should have at least one metric defined";
+            return metricFields.values().iterator().next().mayExistInIndex(context);
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
+            assert metricFields.isEmpty() == false : "aggregate metric double should have at least one metric defined";
             return metricFields.values().iterator().next().existsQuery(context);
         }
 
@@ -352,12 +323,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 return metricFields.get(singleMetric).termQuery(value, context);
             }
             if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
-                return new DoubleScriptFieldTermQuery(
-                    EMPTY_SCRIPT,
-                    AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
-                    name(),
-                    NumberFieldMapper.NumberType.objectToDouble(value)
-                );
+                return AggregateMetricAverageScript.doubleTermQuery(name(), value, context.lookup());
             }
             return Queries.NO_DOCS_INSTANCE;
         }
@@ -371,16 +337,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 return metricFields.get(singleMetric).termsQuery(values, context);
             }
             if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
-                Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
-                for (Object value : values) {
-                    terms.add(Double.doubleToLongBits(NumberFieldMapper.NumberType.objectToDouble(value)));
-                }
-                return new DoubleScriptFieldTermsQuery(
-                    EMPTY_SCRIPT,
-                    AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
-                    name(),
-                    terms
-                );
+                return AggregateMetricAverageScript.doubleTermsQuery(name(), values, context.lookup());
             }
             return Queries.NO_DOCS_INSTANCE;
         }
@@ -397,18 +354,13 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 return metricFields.get(singleMetric).rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
             }
             if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
-                return NumberFieldMapper.NumberType.doubleRangeQuery(
+                return AggregateMetricAverageScript.doubleRangeQuery(
+                    name(),
                     lowerTerm,
                     upperTerm,
                     includeLower,
                     includeUpper,
-                    (l, u) -> new DoubleScriptFieldRangeQuery(
-                        EMPTY_SCRIPT,
-                        AggregateMetricAverageFieldScript.newLeafFactory(name(), context.lookup()),
-                        name(),
-                        l,
-                        u
-                    )
+                    context.lookup()
                 );
             }
             return Queries.NO_DOCS_INSTANCE;
@@ -570,12 +522,25 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     if (singleMetric != null) {
                         return new SortedNumericSortField(subfieldName(name(), singleMetric), SortField.Type.DOUBLE, reverse);
                     }
-                    return new SortField(fieldName, new DoubleValuesComparatorSource(null, missingValue, sortMode, nested) {
-                        @Override
-                        protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
-                            return load(context).getAggregateMetricValues();
-                        }
-                    }, reverse);
+                    if (metricFields.containsKey(Metric.sum) && metricFields.containsKey(Metric.value_count)) {
+                        return AggregateMetricAverageScript.sortField(
+                            fieldName,
+                            missingValue,
+                            sortMode,
+                            nested,
+                            reverse,
+                            ctx -> load(ctx).getAggregateMetricValues()
+                        );
+                    }
+                    throw new UnsupportedOperationException(
+                        "["
+                            + CONTENT_TYPE
+                            + "] supports sorting if it has configured a single metric or the metrics ["
+                            + Metric.sum
+                            + ", "
+                            + Metric.value_count
+                            + "]"
+                    );
                 }
 
                 @Override
@@ -609,8 +574,19 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     case AMD_MAX -> Metric.max;
                     case AMD_MIN -> Metric.min;
                     case AMD_SUM -> Metric.sum;
-                    case AMD_DEFAULT -> derivedDefaultMetric(); // TODO: temporary until we combine//
-                                                                // https://github.com/elastic/elasticsearch/pull/141331
+                    // TODO: temporary until we combine https://github.com/elastic/elasticsearch/pull/141331
+                    case AMD_DEFAULT -> {
+                        String name = name();
+                        if (metricFields.containsKey(Metric.max)) {
+                            yield Metric.max;
+                        }
+                        for (Metric m : Metric.values()) {
+                            if (metricFields.containsKey(m)) {
+                                yield m;
+                            }
+                        }
+                        throw new IllegalStateException("No metric found for aggregate metric field [" + name + "]");
+                    }
                     default -> null;
                 };
                 if (metric == null) {
@@ -655,7 +631,8 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
     /** A set of metrics supported */
     private final EnumSet<Metric> metrics;
 
-    /** The default metric to be when querying this field type */
+    /** Deprecated, we default to average or the single metric, if there is only one configured */
+    @Deprecated(since = "9.4.0", forRemoval = true)
     protected Metric defaultMetric;
 
     /** The metric type (gauge, counter, summary) if  field is a time series metric */

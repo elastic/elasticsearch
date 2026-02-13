@@ -41,7 +41,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
             randomInt(10),
-            randomAlphaOfLengthOrNull(10),
             randomFrom(SimilarityMeasure.values()),
             randomInt(10),
             rateLimitSettings,
@@ -54,7 +53,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             TestUtils.MODEL_ID,
             TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
-            TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,
             MAX_INPUT_TOKENS,
             RATE_LIMIT,
@@ -68,7 +66,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
                     "requests_per_minute": 2
                 },
                 "dimensions": 3,
-                "encoding_format": "float",
                 "similarity": "cosine",
                 "max_input_tokens": 3,
                 "dimensions_set_by_user": true
@@ -80,7 +77,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
         var serviceSettings = new MixedbreadEmbeddingsServiceSettings(
             TestUtils.MODEL_ID,
             (URI) null,
-            null,
             null,
             null,
             null,
@@ -129,7 +125,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             modelId,
             TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
-            TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,
             MAX_INPUT_TOKENS,
             rateLimitSettings,

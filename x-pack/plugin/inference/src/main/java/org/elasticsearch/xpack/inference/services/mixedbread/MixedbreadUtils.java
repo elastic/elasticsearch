@@ -36,7 +36,6 @@ public final class MixedbreadUtils {
     public static final String DIMENSIONS_FIELD = "dimensions";
     public static final String PROMPT_FIELD = "prompt";
     public static final String NORMALIZED_FIELD = "normalized";
-    public static final String ENCODING_FORMAT_FIELD = "encoding_format";
 
     public static final String EMBEDDINGS_ERROR_PREFIX = "Embeddings rerank";
     public static final String RERANK_ERROR_PREFIX = "Mixedbread rerank";

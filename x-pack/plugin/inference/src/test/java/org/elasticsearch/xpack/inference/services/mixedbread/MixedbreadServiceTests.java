@@ -249,7 +249,6 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 INFERENCE_ID_VALUE,
                 TestUtils.CUSTOM_URL,
                 DIMENSIONS_VALUE,
-                TestUtils.ENCODING_VALUE,
                 similarityMeasure,
                 MAX_INPUT_TOKENS_VALUE,
                 new RateLimitSettings(10_000),

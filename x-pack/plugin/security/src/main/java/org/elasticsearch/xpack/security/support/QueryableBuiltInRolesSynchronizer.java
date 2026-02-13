@@ -249,7 +249,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
 
     private void endSyncAndRetryIfNeeded() {
         if (sync.endSync()) {
-            if (shouldSyncBuiltInRoles(clusterService.state())) {
+            boolean shouldRetry = false;
+            try {
+                shouldRetry = shouldSyncBuiltInRoles(clusterService.state());
+            } catch (Exception e) {
+                logger.warn("Failed to evaluate retry conditions for built-in roles synchronization", e);
+            }
+            if (shouldRetry) {
                 logger.debug("Retrying synchronization of built-in roles due to pending changes");
                 doSyncBuiltInRoles(rolesProvider.getRoles());
             } else {

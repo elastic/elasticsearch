@@ -819,7 +819,18 @@ public class ComputeService {
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
                     .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : defaultResult);
             case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
-            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> {
+                PhysicalPlan reductionSource = new ExchangeSourceExec(
+                    originalPlan.source(),
+                    new ArrayList<>(rp.plan().references()),
+                    originalPlan.isIntermediateAgg()
+                );
+                yield new ReductionPlan(
+                    originalPlan.replaceChild(rp.plan().replaceChildren(List.of(reductionSource))),
+                    originalPlan,
+                    LocalPhysicalOptimization.ENABLED
+                );
+            }
             default -> defaultResult;
         };
         if (planTimeProfile != null) {

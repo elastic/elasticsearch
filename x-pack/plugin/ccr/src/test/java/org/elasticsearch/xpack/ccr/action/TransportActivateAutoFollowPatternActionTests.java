@@ -11,9 +11,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -86,6 +88,8 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
             assertThat(updatedState, sameInstance(clusterState));
         }
         {
+            @FixForMultiProject(description = "ccr is not project aware")
+            final ProjectId projectId = ProjectId.DEFAULT;
             Request pauseRequest = new Request(
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
@@ -95,10 +99,10 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
             ClusterState updatedState = TransportActivateAutoFollowPatternAction.innerActivate(pauseRequest, clusterState);
             assertThat(updatedState, not(sameInstance(clusterState)));
 
-            AutoFollowMetadata updatedAutoFollowMetadata = updatedState.getMetadata().getProject().custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata updatedAutoFollowMetadata = updatedState.getMetadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
             assertNotEquals(updatedAutoFollowMetadata, notNullValue());
 
-            AutoFollowMetadata autoFollowMetadata = clusterState.getMetadata().getProject().custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata autoFollowMetadata = clusterState.getMetadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
             assertNotEquals(updatedAutoFollowMetadata, autoFollowMetadata);
             assertThat(updatedAutoFollowMetadata.getPatterns().size(), equalTo(autoFollowMetadata.getPatterns().size()));
             assertThat(updatedAutoFollowMetadata.getPatterns().get("remote_cluster").isActive(), not(autoFollowPattern.isActive()));

@@ -176,6 +176,7 @@ public class IndexShardSnapshotStatus {
         assert shardSnapshotResult != null;
         assert shardSnapshotResult.getGeneration() != null;
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
+            assert startTimeMillis != 0 : "startTimeMillis unexpectedly zero";
             this.totalTimeMillis = Math.max(0L, endTimeMillis - startTimeMillis);
             this.shardSnapshotResult.set(shardSnapshotResult);
             this.generation.set(shardSnapshotResult.getGeneration());
@@ -225,7 +226,10 @@ public class IndexShardSnapshotStatus {
     public synchronized SnapshotsInProgress.ShardState moveToUnsuccessful(final Stage newStage, final String failure, final long endTime) {
         assert newStage == Stage.PAUSED || newStage == Stage.FAILURE : newStage;
         if (newStage == Stage.PAUSED && stage.compareAndSet(Stage.PAUSING, Stage.PAUSED)) {
-            this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
+            // Only set totalTimeMillis when the snapshot had actually started
+            if (startTimeMillis != 0) {
+                this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
+            }
             this.failure = failure;
             return SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL;
         }
@@ -235,9 +239,16 @@ public class IndexShardSnapshotStatus {
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {
-        if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
+        final Stage previousStage = stage.getAndSet(Stage.FAILURE);
+        if (previousStage != Stage.FAILURE) {
             abortListeners.onResponse(AbortStatus.NO_ABORT);
-            this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
+            // Only set totalTimeMillis when the snapshot had actually started
+            if (startTimeMillis != 0) {
+                this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
+            } else {
+                assert previousStage == Stage.INIT || previousStage == Stage.PAUSING || previousStage == Stage.ABORTED
+                    : "Missing start time despite being in stage: " + previousStage;
+            }
             this.failure = failure;
         }
     }

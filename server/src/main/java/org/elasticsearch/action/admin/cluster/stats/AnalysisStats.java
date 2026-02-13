@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -44,6 +45,10 @@ import java.util.TreeMap;
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 
     static final NodeFeature MULTIPLE_SYNONYM_SET_GRAPH_FILTERS_FEATURE = new NodeFeature(
+        "cluster.stats.multiple_synonym_set_graph_filters"
+    );
+
+    static final TransportVersion MULTIPLE_SYNONYM_SET_GRAPH_FILTERS_VERSION = TransportVersion.fromName(
         "cluster.stats.multiple_synonym_set_graph_filters"
     );
 
@@ -332,8 +337,13 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedSynonyms = input.readImmutableMap(SynonymsStats::new);
-        analyzersWithMultipleSynonymSetGraphFilters = input.readVInt();
-        indicesWithMultipleSynonymSetGraphFilters = input.readVInt();
+        if (input.getTransportVersion().supports(MULTIPLE_SYNONYM_SET_GRAPH_FILTERS_VERSION)) {
+            analyzersWithMultipleSynonymSetGraphFilters = input.readVInt();
+            indicesWithMultipleSynonymSetGraphFilters = input.readVInt();
+        } else {
+            analyzersWithMultipleSynonymSetGraphFilters = 0;
+            indicesWithMultipleSynonymSetGraphFilters = 0;
+        }
     }
 
     @Override
@@ -347,8 +357,10 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
         out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
-        out.writeVInt(analyzersWithMultipleSynonymSetGraphFilters);
-        out.writeVInt(indicesWithMultipleSynonymSetGraphFilters);
+        if (out.getTransportVersion().supports(MULTIPLE_SYNONYM_SET_GRAPH_FILTERS_VERSION)) {
+            out.writeVInt(analyzersWithMultipleSynonymSetGraphFilters);
+            out.writeVInt(indicesWithMultipleSynonymSetGraphFilters);
+        }
     }
 
     /**

@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
  */
-public abstract class SortableTopNEncoder implements TopNEncoder {
+public abstract class SortableAscTopNEncoder implements TopNEncoder {
     @Override
     public final void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
@@ -53,38 +53,22 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
-        NumericUtils.intToSortableBytes(NumericUtils.floatToSortableInt(value), bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
+        encodeInt(NumericUtils.floatToSortableInt(value), bytesRefBuilder);
     }
 
     @Override
     public final float decodeFloat(BytesRef bytes) {
-        if (bytes.length < Float.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        float v = NumericUtils.sortableIntToFloat(NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset));
-        bytes.offset += Float.BYTES;
-        bytes.length -= Float.BYTES;
-        return v;
+        return NumericUtils.sortableIntToFloat(decodeInt(bytes));
     }
 
     @Override
     public final void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
-        NumericUtils.longToSortableBytes(NumericUtils.doubleToSortableLong(value), bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
+        encodeLong(NumericUtils.doubleToSortableLong(value), bytesRefBuilder);
     }
 
     @Override
     public final double decodeDouble(BytesRef bytes) {
-        if (bytes.length < Double.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        double v = NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes.bytes, bytes.offset));
-        bytes.offset += Double.BYTES;
-        bytes.length -= Double.BYTES;
-        return v;
+        return NumericUtils.sortableLongToDouble(decodeLong(bytes));
     }
 
     @Override

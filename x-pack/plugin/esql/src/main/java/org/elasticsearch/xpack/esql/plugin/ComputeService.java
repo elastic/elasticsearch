@@ -825,6 +825,11 @@ public class ComputeService {
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
+        reductionPlan = new ReductionPlan(
+            reductionPlan.nodeReducePlan().replaceChildAndUpdateOutput(reductionPlan.nodeReducePlan().child()),
+            reductionPlan.dataNodePlan().replaceChildAndUpdateOutput(reductionPlan.dataNodePlan().child()),
+            reductionPlan.localPhysicalOptimization()
+        );
         if (Assertions.ENABLED) {
             PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.nodeReducePlan(), reductionPlan.nodeReducePlan().child().output());
             PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionPlan.dataNodePlan().child().output());

@@ -272,7 +272,7 @@ public class PlannerUtils {
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
         // This check is needed because in test code we sometimes invoke localPlan with a non-ExchangeSinkExec root.
         if (resultPlan instanceof ExchangeSinkExec sink) {
-            resultPlan = new ExchangeSinkExec(sink.source(), sink.child().output(), sink.isIntermediateAgg(), sink.child());
+            resultPlan = sink.replaceChildAndUpdateOutput(sink.child());
         }
         if (Assertions.ENABLED) {
             PhysicalVerifier.LOCAL_INSTANCE.verify(resultPlan, resultPlan.output());

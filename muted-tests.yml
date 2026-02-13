@@ -165,6 +165,7 @@ tests:
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024
 
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

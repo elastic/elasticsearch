@@ -17,9 +17,16 @@
 
 package org.elasticsearch.xpack.stateless.autoscaling.search;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -34,8 +41,12 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasScalerCacheBudget.AVAILABLE_CACHE_FOR_REPLICAS_INCREASE;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasScalerCacheBudget.CACHE_USED_BY_CURRENT_REPLICAS;
+import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasScalerCacheBudget.TOTAL_BUDGET_SIZE;
 import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterServiceTests.shardMetricOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ReplicasScalerCacheBudgetTests extends ESTestCase {
 
@@ -58,7 +69,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.EMPTY,
             new DesiredTopologyContext(ClusterServiceUtils.createClusterService(testThreadPool)),
             new ReplicasScaleDownState(),
-            -1
+            -1,
+            MeterRegistry.NOOP
         );
 
         Index index1 = new Index("index1", "uuid1");
@@ -85,7 +97,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.EMPTY,
             new DesiredTopologyContext(ClusterServiceUtils.createClusterService(testThreadPool)),
             new ReplicasScaleDownState(),
-            -1
+            -1,
+            MeterRegistry.NOOP
         );
 
         Index index1 = new Index("index1", "uuid1");
@@ -120,7 +133,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.EMPTY,
             new DesiredTopologyContext(ClusterServiceUtils.createClusterService(testThreadPool)),
             replicasScaleDownState,
-            6
+            6,
+            MeterRegistry.NOOP
         );
 
         Index index1 = new Index("index1", "uuid1");
@@ -155,7 +169,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.EMPTY,
             new DesiredTopologyContext(ClusterServiceUtils.createClusterService(testThreadPool)),
             replicasScaleDownState,
-            6
+            6,
+            MeterRegistry.NOOP
         );
 
         Index index1 = new Index("index1", "uuid1");
@@ -441,7 +456,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.builder().putList("node.roles", "search").build(),
             desiredTopologyContext,
             null,
-            -1
+            -1,
+            MeterRegistry.NOOP
         );
         replicasScalerCacheBudget.setCacheBudgetRatio(0.5);
 
@@ -513,7 +529,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.builder().putList("node.roles", "search").build(),
             desiredTopologyContext,
             null,
-            -1
+            -1,
+            MeterRegistry.NOOP
         );
         replicasScalerCacheBudget.setCacheBudgetRatio(0.25);
 
@@ -588,7 +605,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.builder().putList("node.roles", "search").build(),
             desiredTopologyContext,
             new ReplicasScaleDownState(),
-            -1
+            -1,
+            MeterRegistry.NOOP
         );
         replicasScalerCacheBudget.setCacheBudgetRatio(0.25);
 
@@ -653,7 +671,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
                 Settings.builder().putList("node.roles", "search").build(),
                 desiredTopologyContext,
                 replicasScaleDownState,
-                6
+                6,
+                MeterRegistry.NOOP
             );
             replicasScalerCacheBudget.setCacheBudgetRatio(0.25);
             budgetedResult = replicasScalerCacheBudget.applyCacheBudgetConstraint(rankingContext, Map.of(), initialResult, false);
@@ -681,7 +700,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.builder().putList("node.roles", "search").build(),
             desiredTopologyContext,
             null,
-            -1
+            -1,
+            MeterRegistry.NOOP
         );
         replicasScalerCacheBudget.setCacheBudgetRatio(0.5);
 
@@ -753,7 +773,8 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             Settings.builder().putList("node.roles", "search").build(),
             desiredTopologyContext,
             null,
-            -1
+            -1,
+            MeterRegistry.NOOP
         );
         replicasScalerCacheBudget.setCacheBudgetRatio(0.5);
 
@@ -821,5 +842,99 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
         assertThat(budgetedResult.desiredReplicasPerIndex().get("index2"), equalTo(1));
         assertThat(budgetedResult.desiredReplicasPerIndex().get(".system"), equalTo(1));
         assertThat(budgetedResult.indicesBlockedFromScaleUp(), equalTo(indicesBlockedFromScaleUp + 3));
+    }
+
+    public void testCacheBudgetMetricsAreRecorded() {
+        DesiredTopologyContext desiredTopologyContext = new DesiredTopologyContext(
+            ClusterServiceUtils.createClusterService(testThreadPool)
+        );
+        DesiredClusterTopology.TierTopology searchTopology = new DesiredClusterTopology.TierTopology(2, "5gb", 1.0f, 1.0f, 1.0f);
+        desiredTopologyContext.updateDesiredClusterTopology(
+            new DesiredClusterTopology(searchTopology, DesiredClusterTopologyTestUtils.randomTierTopology())
+        );
+
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        Settings settings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .build();
+        ReplicasScalerCacheBudget replicasScalerCacheBudget = new ReplicasScalerCacheBudget(
+            settings,
+            desiredTopologyContext,
+            new ReplicasScaleDownState(),
+            6,
+            recordingMeterRegistry
+        );
+        double cacheBudgetRatio = 0.5;
+        replicasScalerCacheBudget.setCacheBudgetRatio(cacheBudgetRatio);
+
+        /*
+        Cache budget calculation:
+        - 5gb memory * 1.0 storage ratio * 0.9 SHARED_CACHE_SIZE_SETTING ~= 4.5gb of cache per node
+        - 2 nodes => 9gb of cache
+        - 0.5 cache budget ratio => 4.5gb (~4_500_000_000 bytes) total budget
+
+        We have 3 indices with 1 replica each, 500MB interactive size each.
+        Current replicas use: 3 * 1 * 500MB = 1.5GB
+
+        Instant failover recommends scaling to 2 replicas.
+        Cache needed for instant failover scale-ups: 3 * 1 * 500MB = 1.5GB (one additional replica each)
+
+        Available for load balancing = 4.5GB - 1.5GB (current) - 1.5GB (IF scale-ups) = 1.5GB
+        */
+        Index index1 = new Index("index1", "uuid1");
+        Index index2 = new Index("index2", "uuid2");
+        Index index3 = new Index("index3", "uuid3");
+        ReplicaRankingContext rankingContext = new ReplicaRankingContext(
+            Map.of(
+                index1,
+                new SearchMetricsService.IndexProperties(index1.getName(), 1, 1, false, false, 0),
+                index2,
+                new SearchMetricsService.IndexProperties(index2.getName(), 1, 1, false, false, 0),
+                index3,
+                new SearchMetricsService.IndexProperties(index3.getName(), 1, 1, false, false, 0)
+            ),
+            Map.of(
+                new ShardId(index1, 0),
+                shardMetricOf(500_000_000L),
+                new ShardId(index2, 0),
+                shardMetricOf(500_000_000L),
+                new ShardId(index3, 0),
+                shardMetricOf(500_000_000L)
+            ),
+            -1
+        );
+
+        Map<String, Integer> instantFailoverRecommendations = Map.of("index1", 2, "index2", 2, "index3", 2);
+        SortedMap<String, Integer> loadBalancingRecommendations = new TreeMap<>();
+        loadBalancingRecommendations.put("index1", 2);
+        loadBalancingRecommendations.put("index2", 2);
+        loadBalancingRecommendations.put("index3", 2);
+        var initialResult = new ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult(Map.of(), loadBalancingRecommendations, 0);
+
+        replicasScalerCacheBudget.applyCacheBudgetConstraint(rankingContext, instantFailoverRecommendations, initialResult, false);
+        recordingMeterRegistry.getRecorder().collect();
+
+        Measurement totalBudgetMeasurement = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_GAUGE, TOTAL_BUDGET_SIZE)
+            .getLast();
+        Measurement usedByCurrentReplicasMeasurement = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_GAUGE, CACHE_USED_BY_CURRENT_REPLICAS)
+            .getLast();
+        Measurement availableForScaleUpsMeasurement = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_GAUGE, AVAILABLE_CACHE_FOR_REPLICAS_INCREASE)
+            .getLast();
+
+        long desiredNodeFsSize = (long) (searchTopology.getMemory().getBytes() * searchTopology.getStorageRatio());
+        long expectedCacheBudget = (long) (SharedBlobCacheService.calculateCacheSize(settings, desiredNodeFsSize) * searchTopology
+            .getReplicas() * cacheBudgetRatio);
+        assertThat(totalBudgetMeasurement.getLong(), is(expectedCacheBudget));
+
+        // Used by current replicas: 3 indices * 1 replica * 500MB = 1.5GB
+        assertThat(usedByCurrentReplicasMeasurement.getLong(), equalTo(1_500_000_000L));
+
+        // Available for load balancing scale-ups = total - current - instant failover scale-ups
+        // Should be total - 1.5GB (current) - 1.5GB (IF scale-ups) = total - 3GB
+        long expectedAvailable = totalBudgetMeasurement.getLong() - 1_500_000_000L - 1_500_000_000L;
+        assertThat(availableForScaleUpsMeasurement.getLong(), equalTo(expectedAvailable));
     }
 }

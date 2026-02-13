@@ -36,6 +36,7 @@ public record MixedbreadEmbeddingsRequestEntity(
     public MixedbreadEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
         Objects.requireNonNull(modelId);
+        Objects.requireNonNull(dimensionsSetByUser);
     }
 
     @Override

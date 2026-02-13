@@ -139,9 +139,7 @@ public abstract class MixedbreadServiceSettings extends FilteredXContentObject i
         var validationException = new ValidationException();
         var commonServiceSettings = extractMixedbreadCommonServiceSettings(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return factory.apply(commonServiceSettings);
     }

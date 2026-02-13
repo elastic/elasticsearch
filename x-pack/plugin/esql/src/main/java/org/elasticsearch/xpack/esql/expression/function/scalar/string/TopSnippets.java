@@ -246,7 +246,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             throw new IllegalArgumentException("single-value function encountered multi-value");
         }
 
-        BytesRef queryValue = query.getBytesRef(query.getFirstValueIndex(position), new BytesRef());
+        BytesRef scratch = new BytesRef();
+        BytesRef queryValue = query.getBytesRef(query.getFirstValueIndex(position), scratch);
         String queryString = queryValue.utf8ToString();
 
         int firstValueIndex = field.getFirstValueIndex(position);
@@ -255,7 +256,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         ArrayList<ScoredChunk> allScoredChunks = new ArrayList<>();
 
         for (int i = 0; i < valueCount; i++) {
-            BytesRef value = field.getBytesRef(firstValueIndex + i, new BytesRef());
+            BytesRef value = field.getBytesRef(firstValueIndex + i, scratch);
             String content = value.utf8ToString();
 
             List<String> chunks = chunkText(content, chunkingSettings);

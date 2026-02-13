@@ -87,11 +87,27 @@ book_no:keyword | title:text                                                    
 topSnippetsWithMultivaluedField
 required_capability: top_snippets_mv
 
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10004)
+| EVAL snippets = TOP_SNIPPETS(job_positions, "Senior")
+| KEEP emp_no, snippets
+| SORT emp_no
+;
+
+emp_no:integer | snippets:keyword
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+10004          | null
+;
+
+topSnippetsWithMultivaluedFieldSingleMatch
+required_capability: top_snippets_mv
+
 ROW positions = ["Senior Team Lead", "Software Engineer"]
 | EVAL snippets = TOP_SNIPPETS(positions, "lead")
 | KEEP snippets
 ;
- 
+
 snippets:keyword
 Senior Team Lead
 ;
@@ -102,7 +118,7 @@ required_capability: top_snippets_mv
 ROW positions = ["Senior Team Lead", "Lead Architect"]
 | EVAL snippets = TOP_SNIPPETS(positions, "lead")
 | KEEP snippets
- ;
+;
 
 snippets:keyword
 [Senior Team Lead, Lead Architect]
@@ -121,20 +137,16 @@ snippets:keyword
 [All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
 ;
 
-topSnippetsWithMultivaluedFieldFromIndex
+topSnippetsWithMultivaluedFieldNoMatches
 required_capability: top_snippets_mv
 
-FROM employees
-| WHERE emp_no IN (10001, 10002, 10004)
-| EVAL snippets = TOP_SNIPPETS(job_positions, "Senior")
-| KEEP emp_no, snippets
-| SORT emp_no
+ROW positions = ["Junior Developer", "Intern", "Associate"]
+| EVAL snippets = TOP_SNIPPETS(positions, "Senior")
+| KEEP snippets
 ;
 
-emp_no:integer | snippets:keyword
-10001          | Senior Python Developer
-10002          | Senior Team Lead
-10004          | null
+snippets:keyword
+null
 ;
 
 topSnippetsWithMultivaluedQuery

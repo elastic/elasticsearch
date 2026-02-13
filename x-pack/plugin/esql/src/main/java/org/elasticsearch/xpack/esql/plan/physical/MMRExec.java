@@ -26,8 +26,6 @@ import java.util.ArrayList;
 import java.util.Objects;
 
 public class MMRExec extends UnaryExec {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(PhysicalPlan.class, "MmrExec", MMRExec::new);
-
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVectorExpression;
@@ -52,17 +50,6 @@ public class MMRExec extends UnaryExec {
 
         this.queryVector = extractQueryVectorData(queryVectorExpression);
         this.lambda = MMR.tryExtractLambdaFromOptions(options);
-    }
-
-    public MMRExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(Attribute.class),
-            in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
-        );
     }
 
     public Attribute diversifyField() {
@@ -93,18 +80,11 @@ public class MMRExec extends UnaryExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(child());
-        out.writeNamedWriteable(diversifyField);
-        out.writeNamedWriteable(limit);
-        out.writeOptionalNamedWriteable(queryVectorExpression);
-        out.writeOptionalNamedWriteable(options);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
-    public String getWriteableName() {
-        return ENTRY.name;
-    }
+    public String getWriteableName() { throw new UnsupportedOperationException("not serialized"); }
 
     @Override
     public boolean equals(Object o) {

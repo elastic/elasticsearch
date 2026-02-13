@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex.remote;
 
 import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -20,14 +19,12 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
@@ -56,7 +53,6 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -67,13 +63,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.execute;
+import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PARSER;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -128,26 +124,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void validateAllConsumed() {
         assertThat(failureQueue, empty());
         assertThat(responseQueue, empty());
-    }
-
-    public void testLookupRemoteVersion() throws Exception {
-        assertLookupRemoteVersion(Version.fromString("0.20.5"), "main/0_20_5.json");
-        assertLookupRemoteVersion(Version.fromString("0.90.13"), "main/0_90_13.json");
-        assertLookupRemoteVersion(Version.fromString("1.7.5"), "main/1_7_5.json");
-        assertLookupRemoteVersion(Version.fromId(2030399), "main/2_3_3.json");
-        // assert for V_5_0_0 (no qualifier) since we no longer consider qualifier in Version since 7
-        assertLookupRemoteVersion(Version.fromId(5000099), "main/5_0_0_alpha_3.json");
-        // V_5_0_0 since we no longer consider qualifier in Version
-        assertLookupRemoteVersion(Version.fromId(5000099), "main/with_unknown_fields.json");
-    }
-
-    private void assertLookupRemoteVersion(Version expected, String s) throws Exception {
-        AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s).lookupRemoteVersion(wrapAsListener(v -> {
-            assertEquals(expected, v);
-            called.set(true);
-        }));
-        assertTrue(called.get());
     }
 
     public void testParseStartOk() throws Exception {
@@ -373,55 +349,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    public void testWrapExceptionToPreserveStatus() throws IOException {
-        Exception cause = new Exception();
-
-        // Successfully get the status without a body
-        RestStatus status = randomFrom(RestStatus.values());
-        ElasticsearchStatusException wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), null, cause);
-        assertEquals(status, wrapped.status());
-        assertEquals(cause, wrapped.getCause());
-        assertEquals("No error body.", wrapped.getMessage());
-
-        // Successfully get the status without a body
-        HttpEntity okEntity = new StringEntity("test body", ContentType.TEXT_PLAIN);
-        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), okEntity, cause);
-        assertEquals(status, wrapped.status());
-        assertEquals(cause, wrapped.getCause());
-        assertEquals("body=test body", wrapped.getMessage());
-
-        // Successfully get the status with a broken body
-        IOException badEntityException = new IOException();
-        HttpEntity badEntity = mock(HttpEntity.class);
-        when(badEntity.getContent()).thenThrow(badEntityException);
-        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), badEntity, cause);
-        assertEquals(status, wrapped.status());
-        assertEquals(cause, wrapped.getCause());
-        assertEquals("Failed to extract body.", wrapped.getMessage());
-        assertEquals(badEntityException, wrapped.getSuppressed()[0]);
-
-        // Fail to get the status without a body
-        int notAnHttpStatus = -1;
-        assertNull(RestStatus.fromCode(notAnHttpStatus));
-        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(notAnHttpStatus, null, cause);
-        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, wrapped.status());
-        assertEquals(cause, wrapped.getCause());
-        assertEquals("Couldn't extract status [" + notAnHttpStatus + "]. No error body.", wrapped.getMessage());
-
-        // Fail to get the status without a body
-        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(notAnHttpStatus, okEntity, cause);
-        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, wrapped.status());
-        assertEquals(cause, wrapped.getCause());
-        assertEquals("Couldn't extract status [" + notAnHttpStatus + "]. body=test body", wrapped.getMessage());
-
-        // Fail to get the status with a broken body
-        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(notAnHttpStatus, badEntity, cause);
-        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, wrapped.status());
-        assertEquals(cause, wrapped.getCause());
-        assertEquals("Couldn't extract status [" + notAnHttpStatus + "]. Failed to extract body.", wrapped.getMessage());
-        assertEquals(badEntityException, wrapped.getSuppressed()[0]);
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testTooLargeResponse() throws Exception {
         ContentTooLongException tooLong = new ContentTooLongException("too long!");
@@ -454,15 +381,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(responseQueue.isEmpty());
     }
 
-    public void testNoContentTypeIsError() {
-        RuntimeException e = expectListenerFailure(
-            RuntimeException.class,
-            (RejectAwareActionListener<Version> listener) -> sourceWithMockedRemoteCall(false, null, "main/0_20_5.json")
-                .lookupRemoteVersion(listener)
-        );
-        assertThat(e.getMessage(), containsString("Response didn't include Content-Type: body={"));
-    }
-
     public void testInvalidJsonThinksRemoteIsNotES() throws Exception {
         sourceWithMockedRemoteCall("some_text.txt").start();
         Throwable e = failureQueue.poll();
@@ -479,7 +397,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testCleanupSuccessful() throws Exception {
         AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
         RestClient client = mock(RestClient.class);
-        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client);
+        RemoteInfo remoteInfo = remoteInfo();
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client, remoteInfo);
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
@@ -489,7 +408,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
         RestClient client = mock(RestClient.class);
         doThrow(new RuntimeException("test")).when(client).close();
-        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client);
+        RemoteInfo remoteInfo = remoteInfo();
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client, remoteInfo);
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
@@ -564,13 +484,31 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder)
             .build();
 
-        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient) {
+        RemoteInfo remoteInfo = remoteInfo();
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient, remoteInfo) {
+            // @Override
+            // void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
+            // if (mockRemoteVersion) {
+            // listener.onResponse(Version.CURRENT);
+            // } else {
+            // super.lookupRemoteVersion(listener);
+            // }
+            // }
+
             @Override
-            void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
+            protected void doStart(RejectAwareActionListener<Response> searchListener) {
+                // Short‑circuit version lookup by setting it to current
                 if (mockRemoteVersion) {
-                    listener.onResponse(Version.CURRENT);
+                    remoteVersion = Version.CURRENT;
+                    execute(
+                        RemoteRequestBuilders.initialSearch(searchRequest, remoteInfo.getQuery(), remoteVersion),
+                        RESPONSE_PARSER,
+                        RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
+                        threadPool,
+                        restClient
+                    );
                 } else {
-                    super.lookupRemoteVersion(listener);
+                    super.doStart(searchListener);
                 }
             }
         };
@@ -578,6 +516,21 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             hitSource.remoteVersion = Version.CURRENT;
         }
         return hitSource;
+    }
+
+    private RemoteInfo remoteInfo() {
+        return new RemoteInfo(
+            "http",
+            randomAlphaOfLength(8),
+            randomIntBetween(4000, 9000),
+            null,
+            new BytesArray("{}"),
+            null,
+            null,
+            Map.of(),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30)),
+            TimeValue.timeValueSeconds(randomIntBetween(5, 30))
+        );
     }
 
     private BackoffPolicy backoff() {
@@ -589,7 +542,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
-        TestRemoteScrollableHitSource(RestClient client) {
+        TestRemoteScrollableHitSource(RestClient client, RemoteInfo remoteInfo) {
             super(
                 RemoteScrollableHitSourceTests.this.logger,
                 backoff(),
@@ -598,18 +551,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 responseQueue::add,
                 failureQueue::add,
                 client,
-                new RemoteInfo(
-                    "http",
-                    randomAlphaOfLength(8),
-                    randomIntBetween(4000, 9000),
-                    null,
-                    new BytesArray("{}"),
-                    null,
-                    null,
-                    Map.of(),
-                    TimeValue.timeValueSeconds(randomIntBetween(5, 30)),
-                    TimeValue.timeValueSeconds(randomIntBetween(5, 30))
-                ),
+                remoteInfo,
                 RemoteScrollableHitSourceTests.this.searchRequest
             );
         }
@@ -617,16 +559,5 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
         return RejectAwareActionListener.wrap(consumer::accept, ESTestCase::fail, ESTestCase::fail);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T extends Exception, V> T expectListenerFailure(Class<T> expectedException, Consumer<RejectAwareActionListener<V>> subject) {
-        AtomicReference<T> exception = new AtomicReference<>();
-        subject.accept(RejectAwareActionListener.wrap(r -> fail(), e -> {
-            assertThat(e, instanceOf(expectedException));
-            assertTrue(exception.compareAndSet(null, (T) e));
-        }, e -> fail()));
-        assertNotNull(exception.get());
-        return exception.get();
     }
 }

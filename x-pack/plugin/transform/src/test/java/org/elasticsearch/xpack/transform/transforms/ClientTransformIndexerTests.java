@@ -567,20 +567,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(TransformIndexerStats.class),
             config,
             null,
-            new TransformCheckpoint(
-                "transform",
-                Instant.now().toEpochMilli(),
-                0L,
-                Collections.emptyMap(),
-                Instant.now().toEpochMilli()
-            ),
-            new TransformCheckpoint(
-                "transform",
-                Instant.now().toEpochMilli(),
-                2L,
-                Collections.emptyMap(),
-                Instant.now().toEpochMilli()
-            ),
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
             mock(TransformContext.class),
             false

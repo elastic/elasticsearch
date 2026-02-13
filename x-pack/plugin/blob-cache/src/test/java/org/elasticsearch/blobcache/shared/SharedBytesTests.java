@@ -131,7 +131,7 @@ public class SharedBytesTests extends ESTestCase {
         assumeFalse("mmap not used on Windows", IOUtils.WINDOWS);
 
         int regions = 4;
-        int regionSize = 256 * SharedBytes.PAGE_SIZE; // 1 MB per region
+        int regionSize = 1024 * 1024; // 1 MB per region
         long cacheFileSize = (long) regions * regionSize; // 4 MB total
         int iterations = 100;
 

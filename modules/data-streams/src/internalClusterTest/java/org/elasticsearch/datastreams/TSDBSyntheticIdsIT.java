@@ -181,6 +181,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         );
     }
 
+    public void testSyntheticIdByDefault() throws Exception {
+
+    }
+
     public void testSyntheticId() throws Exception {
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0);
@@ -1203,8 +1207,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, Settings extraSettings) throws IOException {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1);
+        if (randomBoolean()) {
+            settings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        }
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());

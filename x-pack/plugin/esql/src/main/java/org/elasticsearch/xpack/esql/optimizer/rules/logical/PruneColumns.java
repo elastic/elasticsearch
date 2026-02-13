@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -275,20 +277,22 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Prunes RegexExtract operations (Dissect and Grok) when none of their extracted fields are used.
-     * <p>
-     * Note: Due to limitations in {@link RegexExtract#withGeneratedNames(List)}, which requires the exact same
-     * number of fields as the original pattern, we can only remove the entire RegexExtract node
-     * if ALL extracted fields are unused. Partial field pruning is not supported.
-     * </p>
      */
     private static LogicalPlan pruneUnusedRegexExtract(RegexExtract re, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = re;
 
         var remaining = pruneUnusedAndAddReferences(re.extractedFields(), used);
-        // If none of the extracted fields are used, remove the entire RegexExtract node
-        if (remaining != null && remaining.isEmpty()) {
-            p = re.child();
-            recheck.set(true);
+        if (remaining != null) {
+            // If none of the extracted fields are used, remove the entire RegexExtract node
+            if (remaining.isEmpty()) {
+                p = re.child();
+                recheck.set(true);
+            } else {
+                p = switch (re) {
+                    case Dissect dissect -> new Dissect(dissect.source(), dissect.child(), dissect.input(), dissect.parser(), remaining);
+                    case Grok grok -> new Grok(grok.source(), grok.child(), grok.input(), grok.parser(), remaining);
+                };
+            }
         }
 
         return p;

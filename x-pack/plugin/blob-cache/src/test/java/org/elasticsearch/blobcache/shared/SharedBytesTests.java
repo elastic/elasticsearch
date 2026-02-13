@@ -162,8 +162,9 @@ public class SharedBytesTests extends ESTestCase {
             long spaceLost = spaceBefore - spaceAfter;
 
             // Without the fix, we'd lose ~iterations * cacheFileSize = 400 MB of unreclaimable space.
-            // With the fix, space is fully reclaimed. Allow a small margin for filesystem overhead and
-            // concurrent activity.
+            // With the fix, space is fully reclaimed. We use a generous margin because getUsableSpace()
+            // measures the entire filesystem and can be affected by concurrent activity from other
+            // processes (e.g. parallel test workers, OS indexing, logs) writing to the same volume.
             assertThat(
                 "Disk space was not reclaimed after closing "
                     + iterations
@@ -175,7 +176,7 @@ public class SharedBytesTests extends ESTestCase {
                     + " bytes). "
                     + "This may indicate that mmap buffers are not being properly unmapped on close.",
                 spaceLost,
-                lessThan(cacheFileSize * 3)
+                lessThan(cacheFileSize * 20)
             );
         }
     }

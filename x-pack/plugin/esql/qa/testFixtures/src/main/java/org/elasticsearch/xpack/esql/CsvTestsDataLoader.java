@@ -917,7 +917,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, String viewName, String viewFilename, Logger logger) throws IOException {
         String viewQuery = loadViewQuery(viewName, viewFilename, logger);
         Request request = new Request("PUT", "/_query/view/" + viewName);
-        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", "") + "\"}");
         Response response = client.performRequest(request);
         logger.info("View creation response: {}", response.getStatusLine());
         getView(client, viewName, logger);

@@ -1,0 +1,6 @@
+area: "Distributed, Allocation"
+issues:
+ - 140467
+pr: 142443
+summary: "Allocation: move shutdown explain to bulk shard API"
+type: bug

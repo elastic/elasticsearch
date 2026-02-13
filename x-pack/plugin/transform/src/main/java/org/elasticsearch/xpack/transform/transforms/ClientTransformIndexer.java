@@ -550,8 +550,11 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
-        // use index filter for better performance
-        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        // Only use index filter when there are no runtime mappings, because OpenPointInTimeRequest
+        // does not support runtime_mappings and the query may reference runtime fields
+        if (transformConfig.getSource().getRuntimeMappings().isEmpty()) {
+            pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        }
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),

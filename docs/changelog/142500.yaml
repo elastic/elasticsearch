@@ -1,0 +1,5 @@
+area: Packaging
+issues: []
+pr: 142500
+summary: Updating bundled jdk version
+type: upgrade

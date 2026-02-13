@@ -148,7 +148,7 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-    private final PlannerSettings plannerSettings;
+    private final PlannerSettings.Holder plannerSettings;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -190,7 +190,7 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
     }
 
-    PlannerSettings plannerSettings() {
+    PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
 
@@ -284,7 +284,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, planTimeProfile, localListener.acquireCompute());
+                runCompute(rootTask, computeContext, mainPlan, plannerSettings.get(), planTimeProfile, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -387,7 +387,14 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, planTimeProfile, computeListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    coordinatorPlan,
+                    plannerSettings.get(),
+                    planTimeProfile,
+                    computeListener.acquireCompute()
+                );
                 return;
             }
         } else {
@@ -468,6 +475,7 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        plannerSettings.get(),
                         planTimeProfile,
                         localListener.acquireCompute()
                     );
@@ -642,6 +650,7 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
+        PlannerSettings plannerSettings,
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {

@@ -131,6 +131,11 @@ public final class MergePositionsOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPage != null;
+    }
+
+    @Override
     public Page getOutput() {
         Page page = this.outputPage;
         this.outputPage = null;

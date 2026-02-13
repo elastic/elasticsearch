@@ -144,9 +144,12 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
     }
 
     /**
-     * Allows test classes to return documents with a null _id field.
+     * Allows test classes to override the id of documents loaded in the snapshot. This is useful when the id of the document is null after
+     * having being trimmed during merges but the test class wants to verify the synthetic id.
      *
      * @param id the document id
+     * @param leaf the segment reader
+     * @param segmentDocID the document ID in the segment
      * @return a non-null value for the document id
      */
     protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
@@ -154,7 +157,8 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
     }
 
     /**
-     * Allows test classes to override the source of documents with a null _source field.
+     * Allows test classes to override the source of documents loaded in the snapshot. This is useful when the source of the document is
+     * null after having being trimmed during merges but the test class wants to verify the synthetic source.
      *
      * @param source the document source
      * @param leaf the segment reader

@@ -1365,7 +1365,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var mapperService = engineConfig.getMapperService();
         // Some integration tests have the _source disabled, in which case we cannot compare the _source
         final var sourceEnabled = mapperService.mappingLookup().isSourceEnabled();
-
+        // Some integration tests use synthetic source/id, so the original source/id stored field might have been trimmed during merges.
+        // Here we set up a source loader similar to what search fetch phase use to force loading the source, or id, before comparing docs.
         final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
         final TriFunction<BytesReference, LeafReaderContext, Integer, BytesReference> forceLoadingSource = (src, leaf, segmentDocID) -> {
@@ -1459,7 +1460,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                         @Override
                         protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null reason too
+                            return false; // Return docs with null source too
                         }
 
                         @Override
@@ -1680,8 +1681,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             + "]";
 
                         if (nbDocsOnPrimary != nbDocsOnReplica) {
+                            // Number of docs is the same on primary/replica so compare and prints the complete list of docs
                             assertThat(message, docsOnReplica, equalTo(docsOnPrimary));
                         } else {
+                            // Primary/replica don't have the same number of docs, compare each doc and only prints the different docs
+                            // This can help when only a subset of documents are different, but it can print all remaining docs if a doc
+                            // is missing in one of the shard.
                             var diffOnPrimary = new ArrayList<DocIdSeqNoAndSource>();
                             var diffOnReplica = new ArrayList<DocIdSeqNoAndSource>();
                             for (int doc = 0; doc < nbDocsOnPrimary; doc++) {

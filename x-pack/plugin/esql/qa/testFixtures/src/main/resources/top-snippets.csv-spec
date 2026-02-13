@@ -85,7 +85,19 @@ book_no:keyword | title:text                                                    
 ;
 
 topSnippetsWithMultivaluedField
-required_capability: top_snippets_function
+required_capability: top_snippets_mv
+
+ROW positions = ["Senior Team Lead", "Software Engineer"]
+| EVAL snippets = TOP_SNIPPETS(positions, "lead")
+| KEEP snippets
+;
+
+snippets:keyword
+Senior Team Lead
+;
+
+topSnippetsWithMultivaluedFieldFromIndex
+required_capability: top_snippets_mv
 
 FROM employees
 | EVAL snippets = TOP_SNIPPETS(job_positions, "lead")
@@ -93,15 +105,25 @@ FROM employees
 | SORT emp_no
 | LIMIT 5
 ;
-warning:Line 2:19: evaluation of [TOP_SNIPPETS(job_positions, \"lead\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:19: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | first_name:keyword | last_name:keyword | snippets:keyword
 10001          | Georgi             | Facello           | null
 10002          | Bezalel            | Simmel            | Senior Team Lead
 10003          | Parto              | Bamford           | null
-10004          | Chirstian          | Koblick           | null
+10004          | Chirstian          | Koblick           | Tech Lead
 10005          | Kyoichi            | Maliniak          | null
+;
+
+topSnippetsWithMultivaluedFieldMultipleMatches
+required_capability: top_snippets_mv
+
+ROW positions = ["Senior Team Lead", "Lead Architect"]
+| EVAL snippets = TOP_SNIPPETS(positions, "lead")
+| KEEP snippets
+;
+
+snippets:keyword
+[Senior Team Lead, Lead Architect]
 ;
 
 topSnippetsWithGeneratedField
@@ -115,6 +137,32 @@ ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power
 
 snippets:keyword
 [All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsWithMultivaluedFieldNoMatches
+required_capability: top_snippets_mv
+
+ROW positions = ["Junior Developer", "Intern", "Associate"]
+| EVAL snippets = TOP_SNIPPETS(positions, "Senior")
+| KEEP snippets
+;
+
+snippets:keyword
+null
+;
+
+topSnippetsWithMultivaluedQuery
+required_capability: top_snippets_mv
+
+ROW content = "Senior Team Lead", queries = ["lead", "senior"]
+| EVAL snippets = TOP_SNIPPETS(content, queries)
+| KEEP snippets
+;
+warning:Line 2:19: evaluation of [TOP_SNIPPETS(content, queries)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:19: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+snippets:keyword
+null
 ;
 
 topSnippetsWithNullField

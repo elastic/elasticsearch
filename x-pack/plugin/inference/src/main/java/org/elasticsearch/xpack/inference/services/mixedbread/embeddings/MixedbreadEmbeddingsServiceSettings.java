@@ -17,7 +17,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadServiceSettings;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -32,6 +35,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -50,6 +54,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     private final String encodingFormat;
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
+    private final Boolean dimensionsSetByUser;
 
     /**
      * Creates a new instance of {@link MixedbreadEmbeddingsServiceSettings} from a map of settings.
@@ -63,7 +68,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         var validationException = new ValidationException();
         var commonServiceSettings = extractMixedbreadCommonServiceSettings(map, context, validationException);
 
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var encodingFormat = extractOptionalString(
             map,
             MixedbreadUtils.ENCODING_FORMAT_FIELD,
@@ -79,16 +84,43 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
             validationException
         );
 
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
+
+        switch (context) {
+            case REQUEST -> {
+                if (dimensionsSetByUser != null) {
+                    validationException.addValidationError(
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+
+                if (dims != null) {
+                    validationException.addValidationError(
+                        ServiceUtils.invalidSettingError(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+                dimensionsSetByUser = false;
+            }
+            case PERSISTENT -> {
+                if (dimensionsSetByUser == null) {
+                    validationException.addValidationError(
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+            }
+        }
+
         validationException.throwIfValidationErrorsExist();
 
         return new MixedbreadEmbeddingsServiceSettings(
             commonServiceSettings.model(),
             commonServiceSettings.uri(),
-            dimensions,
+            dims,
             encodingFormat,
             similarity,
             maxInputTokens,
-            commonServiceSettings.rateLimitSettings()
+            commonServiceSettings.rateLimitSettings(),
+            dimensionsSetByUser
         );
     }
 
@@ -104,6 +136,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         this.encodingFormat = in.readOptionalString();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
+        this.dimensionsSetByUser = in.readBoolean();
     }
 
     @Override
@@ -129,13 +162,15 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         @Nullable String encodingFormat,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        Boolean dimensionsSetByUser
     ) {
         super(modelId, uri, rateLimitSettings);
         this.dimensions = dimensions;
         this.encodingFormat = encodingFormat;
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
+        this.dimensionsSetByUser = dimensionsSetByUser;
     }
 
     /**
@@ -155,9 +190,11 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         @Nullable String encodingFormat,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        Boolean dimensionsSetByUser
     ) {
-        this(modelId, createOptionalUri(url), dimensions, encodingFormat, similarity, maxInputTokens, rateLimitSettings);
+        this(modelId, createOptionalUri(url), dimensions, encodingFormat,
+            similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
     }
 
     @Override
@@ -202,6 +239,10 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         return this.rateLimitSettings;
     }
 
+    public Boolean dimensionsSetByUser() {
+        return dimensionsSetByUser;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -209,6 +250,18 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         out.writeOptionalString(encodingFormat);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(maxInputTokens);
+        out.writeBoolean(dimensionsSetByUser);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        toXContentFragmentOfExposedFields(builder, params);
+        builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -217,7 +270,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
         }
-
         if (encodingFormat != null) {
             builder.field(MixedbreadUtils.ENCODING_FORMAT_FIELD, encodingFormat);
         }
@@ -241,12 +293,13 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
             && Objects.equals(encodingFormat, that.encodingFormat)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, dimensions, encodingFormat, maxInputTokens, similarity, rateLimitSettings);
+        return Objects.hash(modelId, uri, dimensions, encodingFormat, maxInputTokens, similarity, rateLimitSettings, dimensionsSetByUser);
     }
 
 }

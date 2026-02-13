@@ -176,7 +176,8 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
                 TestUtils.ENCODING_VALUE,
                 SimilarityMeasure.DOT_PRODUCT,
                 maxInputTokens,
-                null
+                null,
+                TestUtils.DIMENSIONS_SET_BY_USER_TRUE
             ),
             new MixedbreadEmbeddingsTaskSettings(prompt, normalized),
             chunkingSettings,

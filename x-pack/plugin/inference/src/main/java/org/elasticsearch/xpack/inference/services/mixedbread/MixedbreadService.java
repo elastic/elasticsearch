@@ -266,7 +266,8 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 serviceSettings.encodingFormat(),
                 similarityToUse,
                 serviceSettings.maxInputTokens(),
-                serviceSettings.rateLimitSettings()
+                serviceSettings.rateLimitSettings(),
+                serviceSettings.dimensionsSetByUser()
             );
 
             return new MixedbreadEmbeddingsModel(embeddingsModel, updatedServiceSettings);

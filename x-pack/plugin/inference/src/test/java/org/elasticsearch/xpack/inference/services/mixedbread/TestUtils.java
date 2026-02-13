@@ -25,4 +25,6 @@ public final class TestUtils {
     public static final Boolean NORMALIZED_INITIAL_VALUE = Boolean.FALSE;
     public static final String PROMPT_OVERRIDDEN_VALUE = "prompt_overridden_value";
     public static final Boolean NORMALIZED_OVERRIDDEN_VALUE = Boolean.TRUE;
+
+    public static final Boolean DIMENSIONS_SET_BY_USER_TRUE = Boolean.TRUE;
 }

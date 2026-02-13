@@ -32,7 +32,8 @@ public record MixedbreadEmbeddingsRequestEntity(
     @Nullable Integer dimensions,
     @Nullable String prompt,
     @Nullable Boolean normalized,
-    @Nullable String encodingFormat
+    @Nullable String encodingFormat,
+    Boolean dimensionsSetByUser
 ) implements ToXContentObject {
     public MixedbreadEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -45,7 +46,7 @@ public record MixedbreadEmbeddingsRequestEntity(
         builder.field(MixedbreadUtils.INPUT_FIELD, input);
         builder.field(MixedbreadUtils.MODEL_FIELD, modelId);
 
-        if (dimensions != null) {
+        if (dimensionsSetByUser && dimensions != null) {
             builder.field(MixedbreadUtils.DIMENSIONS_FIELD, dimensions);
         }
         if (prompt != null) {

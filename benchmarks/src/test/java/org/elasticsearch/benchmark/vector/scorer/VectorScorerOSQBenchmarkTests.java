@@ -50,7 +50,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     public void testSingleScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 100; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
@@ -85,7 +85,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     public void testBulkScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 100; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();

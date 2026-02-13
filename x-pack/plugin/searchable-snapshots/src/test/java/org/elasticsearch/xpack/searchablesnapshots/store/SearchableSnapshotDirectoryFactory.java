@@ -439,7 +439,7 @@ public class SearchableSnapshotDirectoryFactory {
             );
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 "snapshotId",
-                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(dataLength + 1))),
+                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(dataLength))),
                 0L,
                 0L,
                 0,
@@ -734,8 +734,7 @@ public class SearchableSnapshotDirectoryFactory {
 
         @Override
         public void close() {
-            ThreadPool.terminate(this, 10, TimeUnit.SECONDS);
+            ThreadPool.terminate(this, 30, TimeUnit.SECONDS);
         }
     }
-
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -128,6 +130,18 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
         elementType = in.readEnum(DenseVectorFieldMapper.ElementType.class);
     }
 
+    CustomElandInternalTextEmbeddingServiceSettings(
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        @Nullable Integer dimensions,
+        SimilarityMeasure similarityMeasure,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        super(internalServiceSettings);
+        this.dimensions = dimensions;
+        this.similarityMeasure = Objects.requireNonNull(similarityMeasure);
+        this.elementType = Objects.requireNonNull(elementType);
+    }
+
     private CustomElandInternalTextEmbeddingServiceSettings(CommonFields commonFields) {
         this(commonFields, null);
     }
@@ -216,4 +230,14 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
         return Objects.hash(super.hashCode(), dimensions, similarityMeasure, elementType);
     }
 
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        serviceSettings = new HashMap<>(serviceSettings);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
+        if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
+            return new CustomElandInternalTextEmbeddingServiceSettings(esSettings, dimensions, similarityMeasure, elementType);
+        } else {
+            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
+        }
+    }
 }

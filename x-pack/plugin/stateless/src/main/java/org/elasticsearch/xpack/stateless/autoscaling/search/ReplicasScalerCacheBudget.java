@@ -22,6 +22,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.autoscaling.DesiredTopologyContext;
 
 import java.util.Map;
@@ -63,6 +65,9 @@ public class ReplicasScalerCacheBudget {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final String TOTAL_BUDGET_SIZE = "es.autoscaling.search.cache_budget_total.current";
+    public static final String CACHE_USED_BY_CURRENT_REPLICAS = "es.autoscaling.search.current_replicas.used_cache.current";
+    public static final String AVAILABLE_CACHE_FOR_REPLICAS_INCREASE = "es.autoscaling.search.replicas_increase.available_budget.current";
 
     private final Settings settings;
     private final DesiredTopologyContext desiredTopologyContext;
@@ -70,16 +75,41 @@ public class ReplicasScalerCacheBudget {
     private final Integer scaledownRepetitionSetting;
     private volatile Double cacheBudgetRatio;
 
+    // Metrics for cache budget visibility
+    private volatile long cacheBudgetTotal;
+    private volatile long cacheBudgetUsedByCurrentReplicas;
+    private volatile long cacheBudgetAvailableForScaleUps;
+
     public ReplicasScalerCacheBudget(
         Settings settings,
         DesiredTopologyContext desiredTopologyContext,
         ReplicasScaleDownState replicasScaleDownState,
-        Integer scaledownRepetitionSetting
+        Integer scaledownRepetitionSetting,
+        MeterRegistry meterRegistry
     ) {
         this.settings = settings;
         this.desiredTopologyContext = desiredTopologyContext;
         this.replicasScaleDownState = replicasScaleDownState;
         this.scaledownRepetitionSetting = scaledownRepetitionSetting;
+
+        meterRegistry.registerLongGauge(
+            TOTAL_BUDGET_SIZE,
+            "Total cache budget available for replicas (based on cache size * nodes * budget ratio)",
+            "bytes",
+            () -> new LongWithAttributes(this.cacheBudgetTotal)
+        );
+        meterRegistry.registerLongGauge(
+            CACHE_USED_BY_CURRENT_REPLICAS,
+            "Cache budget used by the current replicas",
+            "bytes",
+            () -> new LongWithAttributes(this.cacheBudgetUsedByCurrentReplicas)
+        );
+        meterRegistry.registerLongGauge(
+            AVAILABLE_CACHE_FOR_REPLICAS_INCREASE,
+            "Cache budget available for load balancing scale-ups (can be negative if over budget)",
+            "bytes",
+            () -> new LongWithAttributes(this.cacheBudgetAvailableForScaleUps)
+        );
     }
 
     void setCacheBudgetRatio(Double cacheBudgetRatio) {
@@ -151,6 +181,10 @@ public class ReplicasScalerCacheBudget {
             cacheNeededForInstantFailoverScaleUps,
             cacheBudgetForLoadBalancingScaleUps
         );
+
+        this.cacheBudgetTotal = cacheBudget;
+        this.cacheBudgetUsedByCurrentReplicas = cacheNeededByCurrentReplicas;
+        this.cacheBudgetAvailableForScaleUps = cacheBudgetForLoadBalancingScaleUps;
 
         return budgetLoadBalancingScaleUps(
             rankingContext,

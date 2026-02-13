@@ -2379,14 +2379,14 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         final int[] possibleLengths = new int[] { 5, 10, 20 };
         final int targetLength = possibleLengths[randomIntBetween(0, possibleLengths.length - 1)];
 
-        // lengthIterator is only supported on compressed binary doc values,
-        // so use a codec that always uses compression.
+        // lengthIterator is only supported on all binary doc values implementation,
+        // and so randomize between compressed and uncompressed implementation to test both implementations.
         var dvFormat = new ES819TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
             random().nextBoolean(),
-            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
-            true
+            randomBoolean() ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
+            randomBoolean()
         );
         var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
 

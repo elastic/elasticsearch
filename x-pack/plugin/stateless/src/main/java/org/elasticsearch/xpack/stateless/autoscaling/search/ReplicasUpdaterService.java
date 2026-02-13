@@ -574,6 +574,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     }
 
     private void run(boolean immediateScaleDown, boolean onlyScaleDownToTopologyBounds) {
+        final long startTimeMillis = threadPool.relativeTimeInMillis();
         if (checkDisabledAndNeedsScaledown(searchMetricsService::createRankingContext)) {
             return;
         }
@@ -602,7 +603,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                         instantFailoverReplicaChanges,
                         rankingContext,
                         immediateScaleDown,
-                        onlyScaleDownToTopologyBounds
+                        onlyScaleDownToTopologyBounds,
+                        startTimeMillis
                     );
                 }
 
@@ -616,7 +618,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                         enableReplicasForInstantFailover ? getRecommendedReplicasState(rankingContext) : Map.of(),
                         rankingContext,
                         immediateScaleDown,
-                        onlyScaleDownToTopologyBounds
+                        onlyScaleDownToTopologyBounds,
+                        startTimeMillis
                     );
                 }
             }
@@ -635,7 +638,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         Map<String, Integer> instantFailoverReplicaChanges,
         ReplicaRankingContext rankingContext,
         boolean requestedImmediateScaleDown,
-        boolean onlyScaleDownToTopologyBounds
+        boolean onlyScaleDownToTopologyBounds,
+        long startTimeMillis
     ) {
         this.indicesBlockedFromScaleUp = replicasLoadBalancingResult.indicesBlockedFromScaleUp();
         int indicesScaledDown = 0;
@@ -754,18 +758,15 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         }
         LOGGER.debug("RIF: {}, RLB: {}", instantFailoverReplicaChanges, replicasLoadBalancingResult);
         LOGGER.info(
-            "Finished replicas update task. Indices scaled up: "
-                + indicesScaledUp
-                + ", scaled down: "
-                + indicesScaledDown
-                + ". SPmin: "
-                + rankingContext.getSearchPowerMin()
-                + ", totalInteractiveSize: "
-                + rankingContext.getAllIndicesInteractiveSize()
-                + ", replica threshold: "
-                + rankingContext.getThreshold()
-                + ", onlyScaleDownToTopologyBounds: "
-                + onlyScaleDownToTopologyBounds
+            "Finished replicas update task in [{}]ms. Indices scaled up: {}, scaled down: {}. "
+                + "SPmin: {}, totalInteractiveSize: {}, replica threshold: {}, onlyScaleDownToTopologyBounds: {}",
+            (threadPool.relativeTimeInMillis() - startTimeMillis),
+            indicesScaledUp,
+            indicesScaledDown,
+            rankingContext.getSearchPowerMin(),
+            rankingContext.getAllIndicesInteractiveSize(),
+            rankingContext.getThreshold(),
+            onlyScaleDownToTopologyBounds
         );
     }
 

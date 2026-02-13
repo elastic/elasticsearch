@@ -3,7 +3,7 @@
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
-      test_runner_features: close_to
+      test_runner_features: [close_to, allowed_warnings]
 
   - do:
       indices.create:
@@ -95,6 +95,8 @@
 
   # Downsample using `1h` fixed interval
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: source
         target_index: target
@@ -165,6 +167,7 @@
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -246,6 +249,8 @@
 
   # Downsample using `1h` fixed interval
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: source
         target_index: target
@@ -286,6 +291,7 @@
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -368,6 +374,8 @@
 
   # Downsample using `1h` fixed interval
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: source
         target_index: target

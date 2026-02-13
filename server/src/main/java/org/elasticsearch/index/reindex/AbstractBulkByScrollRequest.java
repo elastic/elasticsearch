@@ -396,8 +396,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Sets whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
      */
-    public void setEligibleForRelocationOnShutdown(boolean eligibleForRelocationOnShutdown) {
+    public Self setEligibleForRelocationOnShutdown(boolean eligibleForRelocationOnShutdown) {
         this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        return self();
     }
 
     /**

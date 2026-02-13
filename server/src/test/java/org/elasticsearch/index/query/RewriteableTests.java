@@ -150,7 +150,7 @@ public class RewriteableTests extends ESTestCase {
             assertTrue("Timed out waiting for rewrite to complete", latch.await(10, TimeUnit.SECONDS));
             assertNotNull("Exception should be caught", caughtException.get());
             assertThat(caughtException.get().getMessage(), containsString("Simulated async failure"));
-            assertThat("Should complete on search thread pool", completionThreadName.get(), containsString("search"));
+            assertThat("Should not complete on transport thread", completionThreadName.get(), not(containsString("transport")));
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

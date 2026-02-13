@@ -64,6 +64,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.server",
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
+        "org.elasticsearch.telemetry",
         "org.elasticsearch.xcontent"
     );
 

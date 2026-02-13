@@ -67,6 +67,14 @@ dependencies {
 // Test resources (iceberg-fixtures) are now local to this module
 // in src/javaRestTest/resources/
 
+// InteractiveFixtureManual is intentionally not named with an IT suffix to prevent automatic execution;
+// it is a manual interactive testing tool, not a regular integration test.
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  suffix 'IT'
+  suffix 'Manual'
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
   exclude '**/*.avro'

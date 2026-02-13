@@ -44,6 +44,13 @@ dependencies {
 // The parquet fixtures (employees.parquet and parquet-basic.csv-spec) are included
 // directly in this module's javaRestTest/resources directory
 
+// S3GlobDiscoveryIT extends ESTestCase (not ESRestTestCase) since it tests S3StorageProvider
+// directly against the S3HttpFixture without needing an Elasticsearch cluster.
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
 }

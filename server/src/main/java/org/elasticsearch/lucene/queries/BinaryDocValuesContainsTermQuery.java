@@ -85,7 +85,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                 return DocValues.isCacheable(ctx, fieldName);
+                return DocValues.isCacheable(ctx, fieldName);
             }
         };
     }

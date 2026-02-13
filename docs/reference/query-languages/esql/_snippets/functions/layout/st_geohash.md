@@ -2,7 +2,7 @@
 
 ### `ST_GEOHASH` [esql-st_geohash]
 ```{applies_to}
-stack: preview
+stack: preview 9.2.0
 serverless: preview
 ```
 

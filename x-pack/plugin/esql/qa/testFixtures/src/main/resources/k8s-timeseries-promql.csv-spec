@@ -340,6 +340,24 @@ result:double | step:datetime
 1.3169578969248166 | 2024-05-10T00:00:00.000Z
 ;
 
+asinh_scalar
+required_capability: promql_command_v0
+required_capability: asinh_function
+PROMQL index=k8s step=1h result=(asinh(vector(0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+asinh_scalar_2
+required_capability: promql_command_v0
+required_capability: asinh_function
+PROMQL index=k8s step=1h result=(asinh(vector(2)));
+
+result:double | step:datetime
+1.4436354751788103 | 2024-05-10T00:00:00.000Z
+;
+
 sinh_scalar
 required_capability: promql_command_v0
 PROMQL index=k8s step=1h result=(sinh(vector(0)));

@@ -30,7 +30,7 @@ public class SumOverTimeTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return SumTests.parameters();
+        return SumTests.testParameters(false);
     }
 
     @Override

@@ -276,10 +276,15 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public MappedFieldType.FieldExtractPreference fieldExtractPreference(Attribute attr) {
-        if (centroidAttributes.contains(attr)) {
+        boolean hasCentroid = centroidAttributes.contains(attr);
+        boolean hasBounds = boundsAttributes.contains(attr);
+        if (hasCentroid && hasBounds) {
+            return MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID;
+        }
+        if (hasCentroid) {
             return MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
         }
-        if (boundsAttributes.contains(attr)) {
+        if (hasBounds) {
             return MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
         }
         if (docValuesAttributes.contains(attr)) {

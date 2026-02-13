@@ -380,7 +380,7 @@ public class PlannerUtils {
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> ElementType.INT;
-                case EXTRACT_SPATIAL_CENTROID -> ElementType.DOUBLE;
+                case EXTRACT_SPATIAL_CENTROID, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> ElementType.DOUBLE;
                 default -> ElementType.BYTES_REF;
             };
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;

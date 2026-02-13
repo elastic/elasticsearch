@@ -204,6 +204,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_CENTROID) {
                 return new CartesianCentroidBlockLoader(name());
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID) {
+                return new CartesianBoundsAndCentroidBlockLoader(name());
+            }
 
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
@@ -232,6 +235,21 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         static class CartesianCentroidBlockLoader extends CentroidBlockLoader {
             protected CartesianCentroidBlockLoader(String fieldName) {
                 super(fieldName, CoordinateEncoder.CARTESIAN);
+            }
+        }
+
+        static class CartesianBoundsAndCentroidBlockLoader extends BoundsAndCentroidBlockLoader {
+            protected CartesianBoundsAndCentroidBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.CARTESIAN);
+            }
+
+            @Override
+            protected void writeBounds(BlockLoader.DoubleBuilder builder, Extent extent) {
+                // For cartesian_shape we store 4 bounds values: minX, maxX, minY (top), maxY (bottom)
+                builder.appendDouble(Math.min(extent.negLeft, extent.posLeft));
+                builder.appendDouble(Math.max(extent.negRight, extent.posRight));
+                builder.appendDouble(extent.top);
+                builder.appendDouble(extent.bottom);
             }
         }
     }

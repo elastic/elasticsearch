@@ -223,6 +223,110 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 builder.endPositionEntry();
             }
         }
+
+        /**
+         * Block loader for extracting both bounds and centroid data from shape doc values.
+         * The default implementation outputs 10 doubles per document for geo shapes:
+         * [top, bottom, negLeft, negRight, posLeft, posRight, centroidX, centroidY, weight, shapeTypeOrdinal]
+         * Subclasses can override writeBounds() for different bounds formats (e.g., cartesian uses 4 values).
+         */
+        protected static class BoundsAndCentroidBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            private final String fieldName;
+            private final CoordinateEncoder encoder;
+
+            protected BoundsAndCentroidBlockLoader(String fieldName, CoordinateEncoder encoder) {
+                this.fieldName = fieldName;
+                this.encoder = encoder;
+            }
+
+            @Override
+            public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
+                BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
+                return binaryDocValues == null ? ConstantNull.READER : createReader(binaryDocValues);
+            }
+
+            protected BlockLoader.AllReader createReader(BinaryDocValues binaryDocValues) {
+                return new BoundsAndCentroidReader(binaryDocValues, encoder, this);
+            }
+
+            @Override
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+                return factory.doubles(expectedCount);
+            }
+
+            /**
+             * Writes the bounds portion of the combined output.
+             * Default implementation writes 6 values for geo shapes: [top, bottom, negLeft, negRight, posLeft, posRight].
+             * Subclasses can override for different formats (e.g., cartesian uses 4 values).
+             */
+            protected void writeBounds(BlockLoader.DoubleBuilder builder, Extent extent) {
+                builder.appendDouble(extent.top);
+                builder.appendDouble(extent.bottom);
+                builder.appendDouble(extent.negLeft);
+                builder.appendDouble(extent.negRight);
+                builder.appendDouble(extent.posLeft);
+                builder.appendDouble(extent.posRight);
+            }
+        }
+
+        private static class BoundsAndCentroidReader implements BlockLoader.AllReader {
+            private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final BinaryDocValues binaryDocValues;
+            private final CoordinateEncoder encoder;
+            private final BoundsAndCentroidBlockLoader loader;
+
+            private BoundsAndCentroidReader(
+                BinaryDocValues binaryDocValues,
+                CoordinateEncoder encoder,
+                BoundsAndCentroidBlockLoader loader
+            ) {
+                this.binaryDocValues = binaryDocValues;
+                this.encoder = encoder;
+                this.loader = loader;
+            }
+
+            @Override
+            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+                throws IOException {
+                try (var builder = factory.doubles(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        read(docs.get(i), builder);
+                    }
+                    return builder.build();
+                }
+            }
+
+            @Override
+            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+                read(docId, (BlockLoader.DoubleBuilder) builder);
+            }
+
+            private void read(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
+                if (binaryDocValues.advanceExact(doc) == false) {
+                    builder.appendNull();
+                    return;
+                }
+                reader.reset(binaryDocValues.binaryValue());
+                writeBoundsAndCentroid(builder, reader.getExtent());
+            }
+
+            @Override
+            public boolean canReuse(int startingDocID) {
+                return true;
+            }
+
+            private void writeBoundsAndCentroid(BlockLoader.DoubleBuilder builder, Extent extent) throws IOException {
+                builder.beginPositionEntry();
+                // Write bounds using the loader's implementation (may vary by shape type)
+                loader.writeBounds(builder, extent);
+                // Centroid (4 values) - decoded coordinates, weight, and type ordinal
+                builder.appendDouble(encoder.decodeX(reader.getCentroidX()));
+                builder.appendDouble(encoder.decodeY(reader.getCentroidY()));
+                builder.appendDouble(reader.getSumCentroidWeight());
+                builder.appendDouble(reader.getDimensionalShapeType().ordinal());
+                builder.endPositionEntry();
+            }
+        }
     }
 
     protected Explicit<Boolean> coerce;

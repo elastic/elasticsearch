@@ -108,10 +108,10 @@ public class LocalStorageProviderTests extends ESTestCase {
             }
         }
 
-        // Filter out hidden files (like .DS_Store on macOS) for the assertion
+        // Filter out hidden files (like .DS_Store on macOS) and ExtraFS files for the assertion
         List<String> fileNames = entries.stream()
             .map(e -> e.path().objectName())
-            .filter(name -> name.startsWith(".") == false)
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
             .sorted()
             .toList();
         assertEquals(List.of("file1.txt", "file2.csv"), fileNames);
@@ -241,7 +241,11 @@ public class LocalStorageProviderTests extends ESTestCase {
         List<String> names = new ArrayList<>();
         try (iterator) {
             while (iterator.hasNext()) {
-                names.add(iterator.next().path().objectName());
+                String name = iterator.next().path().objectName();
+                // Filter out files created by Lucene's ExtraFS test infrastructure
+                if (name.startsWith("extra") == false) {
+                    names.add(name);
+                }
             }
         }
         return names;
@@ -251,7 +255,11 @@ public class LocalStorageProviderTests extends ESTestCase {
         List<StorageEntry> entries = new ArrayList<>();
         try (iterator) {
             while (iterator.hasNext()) {
-                entries.add(iterator.next());
+                StorageEntry entry = iterator.next();
+                // Filter out files created by Lucene's ExtraFS test infrastructure
+                if (entry.path().objectName().startsWith("extra") == false) {
+                    entries.add(entry);
+                }
             }
         }
         return entries;

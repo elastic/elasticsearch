@@ -1920,6 +1920,11 @@ public class EsqlCapabilities {
         PROMQL_NESTED_AGGREGATES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support post-processing STATS commands after PROMQL source commands.
+         */
+        PROMQL_POST_PROCESSING_STATS,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,

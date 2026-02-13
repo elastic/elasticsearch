@@ -29,13 +29,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
@@ -92,6 +96,15 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         // With partitioning, results may be spread across multiple pages
         int totalPositions = results.stream().mapToInt(Page::getPositionCount).sum();
         assertThat(totalPositions, equalTo(5));
+
+        // Verify each page has a valid and unique partition ID
+        Set<Integer> seenPartitionIds = new HashSet<>();
+        for (Page page : results) {
+            int partitionId = page.getPartitionId();
+            assertThat("partitionId should be in [0, 256)", partitionId, greaterThanOrEqualTo(0));
+            assertThat("partitionId should be in [0, 256)", partitionId, lessThan(256));
+            assertTrue("duplicate partitionId " + partitionId, seenPartitionIds.add(partitionId));
+        }
 
         SumLongGroupingAggregatorFunctionTests sum = new SumLongGroupingAggregatorFunctionTests();
         MaxLongGroupingAggregatorFunctionTests max = new MaxLongGroupingAggregatorFunctionTests();

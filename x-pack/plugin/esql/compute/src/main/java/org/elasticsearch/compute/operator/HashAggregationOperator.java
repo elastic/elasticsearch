@@ -420,7 +420,7 @@ public class HashAggregationOperator implements Operator {
                     if (partitionPositions[p].length == 0) {
                         continue;
                     }
-                    emitOnePartition(allSelected, allKeys, partitionPositions[p], aggBlockCounts, totalAggBlocks, evaluationContext);
+                    emitOnePartition(p, allSelected, allKeys, partitionPositions[p], aggBlockCounts, totalAggBlocks, evaluationContext);
                 }
             }
             success = true;
@@ -443,6 +443,7 @@ public class HashAggregationOperator implements Operator {
     /**
      * Emits a single partition's worth of data as one output page.
      *
+     * @param partitionId   the partition index to tag the output page with
      * @param allSelected   the full nonEmpty group ID vector from the block hash
      * @param allKeys       the full key blocks from the block hash
      * @param positions     the positions (into allSelected/allKeys) that belong to this partition
@@ -451,6 +452,7 @@ public class HashAggregationOperator implements Operator {
      * @param evaluationContext shared evaluation context
      */
     private void emitOnePartition(
+        int partitionId,
         IntVector allSelected,
         Block[] allKeys,
         int[] positions,
@@ -489,7 +491,7 @@ public class HashAggregationOperator implements Operator {
                 offset += aggBlockCounts[i];
             }
 
-            outputPages.add(new Page(blocks));
+            outputPages.add(Page.withPartitionId(partitionId, blocks));
             success = true;
         } finally {
             Releasables.close(selected);

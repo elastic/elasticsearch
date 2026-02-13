@@ -9,74 +9,124 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * IndicesAllocationMetrics computes and publish index allocation metrics, in particular how balanced shards distributed across nodes in
  * the cluster for indices. There are potentially thousands of indices and shards, hence balance computation can be slow. For this
- * reason the computation runs in a management thread-pool. These metrics are cluster-wide and only one node publishes those, currently
- * it's a master node. When a node become a master it starts scheduled task to compute and publish metrics, and stops when become
- * non-master.
+ * reason the computation runs in a management thread-pool. These metrics are cluster-wide and only one node publishes those using
+ * PersistentTasks machinery.
  */
-public class IndicesAllocationMetrics implements ClusterStateListener {
+public class IndicesAllocationMetrics extends PersistentTasksExecutor<IndicesAllocationMetrics.IndicesAllocationMetricsTaskParams> {
+
+    private static final String PERSISTENT_TASK_NAME = "indices-allocation-metrics";
+    private static final TransportVersion INDICES_ALLOCATION_METRICS_TASK_VERSION = TransportVersion.fromName(
+        "indices_allocation_metrics_task"
+    );
 
     private final ClusterService clusterService;
     private final MeterRegistry meterRegistry;
-    private final ThreadPool computeThreadPool;
+    private final ThreadPool threadPool;
     private final TimeValue computeInterval;
 
-    private volatile Scheduler.Cancellable scheduledUpdate;
-    private volatile boolean needRefresh;
-
-    public IndicesAllocationMetrics(
+    protected IndicesAllocationMetrics(
+        ThreadPool threadPool,
         ClusterService clusterService,
         MeterRegistry meterRegistry,
-        ThreadPool computeThreadPool,
         TimeValue computeInterval
     ) {
-        ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
-        this.meterRegistry = meterRegistry;
+        super(PERSISTENT_TASK_NAME, threadPool.executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
-        this.computeThreadPool = computeThreadPool;
+        this.meterRegistry = meterRegistry;
+        this.threadPool = threadPool;
         this.computeInterval = computeInterval;
     }
 
-    // overwritable in tests
-    Runnable computeAndPublishTask() {
-        // TODO compute and publish metrics
-        return () -> needRefresh = false;
+    @Override
+    protected void nodeOperation(AllocatedPersistentTask task, IndicesAllocationMetricsTaskParams params, PersistentTaskState state) {
+        scheduleComputeAndPublish(task, threadPool, computeInterval, clusterService);
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
-            if (scheduledUpdate == null) {
-                scheduledUpdate = computeThreadPool.scheduleWithFixedDelay(
-                    computeAndPublishTask(),
-                    computeInterval,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE
-                );
-            }
-            if (event.routingTableChanged()) {
-                needRefresh = true;
-            }
-        } else {
-            if (scheduledUpdate != null) {
-                scheduledUpdate.cancel();
-                scheduledUpdate = null;
-                needRefresh = false;
-            }
+    // visible for testing
+    void scheduleComputeAndPublish(
+        AllocatedPersistentTask persistentTask,
+        ThreadPool threadPool,
+        TimeValue computeInterval,
+        ClusterService clusterService
+    ) {
+        new ComputeAndPublishScheduledTask(persistentTask, threadPool, computeInterval, clusterService);
+    }
+
+    public record IndicesAllocationMetricsTaskParams() implements PersistentTaskParams {
+        @Override
+        public String getWriteableName() {
+            return PERSISTENT_TASK_NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return INDICES_ALLOCATION_METRICS_TASK_VERSION;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().endObject();
         }
     }
 
-    boolean isRunning() {
-        return scheduledUpdate != null;
+    static class ComputeAndPublishScheduledTask {
+        private final AllocatedPersistentTask persistentTask;
+        private final Scheduler.Cancellable scheduledTask;
+        private final ClusterService clusterService;
+        private volatile boolean refresh;
+        private final ClusterStateListener routingTableChangeListener = e -> refresh = e.routingTableChanged();
+
+        ComputeAndPublishScheduledTask(
+            AllocatedPersistentTask persistentTask,
+            ThreadPool threadPool,
+            TimeValue computeInterval,
+            ClusterService clusterService
+        ) {
+            ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
+            this.persistentTask = persistentTask;
+            this.clusterService = clusterService;
+            clusterService.addListener(routingTableChangeListener);
+            refresh = true;
+            this.scheduledTask = threadPool.scheduleWithFixedDelay(
+                computeAndPublishOnce(),
+                computeInterval,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+        }
+
+        Runnable computeAndPublishOnce() {
+            return () -> {
+                if (persistentTask.isCancelled()) {
+                    clusterService.removeListener(routingTableChangeListener);
+                    scheduledTask.cancel();
+                }
+                // TODO compute and publish metrics
+                refresh = false;
+            };
+        }
     }
+
 }

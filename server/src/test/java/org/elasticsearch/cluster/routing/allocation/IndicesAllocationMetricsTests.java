@@ -9,19 +9,17 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -31,55 +29,44 @@ public class IndicesAllocationMetricsTests extends ESTestCase {
     private ClusterService clusterService;
     private MeterRegistry meterRegistry;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setup() throws Exception {
         threadPool = new TestThreadPool("indices-allocation-metrics");
         clusterService = new ClusterService(Settings.EMPTY, ClusterSettings.createBuiltInClusterSettings(), threadPool, null);
         meterRegistry = MeterRegistry.NOOP;
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        threadPool.shutdownNow();
-    }
-
-    public void testStartAndStopScheduledTask() {
+    public void testScheduleOnPersistentTask() {
         final var taskRuns = new CountDownLatch(between(1, 10));
         final var noopMetricsCompute = new IndicesAllocationMetrics(
+            threadPool,
             clusterService,
             meterRegistry,
-            threadPool,
             TimeValue.timeValueMillis(10)
         ) {
             @Override
-            Runnable computeAndPublishTask() {
-                return taskRuns::countDown;
+            void scheduleComputeAndPublish(
+                AllocatedPersistentTask persistentTask,
+                ThreadPool threadPool,
+                TimeValue computeInterval,
+                ClusterService clusterService
+            ) {
+                new IndicesAllocationMetrics.ComputeAndPublishScheduledTask(persistentTask, threadPool, computeInterval, clusterService) {
+                    @Override
+                    Runnable computeAndPublishOnce() {
+                        return taskRuns::countDown;
+                    }
+                };
             }
         };
 
-        final var node = DiscoveryNodeUtils.create(randomIdentifier("node-"));
-        noopMetricsCompute.clusterChanged(becomeMaster(node));
+        final var persistedTask = new AllocatedPersistentTask(randomLong(), "", "", "", null, null);
+        noopMetricsCompute.nodeOperation(persistedTask, null, null);
         safeAwait(taskRuns);
-        noopMetricsCompute.clusterChanged(becomeNonMaster(node));
-        assertFalse(noopMetricsCompute.isRunning());
     }
 
-    ClusterState oneMasterNode(DiscoveryNode node) {
-        return ClusterStateCreationUtils.state(node, node, new DiscoveryNode[] { node });
+    @After
+    public void cleanup() throws Exception {
+        threadPool.shutdownNow();
     }
-
-    ClusterState oneNonMasterNode(DiscoveryNode node) {
-        return ClusterStateCreationUtils.state(node, null, new DiscoveryNode[] { node });
-    }
-
-    ClusterChangedEvent becomeMaster(DiscoveryNode node) {
-        return new ClusterChangedEvent("become-master", oneMasterNode(node), oneNonMasterNode(node));
-    }
-
-    ClusterChangedEvent becomeNonMaster(DiscoveryNode node) {
-        return new ClusterChangedEvent("become-non-master", oneNonMasterNode(node), oneMasterNode(node));
-    }
-
 }

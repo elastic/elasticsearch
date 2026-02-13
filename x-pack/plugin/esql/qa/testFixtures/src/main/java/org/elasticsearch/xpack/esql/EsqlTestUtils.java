@@ -29,8 +29,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -45,7 +45,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -589,29 +588,23 @@ public final class EsqlTestUtils {
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
 
-    public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
-        DataPartitioning.AUTO,
-        ByteSizeValue.ofMb(1),
-        10_000,
-        ByteSizeValue.ofMb(1),
-        1000,
-        0.1,
-        PlannerSettings.REUSE_COLUMN_LOADERS_THRESHOLD.get(Settings.EMPTY)
-    );
-
-    public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
-        createMockTransportService(),
-        mock(SearchService.class),
-        null,
-        createMockClusterService(),
-        mock(ProjectResolver.class),
-        mock(IndexNameExpressionResolver.class),
-        null,
-        new InferenceService(mock(Client.class), createMockClusterService()),
-        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-        TEST_PLANNER_SETTINGS,
-        new CrossProjectModeDecider(Settings.EMPTY)
-    );
+    public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES;
+    static {
+        ClusterService clusterService = createMockClusterService();
+        MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
+            createMockTransportService(),
+            mock(SearchService.class),
+            null,
+            clusterService,
+            mock(ProjectResolver.class),
+            mock(IndexNameExpressionResolver.class),
+            null,
+            new InferenceService(mock(Client.class), clusterService),
+            new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+            new PlannerSettings.Holder(clusterService),
+            new CrossProjectModeDecider(Settings.EMPTY)
+        );
+    }
 
     private static ClusterService createMockClusterService() {
         var service = mock(ClusterService.class);
@@ -619,9 +612,11 @@ public final class EsqlTestUtils {
         doReturn(Settings.EMPTY).when(service).getSettings();
 
         // Create ClusterSettings with the required inference settings
-        var clusterSettings = new ClusterSettings(Settings.EMPTY, new java.util.HashSet<>(InferenceSettings.getSettings()));
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.addAll(InferenceSettings.getSettings());
+        settings.addAll(PlannerSettings.settings());
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
         doReturn(clusterSettings).when(service).getClusterSettings();
-
         return service;
     }
 

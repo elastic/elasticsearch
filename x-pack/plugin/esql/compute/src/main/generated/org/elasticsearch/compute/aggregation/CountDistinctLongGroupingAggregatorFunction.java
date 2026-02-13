@@ -48,7 +48,7 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
 
   public static CountDistinctLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, int precision) {
-    return new CountDistinctLongGroupingAggregatorFunction(channels, CountDistinctLongAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
+    return new CountDistinctLongGroupingAggregatorFunction(channels, CountDistinctLongAggregator.initGrouping(driverContext, precision), driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

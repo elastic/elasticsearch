@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -260,6 +261,11 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     private volatile long totalReplicas;
     private volatile long totalDesiredReplicas;
     private volatile long indicesBlockedFromScaleUp;
+    private final LongCounter successfulScaleUps;
+    private final LongCounter replicasAdded;
+    private final LongCounter successfulScaleDowns;
+    private final LongCounter replicasRemoved;
+    private final LongCounter failedScalingEvents;
     private final LongHistogram replicaIncreaseHistogram;
     private final LongHistogram replicaDecreaseHistogram;
 
@@ -317,12 +323,39 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             () -> new LongWithAttributes(this.totalDesiredReplicas)
         );
         meterRegistry.registerLongGauge(
-            "es.autoscaling.search.indices_blocked_scaling_up.current",
-            "The number of indices blocked from scaling up replicas in the latest replicas updater run "
+            "es.autoscaling.search.blocked.replicas_increases.current",
+            "The number of indices blocked from increasing replicas in the latest replicas updater run "
                 + "(either due to in-progress search node shutdowns or cache budget exceeded).",
             "indices",
             () -> new LongWithAttributes(this.indicesBlockedFromScaleUp)
         );
+        this.successfulScaleUps = meterRegistry.registerLongCounter(
+            "es.autoscaling.search.successful.replicas_increases_events.total",
+            "The number of successful replica increases to an index.",
+            "events"
+        );
+        this.replicasAdded = meterRegistry.registerLongCounter(
+            "es.autoscaling.search.replicas_added.total",
+            "The number of replicas added by the updater.",
+            "replicas"
+        );
+        this.successfulScaleDowns = meterRegistry.registerLongCounter(
+            "es.autoscaling.search.successful.replicas_decreases_events.total",
+            "The number of successful replica decreases to an index.",
+            "events"
+        );
+        this.replicasRemoved = meterRegistry.registerLongCounter(
+            "es.autoscaling.search.replicas_removed.total",
+            "The number of replicas removed by the updater.",
+            "replicas"
+        );
+        this.failedScalingEvents = meterRegistry.registerLongCounter(
+            "es.autoscaling.search.failed.replicas_update_events.total",
+            "The number of failed replica increases/decreases to an index.",
+            "events"
+        );
+        // Unless the metrics published by the below histograms are deemed useful, we should remove them.
+        // The data is in part captured by the above counters anyway.
         this.replicaIncreaseHistogram = meterRegistry.registerLongHistogram(
             "es.autoscaling.search.replica_increase.histogram",
             "Histogram of replica count increases per index",
@@ -479,15 +512,19 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     replicasScaleDownState.clearStateForIndices(indices);
                     LOGGER.debug("Updated replicas for " + indices + " to " + numReplicasTarget);
-                    // Record histogram metrics after successful update
+                    // Record metrics after a successful update
                     for (String indexName : indices) {
                         IndexRankingProperties props = rankingContext.rankingProperties(indexName);
                         if (props != null) {
                             int currentReplicas = props.indexProperties().replicas();
                             int delta = numReplicasTarget - currentReplicas;
                             if (delta > 0) {
+                                successfulScaleUps.increment();
+                                replicasAdded.incrementBy(delta);
                                 replicaIncreaseHistogram.record(delta);
                             } else if (delta < 0) {
+                                successfulScaleDowns.increment();
+                                replicasRemoved.incrementBy(-delta);
                                 replicaDecreaseHistogram.record(-delta);
                             }
                         }
@@ -496,6 +533,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
 
                 @Override
                 public void onFailure(Exception e) {
+                    failedScalingEvents.incrementBy(indices.size());
                     LOGGER.warn("Error updating replicas for " + indices + " to " + numReplicasTarget, e);
                 }
             });
@@ -812,9 +850,9 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 }
 
                 ReplicaRankingContext rankingContext = rankingContextSupplier.get();
+                publishUpdateReplicaSetting(1, indicesToScaleDown, rankingContext);
                 this.totalReplicas = rankingContext.getTotalReplicas();
                 this.totalDesiredReplicas = indicesMap.size();
-                publishUpdateReplicaSetting(1, indicesToScaleDown, rankingContext);
                 this.pendingScaleDownAfterDisabling = false;
                 this.replicasScaleDownState.clearState();
             }

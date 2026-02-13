@@ -246,7 +246,7 @@ public class SearchableSnapshotDirectoryFactory {
             );
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 "snapshotId",
-                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(data.length + 1))),
+                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(data.length))),
                 0L,
                 0L,
                 0,

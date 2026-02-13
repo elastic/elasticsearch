@@ -35,15 +35,21 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -906,10 +912,8 @@ public class CsvTestsDataLoader {
 
     public static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
         logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
-        URL policyMapping = getResource("/" + policyFileName);
-        String entity = readTextFile(policyMapping);
         Request request = new Request("PUT", "/_enrich/policy/" + policyName);
-        request.setJsonEntity(entity);
+        request.setJsonEntity(getResourceString("/enrich/policy/" + policyFileName));
         client.performRequest(request);
 
         request = new Request("POST", "/_enrich/policy/" + policyName + "/_execute");
@@ -1003,6 +1007,18 @@ public class CsvTestsDataLoader {
             throw new IllegalArgumentException("Cannot find resource " + name);
         }
         return result;
+    }
+
+    public static InputStream getResourceStream(String name) {
+        return Objects.requireNonNull(CsvTestsDataLoader.class.getResourceAsStream(name), "Cannot find resource " + name);
+    }
+
+    public static String getResourceString(String name) {
+        try (var stream = getResourceStream(name)) {
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {

@@ -586,11 +586,8 @@ public class CsvTests extends ESTestCase {
     }
 
     private static EnrichPolicy loadEnrichPolicyMapping(String policyFileName) {
-        URL policyMapping = CsvTestsDataLoader.class.getResource("/" + policyFileName);
-        assertThat(policyMapping, is(notNullValue()));
-        try {
-            String fileContent = CsvTestsDataLoader.readTextFile(policyMapping);
-            return EnrichPolicy.fromXContent(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, fileContent));
+        try (var policy = CsvTestsDataLoader.getResourceStream("/enrich/policy/" + policyFileName)) {
+            return EnrichPolicy.fromXContent(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy));
         } catch (IOException e) {
             throw new IllegalArgumentException("Cannot read resource " + policyFileName);
         }

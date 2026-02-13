@@ -98,7 +98,37 @@ public class AtanhTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        // Out of range (|x| > 1)
+        // Out of range
+        suppliers.add(
+            new TestCaseSupplier(
+                "atanh(1)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(1.0, DataType.DOUBLE, "arg")),
+                    "AtanhEvaluator[val=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: Atanh input out of range")
+            )
+        );
+
+        // Out of range
+        suppliers.add(
+            new TestCaseSupplier(
+                "atanh(-1)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(-1.0, DataType.DOUBLE, "arg")),
+                    "AtanhEvaluator[val=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: Atanh input out of range")
+            )
+        );
+
+        // Out of range
         suppliers.addAll(
             TestCaseSupplier.forUnaryCastingToDouble(
                 "AtanhEvaluator",
@@ -106,6 +136,21 @@ public class AtanhTests extends AbstractScalarFunctionTestCase {
                 k -> null,
                 1.0000001d,
                 Double.POSITIVE_INFINITY,
+                List.of(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Atanh input out of range"
+                )
+            )
+        );
+
+        // Out of range
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "AtanhEvaluator",
+                "val",
+                k -> null,
+                Double.NEGATIVE_INFINITY,
+                -1.0000001d,
                 List.of(
                     "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
                     "Line 1:1: java.lang.ArithmeticException: Atanh input out of range"

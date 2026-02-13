@@ -70,7 +70,7 @@ public class Atanh extends AbstractTrigonometricFunction {
 
     @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        if (val < -1.0 || val > 1.0) {
+        if (val <= -1.0 || val >= 1.0) {
             throw new ArithmeticException("Atanh input out of range");
         }
         // This implementation is derived from the go version:

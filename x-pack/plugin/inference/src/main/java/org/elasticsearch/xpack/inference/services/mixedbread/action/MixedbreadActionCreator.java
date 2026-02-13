@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.inference.services.mixedbread.embeddings.Mixedbre
 import org.elasticsearch.xpack.inference.services.mixedbread.request.embeddings.MixedbreadEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.mixedbread.request.rerank.MixedbreadRerankRequest;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
-import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankResponseHandler;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadResponseHandler;
 import org.elasticsearch.xpack.inference.services.mixedbread.response.MixedbreadRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
@@ -40,7 +40,7 @@ public class MixedbreadActionCreator implements MixedbreadActionVisitor {
         OpenAiEmbeddingsResponseEntity::fromResponse
     );
 
-    private static final ResponseHandler RERANK_HANDLER = new MixedbreadRerankResponseHandler(
+    private static final ResponseHandler RERANK_HANDLER = new MixedbreadResponseHandler(
         MixedbreadUtils.RERANK_REQUEST_TYPE,
         (request, response) -> MixedbreadRerankResponseEntity.fromResponse(response)
     );

@@ -1,5 +1,5 @@
 pr: 142169
-summary: "[Inference API] Add Mixedbread AI Embeddings and Rerank support to the Inference Plugin"
+summary: "[Inference API] Add Mixedbread AI Embeddings support to the Inference Plugin"
 area: Inference
 type: enhancement
 issues: []

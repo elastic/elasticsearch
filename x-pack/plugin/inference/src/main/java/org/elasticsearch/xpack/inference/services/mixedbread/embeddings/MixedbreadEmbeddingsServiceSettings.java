@@ -93,7 +93,8 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
                         ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-                dimensionsSetByUser = dimensions != null;;
+                dimensionsSetByUser = dimensions != null;
+                ;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {

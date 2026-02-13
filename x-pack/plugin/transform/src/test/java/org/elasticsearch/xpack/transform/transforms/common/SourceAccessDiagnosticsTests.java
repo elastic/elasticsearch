@@ -62,8 +62,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             0,
             List.of(securityFailure),
             null,
-            false,
-            null
+            false
         );
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("my_remote_cluster", skippedCluster));
 
@@ -92,8 +91,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             1,
             List.of(securityFailure),
             null,
-            false,
-            null
+            false
         );
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("my_remote_cluster", failedCluster));
 
@@ -224,8 +222,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             0,
             List.of(nonSecurityFailure),
             null,
-            false,
-            null
+            false
         );
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("my_remote_cluster", successfulCluster));
 

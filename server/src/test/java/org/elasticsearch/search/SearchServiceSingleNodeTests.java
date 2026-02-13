@@ -1344,7 +1344,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      */
     public void testMaxDocvalueFieldsSearch() throws IOException {
         final Settings settings = Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1).build();
-        createIndex("index", settings, null, "field1", "keyword", "field2", "keyword");
+        createIndex("index", settings);
         prepareIndex("index").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         final SearchService service = getInstanceFromNode(SearchService.class);
@@ -1398,7 +1398,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDeduplicateDocValuesFields() throws Exception {
-        createIndex("index", Settings.EMPTY, "_doc", "field1", "type=date", "field2", "type=date");
+        createIndex("index", Settings.EMPTY, "field1", "type=date", "field2", "type=date");
         prepareIndex("index").setId("1").setSource("field1", "2022-08-03", "field2", "2022-08-04").setRefreshPolicy(IMMEDIATE).get();
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);

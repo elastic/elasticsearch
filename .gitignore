@@ -5,6 +5,11 @@
 # JetBrainsAI/Junie
 .junie/
 
+# Cursor rules and commands, if we want to implement project level rules and commands we'll want to remove these
+# These are based on the cursor docs here: https://cursor.com/docs/cli/using#rules
+# Prefix slash ensures these are only ignored at the same level as this file
+/.cursor/
+
 # intellij files
 .idea/
 *.iml

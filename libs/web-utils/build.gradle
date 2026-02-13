@@ -1,0 +1,28 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+dependencies {
+  api project(':libs:core')
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+
+  testImplementation(project(":test:framework"))
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'org.apache.commons.codec.binary.Base64',
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+  )
+}

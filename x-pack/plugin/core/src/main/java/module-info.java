@@ -46,8 +46,9 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.action.util;
     exports org.elasticsearch.xpack.core.action;
     exports org.elasticsearch.xpack.core.aggregatemetric;
-    exports org.elasticsearch.xpack.core.analytics.action;
     exports org.elasticsearch.xpack.core.analytics;
+    exports org.elasticsearch.xpack.core.analytics.action;
+    exports org.elasticsearch.xpack.core.analytics.mapper;
     exports org.elasticsearch.xpack.core.api.filtering;
     exports org.elasticsearch.xpack.core.application;
     exports org.elasticsearch.xpack.core.archive;

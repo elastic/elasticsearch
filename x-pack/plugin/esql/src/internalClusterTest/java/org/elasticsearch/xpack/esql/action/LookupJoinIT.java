@@ -192,7 +192,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                     if (csvResource == null) {
                         throw new IllegalArgumentException("Cannot find CSV resource for " + indexName + ": " + dataset.dataFileName());
                     }
-                    CsvTestsDataLoader.loadCsvData(restClient, indexName, csvResource, dataset.allowSubFields(), logger);
+                    CsvTestsDataLoader.loadCsvData(restClient, indexName, csvResource, dataset.allowSubFields());
                 }
 
                 refresh(indexName);
@@ -235,7 +235,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
 
             if (policyExists == false) {
                 // Use CsvTestsDataLoader to load the enrich policy (it handles both creation and execution)
-                CsvTestsDataLoader.loadEnrichPolicy(restClient, policyName, config.policyFileName(), logger);
+                CsvTestsDataLoader.loadEnrichPolicy(restClient, config);
                 ensureGreen(); // Wait for enrich index to be ready
             }
             if (enrichIndexExists == false) {

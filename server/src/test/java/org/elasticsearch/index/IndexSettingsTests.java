@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.translog.Translog;
@@ -29,6 +31,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,6 +46,7 @@ import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_IN
 import static org.elasticsearch.index.IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -926,4 +930,120 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
 
+    public void testSyntheticIdCorrectSettings() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdBadVersion() {
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                    badVersion
+                )
+            )
+        );
+    }
+
+    public void testSyntheticIdBadCodec() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String badCodec = randomFrom(
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_DEFAULT_CODEC,
+            CodecService.LUCENE_DEFAULT_CODEC
+        );
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), badCodec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    INDEX_CODEC_SETTING.getKey(),
+                    CodecService.DEFAULT_CODEC,
+                    badCodec
+                )
+            )
+        );
+    }
+
+    public void testSyntheticIdBadMode() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), badMode)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexSettings.MODE.getKey(),
+                    IndexMode.TIME_SERIES.name(),
+                    badMode.name()
+                )
+            )
+        );
+    }
 }

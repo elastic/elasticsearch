@@ -86,7 +86,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                     final InternalAggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
                         l.onFailure(
-                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
+                            new ElasticsearchStatusException(SourceAccessDiagnostics.diagnoseSourceAccessFailure(r), RestStatus.BAD_REQUEST)
                         );
                         return;
                     }
@@ -142,6 +142,19 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         )
                     );
                     return;
+                }
+                // Null aggregations may indicate permission issues when accessing remote indices.
+                // We only fail validation when a security failure is positively identified (e.g.,
+                // ElasticsearchSecurityException in cluster or shard failures). We deliberately do NOT
+                // fail when no security failure is found, because null aggregations can also occur when
+                // a local wildcard index pattern resolves to zero indices -- a legitimate scenario for
+                // integrations that start transforms before source data exists (see #95562).
+                if (response.getAggregations() == null) {
+                    String diagnosis = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
+                    if (diagnosis.equals(SourceAccessDiagnostics.SOURCE_INDICES_MISSING) == false) {
+                        listener.onFailure(new ValidationException().addValidationError(diagnosis));
+                        return;
+                    }
                 }
                 listener.onResponse(true);
             }, e -> {

@@ -223,7 +223,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
         out.writeBoolean(dimensionsSetByUser);
     }

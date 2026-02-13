@@ -89,10 +89,14 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     }
 
     @Override
-    public String getWriteableName() { throw new UnsupportedOperationException("not serialized"); }
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException { throw new UnsupportedOperationException("not serialized"); }
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("not serialized");
+    }
 
     @Override
     public boolean equals(Object o) {

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.vectors.VectorData;
@@ -18,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 
 import java.io.IOException;
@@ -84,7 +81,9 @@ public class MMRExec extends UnaryExec {
     }
 
     @Override
-    public String getWriteableName() { throw new UnsupportedOperationException("not serialized"); }
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
 
     @Override
     public boolean equals(Object o) {

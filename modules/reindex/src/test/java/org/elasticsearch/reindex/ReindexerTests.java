@@ -30,7 +30,6 @@ import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -307,7 +306,6 @@ public class ReindexerTests extends ESTestCase {
             mock(ScriptService.class),
             mock(ReindexSslConfig.class),
             null,
-            mock(TaskManager.class),
             transportService,
             mock(ReindexRelocationNodePicker.class)
         );
@@ -322,7 +320,6 @@ public class ReindexerTests extends ESTestCase {
             mock(ScriptService.class),
             mock(ReindexSslConfig.class),
             metrics,
-            mock(TaskManager.class),
             mock(TransportService.class),
             mock(ReindexRelocationNodePicker.class)
         );

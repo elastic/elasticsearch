@@ -22,6 +22,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.nativeaccess.CloseableMappedByteBuffer;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -75,6 +76,9 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final boolean mmap;
 
+    // parent mmap closeables whose arenas must be explicitly closed to unmap the shared cache file
+    private final Closeable[] mmapCloseables;
+
     SharedBytes(int numRegions, int regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes, boolean mmap)
         throws IOException {
         this.numRegions = numRegions;
@@ -102,26 +106,36 @@ public class SharedBytes extends AbstractRefCounted {
             int mapSize = regionsPerMmap * regionSize;
             int lastMapSize = Math.toIntExact(fileSize % mapSize);
             int mapCount = Math.toIntExact(fileSize / mapSize) + (lastMapSize == 0 ? 0 : 1);
-            CloseableMappedByteBuffer[] mmaps = new CloseableMappedByteBuffer[mapCount];
+            CloseableMappedByteBuffer[] parentMmaps = new CloseableMappedByteBuffer[mapCount];
             for (int i = 0; i < mapCount - 1; i++) {
-                mmaps[i] = map(fileChannel, MapMode.READ_ONLY, (long) mapSize * i, mapSize);
+                parentMmaps[i] = map(fileChannel, MapMode.READ_ONLY, (long) mapSize * i, mapSize);
             }
-            mmaps[mapCount - 1] = map(
+            parentMmaps[mapCount - 1] = map(
                 fileChannel,
                 MapMode.READ_ONLY,
                 (long) mapSize * (mapCount - 1),
                 lastMapSize == 0 ? mapSize : lastMapSize
             );
             for (int i = 0; i < numRegions; i++) {
-                ios[i] = new IO(i, mmaps[i / regionsPerMmap].slice((long) (i % regionsPerMmap) * regionSize, regionSize));
+                ios[i] = new IO(i, parentMmaps[i / regionsPerMmap].slice((long) (i % regionsPerMmap) * regionSize, regionSize));
             }
+            this.mmapCloseables = getMmapCloseables(parentMmaps);
         } else {
             for (int i = 0; i < numRegions; i++) {
                 ios[i] = new IO(i, null);
             }
+            this.mmapCloseables = null;
         }
         this.writeBytes = writeBytes;
         this.readBytes = readBytes;
+    }
+
+    private Closeable[] getMmapCloseables(CloseableMappedByteBuffer[] mappedByteBuffers) {
+        Closeable[] closeables = new Closeable[mappedByteBuffers.length];
+        for (int i = 0; i < mappedByteBuffers.length; i++) {
+            closeables[i] = mappedByteBuffers[i]::close;
+        }
+        return closeables;
     }
 
     /**
@@ -305,9 +319,17 @@ public class SharedBytes extends AbstractRefCounted {
     @Override
     protected void closeInternal() {
         try {
-            IOUtils.close(fileChannel, path == null ? null : () -> Files.deleteIfExists(path));
+            if (mmapCloseables != null) {
+                IOUtils.close(mmapCloseables);
+            }
         } catch (IOException e) {
-            logger.warn("Failed to clean up shared bytes file", e);
+            logger.warn("Failed to unmap shared bytes", e);
+        } finally {
+            try {
+                IOUtils.close(fileChannel, path == null ? null : () -> Files.deleteIfExists(path));
+            } catch (IOException e) {
+                logger.warn("Failed to clean up shared bytes file", e);
+            }
         }
     }
 

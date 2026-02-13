@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 
 import java.util.Arrays;
@@ -23,7 +24,7 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_FORMAT
 public class EsqlMediaTypeParser {
     public static final MediaTypeRegistry<? extends MediaType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<>().register(
         XContentType.values()
-    ).register(TextFormat.values());
+    ).register(TextFormat.values()).register(new MediaType[] { ArrowFormat.INSTANCE });
 
     /*
      * Since we support {@link TextFormat} <strong>and</strong>

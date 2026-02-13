@@ -337,6 +337,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/3rd_party_deployment/Test start deployment with low priority and max allocations more than one}
   issue: https://github.com/elastic/elasticsearch/issues/140610
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=security/authz_api_keys/30_field_level_security_synthetic_source/Fields with copy_to, field level security and synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/142341
 
 # Examples:
 #

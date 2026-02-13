@@ -27,12 +27,14 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
     private final DirectoryType directoryType;
     private final byte indexBits;
+    private final VectorSimilarityFunction similarityFunction;
     private static final byte queryBits = 4;
 
     public enum DirectoryType {
@@ -40,9 +42,10 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         MMAP
     }
 
-    public ESNextOSQVectorsScorerTests(DirectoryType directoryType, byte indexBits) {
+    public ESNextOSQVectorsScorerTests(DirectoryType directoryType, byte indexBits, VectorSimilarityFunction similarityFunction) {
         this.directoryType = directoryType;
         this.indexBits = indexBits;
+        this.similarityFunction = similarityFunction;
     }
 
     public void testQuantizeScore() throws Exception {
@@ -120,7 +123,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final float[] residualScratch = new float[dimensions];
         final byte[] qVector = new byte[length];
         final float[] centroid = new float[dimensions];
-        VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
         randomVector(centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
@@ -143,7 +145,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     out.writeInt(Float.floatToIntBits(result.lowerInterval()));
                     out.writeInt(Float.floatToIntBits(result.upperInterval()));
                     out.writeInt(Float.floatToIntBits(result.additionalCorrection()));
-                    out.writeShort((short) result.quantizedComponentSum());
+                    out.writeInt(result.quantizedComponentSum());
                 }
             }
             final float[] query = new float[dimensions];
@@ -161,8 +163,9 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             final float[] floatScratch = new float[3];
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
                 in.seek(padding);
-                assertEquals(in.length(), padding + (long) numVectors * (length + 14));
-                final IndexInput slice = in.slice("test", in.getFilePointer(), (long) (length + 14) * numVectors);
+                final int perVectorBytes = length + 16;
+                assertEquals(in.length(), padding + (long) numVectors * perVectorBytes);
+                final IndexInput slice = in.slice("test", in.getFilePointer(), (long) perVectorBytes * numVectors);
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
@@ -185,7 +188,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     );
                     long qDist = defaultScorer.quantizeScore(quantizeQuery);
                     slice.readFloats(floatScratch, 0, 3);
-                    int quantizedComponentSum = slice.readShort();
+                    int quantizedComponentSum = slice.readInt();
                     float defaulScore = defaultScorer.score(
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
@@ -201,7 +204,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     );
                     qDist = panamaScorer.quantizeScore(quantizeQuery);
                     in.readFloats(floatScratch, 0, 3);
-                    quantizedComponentSum = in.readShort();
+                    quantizedComponentSum = in.readInt();
                     float panamaScore = panamaScorer.score(
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
@@ -216,8 +219,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         qDist
                     );
                     assertEquals(defaulScore, panamaScore, 1e-2f);
-                    assertEquals(((long) (i + 1) * (length + 14)), slice.getFilePointer());
-                    assertEquals(padding + ((long) (i + 1) * (length + 14)), in.getFilePointer());
+                    assertEquals(((long) (i + 1) * perVectorBytes), slice.getFilePointer());
+                    assertEquals(padding + ((long) (i + 1) * perVectorBytes), in.getFilePointer());
                 }
             }
         }
@@ -279,12 +282,17 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             final float[] scoresPanama = new float[ESNextOSQVectorsScorer.BULK_SIZE];
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
                 in.seek(padding);
-                assertEquals(in.length(), padding + (long) numVectors * (length + 14));
+                final int perVectorBytes = length + 16;
+                assertEquals(in.length(), padding + (long) numVectors * perVectorBytes);
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 for (int i = 0; i < numVectors; i += ESNextOSQVectorsScorer.BULK_SIZE) {
-                    final IndexInput slice = in.slice("test", in.getFilePointer(), (long) (length + 14) * ESNextOSQVectorsScorer.BULK_SIZE);
+                    final IndexInput slice = in.slice(
+                        "test",
+                        in.getFilePointer(),
+                        (long) perVectorBytes * ESNextOSQVectorsScorer.BULK_SIZE
+                    );
                     final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                         slice,
                         queryBits,
@@ -325,8 +333,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     for (int j = 0; j < ESNextOSQVectorsScorer.BULK_SIZE; j++) {
                         assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
                     }
-                    assertEquals(((long) (ESNextOSQVectorsScorer.BULK_SIZE) * (length + 14)), slice.getFilePointer());
-                    assertEquals(padding + ((long) (i + ESNextOSQVectorsScorer.BULK_SIZE) * (length + 14)), in.getFilePointer());
+                    assertEquals(((long) (ESNextOSQVectorsScorer.BULK_SIZE) * perVectorBytes), slice.getFilePointer());
+                    assertEquals(padding + ((long) (i + ESNextOSQVectorsScorer.BULK_SIZE) * perVectorBytes), in.getFilePointer());
                 }
             }
         }
@@ -340,8 +348,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             out.writeInt(Float.floatToIntBits(correction.upperInterval()));
         }
         for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            int targetComponentSum = correction.quantizedComponentSum();
-            out.writeShort((short) targetComponentSum);
+            out.writeInt(correction.quantizedComponentSum());
         }
         for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
             out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
@@ -367,7 +374,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         return () -> Stream.of((byte) 1, (byte) 2, (byte) 4)
-            .flatMap(i -> Arrays.stream(DirectoryType.values()).map(f -> new Object[] { f, i }))
+            .flatMap(i -> Arrays.stream(DirectoryType.values()).map(f -> List.of(f, i)))
+            .flatMap(p -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> Stream.concat(p.stream(), Stream.of(f)).toArray()))
             .iterator();
     }
 }

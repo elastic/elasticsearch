@@ -504,7 +504,7 @@ public final class MultiRowTestCaseSupplier {
             cases,
             minRows,
             maxRows,
-            "empty exponential histograms",
+            "empty exponential histogram",
             DataType.EXPONENTIAL_HISTOGRAM,
             () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
         );
@@ -512,7 +512,7 @@ public final class MultiRowTestCaseSupplier {
             cases,
             minRows,
             maxRows,
-            "random exponential histograms",
+            "random exponential histogram",
             DataType.EXPONENTIAL_HISTOGRAM,
             EsqlTestUtils::randomExponentialHistogram
         );

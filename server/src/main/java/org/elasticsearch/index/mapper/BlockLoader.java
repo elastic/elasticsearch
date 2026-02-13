@@ -10,9 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -223,6 +225,27 @@ public interface BlockLoader {
         ) throws IOException;
     }
 
+    /**
+     * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
+     * <p>
+     * Implementations may return {@code null} if they are unable to load the requested values,
+     * for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalLengthReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         *
+         * @param nullsFiltered  if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         */
+        @Nullable
+        BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+
+        NumericDocValues toLengthValues();
+    }
+
     interface RowStrideReader extends Reader {
         /**
          * Reads the values of the given document into the builder.
@@ -273,7 +296,7 @@ public interface BlockLoader {
      * {@code null} or if they can't load column-at-a-time themselves.
      */
     @Nullable
-    ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
+    IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
 
     /**
      * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
@@ -348,7 +371,7 @@ public interface BlockLoader {
         protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
 
         @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
             if (canUsePreferLoaderForLeaf(context)) {
                 return preferLoader.columnAtATimeReader(context);
             } else {
@@ -687,10 +710,12 @@ public interface BlockLoader {
     }
 
     /**
-     * Specialized builder for collecting dense arrays of double values.
+     * Specialized builder for collecting dense arrays of int values.
      */
     interface SingletonIntBuilder extends Builder {
         SingletonIntBuilder appendLongs(long[] values, int from, int length);
+
+        SingletonIntBuilder appendInts(int[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

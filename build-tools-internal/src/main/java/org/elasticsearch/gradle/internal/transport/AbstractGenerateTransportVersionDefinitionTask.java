@@ -55,8 +55,11 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
     @Optional
     public abstract RegularFileProperty getAlternateUpperBoundFile();
 
-    protected abstract void runGeneration(TransportVersionResourcesService resources, List<TransportVersionUpperBound> upstreamUpperBounds)
-        throws IOException;
+    protected abstract void runGeneration(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        boolean onReleaseBranch
+    ) throws IOException;
 
     protected abstract Set<String> getTargetUpperBoundNames(
         TransportVersionResourcesService resources,
@@ -72,11 +75,8 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
         TransportVersionResourcesService resources = getResourceService().get();
         List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromGitBase();
         boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(upstreamUpperBounds, getCurrentUpperBoundName().get());
-        if (onReleaseBranch) {
-            throw new IllegalArgumentException("Transport version generation cannot run on release branches");
-        }
 
-        runGeneration(resources, upstreamUpperBounds);
+        runGeneration(resources, upstreamUpperBounds, onReleaseBranch);
     }
 
     protected void generateTransportVersionDefinition(
@@ -159,7 +159,7 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
             resetValue = idsForUpperBound.get(idsForUpperBound.size() - 2);
         }
         var resetUpperBound = new TransportVersionUpperBound(upperBound.name(), resetValue.definition().name(), resetValue.id());
-        resources.writeUpperBound(resetUpperBound, false);
+        resources.writeUpperBound(resetUpperBound);
     }
 
     private TransportVersionId maybeGetExistingId(

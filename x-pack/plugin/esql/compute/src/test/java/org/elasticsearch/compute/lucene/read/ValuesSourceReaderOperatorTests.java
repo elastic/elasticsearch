@@ -63,6 +63,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -172,6 +173,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
+            randomBoolean(),
             0
         );
     }
@@ -209,8 +211,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void initMapping() throws IOException {
-        mapperService = new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperService = new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "key", "integer");
             fieldExamples(b, "int", "integer");
             fieldExamples(b, "short", "short");
@@ -485,11 +486,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testManySingleDocPages() {
+        testManySingleDocPages(true);
+    }
+
+    public void testManySingleDocPagesNoReuse() {
+        testManySingleDocPages(false);
+    }
+
+    private void testManySingleDocPages(boolean reuseColumnLoaders) {
         DriverContext driverContext = driverContext();
+
+        boolean shuffle = randomBoolean();
+        int sortedPages = 5;
         int numDocs = between(10, 100);
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, between(1, numDocs), 1));
-        Randomness.shuffle(input);
-        List<Operator> operators = new ArrayList<>();
+        if (shuffle) {
+            Randomness.shuffle(input.subList(sortedPages, input.size() - 1));  // Sort some of the list so we reuse some loaders
+        }
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         FieldCase testCase = new FieldCase(
             new KeywordFieldMapper.KeywordFieldType("kwd"),
@@ -497,21 +510,20 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             checks::tags,
             StatusChecks::keywordsFromDocValues
         );
-        operators.add(
-            new ValuesSourceReaderOperator.Factory(
-                ByteSizeValue.ofGb(1),
-                List.of(testCase.info, fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
-                new IndexedByShardIdFromSingleton<>(
-                    new ValuesSourceReaderOperator.ShardContext(
-                        reader,
-                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                        STORED_FIELDS_SEQUENTIAL_PROPORTIONS
-                    )
-                ),
-                0
-            ).get(driverContext)
-        );
-        List<Page> results = drive(operators, input.iterator(), driverContext);
+        Operator load = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(testCase.info, fieldInfo(mapperService.fieldType("key"), ElementType.INT)),
+            new IndexedByShardIdFromSingleton<>(
+                new ValuesSourceReaderOperator.ShardContext(
+                    reader,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                )
+            ),
+            reuseColumnLoaders,
+            0
+        ).get(driverContext);
+        List<Page> results = new TestDriverRunner().numThreads(1).builder(driverContext).input(input).run(load);
         assertThat(results, hasSize(input.size()));
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(3));
@@ -521,6 +533,22 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 testCase.checkResults.check(page.getBlock(1), p, key);
             }
         }
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) load.status();
+        Matcher<Integer> readersMatcher;
+        if (reuseColumnLoaders) {
+            if (shuffle) {
+                readersMatcher = lessThanOrEqualTo(numDocs - sortedPages + reader.leaves().size());
+            } else {
+                readersMatcher = equalTo(reader.leaves().size());
+            }
+        } else {
+            readersMatcher = equalTo(numDocs);
+        }
+        assertMap(
+            status.readersBuilt(),
+            matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", readersMatcher)
+                .entry("kwd:column_at_a_time:BytesRefsFromOrds.Singleton", readersMatcher)
+        );
     }
 
     public void testEmpty() {
@@ -618,6 +646,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 ),
+                randomBoolean(),
                 0
             ).get(driverContext)
         );
@@ -637,11 +666,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
+                    randomBoolean(),
                     0
                 ).get(driverContext)
             );
         }
-        List<Page> results = drive(operators, input.iterator(), driverContext);
+        List<Page> results = new TestDriverRunner().builder(driverContext).input(input).run(operators);
         assertThat(results, hasSize(input.size()));
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(tests.size() + 2 /* one for doc and one for keys */));
@@ -714,38 +744,43 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void testLoadAllStatus(boolean allInOnePage) {
-        DriverContext driverContext = driverContext();
+        var runner = new TestDriverRunner().builder(driverContext());
         int numDocs = between(100, 5000);
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, commitEvery(numDocs), numDocs));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(runner.context(), numDocs, commitEvery(numDocs), numDocs));
         assertThat(reader.leaves(), hasSize(8));
         assertThat(input, hasSize(8));
         List<FieldCase> cases = infoAndChecksForEachType(
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
-        // Build one operator for each field, so we get a unique map to assert on
-        List<Operator> operators = cases.stream()
-            .map(
-                i -> new ValuesSourceReaderOperator.Factory(
-                    ByteSizeValue.ofGb(1),
-                    List.of(i.info),
-                    new IndexedByShardIdFromSingleton<>(
-                        new ValuesSourceReaderOperator.ShardContext(
-                            reader,
-                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
-                        )
-                    ),
-                    0
-                ).get(driverContext)
-            )
-            .toList();
+
         if (allInOnePage) {
             input = List.of(CannedSourceOperator.mergePages(input));
         }
-        drive(operators, input.iterator(), driverContext);
+        runner.input(input);
+
+        // Build one operator for each field, so we get a unique map to assert on
+        runner.run(
+            cases.stream()
+                .map(
+                    i -> new ValuesSourceReaderOperator.Factory(
+                        ByteSizeValue.ofGb(1),
+                        List.of(i.info),
+                        new IndexedByShardIdFromSingleton<>(
+                            new ValuesSourceReaderOperator.ShardContext(
+                                reader,
+                                (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                            )
+                        ),
+                        randomBoolean(),
+                        0
+                    ).get(runner.context())
+                )
+                .toList()
+        );
         for (int i = 0; i < cases.size(); i++) {
-            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) operators.get(i).status();
+            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().get(i);
             assertThat(status.pagesReceived(), equalTo(input.size()));
             assertThat(status.pagesEmitted(), equalTo(input.size()));
             FieldCase fc = cases.get(i);
@@ -940,8 +975,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         initMapping();
         reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs, manySegments == false);
 
-        DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));
+        var runner = new TestDriverRunner().builder(driverContext());
+        List<Page> input = CannedSourceOperator.collectPages(sourceOperator(runner.context(), numDocs));
         assertThat(reader.leaves(), hasSize(manySegments ? greaterThan(1) : equalTo(1)));
         assertThat(input, hasSize(reader.leaves().size()));
         if (manySegments) {
@@ -950,6 +985,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         if (shuffle) {
             input = input.stream().map(this::shuffle).toList();
         }
+        runner.input(input);
         boolean willSplit = loadLongWillSplit(input);
 
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
@@ -963,23 +999,25 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         // Build one operator for each field, so we get a unique map to assert on
-        List<Operator> operators = cases.stream()
-            .map(
-                i -> new ValuesSourceReaderOperator.Factory(
-                    ByteSizeValue.ofGb(1),
-                    List.of(i.info),
-                    new IndexedByShardIdFromSingleton<>(
-                        new ValuesSourceReaderOperator.ShardContext(
-                            reader,
-                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
-                        )
-                    ),
-                    0
-                ).get(driverContext)
-            )
-            .toList();
-        List<Page> result = drive(operators, input.iterator(), driverContext);
+        List<Page> result = runner.run(
+            cases.stream()
+                .map(
+                    i -> new ValuesSourceReaderOperator.Factory(
+                        ByteSizeValue.ofGb(1),
+                        List.of(i.info),
+                        new IndexedByShardIdFromSingleton<>(
+                            new ValuesSourceReaderOperator.ShardContext(
+                                reader,
+                                (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                                STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                            )
+                        ),
+                        randomBoolean(),
+                        0
+                    ).get(runner.context())
+                )
+                .toList()
+        );
 
         boolean[] found = new boolean[numDocs];
         for (Page page : result) {
@@ -1002,7 +1040,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertThat(result, hasSize(willSplit ? greaterThanOrEqualTo(input.size()) : equalTo(input.size())));
 
         for (int i = 0; i < cases.size(); i++) {
-            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) operators.get(i).status();
+            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().get(i);
             assertThat(status.pagesReceived(), equalTo(input.size()));
             assertThat(status.pagesEmitted(), willSplit ? greaterThanOrEqualTo(input.size()) : equalTo(input.size()));
         }
@@ -1470,8 +1508,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testWithNulls() throws IOException {
-        mapperService = new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperService = new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "i", "integer");
             fieldExamples(b, "j", "long");
             fieldExamples(b, "d", "double");
@@ -1548,7 +1585,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
         assertDriverContext(driverContext);
     }
@@ -1638,6 +1675,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                                 STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                             )
                         ),
+                        randomBoolean(),
                         0
                     ).get(driverContext)
                 ),
@@ -1654,7 +1692,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertThat(pages[0], greaterThan(0));
         assertDriverContext(driverContext);
@@ -1673,33 +1711,36 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void testSequentialStoredFields(boolean sequential, int docCount) throws IOException {
         initMapping();
-        DriverContext driverContext = driverContext();
-        List<Page> source = CannedSourceOperator.collectPages(simpleInput(driverContext, docCount, docCount, docCount));
+        var runner = new TestDriverRunner().builder(driverContext());
+        List<Page> source = CannedSourceOperator.collectPages(simpleInput(runner.context(), docCount, docCount, docCount));
         assertThat(source, hasSize(1)); // We want one page for simpler assertions, and we want them all in one segment
         assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
-        Operator op = new ValuesSourceReaderOperator.Factory(
-            ByteSizeValue.ofGb(1),
-            List.of(
-                fieldInfo(mapperService.fieldType("key"), ElementType.INT),
-                fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
-            ),
-            new IndexedByShardIdFromSingleton<>(
-                new ValuesSourceReaderOperator.ShardContext(
-                    reader,
-                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
-                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+        List<Page> results = runner.input(source)
+            .run(
+                new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    List.of(
+                        fieldInfo(mapperService.fieldType("key"), ElementType.INT),
+                        fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
+                    ),
+                    new IndexedByShardIdFromSingleton<>(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            reader,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        )
+                    ),
+                    randomBoolean(),
+                    0
                 )
-            ),
-            0
-        ).get(driverContext);
-        List<Page> results = drive(op, source.iterator(), driverContext);
+            );
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
         IntVector keys = results.get(0).<IntBlock>getBlock(1).asVector();
         for (int p = 0; p < results.get(0).getPositionCount(); p++) {
             int key = keys.getInt(p);
             checks.strings(results.get(0).getBlock(2), p, key);
         }
-        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
         assertMap(
             status.readersBuilt(),
             matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
@@ -1707,7 +1748,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
                 .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)
         );
-        assertDriverContext(driverContext);
+        assertDriverContext(runner.context());
     }
 
     public void testDescriptionOfMany() throws IOException {
@@ -1725,6 +1766,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
+            randomBoolean(),
             0
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
@@ -1777,14 +1819,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
+                randomBoolean(),
                 0
             );
-            DriverContext driverContext = driverContext();
-            List<Page> results = drive(
-                readerFactory.get(driverContext),
-                CannedSourceOperator.collectPages(luceneFactory.get(driverContext)).iterator(),
-                driverContext
-            );
+            var runner = new TestDriverRunner().builder(driverContext());
+            List<Page> results = runner.input(luceneFactory).run(readerFactory);
             assertThat(seenShards, equalTo(IntStream.range(0, shardCount).boxed().collect(Collectors.toCollection(TreeSet::new))));
             for (Page p : results) {
                 IntBlock keyBlock = p.getBlock(1);

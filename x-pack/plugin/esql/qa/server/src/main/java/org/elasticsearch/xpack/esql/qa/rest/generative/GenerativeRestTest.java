@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -86,11 +85,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "@timestamp field of type date or date_nanos",
         "which was either not present in the source index, or has been dropped or renamed",
         "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+        "expected named expression for grouping; got ",
+        "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
+            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
 
         // Ts-command errors awaiting fixes
-        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
-        "Invalid call to dataType on an unresolved object \\?@timestamp", // https://github.com/elastic/elasticsearch/issues/140607
-        "expected named expression for grouping; got Bucket" // https://github.com/elastic/elasticsearch/issues/140606
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -169,9 +169,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return currentSchema;
                 }
 
+                @Override
+                public void clearCommandHistory() {
+                    previousCommands = new ArrayList<>();
+                    previousResult = null;
+                }
+
                 boolean continueExecuting;
                 List<Column> currentSchema;
-                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+                List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 QueryExecuted previousResult;
             };
             try {
@@ -275,15 +281,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return null;
         }
         return cols.stream()
-            .map(x -> new Column(normalizeColumnName((String) x.get(COLUMN_NAME)), (String) x.get(COLUMN_TYPE), originalTypes(x)))
+            .map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
             .collect(Collectors.toList());
-    }
-
-    private static String normalizeColumnName(String name) {
-        if (name.startsWith("`") && name.endsWith("`") && name.startsWith("```") == false) {
-            name = "``" + name + "``";
-        }
-        return name.contains("-") && name.startsWith("`") == false ? Strings.format("`%s`", name) : name;
     }
 
     @SuppressWarnings("unchecked")
@@ -296,7 +295,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false, false)
+            .stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

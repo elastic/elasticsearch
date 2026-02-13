@@ -11,6 +11,7 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;
 
@@ -205,7 +206,7 @@ public interface DenseVector {
     }
 
     static float getMagnitude(float[] vector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(List<Number> vector) {

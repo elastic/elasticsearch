@@ -44,8 +44,13 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -393,5 +398,31 @@ public class PlannerUtils {
 
     public static boolean usesScoring(QueryPlan<?> plan) {
         return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+    }
+
+    /**
+     * Checks that the input rows of the plan have been reduced by LIMIT.
+     * In the case where non-unary plans are used, such as {@code Fork} or {@code UnionAll},
+     * we check that the rows from each branch are reduced by LIMIT.
+     */
+    public static boolean hasLimitedInput(LogicalPlan plan) {
+        while (true) {
+            switch (plan) {
+                case Limit ignored -> {
+                    return true;
+                }
+                case UnaryPlan unaryPlan -> plan = unaryPlan.child();
+                case LookupJoin lookupJoin -> plan = lookupJoin.left();
+                case Row ignored -> {
+                    return true;
+                }
+                case LeafPlan ignored -> {
+                    return false;
+                }
+                default -> {
+                    return plan.children().stream().allMatch(PlannerUtils::hasLimitedInput);
+                }
+            }
+        }
     }
 }

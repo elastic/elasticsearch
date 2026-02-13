@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
@@ -29,6 +28,8 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedVectorsReader;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -45,7 +46,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
+        new ScalarQuantizedVectorScorer(ES93FlatVectorScorer.INSTANCE)
     );
 
     /** The minimum confidence interval */
@@ -141,11 +142,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             + ")";
     }
 
-    static class ES93FlatVectorReader extends FlatVectorsReader {
+    private static class ES93FlatVectorReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
-        private final FlatVectorsReader reader;
+        private final Lucene99ScalarQuantizedVectorsReader reader;
 
-        ES93FlatVectorReader(FlatVectorsReader reader) {
+        private ES93FlatVectorReader(Lucene99ScalarQuantizedVectorsReader reader) {
             super(reader.getFlatVectorScorer());
             this.reader = reader;
         }
@@ -166,6 +167,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
+        public FlatVectorsScorer getFlatVectorScorer() {
+            return reader.getFlatVectorScorer();
+        }
+
+        @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
             scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
@@ -176,6 +182,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
+        public void finishMerge() throws IOException {
+            reader.finishMerge();
+        }
+
+        @Override
         public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
             return reader.getRandomVectorScorer(field, target);
         }
@@ -183,6 +194,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
             return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return reader.getMergeInstance();
         }
 
         @Override
@@ -199,14 +215,24 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         public void close() throws IOException {
             reader.close();
         }
+
+        @Override
+        public QuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
+            return reader.getQuantizedVectorValues(fieldName);
+        }
+
+        @Override
+        public ScalarQuantizer getQuantizationState(String fieldName) {
+            return reader.getQuantizationState(fieldName);
+        }
     }
 
-    static final class ESQuantizedFlatVectorsScorer implements FlatVectorsScorer {
+    private static final class ESQuantizedFlatVectorsScorer implements FlatVectorsScorer {
 
         final FlatVectorsScorer delegate;
         final VectorScorerFactory factory;
 
-        ESQuantizedFlatVectorsScorer(FlatVectorsScorer delegate) {
+        private ESQuantizedFlatVectorsScorer(FlatVectorsScorer delegate) {
             this.delegate = delegate;
             factory = VectorScorerFactory.instance().orElse(null);
         }

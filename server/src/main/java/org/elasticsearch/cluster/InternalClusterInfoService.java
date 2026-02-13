@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -112,6 +113,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
     private final EstimatedHeapUsageCollector estimatedHeapUsageCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
+    private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
@@ -121,6 +123,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     @SuppressWarnings("this-escape")
     public InternalClusterInfoService(
         Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
@@ -135,6 +138,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         this.clusterStateSupplier = clusterService::state;
+        this.writeLoadConstraintSettings = writeLoadConstraintSettings;
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
@@ -473,13 +477,18 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private ClusterInfo updateAndGetCurrentClusterInfo() {
-            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>(maxHeapPerNode.size());
             maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
                 final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
                 if (estimatedHeapUsage != null) {
                     estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
                 }
             });
+            final Set<String> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingSet(
+                nodeThreadPoolUsageStatsPerNode,
+                writeLoadConstraintSettings.getQueueLatencyThreshold()
+            );
+
             final var newClusterInfo = new ClusterInfo(
                 leastAvailableSpaceUsages,
                 mostAvailableSpaceUsages,
@@ -490,10 +499,26 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedHeapUsages,
                 nodeThreadPoolUsageStatsPerNode,
                 indicesStatsSummary.shardWriteLoads(),
-                maxHeapPerNode
+                maxHeapPerNode,
+                nodeIdsWriteLoadHotspotting
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;
+        }
+
+        private static Set<String> buildNodeIdsWriteLoadHotspottingSet(
+            Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode,
+            TimeValue queueLatencyThreshold
+        ) {
+            final Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(nodeThreadPoolUsageStatsPerNode.size());
+            nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeUsageStats) -> {
+                NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats.threadPoolUsageStatsMap()
+                    .get(ThreadPool.Names.WRITE);
+                if (threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= queueLatencyThreshold.millis()) {
+                    nodeIdsWriteLoadHotspotting.add(nodeId);
+                }
+            });
+            return nodeIdsWriteLoadHotspotting;
         }
     }
 

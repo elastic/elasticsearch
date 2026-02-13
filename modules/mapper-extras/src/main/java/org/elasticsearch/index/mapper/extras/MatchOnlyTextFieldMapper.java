@@ -327,17 +327,21 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
                 && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
+
+                // bc we don't know whether the parent field will ignore a value, we must also check a potential fallback field created by
+                // the parent field
+                String fallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
+
+                // The parent fallback field might be stored in binary doc values or in a stored field, we need to check which one
+                var fallbackFetcher = keywordParent.usesBinaryDocValuesForIgnoredFields()
+                    ? ignoredValuesDocValuesFieldFetcher(fallbackFieldName)
+                    : storedFieldFetcher(fallbackFieldName);
+
                 if (parent.isStored()) {
-                    return combineFieldFetchers(
-                        storedFieldFetcher(parentFieldName),
-                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
-                    );
+                    return combineFieldFetchers(storedFieldFetcher(parentFieldName), fallbackFetcher);
                 } else if (parent.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(
-                        docValuesFieldFetcher(ifd),
-                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
-                    );
+                    return combineFieldFetchers(docValuesFieldFetcher(ifd), fallbackFetcher);
                 }
             }
 
@@ -782,7 +786,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.addToFieldNames(fieldType().name());
 
         // match only text isn't stored, so if synthetic source needs to be supported, we must find an alternative way of loading the field
-        if (fieldType().textFieldType.storeFieldForSyntheticSource(indexCreatedVersion)) {
+        if (fieldType().textFieldType.needsFallbackStorageForSyntheticSource(indexCreatedVersion)) {
             // check if we can use the delegate
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;

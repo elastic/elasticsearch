@@ -903,18 +903,67 @@ public class BlockHashTests extends BlockHashTestCase {
     }
 
     public void testIntLongHash() {
-        int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
+        int[] values1 = new int[] { 0, 1, 0, -1, 0, -1 };
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
-        Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { 1, 1L }, new Object[] { 0, 1L } };
+        Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { -1, 1L }, new Object[] { 0, 1L } };
         hash(ordsAndKeys -> {
-            assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:INT, 1:LONG], entries=4, size="));
-            assertThat(ordsAndKeys.description(), endsWith("b}"));
+            if (forcePackedHash) {
+                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:INT, 1:LONG], entries=4, size="));
+                assertThat(ordsAndKeys.description(), endsWith("b}"));
+            } else {
+                assertThat(
+                    ordsAndKeys.description(),
+                    startsWith("Adaptive{LongIntBlockHash{keys=[LongKey[channel=1], IntKey[channel=0]], entries=4")
+                );
+                assertThat(ordsAndKeys.description(), endsWith("b}}"));
+            }
             assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
             assertKeys(ordsAndKeys.keys(), expectedKeys);
         },
             blockFactory.newIntArrayVector(values1, values1.length).asBlock(),
             blockFactory.newLongArrayVector(values2, values2.length).asBlock()
         );
+    }
+
+    public void testLongIntHashWithNulls() {
+        try (var longsBuilder = blockFactory.newLongBlockBuilder(6); var intsBuilder = blockFactory.newIntBlockBuilder(6)) {
+            longsBuilder.appendLong(2);
+            longsBuilder.appendNull();
+            longsBuilder.appendLong(3);
+            longsBuilder.appendLong(2);
+            longsBuilder.appendNull();
+            longsBuilder.appendLong(1);
+            longsBuilder.appendLong(3);
+
+            intsBuilder.appendInt(-1);
+            intsBuilder.appendInt(1);
+            intsBuilder.appendInt(5);
+            intsBuilder.appendNull();
+            intsBuilder.appendNull();
+            intsBuilder.appendInt(-10);
+            intsBuilder.appendInt(5);
+            Object[][] expectedKeys = {
+                new Object[] { 2L, -1 },
+                new Object[] { null, 1 },
+                new Object[] { 3L, 5 },
+                new Object[] { 2L, null },
+                new Object[] { null, null },
+                new Object[] { 1L, -10 } };
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:INT], entries=6, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                } else {
+                    assertThat(
+                        ordsAndKeys.description(),
+                        startsWith("Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:INT], entries=6, size=")
+                    );
+                    assertThat(ordsAndKeys.description(), endsWith("b}}"));
+                }
+                assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4, 5, 2);
+                assertKeys(ordsAndKeys.keys(), expectedKeys);
+            }, longsBuilder.build(), intsBuilder.build());
+        }
     }
 
     public void testLongDoubleHash() {
@@ -1096,7 +1145,7 @@ public class BlockHashTests extends BlockHashTestCase {
     // Returns the size of the bytesRefBlockHash depending on the underlying implementation.
     static String byteRefBlockHashSize() {
         if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
-            return "213112b";
+            return "213120b";
         }
         return "483b";
     }

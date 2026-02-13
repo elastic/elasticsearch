@@ -19,8 +19,8 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,14 +73,18 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             }
         }
         // values, timestamps, slice, future_timestamps
+        AggregatorMode aggregatorMode = AggregatorMode.INITIAL;
         var aggregatorFactory = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false).groupingAggregatorFactory(
-            AggregatorMode.INITIAL,
+            aggregatorMode,
             List.of(1, 2, 3, 4)
         );
         final List<BlockHash.GroupSpec> groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.INT));
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
+            aggregatorMode,
             List.of(aggregatorFactory),
             () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
+            Integer.MAX_VALUE,
+            1.0,
             driverContext
         );
         List<Page> outputPages = new ArrayList<>();
@@ -90,7 +94,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             List.of(hashAggregationOperator),
             new PageConsumerOperator(outputPages::add)
         );
-        OperatorTestCase.runDriver(driver);
+        new TestDriverRunner().run(driver);
         for (Page out : outputPages) {
             assertThat(out.getPositionCount(), equalTo(1));
             LongBlock timestamps = out.getBlock(1);

@@ -23,6 +23,7 @@ public class PlanTelemetry {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<String, Integer> commands = new HashMap<>();
     private final Map<String, Integer> functions = new HashMap<>();
+    private final Map<String, Integer> settings = new HashMap<>();
     private int linkedProjectsCount = 0;
 
     public PlanTelemetry(EsqlFunctionRegistry functionRegistry) {
@@ -58,11 +59,19 @@ public class PlanTelemetry {
         add(functions, functionRegistry.snapshotRegistry().functionName(clazz));
     }
 
+    public void setting(String name) {
+        add(settings, name);
+    }
+
     public Map<String, Integer> commands() {
         return commands;
     }
 
     public Map<String, Integer> functions() {
         return functions;
+    }
+
+    public Map<String, Integer> settings() {
+        return settings;
     }
 }

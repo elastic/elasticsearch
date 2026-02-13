@@ -457,8 +457,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.1.10 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.1.10#bwcTest
+      - label: 9.1.9 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.1.9#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -467,7 +467,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.1.10
+          BWC_VERSION: 9.1.9
         retry:
           automatic:
             - exit_status: "-1"
@@ -499,8 +499,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.3.0 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.0#bwcTest
+      - label: 9.3.1 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.1#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -509,7 +509,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.3.0
+          BWC_VERSION: 9.3.1
         retry:
           automatic:
             - exit_status: "-1"
@@ -625,7 +625,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.12", "9.2.6", "9.4.0"]
+            BWC_VERSION: ["8.19.12", "9.2.6", "9.3.1", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -692,7 +692,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.12", "9.2.6", "9.4.0"]
+            BWC_VERSION: ["8.19.12", "9.2.6", "9.3.1", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -749,7 +749,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk25
-            BWC_VERSION: ["8.19.12", "9.2.6", "9.4.0"]
+            BWC_VERSION: ["8.19.12", "9.2.6", "9.3.1", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

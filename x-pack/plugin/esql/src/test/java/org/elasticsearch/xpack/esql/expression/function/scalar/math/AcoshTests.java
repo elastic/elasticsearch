@@ -20,9 +20,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AcoshTests extends AbstractScalarFunctionTestCase {
+
+    private static final double ACOSH_OF_2 = 1.3169578969248166;
+    private static final double ACOSH_OF_10 = 2.993222846126381;
+
     public AcoshTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -31,8 +36,6 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // Within range (x >= 1) using canonical formula:
-        // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Definitions_in_terms_of_logarithms
         suppliers.add(
             new TestCaseSupplier(
                 "acosh(1)",
@@ -53,7 +56,7 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(2.0, DataType.DOUBLE, "arg")),
                     "AcoshEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    equalTo(Math.log(2.0 + Math.sqrt(3.0)))  // acosh(2) = ln(2 + sqrt(3))
+                    closeTo(ACOSH_OF_2, Math.ulp(ACOSH_OF_2))
                 )
             )
         );
@@ -65,7 +68,7 @@ public class AcoshTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(10.0, DataType.DOUBLE, "arg")),
                     "AcoshEvaluator[val=Attribute[channel=0]]",
                     DataType.DOUBLE,
-                    equalTo(Math.log(10.0 + Math.sqrt(99.0)))  // acosh(10) = ln(10 + sqrt(99))
+                    closeTo(ACOSH_OF_10, Math.ulp(ACOSH_OF_10))
                 )
             )
         );

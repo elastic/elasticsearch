@@ -19,6 +19,7 @@ import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -49,15 +50,18 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -90,6 +94,7 @@ public class Reindexer {
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
+    Version remoteVersion;
 
     Reindexer(
         ClusterService clusterService,
@@ -109,16 +114,56 @@ public class Reindexer {
         this.reindexMetrics = reindexMetrics;
     }
 
+    /**
+     * If we're reindexing from a remote cluster, then we look up the remote version and save it to {@link #remoteVersion}
+     * Otherwise, we set {@link #remoteVersion} as null
+     * @param listener The listener to complete once we've determined the remote cluster version.
+     *                 This is typically the reindexing request itself.
+     */
+    public void lookupRemoteVersion(Task task, ReindexRequest request, ActionListener<Void> listener) {
+        // If we're reindexing from a remote source, then we need to determine the remote version to decide whether we use
+        // scroll search or point-in-time search
+        if (request.getRemoteInfo() != null) {
+            RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
+                @Override
+                public void onResponse(Version version) {
+                    remoteVersion = version;
+                    // The listener onResponse will call subsequent reindexing methods. However, the remoteVersion will now be present as a
+                    // class variable rather than a parameter
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    // No rejection concept in ActionListener, therefore treating as failure
+                    listener.onFailure(e);
+                }
+            };
+
+            RemoteInfo remoteInfo = request.getRemoteInfo();
+            assert reindexSslConfig != null : "Reindex ssl config must be set";
+            RestClient restClient = buildRestClient(remoteInfo, reindexSslConfig, task.getId(), synchronizedList(new ArrayList<>()));
+            RemoteReindexingUtils.lookupRemoteVersion(rejectAwareListener, threadPool, restClient);
+        }
+        // We're reindexing from the same cluster, so we set the remote version to null
+        else {
+            remoteVersion = null;
+            listener.onResponse(null);
+        }
+    }
+
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
         BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
     }
 
-    public void execute(BulkByScrollTask task, ReindexRequest request, int remoteVersion, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
+    public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
 
-        // TODO - We need to decide inside executeSlicedAction whether we're using PIT or not and open the PIT if so
-        // Since the request (and request.getRemoteINfo()) and the remoteVersion can be passed in, then we just need an IF statement.
-        // TODO - Do we need to make this decision in a utils class somewhere since it will be mirrored when the hitsourceis created
         BulkByScrollParallelizationHelper.executeSlicedAction(
             task,
             request,
@@ -139,7 +184,6 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    remoteVersion,
                     wrapWithMetrics(listener, reindexMetrics, startTime, request.getRemoteInfo() != null)
                 );
                 searchAction.start();
@@ -259,6 +303,7 @@ public class Reindexer {
          */
         private final IdFieldMapper destinationIndexIdMapper;
 
+        // TODO -Move this upwards into the reindexer so when we make the Rest client it doesn't need to remake it
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
@@ -266,8 +311,6 @@ public class Reindexer {
          * instead we let it create threads but we watch them carefully and assert that they are dead when the process is over.
          */
         private List<Thread> createdThreads = emptyList();
-
-        private int remoteVersion;
 
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
@@ -279,7 +322,6 @@ public class Reindexer {
             ProjectState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
-            int remoteVersion,
             ActionListener<BulkByScrollResponse> listener
         ) {
             super(
@@ -301,7 +343,6 @@ public class Reindexer {
                 sslConfig
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
-            this.remoteVersion = remoteVersion;
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -344,11 +385,11 @@ public class Reindexer {
                 in parallisation helper ... so we need to know then ...
              */
 
-
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 assert sslConfig != null : "Reindex ssl config must be set";
+                // TODO - Remove? Remember, we only use this REST client for remote cases which is orthogonal to whether we use PIT
                 RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads);
                 return new RemoteScrollableHitSource(
                     logger,

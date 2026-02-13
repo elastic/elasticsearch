@@ -380,15 +380,84 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
-- class: org.elasticsearch.index.query.RewriteableTests
-  method: testRewriteAndFetchWithExecutorOnFailure
-  issue: https://github.com/elastic/elasticsearch/issues/142140
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword
   issue: https://github.com/elastic/elasticsearch/issues/142282
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=1024 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142289
+- class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
+  method: testSimple
+  issue: https://github.com/elastic/elasticsearch/issues/142408
+- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
+  method: testTsIndexConflictingTypes {null}
+  issue: https://github.com/elastic/elasticsearch/issues/142410
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142413
+- class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
+  method: testGenerateDefinitions
+  issue: https://github.com/elastic/elasticsearch/issues/142417
+- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
+  method: testInstantVectorExpectedWithGrouping
+  issue: https://github.com/elastic/elasticsearch/issues/142418
+- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
+  method: testRangeVectorExpected
+  issue: https://github.com/elastic/elasticsearch/issues/142419
+- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
+  method: testInstantVectorExpected
+  issue: https://github.com/elastic/elasticsearch/issues/142420
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/142422
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFieldDataStats
+  issue: https://github.com/elastic/elasticsearch/issues/142424
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/142426
+- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
+  method: testWithNulls
+  issue: https://github.com/elastic/elasticsearch/issues/142434
+- class: org.elasticsearch.compute.operator.MMROperatorTests
+  method: testSimpleLargeInput
+  issue: https://github.com/elastic/elasticsearch/issues/142437
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with query vector variable}
+  issue: https://github.com/elastic/elasticsearch/issues/142438
+- class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
+  method: testIndexPoints
+  issue: https://github.com/elastic/elasticsearch/issues/142439
+- class: org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormatTests
+  method: testSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/142393
+- class: org.elasticsearch.compute.operator.MMROperatorTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/142436
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.Simple MMR diversification}
+  issue: https://github.com/elastic/elasticsearch/issues/142441
+- class: org.elasticsearch.xpack.esql.core.util.RemoteClusterUtilsTests
+  method: testQualifyAndJoinIndices
+  issue: https://github.com/elastic/elasticsearch/issues/142442
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with static query vector high lambda}
+  issue: https://github.com/elastic/elasticsearch/issues/142444
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with byte vector and query vector}
+  issue: https://github.com/elastic/elasticsearch/issues/142445
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with static query vector low lambda}
+  issue: https://github.com/elastic/elasticsearch/issues/142446
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with bit vector and query vector}
+  issue: https://github.com/elastic/elasticsearch/issues/142447
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:mmr.MMR with hex string bit vector and query vector}
+  issue: https://github.com/elastic/elasticsearch/issues/142448
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/142426
 
 # Examples:
 #

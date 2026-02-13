@@ -20,21 +20,23 @@ class ResultBuilderForLong implements ResultBuilder {
 
     private final boolean inKey;
 
+    private final TopNEncoder encoder;
+
     /**
      * The value previously set by {@link #decodeKey}.
      */
     private long key;
 
     ResultBuilderForLong(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        this.encoder = encoder;
         this.inKey = inKey;
         this.builder = blockFactory.newLongBlockBuilder(initialSize);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = TopNEncoder.DEFAULT_SORTABLE.decodeLong(keys);
+        key = encoder.toSortable(asc).decodeLong(keys);
     }
 
     @Override

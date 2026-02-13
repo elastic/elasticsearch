@@ -1,0 +1,12 @@
+text_body:text,        text_vector:dense_vector, keyword_field:keyword, byte_vector:dense_vector, bit_vector:dense_vector
+first text,            [0.4, 0.2, 0.4],          test1,                 [10, 20, 30],             [13, 112]
+second text,           [0.4, 0.2, 0.3],          test2,                 [40, 50, 60],             [112, 13]
+second text duplicate, [0.4, 0.2, 0.3],          test2_dup,             [40, 50, 60],             [112, 13]
+third text,            [0.4, 0.1, 0.3],          test3,                 [70, 80, 90],             [48, 56]
+third text duplicate,  [0.4, 0.1, 0.3],          test3_dup,             [70, 80, 90],             [48, 56]
+fourth text,           [0.9, 0.5, 0.6],          test4,                 [45, 52, 68],             [105, -55]
+fifth text,            [0.1, 0.5, 0.9],          test5,                 [33, 33, 28],             [44, 87]
+sixth text,            [0.1, 0.1, 0.1],          test6,                 [102, 30, 45],            [44, 127]
+seventh text,          [0.1, 0.4, 0.9],          test7,                 [-120, -100, -18],        [127, 127]
+eighth text,           [0.1, 0.7, 0.9],          test8,                 [38, -78, 68],            [63, -127]
+ninth text,            [0.2, 0.05, 0.05],        test9,                 [56, -105, 95],           [77, 99]

@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -21,12 +21,11 @@ import org.elasticsearch.core.Releasables;
  */
 final class SumDenseVectorGroupingState extends AbstractArrayState implements GroupingAggregatorState {
 
-    private ObjectArray<float[]> sums;
-    private int expectedDimensions = -1;
+    private FloatArray sums;
+    private int dimensions = -1;
 
     SumDenseVectorGroupingState(BigArrays bigArrays) {
         super(bigArrays);
-        this.sums = bigArrays.newObjectArray(1);
     }
 
     /**
@@ -34,40 +33,28 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
      * @param groupId the group ID
      * @param block the FloatBlock containing the vector
      * @param start the starting index in the block
-     * @param valueCount the number of values (dimensions) in the vector
+     * @param dimensions the number of values (dimensions) in the vector
      */
-    void add(int groupId, FloatBlock block, int start, int valueCount) {
-        ensureCapacity(groupId);
-
-        if (expectedDimensions == -1) {
-            expectedDimensions = valueCount;
-        } else if (valueCount != expectedDimensions) {
+    void add(int groupId, FloatBlock block, int start, int dimensions) {
+        if (this.dimensions == -1) {
+            this.sums = bigArrays.newFloatArray(dimensions);
+            this.dimensions = dimensions;
+        } else if (dimensions != this.dimensions) {
             throw new IllegalArgumentException(
-                "Cannot sum dense vectors with different dimensions: expected [" + expectedDimensions + "] but got [" + valueCount + "]"
+                "Cannot sum dense vectors with different dimensions: expected [" + this.dimensions + "] but got [" + dimensions + "]"
             );
         }
+        ensureCapacity(groupId, dimensions);
 
-        float[] currentSum = sums.get(groupId);
-        if (currentSum == null) {
-            currentSum = new float[valueCount];
-            sums.set(groupId, currentSum);
-        }
-
-        for (int i = 0; i < valueCount; i++) {
-            currentSum[i] += block.getFloat(start + i);
+        int groupSumStart = groupId * dimensions;
+        for (int i = 0; i < dimensions; i++) {
+            sums.set(groupSumStart + i, block.getFloat(start + i) + sums.get(groupSumStart + i));
         }
         trackGroupId(groupId);
     }
 
-    float[] get(int groupId) {
-        if (groupId >= sums.size()) {
-            return null;
-        }
-        return sums.get(groupId);
-    }
-
-    private void ensureCapacity(int groupId) {
-        sums = bigArrays.grow(sums, groupId + 1);
+    private void ensureCapacity(int groupId, int dimensions) {
+        sums = bigArrays.grow(sums, (groupId + 1L) * dimensions);
     }
 
     @Override
@@ -75,11 +62,11 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
         try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                float[] sum = group < sums.size() ? sums.get(group) : null;
-                if (sum != null && hasValue(group)) {
+                int groupIndex = group * dimensions;
+                if (group < sums.size() / dimensions && hasValue(group)) {
                     builder.beginPositionEntry();
-                    for (float f : sum) {
-                        builder.appendFloat(f);
+                    for (int j = 0; j < dimensions; j++) {
+                        builder.appendFloat(sums.get(groupIndex + j));
                     }
                     builder.endPositionEntry();
                 } else {
@@ -94,11 +81,11 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
         try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                float[] sum = group < sums.size() ? sums.get(group) : null;
-                if (sum != null && hasValue(group)) {
+                int groupIndex = group * dimensions;
+                if (group < sums.size() / dimensions && hasValue(group)) {
                     builder.beginPositionEntry();
-                    for (float f : sum) {
-                        builder.appendFloat(f);
+                    for (int j = 0; j < dimensions; j++) {
+                        builder.appendFloat(sums.get(groupIndex + j));
                     }
                     builder.endPositionEntry();
                 } else {

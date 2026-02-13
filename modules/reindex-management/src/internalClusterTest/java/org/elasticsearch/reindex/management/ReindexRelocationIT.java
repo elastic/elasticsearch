@@ -131,6 +131,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertDocCount(DEST_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST);
     }
     // todo(szy): add test for two reindex task hops
+    // todo(szy): add test for remote reindex
 
     private TaskId assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(final TaskResult originalResult) {
         assertThat("task completed", originalResult.isCompleted(), is(true));

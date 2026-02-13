@@ -557,7 +557,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             onScrollResponse(asyncResponse);
             return;
         }
-        if (task.isRelocationRequested()) {
+        if (task.isRelocationRequested() && task.isWorker() && task.getParentTaskId().isSet() == false) {
             final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateToSupplier().get();
             if (nodeToRelocateTo.isPresent()) {
                 final String scrollId = asyncResponse.response().getScrollId();

@@ -46,6 +46,7 @@ public class ESNextOSQVectorsScorer {
     protected final float[] upperIntervals;
     protected final int[] targetComponentSums;
     protected final float[] additionalCorrections;
+    private final byte[] scratch;
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
         if (indexBits == 7) {
@@ -65,6 +66,7 @@ public class ESNextOSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
+        this.scratch = indexBits == 7 ? new byte[dimensions] : null;
     }
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
@@ -93,13 +95,14 @@ public class ESNextOSQVectorsScorer {
             }
         }
         if (indexBits == 7) {
-            int total = 0;
-            for (int i = 0; i < dimensions; i++) {
-                total += in.readByte() * q[i];
-            }
-            return total;
+            return quantized7BitScore(q);
         }
         throw new IllegalArgumentException("Only 1-bit index supported");
+    }
+
+    private long quantized7BitScore(byte[] q) throws IOException {
+        in.readBytes(scratch, 0, dimensions);
+        return VectorUtil.dotProduct(scratch, q);
     }
 
     private long quantized4BitScoreSymmetric(byte[] q) throws IOException {

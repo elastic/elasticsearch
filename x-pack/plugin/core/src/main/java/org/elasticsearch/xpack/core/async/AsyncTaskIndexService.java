@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -315,18 +314,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
-    // Always reserve a whole page (16kiB) to buffer the results: whole pages come from the recycler, whereas growing the buffer from zero
-    // involves repeatedly creating brand-new byte[] arrays, each only 12.5% oversized, and copying the contents across. It doesn't switch
-    // to recycling mode until the buffer grows to at least half-a-page (8kiB), which could in theory be more than 40 reallocations (tho
-    // in practice it's fewer as we write more than one byte at once). This tentative-expansion behaviour makes sense for long-lived tiny
-    // buffers where it's worth doing all those allocations to avoid too much oversize, but these buffers only live for a short time so
-    // the overheads matter less.
-    private static final int INITIAL_BUFFER = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
-
     private ReleasableBytesStreamOutput allocateBuffer(boolean limitToMaxResponseSize) {
         return limitToMaxResponseSize
-            ? new ReleasableBytesStreamOutputWithLimit(INITIAL_BUFFER, bigArrays.withCircuitBreaking(), maxResponseSize)
-            : new ReleasableBytesStreamOutput(INITIAL_BUFFER, bigArrays.withCircuitBreaking());
+            ? new ReleasableBytesStreamOutputWithLimit(bigArrays.withCircuitBreaking(), maxResponseSize)
+            : new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking());
     }
 
     private void addResultFieldAndFinish(Writeable response, XContentBuilder source) throws IOException {
@@ -611,8 +602,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private static class ReleasableBytesStreamOutputWithLimit extends ReleasableBytesStreamOutput {
         private final long limit;
 
-        ReleasableBytesStreamOutputWithLimit(int expectedSize, BigArrays bigArrays, long limit) {
-            super(expectedSize, bigArrays);
+        ReleasableBytesStreamOutputWithLimit(BigArrays bigArrays, long limit) {
+            super(bigArrays);
             this.limit = limit;
         }
 

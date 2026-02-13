@@ -72,9 +72,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     /**
-     * The context window size for the models can be found here:
-     * <a href="https://www.mixedbread.com/docs/models/reranking/mxbai-rerank-large-v1">rerank</a>
-
      * {@link #rerankerWindowSize(String modelId)} method returns the size in words, not in tokens, so we'll need to translate
      * tokens to words by multiplying by 0.75 and rounding down
 

@@ -1892,6 +1892,11 @@ public class EsqlCapabilities {
         ACOSH_FUNCTION,
 
         /**
+         * Support for the ASINH function.
+         */
+        ASINH_FUNCTION,
+
+        /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */
@@ -1913,6 +1918,11 @@ public class EsqlCapabilities {
          * E.g., avg(sum by (cluster) (rate(foo[5m])))
          */
         PROMQL_NESTED_AGGREGATES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support post-processing STATS commands after PROMQL source commands.
+         */
+        PROMQL_POST_PROCESSING_STATS,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1942,6 +1952,11 @@ public class EsqlCapabilities {
          * parameters like the other functions.
          */
         TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
+
+        /**
+         * Does {@code TOP_SNIPPETS} process all field values?
+         */
+        TOP_SNIPPETS_MV,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.
@@ -2106,6 +2121,15 @@ public class EsqlCapabilities {
          * Fixes https://github.com/elastic/elasticsearch/issues/139359
          */
         INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
+
+        /**
+         * Temporary capability until the MMR operator is merged to pass the BWC CI tests
+         * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
+         * however, without the MMRExec to operator code in place, will fail on the snapshot
+         * TODO - remove this once the MMR operator is merged
+         */
+        MMR_V2(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

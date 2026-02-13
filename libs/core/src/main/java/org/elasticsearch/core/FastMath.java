@@ -96,11 +96,10 @@ final class FastMath {
     // CONSTANTS AND TABLES FOR ACOSH
     // --------------------------------------------------------------------------
 
-    // For values >= 2^28, we use a simplified formula: acosh(x) ~= log(x) + ln(2).
-    // At this magnitude, sqrt(x^2 - 1) ~= x, so the full formula reduces to log(2x).
-    // Using this threshold avoids potential overflow when computing x^2.
-    // https://github.com/golang/go/blob/master/src/math/acosh.go
-    private static final double ACOSH_LARGE = (double) (1L << 28);
+    // Shared thresholds for inverse hyperbolic functions, derived from the FreeBSD & Go implementations.
+    // https://github.com/golang/go/blob/master/src/math/*
+    private static final double HYPERBOLIC_LARGE = (double) (1L << 28);
+    private static final double HYPERBOLIC_NEAR_ZERO = 1.0 / (1L << 28);
 
     // --------------------------------------------------------------------------
     // CONSTANTS AND TABLES FOR LOG AND LOG1P
@@ -302,8 +301,8 @@ final class FastMath {
 
         // For values NOT CLOSE to the acosh domain boundaries, use:
         // acosh(x):
-        // (1) := log(2x-1/(sqrt(x*x-1)+x)) if 2 < x < ACOSH_LARGE (stable formula that does not suffer from precision loss)
-        // (2) := log(x)+ln2 if x >= ACOSH_LARGE (in this range acosh reduces to a faster simplified function)
+        // (1) := log(2x-1/(sqrt(x*x-1)+x)) if 2 < x < HYPERBOLIC_LARGE (stable formula that does not suffer from precision loss)
+        // (2) := log(x)+ln2 if x >= HYPERBOLIC_LARGE (in this range acosh reduces to a faster simplified function)
         //
         // For values CLOSE to 1.0, use:
         // acosh(x)
@@ -315,7 +314,7 @@ final class FastMath {
         if (value == 1.0) {
             return 0.0;
         }
-        if (value >= ACOSH_LARGE) {
+        if (value >= HYPERBOLIC_LARGE) {
             return StrictMath.log(value) + LOG_2;
         }
         if (value > 2.0) {
@@ -326,5 +325,43 @@ final class FastMath {
 
         final double t = value - 1.0;
         return StrictMath.log1p(t + StrictMath.sqrt(2.0 * t + t * t));
+    }
+
+    /**
+     * @param value A double value.
+     * @return Inverse hyperbolic sine of value.
+     */
+    public static double asinh(double value) {
+        // This algorithm is a java version of golang math package implementation:
+        // https://github.com/golang/go/blob/master/src/math/asinh.go
+
+        // For values NOT CLOSE to the asinh domain boundaries, use:
+        // asinh(x):
+        // (1) := sign(x)*log(2abs(x)+1/(abs(x)+sqrt(x*x+1))) if 2 < abs(x) < HYPERBOLIC_LARGE (stable formula that does not suffer from
+        // precision loss)
+        // (2) := sign(x)*(log(abs(x))+ln2) if abs(x) >= HYPERBOLIC_LARGE (in this range asinh reduces to a faster simplified function)
+        //
+        // For values CLOSE to 0.0, use:
+        // asinh(x):
+        // (3) := sign(x)*log1p(abs(x) + x^2/(1+sqrt(1+x^2))) if HYPERBOLIC_NEAR_ZERO <= abs(x) <= 2 (same as (1) but for values close to
+        // 0.0)
+        // (4) := x if abs(x) < HYPERBOLIC_NEAR_ZERO (Taylor approximation: https://en.wikipedia.org/wiki/Taylor_series).
+
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return value;
+        }
+
+        final double abs = StrictMath.abs(value);
+        final double temp;
+        if (abs >= HYPERBOLIC_LARGE) {
+            temp = StrictMath.log(abs) + LOG_2;
+        } else if (abs > 2.0) {
+            temp = StrictMath.log(2.0 * abs + 1.0 / (StrictMath.sqrt(abs * abs + 1.0) + abs));
+        } else if (abs < HYPERBOLIC_NEAR_ZERO) {
+            temp = abs;
+        } else {
+            temp = StrictMath.log1p(abs + abs * abs / (1.0 + StrictMath.sqrt(1.0 + abs * abs)));
+        }
+        return StrictMath.copySign(temp, value);
     }
 }

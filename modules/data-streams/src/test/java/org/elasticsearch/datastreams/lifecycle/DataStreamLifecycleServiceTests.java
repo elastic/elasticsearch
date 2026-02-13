@@ -2318,4 +2318,20 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(step1.executeCount, equalTo(0));
         assertThat(processedIndices, empty());
     }
+
+    public void testFormatExecutionTimeMilliseconds() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(500), equalTo("500ms/500ms"));
+    }
+
+    public void testFormatExecutionTimeSeconds() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(1525), equalTo("1525ms/1.5s"));
+    }
+
+    public void testFormatExecutionTimeMinutes() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(90000), equalTo("90000ms/1.5m"));
+    }
+
+    public void testFormatExecutionTimeHours() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(5400000), equalTo("5400000ms/1.5h"));
+    }
 }

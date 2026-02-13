@@ -1,0 +1,6 @@
+area: "Transform"
+issues:
+ - 95367
+pr: 142403
+summary: Fix transform validation to reject PUT and `_start` when user lacks remote index permissions
+type: bug

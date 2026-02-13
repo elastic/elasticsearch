@@ -2741,6 +2741,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         docCount[level] = input.readInt();
                         valueCount[level] = input.readLong();
                     }
+                    // what happens if valid is false? shouldn't we mark the skipper as exhausted or something?
                     if (valid) {
                         // adjust levels
                         while (levels < SKIP_INDEX_MAX_LEVEL && maxDocID[levels] >= target) {

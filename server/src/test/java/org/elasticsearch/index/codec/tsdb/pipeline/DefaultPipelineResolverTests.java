@@ -27,7 +27,7 @@ public class DefaultPipelineResolverTests extends ESTestCase {
 
     private final PipelineResolver resolver = new DefaultPipelineResolver();
 
-    public void testTsdbDoubleGaugeSelectsAlp() {
+    public void testTsdbDoubleGaugeSelectsFpc() {
         final var fieldType = createNumberFieldType("cpu.usage", NumberType.DOUBLE, MetricType.GAUGE);
         final var ctx = new PipelineResolver.FieldContext(IndexMode.TIME_SERIES, fieldType, null);
         final PipelineConfig config = resolver.resolve("cpu.usage", ctx);
@@ -35,17 +35,17 @@ public class DefaultPipelineResolverTests extends ESTestCase {
         assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.blockSize(), greaterThan(0));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
     }
 
-    public void testTsdbFloatGaugeSelectsAlpFloat() {
+    public void testTsdbFloatGaugeSelectsFpc() {
         final var fieldType = createNumberFieldType("temperature", NumberType.FLOAT, MetricType.GAUGE);
         final var ctx = new PipelineResolver.FieldContext(IndexMode.TIME_SERIES, fieldType, null);
         final PipelineConfig config = resolver.resolve("temperature", ctx);
 
         assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
     }
 
     public void testTsdbLongCounterReturnsDefault() {
@@ -124,32 +124,20 @@ public class DefaultPipelineResolverTests extends ESTestCase {
         assertEquals(512, config.blockSize());
     }
 
-    public void testTsdbTimestampSelectsDeltaDelta() {
+    public void testTsdbTimestampReturnsDefault() {
         final var fieldType = new NumberFieldType("@timestamp", NumberType.LONG);
         final var ctx = new PipelineResolver.FieldContext(IndexMode.TIME_SERIES, fieldType, null);
         final PipelineConfig config = resolver.resolve("@timestamp", ctx);
 
-        assertFalse(config.isDefault());
-        assertEquals(PipelineConfig.DataType.LONG, config.dataType());
-        assertEquals(512, config.blockSize());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+        assertTrue(config.isDefault());
     }
 
-    public void testLogsdbTimestampSelectsDeltaDelta() {
+    public void testLogsdbTimestampReturnsDefault() {
         final var fieldType = new NumberFieldType("@timestamp", NumberType.LONG);
         final var ctx = new PipelineResolver.FieldContext(IndexMode.LOGSDB, fieldType, null);
         final PipelineConfig config = resolver.resolve("@timestamp", ctx);
 
-        assertFalse(config.isDefault());
-        assertEquals(PipelineConfig.DataType.LONG, config.dataType());
-        assertEquals(128, config.blockSize());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+        assertTrue(config.isDefault());
     }
 
     public void testStandardTimestampReturnsDefault() {

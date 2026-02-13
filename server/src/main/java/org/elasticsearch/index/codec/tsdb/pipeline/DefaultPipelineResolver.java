@@ -72,13 +72,13 @@ public final class DefaultPipelineResolver implements PipelineResolver {
             if (context.hint() == OptimizeFor.SPEED) {
                 return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).xor().patchedPFor().bitPack();
             }
-            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage().offset().gcd().bitPack();
+            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
         }
         if (metricType == MetricType.GAUGE && "float".equals(typeName)) {
-            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
+            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
         }
         if (metricType == MetricType.COUNTER && "double".equals(typeName)) {
-            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).gorilla();
+            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
         }
         return null;
     }

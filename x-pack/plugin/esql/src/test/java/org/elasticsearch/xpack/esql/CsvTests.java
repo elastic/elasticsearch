@@ -145,7 +145,6 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -486,7 +485,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
-        var mapping = new TreeMap<>(loadMapping(dataset.mappingFileName()));
+        var mapping = new TreeMap<>(LoadMapping.loadMapping(dataset.streamMapping()));
         if (dataset.typeMapping() != null) {
             for (var entry : dataset.typeMapping().entrySet()) {
                 if (mapping.containsKey(entry.getKey())) {
@@ -716,8 +715,8 @@ public class CsvTests extends ESTestCase {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
             for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
-                var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
-                Set<String> mappedFields = loadMapping(dataset.mappingFileName()).keySet();
+                var testData = loadPageFromCsv(dataset.streamData(), dataset.typeMapping());
+                Set<String> mappedFields = LoadMapping.loadMapping(dataset.streamMapping()).keySet();
                 indexPages.add(
                     new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields)
                 );

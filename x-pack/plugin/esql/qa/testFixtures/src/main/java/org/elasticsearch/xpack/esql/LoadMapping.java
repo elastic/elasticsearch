@@ -42,10 +42,9 @@ public class LoadMapping {
         return loadMapping(stream);
     }
 
-    private static Map<String, EsField> loadMapping(InputStream stream) {
-        try (InputStream in = stream) {
-            Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true);
-            return fromEs(map);
+    public static Map<String, EsField> loadMapping(InputStream in) {
+        try (in) {
+            return fromEs(XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true));
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

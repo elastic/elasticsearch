@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -160,30 +159,19 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             }
 
             if (indexExists(indexName) == false) {
-                // Read mapping file
-                URL mappingResource = CsvTestsDataLoader.class.getResource("/" + dataset.mappingFileName());
-                if (mappingResource == null) {
-                    throw new IllegalArgumentException("Cannot find mapping resource for " + indexName + ": " + dataset.mappingFileName());
-                }
-                String mappingContent = CsvTestsDataLoader.readTextFile(mappingResource);
-
                 // Ensure standard settings for test indices
                 var indexSettings = Settings.builder()
-                    .put(dataset.getSettings())
+                    .put(dataset.loadSettings())
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .build();
 
                 // Create index - let exceptions propagate so test fails immediately
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, mappingContent, null);
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, dataset.loadMappings(), null);
 
                 // Load CSV data if available
                 if (dataset.dataFileName() != null) {
-                    URL csvResource = CsvTestsDataLoader.class.getResource("/data/" + dataset.dataFileName());
-                    if (csvResource == null) {
-                        throw new IllegalArgumentException("Cannot find CSV resource for " + indexName + ": " + dataset.dataFileName());
-                    }
-                    CsvTestsDataLoader.loadCsvData(restClient, indexName, csvResource, dataset.allowSubFields(), logger);
+                    CsvTestsDataLoader.loadCsvData(restClient, indexName, dataset.streamData(), dataset.allowSubFields(), logger);
                 }
 
                 refresh(indexName);

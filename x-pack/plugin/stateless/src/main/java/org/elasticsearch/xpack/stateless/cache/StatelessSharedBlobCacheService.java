@@ -17,7 +17,10 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -25,11 +28,17 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
+import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
+import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
+import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
 
@@ -64,6 +73,55 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier);
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+    }
+
+    /**
+     * Fetches and writes in cache a blob byte range, given the {@link CacheBlobReader} and the blob's associated {@link FileCacheKey}.
+     */
+    void fetchRange(
+        FileCacheKey cacheKey,
+        ByteRange byteRange,
+        CacheBlobReader cacheBlobReader,
+        Object initiator,
+        Supplier<ByteBuffer> writeBufferSupplier,
+        IntConsumer bytesCopiedConsumer,
+        Executor fetchExecutor,
+        boolean force,
+        ActionListener<Void> listener
+    ) {
+        var adjustedByteRange = cacheBlobReader.getRange(
+            byteRange.start(),
+            byteRange.length() < Integer.MAX_VALUE ? Math.toIntExact(byteRange.length()) : Integer.MAX_VALUE,
+            byteRange.length()
+        );
+        var startRegion = getRegion(adjustedByteRange.start());
+        var endRegion = getEndingRegion(adjustedByteRange.end());
+        try (RefCountingListener listeners = new RefCountingListener(listener)) {
+            for (int region = startRegion; region <= endRegion; region++) {
+                fetchRange(
+                    cacheKey,
+                    region,
+                    adjustedByteRange,
+                    // this is not really used
+                    byteRange.length(),
+                    new LazyRangeMissingHandler<>(
+                        () -> new SequentialRangeMissingHandler(
+                            initiator,
+                            cacheKey.fileName(),
+                            adjustedByteRange,
+                            cacheBlobReader,
+                            () -> writeBufferSupplier.get().clear(),
+                            bytesCopiedConsumer,
+                            StatelessPlugin.PREWARM_THREAD_POOL,
+                            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                        )
+                    ),
+                    fetchExecutor,
+                    force,
+                    listeners.acquire().map(populated -> null)
+                );
+            }
+        }
     }
 
     public void assertInvariants() {

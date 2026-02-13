@@ -238,34 +238,17 @@ public class CacheBlobReaderTests extends ESTestCase {
 
         @Override
         protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-            var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
             return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+
                 @Override
-                public CacheBlobReader getCacheBlobReader(
+                protected CacheBlobReader getIndexingShardCacheBlobReader(
                     ShardId shardId,
-                    LongFunction<BlobContainer> blobContainer,
-                    BlobFile blobFile,
-                    MutableObjectStoreUploadTracker objectStoreUploadTracker,
-                    LongConsumer totalBytesReadFromObjectStore,
-                    LongConsumer totalBytesReadFromIndexing,
-                    BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                    Executor objectStoreFetchExecutor,
-                    String fileName
+                    PrimaryTermAndGeneration primaryTermAndGeneration,
+                    String preferredNodeId
                 ) {
-                    var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
+                    return new IndexingShardCacheBlobReader(
                         shardId,
-                        blobContainer,
-                        blobFile,
-                        objectStoreUploadTracker,
-                        totalBytesReadFromObjectStore,
-                        totalBytesReadFromIndexing,
-                        cachePopulationReason,
-                        objectStoreFetchExecutor,
-                        fileName
-                    );
-                    var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
-                        shardId,
-                        blobFile.termAndGeneration(),
+                        primaryTermAndGeneration,
                         clusterService.localNode().getId(),
                         client,
                         TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
@@ -282,12 +265,6 @@ public class CacheBlobReaderTests extends ESTestCase {
                             customizedGetVirtualBatchedCompoundCommitChunk(virtualBccTermAndGen, offset, length, listener);
                         }
                     };
-                    return new SwitchingCacheBlobReader(
-                        objectStoreUploadTracker,
-                        blobFile.termAndGeneration(),
-                        originalCacheBlobReader,
-                        indexingShardCacheBlobReader
-                    );
                 }
             };
         }
@@ -830,24 +807,15 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
                     return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+
                         @Override
-                        public CacheBlobReader getCacheBlobReader(
-                            ShardId shardId,
-                            LongFunction<BlobContainer> blobContainer,
-                            BlobFile blobFile,
-                            MutableObjectStoreUploadTracker objectStoreUploadTracker,
-                            LongConsumer totalBytesReadFromObjectStore,
-                            LongConsumer totalBytesReadFromIndexing,
-                            BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                            Executor objectStoreFetchExecutor,
-                            String fileName
+                        protected CacheBlobReader getObjectStoreCacheBlobReader(
+                            BlobContainer blobContainer,
+                            String blobName,
+                            long cacheRangeSize,
+                            Executor fetchExecutor
                         ) {
-                            var writerFromObjectStore = new ObjectStoreCacheBlobReader(
-                                blobContainer.apply(blobFile.primaryTerm()),
-                                blobFile.blobName(),
-                                rangeSize.getBytes(),
-                                objectStoreFetchExecutor
-                            ) {
+                            return new ObjectStoreCacheBlobReader(blobContainer, blobName, cacheRangeSize, fetchExecutor) {
                                 @Override
                                 public ByteRange getRange(long position, int length, long remainingFileLength) {
                                     assert virtualBatchedCompoundCommit.isFrozen()
@@ -857,9 +825,17 @@ public class CacheBlobReaderTests extends ESTestCase {
                                     return range;
                                 }
                             };
-                            var writerFromPrimary = new IndexingShardCacheBlobReader(
+                        }
+
+                        @Override
+                        protected CacheBlobReader getIndexingShardCacheBlobReader(
+                            ShardId shardId,
+                            PrimaryTermAndGeneration primaryTermAndGeneration,
+                            String preferredNodeId
+                        ) {
+                            return new IndexingShardCacheBlobReader(
                                 shardId,
-                                blobFile.termAndGeneration(),
+                                primaryTermAndGeneration,
                                 clusterService.localNode().getId(),
                                 client,
                                 TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
@@ -891,11 +867,20 @@ public class CacheBlobReaderTests extends ESTestCase {
                                     }
                                 }
                             };
+                        }
+
+                        @Override
+                        protected CacheBlobReader getSwitchingCacheBlobReader(
+                            MutableObjectStoreUploadTracker tracker,
+                            PrimaryTermAndGeneration locationPrimaryTermAndGeneration,
+                            CacheBlobReader cacheBlobReaderForUploaded,
+                            CacheBlobReader cacheBlobReaderForNonUploaded
+                        ) {
                             return new SwitchingCacheBlobReader(
-                                objectStoreUploadTracker,
-                                blobFile.termAndGeneration(),
-                                writerFromObjectStore,
-                                writerFromPrimary
+                                tracker,
+                                locationPrimaryTermAndGeneration,
+                                cacheBlobReaderForUploaded,
+                                cacheBlobReaderForNonUploaded
                             ) {
                                 @Override
                                 public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {

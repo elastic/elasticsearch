@@ -296,7 +296,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
-            @Nullable Map<BlobFile, Integer> regionsToWarm,
+            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
             ActionListener<Void> listener
         ) {
             listener.onResponse(null);

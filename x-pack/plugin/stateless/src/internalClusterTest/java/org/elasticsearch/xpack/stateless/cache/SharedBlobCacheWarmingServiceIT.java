@@ -1087,7 +1087,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
-            @Nullable Map<BlobFile, Integer> regionsToWarm,
+            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
             ActionListener<Void> listener
         ) {
             var wrappedListener = new SubscribableListener<Void>();
@@ -1100,7 +1100,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCacheRecovery(type, indexShard, commit, directory, regionsToWarm, wrappedListener);
+            super.warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, wrappedListener);
             if (mustSucceed.get()) {
                 safeAwait(wrappedListener);
             } else {

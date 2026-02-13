@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,7 +29,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int maxIterations = random().nextInt(1, 100);
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
-        FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         int targetSize = (int) ((float) nVectors / (float) nClusters);
         HierarchicalKMeans hkmeans = HierarchicalKMeans.ofSerial(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
@@ -78,7 +77,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         }
     }
 
-    private static FloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
+    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
         // Generate random centroids
@@ -96,7 +95,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
             }
             vectors.add(vector);
         }
-        return FloatVectorValues.fromFloats(vectors, nDims);
+        return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
     public void testFewDifferentValues() throws IOException {
@@ -114,7 +113,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         for (int i = 0; i < nVectors; i++) {
             vectorList.add(values[random().nextInt(diffValues)]);
         }
-        FloatVectorValues vectors = FloatVectorValues.fromFloats(vectorList, dims);
+        KMeansFloatVectorValues vectors = KMeansFloatVectorValues.build(vectorList, null, dims);
 
         HierarchicalKMeans hkmeans = HierarchicalKMeans.ofSerial(
             dims,

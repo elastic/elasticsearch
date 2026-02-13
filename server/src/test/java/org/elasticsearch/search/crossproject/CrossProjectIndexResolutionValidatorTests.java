@@ -1524,7 +1524,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             remote
         );
         assertNotNull(ex);
-        assertThat(ex.getMessage(), equalTo("no such index []"));
+        assertThat(ex.getMessage(), equalTo("no such index [-logs*]"));
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

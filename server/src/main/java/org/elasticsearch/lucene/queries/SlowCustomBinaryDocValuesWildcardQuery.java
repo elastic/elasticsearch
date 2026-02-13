@@ -10,12 +10,16 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -55,6 +59,15 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
     @Override
     protected float matchCost() {
         return 1000f; // This is just expensive, not sure what the actual cost is.
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (pattern.length() > 3 && pattern.startsWith("*") && pattern.endsWith("*") && pattern.contains(" ") == false) {
+            return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(pattern.substring(1, pattern.length() - 1)));
+        } else {
+            return super.rewrite(indexSearcher);
+        }
     }
 
     @Override

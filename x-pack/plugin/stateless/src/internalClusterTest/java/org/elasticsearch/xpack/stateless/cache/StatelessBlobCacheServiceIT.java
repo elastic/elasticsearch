@@ -347,7 +347,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Integer> regionsToWarm
+                    @Nullable Map<BlobFile, Long> endOffsetsToWarm
                 ) {}
             };
         }

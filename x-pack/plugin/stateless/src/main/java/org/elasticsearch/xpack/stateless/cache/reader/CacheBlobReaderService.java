@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.concurrent.Executor;
 import java.util.function.LongConsumer;
@@ -116,17 +117,10 @@ public class CacheBlobReaderService {
             return objectStoreCacheBlobReader;
         } else {
             var indexingShardCacheBlobReader = new MeteringCacheBlobReader(
-                new IndexingShardCacheBlobReader(
-                    shardId,
-                    locationPrimaryTermAndGeneration,
-                    latestUploadInfo.preferredNodeId(),
-                    client,
-                    indexingShardCacheBlobReaderChunkSize,
-                    threadPool
-                ),
+                getIndexingShardCacheBlobReader(shardId, locationPrimaryTermAndGeneration, latestUploadInfo.preferredNodeId()),
                 createReadCompleteCallback(fileName, totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
             );
-            return new SwitchingCacheBlobReader(
+            return getSwitchingCacheBlobReader(
                 tracker,
                 locationPrimaryTermAndGeneration,
                 objectStoreCacheBlobReader,
@@ -143,6 +137,37 @@ public class CacheBlobReaderService {
         Executor fetchExecutor
     ) {
         return new ObjectStoreCacheBlobReader(blobContainer, blobName, cacheRangeSize, fetchExecutor);
+    }
+
+    // protected to override in tests
+    protected CacheBlobReader getIndexingShardCacheBlobReader(
+        ShardId shardId,
+        PrimaryTermAndGeneration primaryTermAndGeneration,
+        String preferredNodeId
+    ) {
+        return new IndexingShardCacheBlobReader(
+            shardId,
+            primaryTermAndGeneration,
+            preferredNodeId,
+            client,
+            indexingShardCacheBlobReaderChunkSize,
+            threadPool
+        );
+    }
+
+    // protected to override in tests
+    protected CacheBlobReader getSwitchingCacheBlobReader(
+        MutableObjectStoreUploadTracker tracker,
+        PrimaryTermAndGeneration locationPrimaryTermAndGeneration,
+        CacheBlobReader cacheBlobReaderForUploaded,
+        CacheBlobReader cacheBlobReaderForNonUploaded
+    ) {
+        return new SwitchingCacheBlobReader(
+            tracker,
+            locationPrimaryTermAndGeneration,
+            cacheBlobReaderForUploaded,
+            cacheBlobReaderForNonUploaded
+        );
     }
 
     private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(

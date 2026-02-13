@@ -1,0 +1,32 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/operators/",
+  "type" : "label_matching_operator",
+  "operator" : "=~",
+  "name" : "label_re",
+  "description" : "Matches labels whose value satisfies the provided regular expression.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "label",
+          "type" : "string",
+          "optional" : false,
+          "description" : "Label name."
+        },
+        {
+          "name" : "value",
+          "type" : "string",
+          "optional" : false,
+          "description" : "String or regex."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "requests_total{method=~\"GET|POST\"}"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

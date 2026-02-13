@@ -326,12 +326,26 @@ PUT my-bbq-disk-index
 }
 ```
 
-When indexing `float` vectors, the current default index type is `bbq_hnsw` for vectors with greater than or equal to 384 dimensions, otherwise it's `int8_hnsw`.
-
 Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
 ::::{note}
 Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data. This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
+::::
+
+### Default quantization types
+
+::::{applies-switch}
+
+:::{applies-item} stack: ga 9.0
+When indexing `float` vectors, the default index type is `int8_hnsw`.
+:::
+
+:::{applies-item} stack: ga 9.1+
+When indexing `float` vectors, the default index type is:
+- `bbq_hnsw` for vectors with greater than or equal to 384 dimensions
+- `int8_hnsw` for vectors with less than 384 dimensions
+:::
+
 ::::
 
 ### int8 [dense-vector-quantization-int8]

@@ -21,6 +21,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -28,12 +29,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -44,7 +47,9 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -55,13 +60,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticIdBytesRef;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -72,7 +80,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      *
      * Note: if version > 1, the document is processed as a soft-update of a previously indexed document
      */
-    private record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
+    public record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
 
     public void testTerms() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
@@ -133,7 +141,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     assertThat(lazyTermsEnum, notNullValue());
                     assertThat(lazyTermsEnum, instanceOf(LazyFilterTermsEnum.class));
                     var unwrappedTermsEnum = LazyFilterTermsEnum.unwrap(lazyTermsEnum);
-                    assertThat(unwrappedTermsEnum, instanceOf(TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum.class));
+                    assertThat(unwrappedTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
                     var termsEnum = randomFrom(lazyTermsEnum, unwrappedTermsEnum);
 
                     assertThat(termsEnum.impacts(0), nullValue());
@@ -184,6 +192,187 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     public void testSeek() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(finalDocs.values().stream().mapToInt(Doc::version).sum()));
+                assertThat(reader.getIndexCommit().getSegmentCount(), equalTo(1));
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+
+                // Shuffle docs synthetic ids before seeking
+                final var docsIdsTerms = new ArrayList<>(finalDocs.keySet());
+                Collections.shuffle(docsIdsTerms, random());
+
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+                final TermsEnum wrappedTermsEnum = asInstanceOf(LazyFilterTermsEnum.class, terms.iterator());
+                final TermsEnum unwrappedTermsEnum = asInstanceOf(SyntheticIdTermsEnum.class, LazyFilterTermsEnum.unwrap(wrappedTermsEnum));
+
+                TermsEnum termsEnum = unwrappedTermsEnum;
+
+                // Test seek the exact term
+                {
+                    for (var docIdTerm : docsIdsTerms) {
+                        if (rarely()) {
+                            termsEnum = randomFrom(random(), () -> unwrappedTermsEnum, () -> wrappedTermsEnum, () -> {
+                                try {
+                                    return leafReader.terms(IdFieldMapper.NAME).iterator();
+                                } catch (IOException e) {
+                                    throw new AssertionError(e);
+                                }
+                            });
+                        }
+                        switch (randomInt(2)) {
+                            case 0:
+                                assertThat(termsEnum.seekCeil(docIdTerm), equalTo(TermsEnum.SeekStatus.FOUND));
+                                break;
+                            case 1:
+                                assertThat(termsEnum.seekExact(docIdTerm), equalTo(true));
+                                break;
+                            case 2:
+                                termsEnum.seekExact(docIdTerm, new TermState() {
+                                    @Override
+                                    public void copyFrom(TermState other) {
+                                        // Nothing
+                                    }
+                                });
+                                break;
+                            default:
+                                throw new AssertionError();
+                        }
+                        assertThat(termsEnum.term(), equalTo(docIdTerm));
+
+                        var postings = termsEnum.postings(null);
+                        assertThat(postings, notNullValue());
+                        assertThat(postings.cost(), equalTo(0L));
+                        assertThat(postings.freq(), equalTo(0));
+                        assertThat(postings.nextPosition(), equalTo(-1));
+                        assertThat(postings.startOffset(), equalTo(-1));
+                        assertThat(postings.endOffset(), equalTo(-1));
+                        assertThat(postings.getPayload(), nullValue());
+
+                        int minDocId = 0; // inclusive
+                        int maxDocId = 0; // exclusive
+                        for (var entry : finalDocs.entrySet()) {
+                            int compare = docIdTerm.compareTo(entry.getKey());
+                            if (compare == 0) {
+                                maxDocId = minDocId + entry.getValue().version();
+                                break;
+                            } else if (compare > 0) {
+                                minDocId += entry.getValue().version();
+                            } else {
+                                throw new AssertionError("Should have exited the loop before");
+                            }
+                        }
+
+                        int docId = -1;
+                        assertThat(postings.docID(), equalTo(docId));
+
+                        if (randomBoolean()) {
+                            int expectedDocId = minDocId;
+                            while ((docId = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                                assertThat(docId, equalTo(expectedDocId));
+                                assertThat(postings.docID(), equalTo(expectedDocId));
+                                if (docId < maxDocId) {
+                                    expectedDocId += 1;
+                                }
+                            }
+                        } else {
+                            int expectedDocId = minDocId;
+                            while (expectedDocId < maxDocId) {
+                                boolean canUseNextDoc = (docId + 1 == expectedDocId) || (docId == -1) /* first iteration */;
+
+                                if (canUseNextDoc && randomBoolean()) {
+                                    docId = postings.nextDoc();
+                                } else {
+                                    docId = postings.advance(expectedDocId);
+                                }
+
+                                assertThat(docId, equalTo(expectedDocId));
+                                assertThat(postings.docID(), equalTo(expectedDocId));
+
+                                if (randomBoolean() || expectedDocId + 1 >= maxDocId) {
+                                    expectedDocId++;
+                                } else {
+                                    expectedDocId = randomIntBetween(expectedDocId + 1, maxDocId - 1);
+                                }
+                            }
+                        }
+                        assertThat(postings.nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
+                        assertThat(postings.docID(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
+                    }
+                }
+
+                // Test seek after the last term
+                {
+                    final var termAfterEnd = randomTermAfter(finalDocs.navigableKeySet().getLast());
+                    switch (randomInt(2)) {
+                        case 0:
+                            assertThat(termsEnum.seekCeil(termAfterEnd), equalTo(TermsEnum.SeekStatus.END));
+                            break;
+                        case 1:
+                            assertThat(termsEnum.seekExact(termAfterEnd), equalTo(false));
+                            break;
+                        case 2:
+                            TermsEnum finalTermsEnum = termsEnum;
+                            var e = expectThrows(
+                                IllegalArgumentException.class,
+                                () -> finalTermsEnum.seekExact(termAfterEnd, new TermState() {
+                                    @Override
+                                    public void copyFrom(TermState other) {
+                                        // Nothing
+                                    }
+                                })
+                            );
+                            assertThat(e.getMessage(), containsString("term=" + termAfterEnd + " does not exist"));
+                            break;
+                        default:
+                            throw new AssertionError();
+                    }
+                    assertThat(termsEnum.next(), nullValue());
+                }
+
+                // Test seek to non-existing terms
+                {
+                    if (finalDocs.size() > 1) {
+                        final var randomDocIdsTermExceptLatest = randomSubsetOf(
+                            finalDocs.navigableKeySet()
+                                .stream()
+                                .limit(finalDocs.size() - 1) // exclude last term
+                                .collect(Collectors.toSet())
+                        );
+
+                        for (var currentTerm : randomDocIdsTermExceptLatest) {
+                            // existing term right after the current term
+                            var nextTerm = finalDocs.navigableKeySet().higher(currentTerm);
+                            assertThat(nextTerm, notNullValue());
+                            assertThat(currentTerm.compareTo(nextTerm), lessThan(0));
+
+                            var seekTerm = randomTermBetweenOrNull(currentTerm, nextTerm);
+                            if (seekTerm == null) {
+                                continue;
+                            }
+
+                            assertThat(seekTerm.compareTo(currentTerm), greaterThan(0));
+                            assertThat(seekTerm.compareTo(nextTerm), lessThan(0));
+
+                            assertThat(termsEnum.seekCeil(seekTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                            assertThat(termsEnum.term(), equalTo(nextTerm));
+
+                            assertThat(termsEnum.seekExact(seekTerm), equalTo(false));
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Indexes random documents with synthetic id in a time-series Lucene index.
+     *
+     * See {@link #runTest(CheckedBiConsumer)}.
+     */
+    public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
         final int routing = randomNonNegativeInt();
         final int maxHosts = randomIntBetween(1, 25);
 
@@ -208,11 +397,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             final var randomlyOrderedDocs = new ArrayList<>(randomDocs);
             Collections.shuffle(randomlyOrderedDocs, random());
 
-            int numDocs = 0;
             for (int i = 0; i < randomlyOrderedDocs.size(); i++) {
                 var doc = randomlyOrderedDocs.get(i);
                 writer.addDocument(parser.parse(doc));
-                numDocs += 1;
 
                 var uid = createSyntheticIdBytesRef(buildTsId(doc), doc.timestamp(), doc.routing());
                 assertThat(finalDocs.put(uid, doc), nullValue());
@@ -237,115 +424,12 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         writer.softUpdateDocument(uidTerm, parser.parse(updatedDoc), Lucene.newSoftDeletesField());
                     }
                     finalDocs.put(uid, updatedDoc);
-                    numDocs += 1;
                 }
             }
 
-            try (var reader = DirectoryReader.open(writer)) {
-                assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(numDocs));
-                assertThat(reader.getIndexCommit().getSegmentCount(), equalTo(1));
-                assertThat(reader.leaves().size(), equalTo(1));
-                final var leafReader = reader.leaves().getFirst().reader();
-
-                // Shuffle docs synthetic ids before seeking
-                final var docsIdsTerms = new ArrayList<>(finalDocs.keySet());
-                Collections.shuffle(docsIdsTerms, random());
-
-                for (var docIdTerm : docsIdsTerms) {
-                    Terms terms = leafReader.terms(IdFieldMapper.NAME);
-                    assertNotNull(terms);
-
-                    TermsEnum lazyTermsEnum = terms.iterator();
-                    assertThat(lazyTermsEnum, notNullValue());
-                    assertThat(lazyTermsEnum, instanceOf(LazyFilterTermsEnum.class));
-                    var unwrappedTermsEnum = LazyFilterTermsEnum.unwrap(lazyTermsEnum);
-                    assertThat(unwrappedTermsEnum, instanceOf(TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum.class));
-                    var termsEnum = randomFrom(lazyTermsEnum, unwrappedTermsEnum);
-
-                    switch (randomInt(2)) {
-                        case 0:
-                            assertThat(termsEnum.seekCeil(docIdTerm), equalTo(TermsEnum.SeekStatus.FOUND));
-                            break;
-                        case 1:
-                            assertThat(termsEnum.seekExact(docIdTerm), equalTo(true));
-                            break;
-                        case 2:
-                            termsEnum.seekExact(docIdTerm, new TermState() {
-                                @Override
-                                public void copyFrom(TermState other) {
-                                    // Nothing
-                                }
-                            });
-                            break;
-                        default:
-                            throw new AssertionError();
-                    }
-                    assertThat(termsEnum.term(), equalTo(docIdTerm));
-
-                    var postings = termsEnum.postings(null);
-                    assertThat(postings, notNullValue());
-                    assertThat(postings.cost(), equalTo(0L));
-                    assertThat(postings.freq(), equalTo(0));
-                    assertThat(postings.nextPosition(), equalTo(-1));
-                    assertThat(postings.startOffset(), equalTo(-1));
-                    assertThat(postings.endOffset(), equalTo(-1));
-                    assertThat(postings.getPayload(), nullValue());
-
-                    int minDocId = 0; // inclusive
-                    int maxDocId = 0; // exclusive
-                    for (var entry : finalDocs.entrySet()) {
-                        int compare = docIdTerm.compareTo(entry.getKey());
-                        if (compare == 0) {
-                            maxDocId = minDocId + entry.getValue().version();
-                            break;
-                        } else if (compare > 0) {
-                            minDocId += entry.getValue().version();
-                        } else {
-                            throw new AssertionError("Should have exited the loop before");
-                        }
-                    }
-
-                    int docId = -1;
-                    assertThat(postings.docID(), equalTo(docId));
-
-                    if (randomBoolean()) {
-                        int expectedDocId = minDocId;
-                        while ((docId = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                            assertThat(docId, equalTo(expectedDocId));
-                            assertThat(postings.docID(), equalTo(expectedDocId));
-                            if (docId < maxDocId) {
-                                expectedDocId += 1;
-                            }
-                        }
-                    } else {
-                        int expectedDocId = minDocId;
-                        while (expectedDocId < maxDocId) {
-                            boolean canUseNextDoc = (docId + 1 == expectedDocId) || (docId == -1) /* first iteration */;
-
-                            if (canUseNextDoc && randomBoolean()) {
-                                docId = postings.nextDoc();
-                            } else {
-                                docId = postings.advance(expectedDocId);
-                            }
-
-                            assertThat(docId, equalTo(expectedDocId));
-                            assertThat(postings.docID(), equalTo(expectedDocId));
-
-                            if (randomBoolean() || expectedDocId + 1 >= maxDocId) {
-                                expectedDocId++;
-                            } else {
-                                expectedDocId = randomIntBetween(expectedDocId + 1, maxDocId - 1);
-                            }
-                        }
-                    }
-                    assertThat(postings.nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
-                    assertThat(postings.docID(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
-                }
-            }
+            test.accept(writer, finalDocs);
         });
     }
-
-    // TODO Add test for seekCeil with NOT_FOUND and END
 
     /**
      * Set up a time-series Lucene index with synthetic id.
@@ -360,7 +444,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * tests, the tests use the default mappers and default index sort configuration to parse and to index documents. We think this is the
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
-    private void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+    private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
         final var indexName = randomIdentifier();
         final var indexSettings = buildIndexSettings(indexName);
         final var mapperService = buildMapperService(indexSettings);
@@ -445,9 +529,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     /**
      * Builds a {@link MapperService} that can be used to parse time-series documents in test.
      */
-    private MapperService buildMapperService(final IndexSettings indexSettings) throws IOException {
+    private static MapperService buildMapperService(final IndexSettings indexSettings) throws IOException {
         final var mapperService = MapperTestUtils.newMapperService(
-            xContentRegistry(),
+            new NamedXContentRegistry(CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())),
             createTempFile(),
             indexSettings.getSettings(),
             indexSettings.getIndex().getName()
@@ -559,4 +643,114 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             .addStringDimension("metric.field", doc.metricField())
             .buildTsid();
     }
+
+    /**
+     * Generate a term that would be ordered after the provided term.
+     */
+    private static BytesRef randomTermAfter(BytesRef value) {
+        final BytesRef tsId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(value);
+        final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(value);
+        if (1 >= timestamp) {
+            throw new IllegalArgumentException("Timestamp should be greater than 1 to allow generating the term");
+        }
+
+        final int choice = randomInt(2);
+        boolean changeTsId = (choice == 0 || choice == 1);
+        boolean changeTimestamp = (choice == 0 || choice == 2);
+
+        final BytesRef modifiedTsId;
+        if (changeTsId) {
+            byte[] bytes = new byte[tsId.length];
+            System.arraycopy(tsId.bytes, tsId.offset, bytes, 0, tsId.length);
+
+            // Modify the last byte of the tsid to be greater/higher (tsid are sorted by asc order)
+            boolean success = false;
+            for (int i = bytes.length - 1; i >= 0; i--) {
+                bytes[i]++;
+                if (bytes[i] != 0) {
+                    success = true;
+                    break;
+                }
+            }
+            if (success == false) {
+                changeTimestamp = true;
+            }
+            modifiedTsId = new BytesRef(bytes);
+        } else {
+            modifiedTsId = tsId;
+        }
+
+        long modifiedTimestamp;
+        if (changeTimestamp) {
+            // Modify the timestamp to be smaller (timestamps are sorted by desc order)
+            modifiedTimestamp = timestamp - 1L;
+        } else {
+            modifiedTimestamp = timestamp;
+        }
+
+        final var term = TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+            modifiedTsId,
+            modifiedTimestamp,
+            TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(value)
+        );
+        assert term.compareTo(value) > 0 : term + " <= " + value;
+        return term;
+    }
+
+    /**
+     * Generate a term that is greater than a {@code min} term and lower than a {@code max} term. Returns a null value if no such term can
+     * be generated.
+     */
+    public static BytesRef randomTermBetweenOrNull(BytesRef min, BytesRef max) {
+        BytesRef tsIdMin = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(min);
+        BytesRef tsIdMax = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(max);
+
+        if (tsIdMin.equals(tsIdMax) == false) {
+
+            // tsids are not identical, find the first byte that differs
+            int diffIndex = 0;
+            final int minLen = Math.min(tsIdMin.length, tsIdMax.length);
+            while (diffIndex < minLen && min.bytes[min.offset + diffIndex] == max.bytes[max.offset + diffIndex]) {
+                diffIndex++;
+            }
+
+            // increment the first byte that differs (if there is room for doing so)
+            if (diffIndex < minLen) {
+                int valueMin = min.bytes[min.offset + diffIndex] & 0xFF;
+                int valueMax = (diffIndex < max.length) ? (max.bytes[max.offset + diffIndex] & 0xFF) : 256;
+                if (valueMax - valueMin > 1) {
+                    byte[] tsid = new byte[tsIdMin.length];
+                    System.arraycopy(tsIdMin.bytes, tsIdMin.offset, tsid, 0, tsIdMin.length);
+                    tsid[diffIndex] = (byte) (valueMin + randomIntBetween(1, valueMax - valueMin - 1));
+                    return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                        new BytesRef(tsid),
+                        TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(min),
+                        TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(min)
+                    );
+                }
+            }
+        }
+
+        long timestampMin = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(min);
+        long timestampMax = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(max);
+
+        long diffTimestamps = Math.abs(timestampMin - timestampMax);
+        if (diffTimestamps > 1L) {
+            if (timestampMin > timestampMax) {
+                return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                    tsIdMin,
+                    timestampMin - randomLongBetween(1L, diffTimestamps - 1L),
+                    TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(min)
+                );
+            } else {
+                return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                    tsIdMax,
+                    timestampMax + randomLongBetween(1L, diffTimestamps - 1L),
+                    TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(max)
+                );
+            }
+        }
+        return null; // Nothing we can do, min and max have identical _tsid and @timestamp
+    }
+
 }

@@ -22,7 +22,7 @@ class ResultBuilderForDoc implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("_doc can't be a key");
     }
 

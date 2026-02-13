@@ -10,7 +10,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.net.InetSocketAddress;
@@ -80,28 +83,20 @@ public class ReindexResumeIT extends ESIntegTestCase {
         // random start time in the past to ensure that "took" is updated
         long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
             .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, null), null));
-        BulkByScrollResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
+            .actionGet();
+        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
 
-        // total should equal to total hits from the search
-        assertEquals(totalDocs, response.getTotal());
-        // stats are updated
-        assertEquals(remainingDocs + randomStats.getCreated(), response.getCreated());
-        int remainingBatches = remainingDocs / batchSize + (remainingDocs % batchSize == 0 ? 0 : 1);
-        assertEquals(remainingBatches + randomStats.getBatches(), response.getBatches());
-        // other stats should be retained
-        assertEquals(randomStats.getDeleted(), response.getDeleted());
-        assertEquals(randomStats.getUpdated(), response.getUpdated());
-        assertEquals(randomStats.getVersionConflicts(), response.getVersionConflicts());
-        assertEquals(randomStats.getNoops(), response.getNoops());
-        assertEquals(randomStats.getBulkRetries(), response.getBulkRetries());
-        assertEquals(randomStats.getSearchRetries(), response.getSearchRetries());
-        assertEquals(randomStats.getRequestsPerSecond(), response.getStatus().getRequestsPerSecond(), 0);
-        assertTrue(response.getTook().nanos() > TimeValue.ONE_HOUR.nanos());
-
+        assertStatus(randomStats, getTaskResponse.getTask(), totalDocs, batchSize, remainingDocs);
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
         // ensure the scroll is cleared
@@ -136,6 +131,8 @@ public class ReindexResumeIT extends ESIntegTestCase {
         long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
         InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
@@ -154,28 +151,59 @@ public class ReindexResumeIT extends ESIntegTestCase {
                 )
             )
             .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, Version.CURRENT), null));
-        BulkByScrollResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
+            .actionGet();
+        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
 
-        // total should equal to total hits from the search
-        assertEquals(totalDocs, response.getTotal());
-        // stats are updated
-        assertEquals(remainingDocs + randomStats.getCreated(), response.getCreated());
-        int remainingBatches = remainingDocs / batchSize + (remainingDocs % batchSize == 0 ? 0 : 1);
-        assertEquals(remainingBatches + randomStats.getBatches(), response.getBatches());
-        // other stats should be retained
-        assertEquals(randomStats.getDeleted(), response.getDeleted());
-        assertEquals(randomStats.getUpdated(), response.getUpdated());
-        assertEquals(randomStats.getVersionConflicts(), response.getVersionConflicts());
-        assertEquals(randomStats.getNoops(), response.getNoops());
-        assertEquals(randomStats.getBulkRetries(), response.getBulkRetries());
-        assertEquals(randomStats.getSearchRetries(), response.getSearchRetries());
-        assertEquals(randomStats.getRequestsPerSecond(), response.getStatus().getRequestsPerSecond(), 0);
-        assertTrue(response.getTook().nanos() > TimeValue.ONE_HOUR.nanos());
-
+        assertStatus(randomStats, getTaskResponse.getTask(), totalDocs, batchSize, remainingDocs);
         // ensure remaining docs were indexed
         assertHitCount(prepareSearch(destIndex), remainingDocs);
         // ensure the scroll is cleared
         assertEquals(0, currentNumberOfScrollContexts());
+    }
+
+    public void testRejectWithoutResumeInfo() {
+        ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices("source").setDestIndex("dest");
+
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(reindexRequest)).actionGet()
+        );
+
+        assertTrue(e.getMessage().contains("No resume information provided"));
+    }
+
+    public void testRejectShouldStoreResultFalse() {
+        ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices("source")
+            .setDestIndex("dest")
+            .setShouldStoreResult(false)
+            .setEligibleForRelocationOnShutdown(true)
+            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo("ignored", 0L, randomStats(), null), null));
+
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(reindexRequest)).actionGet()
+        );
+
+        assertTrue(e.getMessage().contains("Resumed task result should be stored"));
+    }
+
+    public void testRejectEligibleForRelocationOnShutdownFalse() {
+        ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices("source")
+            .setDestIndex("dest")
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(false)
+            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo("ignored", 0L, randomStats(), null), null));
+
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(reindexRequest)).actionGet()
+        );
+
+        assertTrue(e.getMessage().contains("Resumed task should be eligible for relocation on shutdown"));
     }
 
     private BulkByScrollTask.Status randomStats() {
@@ -191,7 +219,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomTimeValue(),
-            randomNonNegativeLong(),
+            randomFloatBetween(1000, 10000, true),
             null,
             TimeValue.ZERO
         );
@@ -204,5 +232,42 @@ public class ReindexResumeIT extends ESIntegTestCase {
             total += nodeStats.getIndices().getSearch().getTotal().getScrollCurrent();
         }
         return total;
+    }
+
+    private static void assertStatus(BulkByScrollTask.Status status, TaskResult task, long totalDocs, int batchSize, int remainingDocs) {
+        assertTrue(task.isCompleted());
+        Map<String, Object> response = task.getResponseAsMap();
+        assertNotNull(response);
+
+        // total should equal to total hits from the search
+        assertEquals(totalDocs, longFromMap(response, "total"));
+        // stats are updated
+        assertEquals(remainingDocs + status.getCreated(), longFromMap(response, "created"));
+        int remainingBatches = remainingDocs / batchSize + (remainingDocs % batchSize == 0 ? 0 : 1);
+        assertEquals(remainingBatches + status.getBatches(), intFromMap(response, "batches"));
+        assertTrue(longFromMap(response, "took") > TimeValue.ONE_HOUR.millis());
+        // other stats should be retained
+        assertEquals(status.getDeleted(), longFromMap(response, "deleted"));
+        assertEquals(status.getUpdated(), longFromMap(response, "updated"));
+        assertEquals(status.getVersionConflicts(), longFromMap(response, "version_conflicts"));
+        assertEquals(status.getNoops(), longFromMap(response, "noops"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> retries = (Map<String, Object>) response.get("retries");
+        assertNotNull(retries);
+        assertEquals(status.getBulkRetries(), longFromMap(retries, "bulk"));
+        assertEquals(status.getSearchRetries(), longFromMap(retries, "search"));
+        assertEquals(status.getRequestsPerSecond(), floatFromMap(response, "requests_per_second"), 0);
+    }
+
+    private static long longFromMap(Map<String, Object> map, String key) {
+        return ((Number) map.get(key)).longValue();
+    }
+
+    private static int intFromMap(Map<String, Object> map, String key) {
+        return ((Number) map.get(key)).intValue();
+    }
+
+    private static float floatFromMap(Map<String, Object> map, String key) {
+        return ((Number) map.get(key)).floatValue();
     }
 }

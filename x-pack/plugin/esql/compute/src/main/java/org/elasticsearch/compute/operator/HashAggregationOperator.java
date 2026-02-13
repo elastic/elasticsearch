@@ -48,7 +48,22 @@ import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
 
-    static final int DEFAULT_NUM_PARTITIONS = 256;
+    public static final int DEFAULT_NUM_PARTITIONS = 256;
+
+    /**
+     * Computes the number of FINAL-stage drivers for partitioned hash aggregation.
+     * Returns the smallest power of 2 that is greater than or equal to the number of
+     * available processors, capped at {@link #DEFAULT_NUM_PARTITIONS} (256).
+     */
+    public static int computeFinalDriverCount() {
+        int cpus = Runtime.getRuntime().availableProcessors();
+        // Smallest power of 2 >= cpus
+        int pow2 = Integer.highestOneBit(cpus);
+        if (pow2 < cpus) {
+            pow2 <<= 1;
+        }
+        return Math.min(pow2, DEFAULT_NUM_PARTITIONS);
+    }
 
     public record HashAggregationOperatorFactory(
         List<BlockHash.GroupSpec> groups,

@@ -684,7 +684,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Integer> regionsToWarm,
+                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
                     ActionListener<Void> listener
                 ) {
                     listener.onResponse(null);

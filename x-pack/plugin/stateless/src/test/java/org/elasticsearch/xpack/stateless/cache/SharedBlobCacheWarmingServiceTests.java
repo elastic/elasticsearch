@@ -33,10 +33,12 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -49,10 +51,12 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -62,9 +66,12 @@ import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
@@ -73,6 +80,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -337,6 +345,210 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 readReferencedCommitsListener
             );
             safeGet(readReferencedCommitsListener);
+        }
+    }
+
+    public void testByteRangeWarmingForBCCAndVBCC() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        // very small cache region, cache range sizes, and vbcc get chunk size, in order to verify independent cache prefetching calls
+        long regionSizeInBytes = SharedBytes.PAGE_SIZE * randomLongBetween(1, 3);
+        long vbccGetSizeInBytes = SharedBytes.PAGE_SIZE * randomLongBetween(1, 3);
+        long rangeSizeInBytes = regionSizeInBytes + SharedBytes.PAGE_SIZE * randomFrom(0L, 1L, 2L);
+        final List<VirtualBatchedCompoundCommit> vbccs = new ArrayList<>();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                new RecordingMeterRegistry()
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    Settings settings = super.nodeSettings();
+                    return Settings.builder()
+                        .put(settings)
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
+                        .put(
+                            CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(),
+                            ByteSizeValue.ofBytes(vbccGetSizeInBytes)
+                        )
+                        .put(
+                            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
+                            ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
+                        )
+                        .build();
+                }
+
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                        @Override
+                        protected CacheBlobReader getIndexingShardCacheBlobReader(
+                            ShardId shardId,
+                            PrimaryTermAndGeneration primaryTermAndGeneration,
+                            String preferredNodeId
+                        ) {
+                            return new IndexingShardCacheBlobReader(
+                                shardId,
+                                primaryTermAndGeneration,
+                                clusterService.localNode().getId(),
+                                client,
+                                TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings),
+                                threadPool
+                            ) {
+                                // we need to override this because the {@link TransportGetVirtualBatchedCompoundCommitChunkAction}
+                                // communication between the search and the indexing nodes is not mocked in the {@link FakeStatelessNode}
+                                @Override
+                                public void getVirtualBatchedCompoundCommitChunk(
+                                    final PrimaryTermAndGeneration virtualBccTermAndGen,
+                                    final long offset,
+                                    final int length,
+                                    final String preferredNodeId,
+                                    final ActionListener<ReleasableBytesReference> listener
+                                ) {
+                                    // we only expect the VBCC fetch for the second BCC, as the first one is served from the blobstore
+                                    assertEquals(vbccs.get(1).getPrimaryTermAndGeneration(), virtualBccTermAndGen);
+                                    int finalLength = Math.min(length, Math.toIntExact(vbccs.get(1).getTotalSizeInBytes() - offset));
+                                    var bytesStreamOutput = new BytesStreamOutput(finalLength);
+                                    threadPool.executor(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL)
+                                        .execute(() -> {
+                                            ActionListener.run(listener, l -> {
+                                                vbccs.get(1).getBytesByRange(offset, finalLength, bytesStreamOutput);
+                                                l.onResponse(
+                                                    new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close)
+                                                );
+                                            });
+                                        });
+                                }
+                            };
+                        }
+                    };
+                }
+            }
+        ) {
+            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+            // 2 BCCs (only the first one is uploaded)
+            for (int i = 0; i < 2; i++) {
+                var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+                VirtualBatchedCompoundCommit vbcc = new VirtualBatchedCompoundCommit(
+                    fakeNode.shardId,
+                    "fake-node-id",
+                    primaryTerm,
+                    indexCommits.get(0).getGeneration(),
+                    fileName -> uploadedBlobLocations.get(fileName),
+                    ESTestCase::randomNonNegativeLong,
+                    fakeNode.sharedCacheService.getRegionSize(),
+                    randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+                );
+                do {
+                    appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+                    // warming is not concerned with region 0, so we need BCCs larger than 1 region for this test
+                    if (vbcc.getTotalSizeInBytes() > regionSizeInBytes) {
+                        break;
+                    }
+                    indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+                } while (true);
+                vbcc.freeze();
+                vbccs.add(vbcc);
+                // upload the first vbcc only
+                if (i == 0) {
+                    var indexBlobContainer = fakeNode.getShardContainer();
+                    try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                        indexBlobContainer.writeBlobAtomic(
+                            OperationPurpose.INDICES,
+                            vbcc.getBlobName(),
+                            vbccInputStream,
+                            vbcc.getTotalSizeInBytes(),
+                            true
+                        );
+                    }
+                    BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
+                    BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                        fakeNode.searchDirectory,
+                        vbcc.lastCompoundCommit().primaryTermAndGeneration(),
+                        fakeNode.clusterService.localNode().getId()
+                    );
+                    uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+                }
+            }
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            for (var vbcc : vbccs) {
+                // make sure cache is clean
+                fakeNode.sharedCacheService.forceEvict(ignore -> true);
+                // random offset to warm up to (exclusive), must be beyond the first region and should not exceed the total vbcc length
+                var endOffset = randomLongBetween(regionSizeInBytes + 1, vbcc.getTotalSizeInBytes());
+                // warm the range after the first region and the offset
+                PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+                // warm up to the endOffset (exclusive)
+                fakeNode.warmingService.warmBlobOffsets(
+                    indexShard,
+                    Map.of(new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()), endOffset),
+                    warmListener
+                );
+                safeGet(warmListener);
+                List<ByteRange> testRanges = randomList(16, 16, () -> {
+                    long start = randomLongBetween(regionSizeInBytes, endOffset - 1);
+                    // end is exclusive for byte ranges
+                    long end = randomLongBetween(start + 1, endOffset);
+                    return ByteRange.of(start, end);
+                });
+                ByteBuffer tempBuffer = ByteBuffer.allocate((int) regionSizeInBytes);
+                for (var testRange : testRanges) {
+                    SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = fakeNode.sharedCacheService.getCacheFile(
+                        new FileCacheKey(indexShard.shardId(), primaryTerm, vbcc.getBlobName()),
+                        vbcc.getTotalSizeInBytes(),
+                        new SharedBlobCacheService.CacheMissHandler() {
+                            @Override
+                            public Releasable record(long bytes) {
+                                throw new AssertionError("this should not happen, this represents a test failure");
+                            }
+
+                            @Override
+                            public SharedBlobCacheService.CacheMissHandler copy() {
+                                return this;
+                            }
+                        }
+                    );
+                    // this read should be served up from the warmed cache
+                    var read = cacheFile.populateAndRead(
+                        testRange,
+                        testRange,
+                        (SharedBlobCacheService.RangeAvailableHandler) (channel, channelPos, relativePos, length) -> {
+                            // assert that what's read from the cache matches the vbcc contents
+                            tempBuffer.clear();
+                            tempBuffer.limit(length);
+                            channel.read(tempBuffer, channelPos);
+                            tempBuffer.flip();
+                            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload((int) testRange.start() + relativePos, length)) {
+                                byte[] vbccBytes = vbccInputStream.readAllBytes();
+                                var vbccBuffer = ByteBuffer.wrap(vbccBytes);
+                                var compare = vbccBuffer.compareTo(tempBuffer);
+                                assertThat(compare, equalTo(0));
+                            }
+                            return length;
+                        },
+                        (SharedBlobCacheService.RangeMissingHandler) (
+                            channel,
+                            channelPos,
+                            streamFactory,
+                            relativePos,
+                            length,
+                            progressUpdater,
+                            completionListener) -> {
+                            throw new AssertionError("this should not happen, this represents a test failure");
+                        },
+                        "_na_"
+                    );
+                    assertThat((long) read, equalTo(testRange.end() - testRange.start()));
+                }
+            }
         }
     }
 
@@ -807,5 +1019,20 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .build();
             }
         };
+    }
+
+    private void appendCommitsToVbcc(
+        VirtualBatchedCompoundCommit virtualBatchedCompoundCommit,
+        SearchDirectory searchDirectory,
+        List<StatelessCommitRef> commits
+    ) {
+        for (StatelessCommitRef statelessCommitRef : commits) {
+            assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
+            var pendingCompoundCommits = VirtualBatchedCompoundCommitTestUtils.getPendingStatelessCompoundCommits(
+                virtualBatchedCompoundCommit
+            );
+            StatelessCompoundCommit latestCommit = pendingCompoundCommits.get(pendingCompoundCommits.size() - 1);
+            searchDirectory.updateCommit(latestCommit);
+        }
     }
 }

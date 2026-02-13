@@ -87,22 +87,6 @@ book_no:keyword | title:text                                                    
 topSnippetsWithMultivaluedField
 required_capability: top_snippets_mv
 
-FROM employees
-| WHERE emp_no IN (10001, 10002, 10004)
-| EVAL snippets = TOP_SNIPPETS(job_positions, "Senior")
-| KEEP emp_no, snippets
-| SORT emp_no
-;
-
-emp_no:integer | snippets:keyword
-10001          | Senior Python Developer
-10002          | Senior Team Lead
-10004          | null
-;
-
-topSnippetsWithMultivaluedFieldSingleMatch
-required_capability: top_snippets_mv
-
 ROW positions = ["Senior Team Lead", "Software Engineer"]
 | EVAL snippets = TOP_SNIPPETS(positions, "lead")
 | KEEP snippets
@@ -110,6 +94,24 @@ ROW positions = ["Senior Team Lead", "Software Engineer"]
 
 snippets:keyword
 Senior Team Lead
+;
+
+topSnippetsWithMultivaluedFieldFromIndex
+required_capability: top_snippets_mv
+
+FROM employees
+| EVAL snippets = TOP_SNIPPETS(job_positions, "lead")
+| KEEP emp_no, first_name, last_name, snippets
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | snippets:keyword
+10001          | Georgi             | Facello           | null
+10002          | Bezalel            | Simmel            | Senior Team Lead
+10003          | Parto              | Bamford           | null
+10004          | Chirstian          | Koblick           | Tech Lead
+10005          | Kyoichi            | Maliniak          | null
 ;
 
 topSnippetsWithMultivaluedFieldMultipleMatches

@@ -307,8 +307,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 SIMILARITY_MEASURE_VALUE.toString(),
                 DIMENSIONS_VALUE,
                 MAX_INPUT_TOKENS_VALUE,
-                null,
-                TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+                null
             );
         }
         return getServiceSettingsMap(TestUtils.MODEL_ID, TestUtils.CUSTOM_URL, null);
@@ -323,8 +322,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                     SIMILARITY_MEASURE_VALUE.toString(),
                     null,
                     MAX_INPUT_TOKENS_VALUE,
-                    null,
-                    TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+                    null
                 );
             } else {
                 return MixedbreadEmbeddingsServiceSettingsTests.getServiceSettingsMap(
@@ -333,8 +331,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                     SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_VALUE,
                     MAX_INPUT_TOKENS_VALUE,
-                    null,
-                    TestUtils.DIMENSIONS_SET_BY_USER_TRUE
+                    null
                 );
             }
         }

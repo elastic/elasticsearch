@@ -243,7 +243,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
     }
 
     public Boolean dimensionsSetByUser() {
-        return dimensionsSetByUser;
+        return this.dimensionsSetByUser;
     }
 
     @Override

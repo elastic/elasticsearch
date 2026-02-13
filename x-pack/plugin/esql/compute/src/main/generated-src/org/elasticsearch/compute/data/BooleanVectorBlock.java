@@ -55,8 +55,8 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
-    public BooleanBlock filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override

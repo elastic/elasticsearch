@@ -1,6 +1,0 @@
-pr: 139798
-summary: Fix interpolation for data points at bucket boundaries
-area: ES|QL
-type: bug
-issues:
- - 139732

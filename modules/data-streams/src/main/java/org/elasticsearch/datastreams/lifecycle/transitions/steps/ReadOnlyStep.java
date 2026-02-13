@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Strings;
@@ -52,8 +53,11 @@ public class ReadOnlyStep implements DlmStep {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
             INFINITE_MASTER_NODE_TIMEOUT
         );
+        // Force a flush while adding the read-only block to ensure all in-flight writes are completed and written to segments
+        addIndexBlockRequest.markVerified(true);
 
         stepContext.executeDeduplicatedRequest(
+            TransportAddIndexBlockAction.TYPE.name(),
             addIndexBlockRequest,
             Strings.format("DLM service encountered an error trying to mark index [%s] as readonly", indexName),
             (req, reqListener) -> addIndexBlock(projectId, addIndexBlockRequest, reqListener, stepContext)

@@ -110,13 +110,13 @@ public class Reindexer {
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
-        BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
+        BulkByPaginatedSearchParallelizationHelper.initTaskState(task, request, client, listener);
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
 
-        BulkByScrollParallelizationHelper.executeSlicedAction(
+        BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
             task,
             request,
             ReindexAction.INSTANCE,
@@ -308,8 +308,7 @@ public class Reindexer {
             }
             Settings settings = MetadataIndexTemplateService.resolveSettings(projectMetadata, template);
             // We retrieve the setting without performing any validation because that the template has already been validated
-            String indexMode = settings.get(IndexSettings.MODE.getKey());
-            return indexMode == null ? IndexMode.STANDARD : IndexMode.fromString(indexMode);
+            return IndexMode.fromIndexSettingsWithoutValidation(settings);
         }
 
         @Override

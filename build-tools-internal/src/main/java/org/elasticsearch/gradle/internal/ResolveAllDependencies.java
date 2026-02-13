@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.FileCollectionDependency;
@@ -28,6 +29,8 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.util.GradleUtils.withRetries;
 
 public abstract class ResolveAllDependencies extends DefaultTask {
 
@@ -64,8 +67,15 @@ public abstract class ResolveAllDependencies extends DefaultTask {
     @TaskAction
     void resolveAll() {
         if (resolveJavaToolChain) {
-            resolveDefaultJavaToolChain();
+            withRetries(() -> {
+                resolveDefaultJavaToolChain();
+                resolveJdk17FallbackJavaToolChain();
+            });
         }
+    }
+
+    private void resolveJdk17FallbackJavaToolChain() {
+        getJavaToolchainService().launcherFor(RestTestBasePlugin.JAVA_TOOLCHAIN_JDK_ADOPTIUM_SPEC_ACTION).get();
     }
 
     private void resolveDefaultJavaToolChain() {

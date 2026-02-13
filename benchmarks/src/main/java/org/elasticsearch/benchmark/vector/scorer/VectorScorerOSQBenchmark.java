@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -21,6 +22,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -36,6 +38,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -56,7 +59,8 @@ public class VectorScorerOSQBenchmark {
 
     public enum DirectoryType {
         NIO,
-        MMAP
+        MMAP,
+        SNAP
     }
 
     public enum VectorImplementation {
@@ -78,6 +82,9 @@ public class VectorScorerOSQBenchmark {
     @Param
     public DirectoryType directoryType;
 
+    @Param
+    public VectorSimilarityFunction similarityFunction;
+
     public int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * 10;
     int numQueries = 10;
 
@@ -91,6 +98,7 @@ public class VectorScorerOSQBenchmark {
     byte[] scratch;
     ESNextOSQVectorsScorer scorer;
 
+    Path tempDir;
     Directory directory;
     IndexInput input;
 
@@ -116,12 +124,13 @@ public class VectorScorerOSQBenchmark {
         }
 
         directory = switch (directoryType) {
-            case MMAP -> new MMapDirectory(Files.createTempDirectory("vectorDataMmap"));
-            case NIO -> new NIOFSDirectory(Files.createTempDirectory("vectorDataNFIOS"));
+            case MMAP -> new MMapDirectory(createTempDirectory("vectorDataMmap"));
+            case NIO -> new NIOFSDirectory(createTempDirectory("vectorDataNFIOS"));
+            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(createTempDirectory("vectorDataSNAP"));
         };
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-            byte[] correctionBytes = new byte[14 * bulkSize];
+            byte[] correctionBytes = new byte[16 * bulkSize];
             for (int i = 0; i < numVectors; i += bulkSize) {
                 for (int j = 0; j < bulkSize; j++) {
                     output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
@@ -129,6 +138,7 @@ public class VectorScorerOSQBenchmark {
                 random.nextBytes(correctionBytes);
                 output.writeBytes(correctionBytes, 0, correctionBytes.length);
             }
+            CodecUtil.writeFooter(output);
         }
         input = directory.openInput("vectors", IOContext.DEFAULT);
         int binaryQueryLength = switch (bits) {
@@ -176,6 +186,11 @@ public class VectorScorerOSQBenchmark {
         corrections = new float[3];
     }
 
+    Path createTempDirectory(String name) throws IOException {
+        tempDir = Files.createTempDirectory(name);
+        return tempDir;
+    }
+
     @TearDown
     public void teardown() throws IOException {
         IOUtils.close(directory, input);
@@ -195,7 +210,7 @@ public class VectorScorerOSQBenchmark {
                     result.upperInterval(),
                     result.quantizedComponentSum(),
                     result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
+                    similarityFunction,
                     centroidDp,
                     corrections[0],
                     corrections[1],
@@ -221,7 +236,7 @@ public class VectorScorerOSQBenchmark {
                     result.upperInterval(),
                     result.quantizedComponentSum(),
                     result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
+                    similarityFunction,
                     centroidDp,
                     scratchScores
                 );

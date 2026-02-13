@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
+import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -255,18 +256,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
                 ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-                PlannerSettings.DEFAULT_DATA_PARTITIONING,
-                PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
-                PlannerSettings.LUCENE_TOPN_LIMIT,
-                PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
-                PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
-                PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
-                PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
             )
         );
+        settings.addAll(PlannerSettings.settings());
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             settings.add(ViewService.MAX_VIEWS_COUNT_SETTING);
             settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
@@ -357,6 +352,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
+        entries.add(MMROperator.Status.ENTRY);
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);

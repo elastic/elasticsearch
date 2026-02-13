@@ -649,6 +649,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             pageSize = randomIntBetween(1, 100);
         }
 
+        assert rowsCount == pages.stream().mapToInt(Page::getPositionCount).sum();
         return pages;
     }
 
@@ -673,8 +674,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected Object toJavaObjectUnsignedLongAware(Block block, int position) {
-        Object result;
-        result = toJavaObject(block, position);
+        Object result = toJavaObject(block, position);
+        return normalizeResultUnsignedLongAware(result);
+    }
+
+    protected Object normalizeResultUnsignedLongAware(Object result) {
         if (result == null || testCase.expectedType() != DataType.UNSIGNED_LONG) {
             return result;
         }
@@ -711,29 +715,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static Object tryRandomizeBytesRefOffset(Object value) {
         if (value instanceof BytesRef bytesRef) {
-            return randomizeBytesRefOffset(bytesRef);
+            return embedInRandomBytes(bytesRef);
         }
 
         if (value instanceof List<?> list) {
             return list.stream().map(element -> {
                 if (element instanceof BytesRef bytesRef) {
-                    return randomizeBytesRefOffset(bytesRef);
+                    return embedInRandomBytes(bytesRef);
                 }
                 return element;
             }).toList();
         }
 
         return value;
-    }
-
-    private static BytesRef randomizeBytesRefOffset(BytesRef bytesRef) {
-        var offset = randomIntBetween(0, 10);
-        var extraLength = randomIntBetween(0, 10);
-        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
-
-        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
-
-        return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
     public void testSerializationOfSimple() {
@@ -918,7 +912,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     @SuppressWarnings("unchecked")
-    protected final void assertTestCaseResultAndWarnings(Object result) {
+    protected final void assertTestCaseResultAndWarnings(Object originalResult) {
+        Object result = normalizeResultUnsignedLongAware(originalResult);
         if (result instanceof Iterable<?>) {
             var collectionResult = (Iterable<Object>) result;
             assertThat(collectionResult, not(hasItem(Double.NaN)));

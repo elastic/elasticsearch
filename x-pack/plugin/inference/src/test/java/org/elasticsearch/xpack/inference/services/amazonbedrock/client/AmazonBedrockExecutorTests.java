@@ -100,7 +100,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
     }
 
     public void testExecute_CompletionRequest() {
-        var model = AmazonBedrockChatCompletionModelTests.createModel(
+        var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
             "id",
             "region",
             "model",
@@ -124,7 +124,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
     }
 
     public void testExecute_CompletionFailsProperly_WithElasticsearchException() {
-        var model = AmazonBedrockChatCompletionModelTests.createModel(
+        var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
             "id",
             "region",
             "model",

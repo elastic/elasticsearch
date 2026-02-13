@@ -2,11 +2,17 @@
 
 **Supported types**
 
-| value | sort | result |
+| field | sortField | result |
 | --- | --- | --- |
 | boolean | date | boolean |
 | boolean | date_nanos | boolean |
 | boolean | long | boolean |
+| date | date | date |
+| date | date_nanos | date |
+| date | long | date |
+| date_nanos | date | date_nanos |
+| date_nanos | date_nanos | date_nanos |
+| date_nanos | long | date_nanos |
 | double | date | double |
 | double | date_nanos | double |
 | double | long | double |

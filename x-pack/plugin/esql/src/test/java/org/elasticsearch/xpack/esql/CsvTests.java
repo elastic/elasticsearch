@@ -910,9 +910,7 @@ public class CsvTests extends ESTestCase {
         if (dataNodePlan != null && ComputeService.hasGroupedFinalAgg(coordinatorPlan)) {
             // Use partitioned exchange for grouped FINAL hash aggregation
             int numPartitions = HashAggregationOperator.DEFAULT_NUM_PARTITIONS;
-            // Use 1 FINAL driver for now to verify plumbing; multi-driver will be enabled
-            // once downstream ordering is addressed
-            int numFinalDrivers = 1;
+            int numFinalDrivers = 2;
 
             // Partitioned sink handler routes pages by partitionId to per-driver buffers
             var partitionedSinkHandler = new PartitionedExchangeSinkHandler(

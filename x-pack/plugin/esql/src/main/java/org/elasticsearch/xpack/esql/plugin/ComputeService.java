@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -829,60 +830,94 @@ public class ComputeService {
     }
 
     /**
-     * Splits the coordinator plan into a FINAL plan (everything from ExchangeSourceExec through the
-     * AggregateExec/ProjectExec chain) and an output plan. The FINAL plan is wrapped in an
-     * ExchangeSinkExec so that its output is written to an exchange. The output plan reads from
-     * that exchange.
+     * Splits the coordinator plan at the AggregateExec(FINAL) boundary into:
+     * <ul>
+     *   <li>A <b>final plan</b>: {@code ExchangeSinkExec → AggregateExec(FINAL) → ExchangeSourceExec}
+     *       (runs per-partition in each FINAL driver)</li>
+     *   <li>An <b>output plan</b>: everything above the AggregateExec (TopN, Eval, Project, etc.)
+     *       reading from an ExchangeSourceExec (runs once, globally, after all partitions finish)</li>
+     * </ul>
      *
-     * <p>The coordinator plan tree is expected to have the form:
+     * <p>For example, given:
      * <pre>
-     *   OutputExec (or ExchangeSinkExec)
+     *   OutputExec
      *     └── ProjectExec
-     *           └── AggregateExec(FINAL)
-     *                 └── ExchangeSourceExec
+     *           └── TopNExec
+     *                 └── EvalExec
+     *                       └── AggregateExec(FINAL)
+     *                             └── ExchangeSourceExec
      * </pre>
+     * The split produces:
+     * <ul>
+     *   <li>Final: {@code ExchangeSinkExec → AggregateExec(FINAL) → ExchangeSourceExec}</li>
+     *   <li>Output: {@code OutputExec → ProjectExec → TopNExec → EvalExec → ExchangeSourceExec}</li>
+     * </ul>
      *
-     * @return a tuple of (finalPlan wrapped in ExchangeSinkExec, outputPlan), or null if the plan
-     *         doesn't match the expected pattern
+     * @return a tuple of (finalPlan, outputPlan), or null if the plan doesn't match the expected pattern
      */
     public static Tuple<PhysicalPlan, PhysicalPlan> splitCoordinatorPlanForPartitioning(PhysicalPlan coordinatorPlan) {
-        // The coordinator plan is: OutputExec -> ProjectExec -> AggregateExec(FINAL) -> ExchangeSourceExec
-        // or: ExchangeSinkExec -> ProjectExec -> AggregateExec(FINAL) -> ExchangeSourceExec
-        // We want to extract the ProjectExec -> AggregateExec(FINAL) -> ExchangeSourceExec subtree
-        // and wrap it in an ExchangeSinkExec for the FINAL drivers.
-
-        // Find the tail: the outermost node (OutputExec or ExchangeSinkExec)
-        PhysicalPlan tail = coordinatorPlan;
-        PhysicalPlan finalSubtree = null; // ProjectExec -> AggregateExec(FINAL) -> ExchangeSourceExec
-
-        if (tail instanceof OutputExec outputExec) {
-            finalSubtree = outputExec.child();
-        } else if (tail instanceof ExchangeSinkExec sinkExec) {
-            finalSubtree = sinkExec.child();
+        // Step 1: Unwrap the outermost node (OutputExec or ExchangeSinkExec)
+        PhysicalPlan wrapper = coordinatorPlan;
+        PhysicalPlan child;
+        if (wrapper instanceof OutputExec outputExec) {
+            child = outputExec.child();
+        } else if (wrapper instanceof ExchangeSinkExec sinkExec) {
+            child = sinkExec.child();
         } else {
             return null;
         }
 
-        // The finalSubtree should be ProjectExec -> AggregateExec(FINAL) -> ...
-        // Wrap it in ExchangeSinkExec so FINAL drivers write to an exchange
+        // Step 2: Walk down single-child (UnaryExec) nodes to find the AggregateExec(FINAL).
+        // Collect the intermediate nodes (TopN, Eval, Project, etc.) that sit between the
+        // wrapper and the AggregateExec - these must go in the output plan, not the final plan.
+        java.util.List<UnaryExec> aboveAgg = new java.util.ArrayList<>();
+        PhysicalPlan current = child;
+        AggregateExec aggExec = null;
+
+        while (current != null) {
+            if (current instanceof AggregateExec agg) {
+                aggExec = agg;
+                break;
+            }
+            if (current instanceof UnaryExec unary) {
+                aboveAgg.add(unary);
+                current = unary.child();
+            } else {
+                return null; // unexpected node type
+            }
+        }
+        if (aggExec == null) {
+            return null;
+        }
+
+        // Step 3: Build the final plan - only the AggregateExec and its ExchangeSourceExec child,
+        // wrapped in ExchangeSinkExec. This runs per-partition.
         PhysicalPlan finalPlan = new ExchangeSinkExec(
-            finalSubtree.source(),
-            finalSubtree.output(),
+            aggExec.source(),
+            aggExec.output(),
             false,
-            finalSubtree
+            aggExec
         );
 
-        // Build the output plan: ExchangeSourceExec reading the FINAL output
-        PhysicalPlan outputSource = new ExchangeSourceExec(
-            finalSubtree.source(),
-            finalSubtree.output(),
+        // Step 4: Build the output plan. Start with an ExchangeSourceExec that reads the
+        // aggregation output from the shared exchange, then rebuild the chain of intermediate
+        // nodes (TopN, Eval, Project, etc.) on top of it.
+        PhysicalPlan outputChild = new ExchangeSourceExec(
+            aggExec.source(),
+            aggExec.output(),
             false
         );
+        // Rebuild from bottom (closest to agg) to top
+        for (int i = aboveAgg.size() - 1; i >= 0; i--) {
+            outputChild = aboveAgg.get(i).replaceChild(outputChild);
+        }
+
+        // Re-wrap with the outermost node
         PhysicalPlan outputPlan;
-        if (tail instanceof OutputExec outputExec) {
-            outputPlan = new OutputExec(outputSource, outputExec.getPageConsumer());
-        } else if (tail instanceof ExchangeSinkExec sinkExec) {
-            outputPlan = new ExchangeSinkExec(sinkExec.source(), sinkExec.output(), sinkExec.isIntermediateAgg(), outputSource);
+        if (wrapper instanceof OutputExec outputExec) {
+            outputPlan = new OutputExec(outputChild, outputExec.getPageConsumer());
+        } else if (wrapper instanceof ExchangeSinkExec sinkExec) {
+            outputPlan = new ExchangeSinkExec(sinkExec.source(), sinkExec.output(), sinkExec.isIntermediateAgg(), outputChild);
         } else {
             return null;
         }

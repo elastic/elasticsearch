@@ -59,7 +59,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
         private final long estimatedPerRowSortSize;
-        private final PerShardCollectorProvider perShardCollectorProvider;
+        final PerShardCollectorProvider perShardCollectorProvider;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> contexts,
@@ -138,7 +138,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private final long estimatedPerRowSortSize;
     private final int limit;
     private final boolean needsScore;
-    private final PerShardCollectorProvider perShardCollectorProvider;
+    final PerShardCollectorProvider perShardCollectorProvider;
 
     /**
      * Collected docs. {@code null} until we're ready to {@link #emit()}.
@@ -375,7 +375,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     static class PerShardCollector {
         private final ShardContext shardContext;
-        private final TopDocsCollector<?> collector;
+        final TopDocsCollector<?> collector;
 
         private int leafIndex;
         private LeafCollector leafCollector;
@@ -420,10 +420,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         private final boolean needsScore;
 
         // Lazy, thread-safe holder for TopScoreDocCollectorManager
-        private volatile TopScoreDocCollectorManager topScoreDocCollectorManager;
+        volatile TopScoreDocCollectorManager topScoreDocCollectorManager;
 
         // Cache of TopFieldCollectorManager instances per Sort configuration
-        private final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
+        final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
         private final List<SortBuilder<?>> sorts;
 
         PerShardCollectorProvider(int limit, boolean needsScore, List<SortBuilder<?>> sorts) {
@@ -437,7 +437,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
          * Gets or creates a TopScoreDocCollectorManager.
          * Uses double-checked locking for thread-safe lazy initialization.
          */
-        private TopScoreDocCollectorManager getTopScoreDocCollectorManager() {
+        TopScoreDocCollectorManager getTopScoreDocCollectorManager() {
             if (topScoreDocCollectorManager == null) {
                 synchronized (this) {
                     if (topScoreDocCollectorManager == null) {
@@ -452,14 +452,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
          * Gets or creates a TopFieldCollectorManager for the given Sort.
          * Uses ConcurrentHashMap.computeIfAbsent for thread-safe lazy creation.
          */
-        private TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
+        TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
             return topFieldCollectorManagers.computeIfAbsent(
                 sort,
                 s -> new TopFieldCollectorManager(s, limit, null, 0)
             );
         }
 
-        private TopDocsCollector<?> newTopDocsCollector(Sort sort) {
+        TopDocsCollector<?> newTopDocsCollector(Sort sort) {
             if (needsScore == false) {
                 return getTopFieldCollectorManager(sort).newCollector();
             }

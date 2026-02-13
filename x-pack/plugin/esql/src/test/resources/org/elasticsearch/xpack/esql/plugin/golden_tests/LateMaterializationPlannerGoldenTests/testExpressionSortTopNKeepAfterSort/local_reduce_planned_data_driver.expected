@@ -1,4 +1,4 @@
-ExchangeSinkExec[[hire_date{f}, $$order_by{r}],false]
+ExchangeSinkExec[[_doc{f}, $$order_by{r}],false]
 \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Project[[_doc{f}, $$order_by{r}]]
 \_TopN[[Order[$$order_by{r},ASC,LAST]],20[INTEGER],false]

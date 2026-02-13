@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -226,8 +228,6 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        // TODO add a test assertion for the consistency checker (after https://github.com/elastic/elasticsearch/issues/141654, see
-        // https://github.com/elastic/elasticsearch/pull/141082/changes#r2745334028);
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -270,7 +270,13 @@ public class PlannerUtils {
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-
+        // This check is needed because in test code we sometimes invoke localPlan with a non-ExchangeSinkExec root.
+        if (resultPlan instanceof ExchangeSinkExec sink) {
+            resultPlan = new ExchangeSinkExec(sink.source(), sink.child().output(), sink.isIntermediateAgg(), sink.child());
+        }
+        if (Assertions.ENABLED) {
+            PhysicalVerifier.LOCAL_INSTANCE.verify(resultPlan, resultPlan.output());
+        }
         return resultPlan;
     }
 

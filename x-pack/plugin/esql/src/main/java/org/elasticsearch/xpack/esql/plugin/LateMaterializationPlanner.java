@@ -128,8 +128,12 @@ class LateMaterializationPlanner {
         }
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
-        // TODO This ignores the possible change in output, see #141654
-        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);
+        ExchangeSinkExec updatedDataPlan = new ExchangeSinkExec(
+            originalPlan.source(),
+            expectedDataOutput,
+            originalPlan.isIntermediateAgg(),
+            updatedFragmentExec
+        );
 
         // Replace the TopN child with the data driver as the source.
         PhysicalPlan reductionPlan = toPhysical(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
@@ -138,7 +142,10 @@ class LateMaterializationPlanner {
             boolean fragmentIsSorted = updatedFragment.child() instanceof TopN;
             return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
         });
-        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(
+        ExchangeSinkExec reductionPlanWithSize = new ExchangeSinkExec(
+            originalPlan.source(),
+            reductionPlan.output(),
+            originalPlan.isIntermediateAgg(),
             EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan)
         );
 

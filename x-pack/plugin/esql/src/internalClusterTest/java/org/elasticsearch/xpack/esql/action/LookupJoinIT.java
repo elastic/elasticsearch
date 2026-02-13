@@ -167,18 +167,9 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                 }
                 String mappingContent = CsvTestsDataLoader.readTextFile(mappingResource);
 
-                // Read settings file (same logic as TestDataset.readSettingsFile())
-                Settings indexSettings = Settings.EMPTY;
-                String settingFileName = dataset.settingFileName();
-                if (settingFileName != null) {
-                    String settingName = "/" + settingFileName;
-                    indexSettings = Settings.builder()
-                        .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                        .build();
-                }
                 // Ensure standard settings for test indices
-                indexSettings = Settings.builder()
-                    .put(indexSettings)
+                var indexSettings = Settings.builder()
+                    .put(dataset.getSettings())
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .build();

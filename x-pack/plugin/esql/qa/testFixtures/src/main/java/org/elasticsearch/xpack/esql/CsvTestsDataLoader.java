@@ -123,12 +123,12 @@ public class CsvTestsDataLoader {
         "partial_mapping_no_source_sample_data",
         "mapping-partial_mapping_no_source_sample_data.json",
         "partial_mapping_sample_data.csv"
-    ).withSetting("source_parameters-settings.json");
+    );
     private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE = new TestDataset(
         "partial_mapping_excluded_source_sample_data",
         "mapping-partial_mapping_excluded_source_sample_data.json",
         "partial_mapping_sample_data.csv"
-    ).withSetting("source_parameters-settings.json");
+    );
     private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
     private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup").withSetting("lookup-settings.json");
     private static final TestDataset MESSAGE_TYPES = new TestDataset("message_types");
@@ -529,7 +529,7 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean isLookupDataset(TestDataset dataset) throws IOException {
-        Settings settings = dataset.readSettingsFile();
+        Settings settings = dataset.getSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
     }
@@ -601,7 +601,7 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
-        Settings settings = dataset.readSettingsFile();
+        Settings settings = dataset.getSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("time_series"));
     }
@@ -1021,8 +1021,7 @@ public class CsvTestsDataLoader {
     private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
         logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         URL mapping = getResource("/" + dataset.mappingFileName);
-        Settings indexSettings = dataset.readSettingsFile();
-        indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
+        indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), dataset.getSettings());
 
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
@@ -1402,16 +1401,12 @@ public class CsvTestsDataLoader {
             );
         }
 
-        private Settings readSettingsFile() throws IOException {
-            Settings indexSettings = Settings.EMPTY;
-            final String settingName = settingFileName != null ? "/" + settingFileName : null;
-            if (settingName != null) {
-                indexSettings = Settings.builder()
-                    .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                    .build();
+        public Settings getSettings() throws IOException {
+            if (settingFileName == null) {
+                return Settings.EMPTY;
             }
-
-            return indexSettings;
+            final String settingName = "/index/settings/" + settingFileName;
+            return Settings.builder().loadFromStream(settingName, getResourceStream(settingName), false).build();
         }
     }
 

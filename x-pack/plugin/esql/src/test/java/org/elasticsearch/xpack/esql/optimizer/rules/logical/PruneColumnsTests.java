@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
@@ -59,6 +61,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
@@ -1186,8 +1189,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
-     * Project[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
+     * EsqlProject[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
      * ast_name{r}#55, long_noidx{r}#56, salary{r}#57]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[_fork{r}#59 == fork1[KEYWORD]]
@@ -1198,12 +1200,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *       | \_Eval[[fork1[KEYWORD] AS _fork#9]]
      *       |   \_Limit[1000[INTEGER],false,false]
      *       |     \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *       |_LocalRelation[[_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, gender{f}#28, hire_date{f}#33, job{f}#34, job.raw{f}#35, l
+     * ast_name{f}#30, long_noidx{f}#36, salary{f}#31, _fork{r}#9],EMPTY]
      *       \_Project[[_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, gender{f}#39, hire_date{f}#44, job{f}#45, job.raw{f}#46, l
      * ast_name{f}#41, long_noidx{f}#47, salary{f}#42, _fork{r}#9]]
      *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
      *           \_Limit[1000[INTEGER],false,false]
      *             \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
-     * }</pre>
      */
     public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
         var query = """
@@ -1217,15 +1220,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | drop languages
             """;
         var plan = optimizedPlan(query);
-        var project = as(plan, Project.class);
+        var project = as(plan, EsqlProject.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var fork = as(filter.child(), Fork.class);
         assertThat(fork.output().size(), equalTo(11));
-
-        // second branch is completely removed
-        assertEquals(2, fork.children().size());
 
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
@@ -1240,7 +1240,27 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
         );
 
-        var thirdBranch = fork.children().get(1);
+        var secondBranch = fork.children().get(1);
+        var secondBranchLocalRelation = as(secondBranch, LocalRelation.class);
+        assertThat(
+            secondBranchLocalRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems(
+                "_meta_field",
+                "emp_no",
+                "first_name",
+                "gender",
+                "hire_date",
+                "job",
+                "job.raw",
+                "last_name",
+                "long_noidx",
+                "salary",
+                "_fork"
+            )
+        );
+        assertThat(secondBranchLocalRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
+
+        var thirdBranch = fork.children().get(2);
         var thirdBranchProject = as(thirdBranch, Project.class);
         assertThat(thirdBranchProject.projections().size(), equalTo(11));
         var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);
@@ -1526,9 +1546,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Project[[!languages, $$languages$converted_to$long{f$}#12 AS x#6]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_EsRelation[union_types_index*][!first_name, id{f}#7, !languages, !last_name, !sala..]
+     * EsqlProject[[!languages, x{r}#6]]
+     * \_Eval[[$$languages$converted_to$long{f$}#12 AS x#6]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_EsRelation[union_types_index*][!first_name, id{f}#9, !languages, !last_name, !sala..]
      */
     public void testExplicitRetainOriginalFieldWithCast() {
         LogicalPlan plan = planUnionIndex("""
@@ -1537,21 +1558,24 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | EVAL x = languages::long
             """);
 
-        Project topProject = as(plan, Project.class);
+        EsqlProject topProject = as(plan, EsqlProject.class);
         var projections = topProject.projections();
         assertThat(projections, hasSize(2));
         assertThat(projections.get(0).name(), equalTo("languages"));
         assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+        assertThat(projections.get(1), instanceOf(ReferenceAttribute.class));
+        assertThat(projections.get(1).name(), equalTo("x"));
+        assertThat(projections.get(1).dataType(), equalTo(LONG));
 
-        Alias xAlias = as(projections.get(1), Alias.class);
-        assertThat(xAlias.name(), equalTo("x"));
-        assertThat(xAlias.dataType(), equalTo(LONG));
+        Eval eval = as(topProject.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Alias xAlias = eval.fields().get(0);
         FieldAttribute syntheticFieldAttr = as(xAlias.child(), FieldAttribute.class);
         assertThat(syntheticFieldAttr.name(), equalTo("$$languages$converted_to$long"));
         ReferenceAttribute xRef = as(topProject.output().get(1), ReferenceAttribute.class);
-        assertThat(xRef, is(xAlias.toAttribute()));
+        assertThat(xRef, is(projections.get(1).toAttribute()));
 
-        Limit limit = asLimit(topProject.child(), 1000, false);
+        Limit limit = asLimit(eval.child(), 1000, false);
         EsRelation relation = as(limit.child(), EsRelation.class);
         assertCommonIncompatibleDataTypesEsRelation(relation);
 

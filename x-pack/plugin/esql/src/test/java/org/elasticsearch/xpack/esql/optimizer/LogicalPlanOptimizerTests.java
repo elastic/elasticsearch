@@ -207,7 +207,6 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAg
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggsTests.aliased;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumnsTests.assertCommonIncompatibleDataTypesEsRelation;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -5513,7 +5512,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_Aggregate[[],[VALUES(max_lang{r}#7,true[BOOLEAN]) AS v#11]]
      *   \_Limit[1[INTEGER],false]
      *     \_InlineJoin[LEFT,[gender{f}#14],[gender{f}#14],[gender{r}#14]]
-     *       |_EsqlProject[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
+     *       |_Project[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
      *       | \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      *       \_Aggregate[[gender{f}#14],[MAX(languages{f}#15,true[BOOLEAN]) AS max_lang#7, gender{f}#14]]
      *         \_StubRelation[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
@@ -5537,7 +5536,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var innerLimit = asLimit(aggregate.child(), 1, false);
         var inlineJoin = as(innerLimit.child(), InlineJoin.class);
         // Left
-        var project = as(inlineJoin.left(), EsqlProject.class);
+        var project = as(inlineJoin.left(), Project.class);
         var relation = as(project.child(), EsRelation.class);
         // Right
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -9321,51 +9320,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // EsRelation[test]
         EsRelation relation = as(filter.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
-    }
-
-    /**
-     * Project[[id{r}#15, $$languages$converted_to$keyword{f$}#16 AS languages#9]]
-     * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[id{f}#14,id{r}#15]
-     *     \_Project[[id{f}#14, $$languages$converted_to$keyword{f$}#16]]
-     *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[union_types_index*][!first_name, id{f}#14, !languages, !last_name, !sal..]
-     */
-    public void testUnionTypesResolvePastProjections() {
-        LogicalPlan plan = planUnionIndex("""
-            FROM union_types_index*
-            | KEEP languages, id
-            | MV_EXPAND id
-            | EVAL languages = languages::keyword
-            """);
-
-        Project topProject = as(plan, Project.class);
-        var topOutput = topProject.output();
-        assertThat(topOutput, hasSize(2));
-
-        var idAttr = topOutput.get(1);
-        assertThat(idAttr.name(), equalTo("languages"));
-
-        // The id attribute should be a ReferenceAttribute that references the converted field
-        ReferenceAttribute idRef = as(idAttr, ReferenceAttribute.class);
-        assertThat(idRef.dataType(), equalTo(KEYWORD));
-
-        Limit limit1 = asLimit(topProject.child(), 1000, true);
-        MvExpand mvExpand = as(limit1.child(), MvExpand.class);
-
-        Project innerProject = as(mvExpand.child(), Project.class);
-        var innerOutput = innerProject.output();
-        assertThat(innerOutput, hasSize(2));
-        assertThat(Expressions.names(innerOutput), containsInAnyOrder("id", "$$languages$converted_to$keyword"));
-
-        Limit limit2 = asLimit(innerProject.child(), 1000, false);
-        EsRelation relation = as(limit2.child(), EsRelation.class);
-        assertEquals("union_types_index*", relation.indexPattern());
-
-        var relationOutput = relation.output();
-        assertCommonIncompatibleDataTypesEsRelation(relation);
-        assertThat(relationOutput.get(5).name(), equalTo("$$languages$converted_to$keyword"));
-        assertThat(relationOutput.get(5).dataType(), equalTo(KEYWORD));
     }
 
     /*

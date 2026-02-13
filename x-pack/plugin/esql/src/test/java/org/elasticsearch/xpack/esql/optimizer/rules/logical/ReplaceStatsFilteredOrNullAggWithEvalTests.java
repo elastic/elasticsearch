@@ -683,7 +683,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
-     * EsqlProject[[salary{f}#10, count_distinct(salary   2)   3 where false{r}#4]]
+     * Project[[salary{f}#10, count_distinct(salary   2)   3 where false{r}#4]]
      * \_Eval[[3[LONG] AS count_distinct(salary   2)   3 where false#4]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
@@ -698,7 +698,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
             return;
         }
         var plan = plan(query);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "count_distinct(salary + 2) + 3 where false"));
 
         var eval = as(project.child(), Eval.class);

@@ -1371,7 +1371,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     /*
-     * EsqlProject[[salary{f}#16, emp_no{f}#11]]
+     * Project[[salary{f}#16, emp_no{f}#11]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
      *     \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
@@ -1385,7 +1385,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | KEEP salary, emp_no
             """);
 
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));

@@ -124,7 +124,7 @@ public class Reindexer {
     public void lookupRemoteVersion(Task task, ReindexRequest request, ActionListener<Void> listener) {
         // If we're reindexing from a remote source, then we need to determine the remote version to decide whether we use
         // scroll search or point-in-time search
-         if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
+        if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
             RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
                 @Override
                 public void onResponse(Version version) {

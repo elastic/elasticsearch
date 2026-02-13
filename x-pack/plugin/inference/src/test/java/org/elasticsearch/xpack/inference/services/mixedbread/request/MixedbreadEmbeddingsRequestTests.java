@@ -12,6 +12,8 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.TestUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.embeddings.MixedbreadEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.request.embeddings.MixedbreadEmbeddingsRequest;
@@ -24,7 +26,6 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
@@ -51,10 +52,12 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("encoding_format"), is(TestUtils.ENCODING_VALUE));
     }
 
-    public void testGetTruncationInfo_ReturnsNull() {
+    public void testGetTruncationInfo() {
         var request = createRequest(TestUtils.CUSTOM_URL, null, null);
-        ;
-        assertThat(request.getTruncationInfo(), is(nullValue()));
+        assertThat(request.getTruncationInfo()[0], is(false));
+
+        var truncatedRequest = request.truncate();
+        assertThat(truncatedRequest.getTruncationInfo()[0], is(true));
     }
 
     private static MixedbreadEmbeddingsRequest createRequest(@Nullable String url, @Nullable String prompt, @Nullable Boolean normalized) {
@@ -68,7 +71,10 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
             normalized,
             null
         );
-        return new MixedbreadEmbeddingsRequest(embeddingsModel, List.of(INPUT));
+        return new MixedbreadEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            new Truncator.TruncationResult(List.of(INPUT), new boolean[] { false }),
+            embeddingsModel);
     }
 
     private Map<String, Object> getEntityAsMap(MixedbreadEmbeddingsRequest request) throws IOException {

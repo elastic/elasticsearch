@@ -11,6 +11,7 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
@@ -457,36 +458,53 @@ public class ESTestCaseTests extends ESTestCase {
     }
 
     public void testAssertArrayEqualsPercentDifferentSize() {
-        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2 }, 0.1f));
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2 }, 0.1f, 0));
         assertThat(ex.getMessage(), is("array lengths differed, expected.length=3 actual.length=2"));
     }
 
     public void testAssertArrayEqualsPercentNull() {
-        var ex1 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(null, new float[] { 1, 2 }, 0.1f));
-        var ex2 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, null, 0.1f));
+        var ex1 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(null, new float[] { 1, 2 }, 0.1f, 0.0f));
+        var ex2 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, null, 0.1f, 0.0f));
 
         assertThat(ex1.getMessage(), is("expected array was null"));
         assertThat(ex2.getMessage(), is("actual array was null"));
     }
 
     public void testAssertArrayEqualsPercentMessage() {
-        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent("test message", null, new float[] { 1, 2 }, 0.1f));
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent("test message", null, new float[] { 1, 2 }, 0.1f, 0.0f));
         assertThat(ex.getMessage(), is("test message: expected array was null"));
     }
 
     public void testAssertArrayEqualsPercentElementsAreEqual() {
-        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2, 3 }, 1e-9f);
+        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2, 3 }, 1e-9f, 0.0f);
     }
 
     public void testAssertArrayEqualsPercentElementsAreSimilar() {
-        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 0.99f, 1.99f, 2.99f }, 0.01f);
+        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 0.99f, 1.99f, 2.99f }, 0.01f, 0.0f);
     }
 
     public void testAssertArrayEqualsPercentElementsAreNotSimilarEnough() {
         var ex = expectThrows(
             AssertionError.class,
-            () -> assertArrayEqualsPercent(new float[] { 100, 2, 3 }, new float[] { 99, 1.99f, 2.99f }, 0.001f)
+            () -> assertArrayEqualsPercent(new float[] { 100, 2, 3 }, new float[] { 99, 1.99f, 2.99f }, 0.001f, 0.0f)
         );
         assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreWithinAbsoluteDelta() {
+        float[] expected = { 1, 2, 3, 0 };
+        float[] actual = { 0.99f, 1.99f, 2.99f, 0.01f };
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(expected, actual, 0.001f, 0.0f));
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
+        ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(expected, actual, 0.01f, 0.0f));
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [3]"));
+        assertArrayEqualsPercent(expected, actual, 0.001f, 0.02f);
+    }
+
+    public void testEmbedInRandomBytes() {
+        BytesRef v = new BytesRef(randomByteArrayOfLength(between(1, 10)));
+        BytesRef withGarbage = embedInRandomBytes(v);
+        assertThat(withGarbage, equalTo(v));
+        assertThat(withGarbage.bytes.length, greaterThan(withGarbage.length));
     }
 }

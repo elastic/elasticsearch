@@ -27,6 +27,11 @@ public interface BloomFilter extends Closeable {
         public boolean mayContainValue(String field, BytesRef term) {
             return true;
         }
+
+        @Override
+        public long sizeInBytes() {
+            return 0;
+        }
     };
 
     /**
@@ -37,6 +42,11 @@ public interface BloomFilter extends Closeable {
      * @return true if term may be present, false if definitely absent
      */
     boolean mayContainValue(String field, BytesRef term) throws IOException;
+
+    /**
+     * Returns the size in bytes of the bloom filter data on disk.
+     */
+    long sizeInBytes();
 
     static BloomFilter getBloomFilterForId(SegmentReadState state) throws IOException {
         var codec = state.segmentInfo.getCodec();
@@ -53,6 +63,11 @@ public interface BloomFilter extends Closeable {
                     @Override
                     public boolean mayContainValue(String field, BytesRef term) throws IOException {
                         return bloomFilter.mayContainValue(field, term);
+                    }
+
+                    @Override
+                    public long sizeInBytes() {
+                        return bloomFilter.sizeInBytes();
                     }
 
                     @Override

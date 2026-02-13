@@ -31,7 +31,7 @@
   ],
   "examples" : [
     "ROW message = \"Some Text\" | EVAL message_reversed = REVERSE(message);",
-    "ROW bending_arts = \"\uD83D\uDCA7\uD83E\uDEA8\uD83D\uDD25\uD83D\uDCA8\" | EVAL bending_arts_reversed = REVERSE(bending_arts);"
+    "ROW bending_arts = \"💧🪨🔥💨\" | EVAL bending_arts_reversed = REVERSE(bending_arts);"
   ],
   "preview" : false,
   "snapshot_only" : false

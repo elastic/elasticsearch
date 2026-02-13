@@ -1,9 +1,12 @@
 ---
 "Runtime fields accessing metric fields in downsample target index":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
-      test_runner_features: [close_to, allowed_warnings]
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.store_reset_counters" ]
+      test_runner_features: [ capabilities, close_to, allowed_warnings]
+      reason: Storing counter resets when downsampling was added in 9.4
 
   - do:
       indices.create:
@@ -152,7 +155,7 @@
   - close_to: { hits.hits.1.fields.tx_kb.0: { value: 1400971.9453, error: 0.0001 } }
   - close_to: { hits.hits.1.fields.rx_kb.0: { value: 518169.4443, error: 0.0001 } }
 
-  - close_to: { hits.hits.2.fields.received_kb.0: { value: 783343.5488, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.received_kb.0: { value: 783333.7832, error: 0.0001 } }
   - close_to: { hits.hits.2.fields.sent_kb.0: { value: 1954901.0654, error: 0.0001 } }
   - close_to: { hits.hits.2.fields.tx_kb.0: { value: 1958181.5957, error: 0.0001 } }
   - close_to: { hits.hits.2.fields.rx_kb.0: { value: 783333.7832, error: 0.0001 } }

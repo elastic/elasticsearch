@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 142406
+summary: ESQL - Add min competitive aware collection for multiple shards / threads
+  in `LuceneTopNSourceOperator`
+type: enhancement

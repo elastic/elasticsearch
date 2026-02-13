@@ -799,10 +799,14 @@ public class AllocationService {
         }
     }
 
-    public List<ShardAllocationDecision> explainAssignedShardAllocations(List<ShardRouting> assignedShards, RoutingAllocation allocation) {
+    public List<ShardAllocationDecision> explainAssignedShardAllocations(
+        List<ShardRouting> assignedShards,
+        RoutingAllocation allocation,
+        Runnable checkCancel
+    ) {
         assert allocation.debugDecision();
         assert assignedShards.stream().allMatch(shard -> shard.unassigned() == false) : "All shards should not be unassigned";
-        return shardsAllocator.explainShardAllocations(assignedShards, allocation);
+        return shardsAllocator.explainShardAllocations(assignedShards, allocation, checkCancel);
     }
 
     private AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting shardRouting, RoutingAllocation routingAllocation) {

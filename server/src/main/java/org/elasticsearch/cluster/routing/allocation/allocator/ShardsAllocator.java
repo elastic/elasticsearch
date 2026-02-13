@@ -88,10 +88,15 @@ public interface ShardsAllocator {
     /**
      * Bulk explain over a bunch of shards
      */
-    default List<ShardAllocationDecision> explainShardAllocations(List<ShardRouting> shards, RoutingAllocation allocation) {
+    default List<ShardAllocationDecision> explainShardAllocations(
+        List<ShardRouting> shards,
+        RoutingAllocation allocation,
+        Runnable checkCancel
+    ) {
         List<ShardAllocationDecision> decisions = new ArrayList<>(shards.size());
         for (ShardRouting shard : shards) {
             decisions.add(explainShardAllocation(shard, allocation));
+            checkCancel.run();
         }
         return decisions;
     }

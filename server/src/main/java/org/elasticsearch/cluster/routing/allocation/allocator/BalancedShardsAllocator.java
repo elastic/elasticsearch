@@ -288,7 +288,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public List<ShardAllocationDecision> explainShardAllocations(final List<ShardRouting> shards, final RoutingAllocation allocation) {
+    public List<ShardAllocationDecision> explainShardAllocations(
+        final List<ShardRouting> shards,
+        final RoutingAllocation allocation,
+        Runnable checkCancel
+    ) {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
@@ -296,10 +300,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights
         );
+        checkCancel.run();
 
         List<ShardAllocationDecision> shardDecisions = new ArrayList<>(shards.size());
         for (ShardRouting shard : shards) {
             shardDecisions.add(explainShardAllocation(balancer, shard, allocation));
+            checkCancel.run();
         }
 
         return shardDecisions;

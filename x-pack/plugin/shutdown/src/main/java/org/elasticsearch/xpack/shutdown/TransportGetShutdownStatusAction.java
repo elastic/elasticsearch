@@ -283,9 +283,12 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
             .collect(Collectors.toList());
-        cancellableTask.ensureNotCancelled();
 
-        List<ShardAllocationDecision> shardDecisions = allocationService.explainAssignedShardAllocations(shardsToExplain, allocation);
+        List<ShardAllocationDecision> shardDecisions = allocationService.explainAssignedShardAllocations(
+            shardsToExplain,
+            allocation,
+            cancellableTask::ensureNotCancelled
+        );
 
         List<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShards = new ArrayList<>(shardsToExplain.size());
         for (int i = 0; i < shardsToExplain.size(); i++) {

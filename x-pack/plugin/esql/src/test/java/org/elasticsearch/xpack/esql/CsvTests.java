@@ -141,7 +141,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -644,11 +643,10 @@ public class CsvTests extends ESTestCase {
     private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
         try {
             ProjectId projectId = ProjectId.fromId("dummy");
-            String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName());
             PutViewAction.Request request = new PutViewAction.Request(
                 TimeValue.ONE_MINUTE,
                 TimeValue.ONE_MINUTE,
-                new View(viewConfig.viewName(), viewQuery)
+                new View(viewConfig.name(), viewConfig.loadQuery())
             );
             viewService.putView(projectId, request, ActionListener.noop());
         } catch (IOException e) {

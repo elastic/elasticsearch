@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
@@ -683,7 +684,7 @@ public class CsvTestsDataLoader {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS) {
-                loadView(client, view.viewName, view.viewFileName);
+                loadView(client, view);
             }
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
@@ -694,7 +695,7 @@ public class CsvTestsDataLoader {
         if (clusterHasViewSupport(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS) {
-                deleteView(client, view.viewName);
+                deleteView(client, view.name);
             }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
@@ -883,15 +884,10 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void loadView(RestClient client, String viewName, String viewFilename) throws IOException {
-        String viewQuery = loadViewQuery(viewName, viewFilename);
-        Request request = new Request("PUT", "/_query/view/" + viewName);
-        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
+    private static void loadView(RestClient client, ViewConfig view) throws IOException {
+        Request request = new Request("PUT", "/_query/view/" + view.name);
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
         client.performRequest(request);
-    }
-
-    static String loadViewQuery(String viewName, String viewFilename) throws IOException {
-        return readTextFile(getResource("/" + viewFilename));
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
@@ -1340,9 +1336,13 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String viewName, String viewFileName) {
-        public ViewConfig(String viewName) {
-            this(viewName, "views/" + viewName + ".esql");
+    public record ViewConfig(String name) {
+        public String loadQuery() {
+            try {
+                return readTextFile(getResource("/views/" + name + ".esql"));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 

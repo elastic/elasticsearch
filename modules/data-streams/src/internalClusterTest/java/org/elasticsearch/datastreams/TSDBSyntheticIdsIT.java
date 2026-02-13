@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -181,8 +182,74 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         );
     }
 
-    public void testSyntheticIdByDefault() throws Exception {
+    public void testDisableSyntheticId() throws IOException {
+        final var indexName = randomIdentifier();
+        internalCluster().startDataOnlyNode();
 
+        Settings settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .build();
+        final var mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            },
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(settings).get());
+
+        Instant timestamp = Instant.now();
+        var results = createDocuments(
+            indexName,
+            // t + 0s
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp, "vm-dev02", "cpu-load", 1),
+            // t + 1s
+            document(timestamp.plus(1, ChronoUnit.SECONDS), "vm-dev01", "cpu-load", 2),
+            document(timestamp.plus(1, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 3),
+            // t + 0s out-of-order doc
+            document(timestamp, "vm-dev03", "cpu-load", 4),
+            // t + 2s
+            document(timestamp.plus(2, ChronoUnit.SECONDS), "vm-dev01", "cpu-load", 5),
+            document(timestamp.plus(2, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 6),
+            // t - 1s out-of-order doc
+            document(timestamp.minus(1, ChronoUnit.SECONDS), "vm-dev01", "cpu-load", 7),
+            // t + 3s
+            document(timestamp.plus(3, ChronoUnit.SECONDS), "vm-dev01", "cpu-load", 8),
+            document(timestamp.plus(3, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 9)
+        );
+
+        // Verify that documents are created
+        for (var result : results) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(result.getVersion(), equalTo(1L));
+        }
+
+        flush(indexName);
+
+        var diskUsage = diskUsage(indexName);
+        var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+        assertThat("_id field should have postings on disk", diskUsageIdField.getInvertedIndexBytes(), greaterThan(0L));
+        assertThat("_id field should not have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), equalTo(0L));
     }
 
     public void testSyntheticId() throws Exception {

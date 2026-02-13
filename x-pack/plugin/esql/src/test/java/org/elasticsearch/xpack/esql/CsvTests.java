@@ -641,18 +641,13 @@ public class CsvTests extends ESTestCase {
     }
 
     private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
-        try {
-            ProjectId projectId = ProjectId.fromId("dummy");
-            PutViewAction.Request request = new PutViewAction.Request(
-                TimeValue.ONE_MINUTE,
-                TimeValue.ONE_MINUTE,
-                new View(viewConfig.name(), viewConfig.loadQuery())
-            );
-            viewService.putView(projectId, request, ActionListener.noop());
-        } catch (IOException e) {
-            logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
-            throw new RuntimeException(e);
-        }
+        ProjectId projectId = ProjectId.fromId("dummy");
+        PutViewAction.Request request = new PutViewAction.Request(
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_MINUTE,
+            new View(viewConfig.name(), viewConfig.loadQuery())
+        );
+        viewService.putView(projectId, request, ActionListener.noop());
     }
 
     private LogicalPlan parseView(String query, String viewName) {

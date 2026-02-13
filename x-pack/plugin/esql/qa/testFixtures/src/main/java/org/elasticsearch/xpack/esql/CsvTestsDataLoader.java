@@ -701,7 +701,7 @@ public class CsvTestsDataLoader {
     private static void loadEnrichPolicies(RestClient client) throws IOException {
         logger.info("Loading enrich policies");
         for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy.policyName, policy.policyFileName);
+            loadEnrichPolicy(client, policy);
         }
     }
 
@@ -897,19 +897,18 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName) throws IOException {
-        logger.debug("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
-        URL policyMapping = getResource("/" + policyFileName);
-        String entity = readTextFile(policyMapping);
-        Request request = new Request("PUT", "/_enrich/policy/" + policyName);
-        request.setJsonEntity(entity);
+    public static void loadEnrichPolicy(RestClient client, EnrichConfig policy) throws IOException {
+        logger.debug("Loading enrich policy [{}]", policy.policyName);
+        Request request = new Request("PUT", "/_enrich/policy/" + policy.policyName);
+        request.setJsonEntity(policy.loadPolicy());
         client.performRequest(request);
 
-        request = new Request("POST", "/_enrich/policy/" + policyName + "/_execute");
+        request = new Request("POST", "/_enrich/policy/" + policy.policyName + "/_execute");
         client.performRequest(request);
     }
 
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
+        logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
         request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
         client.performRequest(request);
@@ -968,7 +967,7 @@ public class CsvTestsDataLoader {
     }
 
     private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
-        logger.debug("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
+        logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         URL mapping = getResource("/" + dataset.mappingFileName);
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
@@ -1371,7 +1370,15 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record EnrichConfig(String policyName, String policyFileName) {}
+    public record EnrichConfig(String policyName, String policyFileName) {
+        public String loadPolicy() {
+            try {
+                return readTextFile(getResource("/" + policyFileName));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

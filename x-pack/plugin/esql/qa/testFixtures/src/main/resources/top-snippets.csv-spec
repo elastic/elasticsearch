@@ -86,15 +86,15 @@ book_no:keyword | title:text                                                    
 
 topSnippetsWithMultivaluedField
 required_capability: top_snippets_mv
- 
+
 ROW positions = ["Senior Team Lead", "Software Engineer"]
 | EVAL snippets = TOP_SNIPPETS(positions, "lead")
 | KEEP snippets
- ;
+;
  
 snippets:keyword
 Senior Team Lead
- ;
+;
 
 topSnippetsWithMultivaluedFieldMultipleMatches
 required_capability: top_snippets_mv
@@ -106,11 +106,11 @@ ROW positions = ["Senior Team Lead", "Lead Architect"]
 
 snippets:keyword
 [Senior Team Lead, Lead Architect]
- ;
+;
 
 topSnippetsWithGeneratedField
 required_capability: top_snippets_function
- 
+
 ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power - the means by which he intends to rule Middle-earth. All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of the hobbit, Bilbo Baggins."
 | EVAL snippets = TOP_SNIPPETS(content, "ring", { "num_snippets": 2, "num_words": 25 })
 | KEEP snippets
@@ -119,6 +119,36 @@ ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power
 
 snippets:keyword
 [All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsWithMultivaluedFieldFromIndex
+required_capability: top_snippets_mv
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10004)
+| EVAL snippets = TOP_SNIPPETS(job_positions, "Senior")
+| KEEP emp_no, snippets
+| SORT emp_no
+;
+
+emp_no:integer | snippets:keyword
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+10004          | null
+;
+
+topSnippetsWithMultivaluedQuery
+required_capability: top_snippets_mv
+
+ROW content = "Senior Team Lead", queries = ["lead", "senior"]
+| EVAL snippets = TOP_SNIPPETS(content, queries)
+| KEEP snippets
+;
+warning:Line 2:19: evaluation of [TOP_SNIPPETS(content, queries)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:19: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+snippets:keyword
+null
 ;
 
 topSnippetsWithNullField

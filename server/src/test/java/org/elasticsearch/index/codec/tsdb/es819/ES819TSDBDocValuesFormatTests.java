@@ -2074,17 +2074,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 var factory = TestBlock.factory();
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     for (LeafReaderContext leaf : reader.leaves()) {
-                        BlockLoader.Docs docs = new BlockLoader.Docs() {
-                            @Override
-                            public int count() {
-                                return leaf.reader().maxDoc();
-                            }
-
-                            @Override
-                            public int get(int i) {
-                                return i;
-                            }
-                        };
+                        BlockLoader.Docs docs = TestBlock.docs(leaf);
                         var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
                         TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null, false, false);
                         assertNotNull(idBlock);
@@ -2151,6 +2141,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                     @Override
                                     public int get(int docId) {
                                         return docId;
+                                    }
+
+                                    @Override
+                                    public boolean mayContainDuplicates() {
+                                        return false;
                                     }
                                 }, start);
                                 assertNotNull(hostBlock);

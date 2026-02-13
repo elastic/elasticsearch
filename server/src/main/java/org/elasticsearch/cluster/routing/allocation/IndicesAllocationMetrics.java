@@ -30,7 +30,11 @@ import java.io.IOException;
  * IndicesAllocationMetrics computes and publish index allocation metrics, in particular how balanced shards distributed across nodes in
  * the cluster for indices. There are potentially thousands of indices and shards, hence balance computation can be slow. For this
  * reason the computation runs in a management thread-pool. These metrics are cluster-wide and only one node publishes those using
- * PersistentTasks machinery.
+ * PersistentTasks machinery.<br>
+ * This service has 3 parts:<br>
+ * 1. A persistent task that runs on a single node in a cluster<br>
+ * 2. A scheduled runnable to compute and publish metrics when node receives persistent task<br>
+ * 3. TODO: Compute allocation balance metrics and update metering registry when routing table changes
  */
 public class IndicesAllocationMetrics extends PersistentTasksExecutor<IndicesAllocationMetrics.IndicesAllocationMetricsTaskParams> {
 
@@ -126,6 +130,10 @@ public class IndicesAllocationMetrics extends PersistentTasksExecutor<IndicesAll
                 // TODO compute and publish metrics
                 refresh = false;
             };
+        }
+
+        boolean isCancelled() {
+            return scheduledTask.isCancelled();
         }
     }
 

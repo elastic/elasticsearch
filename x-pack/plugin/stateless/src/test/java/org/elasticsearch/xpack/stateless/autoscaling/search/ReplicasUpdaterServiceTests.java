@@ -1645,9 +1645,212 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         recordingMeterRegistry.getRecorder().collect();
         Measurement indicesBlockedScalingUp = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.indices_blocked_scaling_up.current")
+            .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.blocked.replicas_increases.current")
             .getLast();
         assertEquals(2, indicesBlockedScalingUp.getLong());
+    }
+
+    public void testScalingEventsMetrics() {
+        ClusterState initialState = createClusterState(ClusterState.EMPTY_STATE, 3, 5);
+        replicasUpdaterService.clusterChanged(new LocalMasterClusterChangedEvent("test", initialState, ClusterState.EMPTY_STATE));
+
+        // disable scheduled task so we can trigger it manually
+        replicasUpdaterService.setInterval(TimeValue.timeValueMinutes(60));
+        int spMin = randomIntBetween(250, 400);
+        updateSpMin(spMin);
+
+        Index index1 = new Index("index1", "uuid1");
+        Index index2 = new Index("index2", "uuid2");
+        Index index3 = new Index("index3", "uuid3");
+        when(searchMetricsService.getIndices()).thenReturn(
+            new ConcurrentHashMap<>(
+                Map.of(
+                    index1,
+                    new SearchMetricsService.IndexProperties("index1", 1, 1, false, false, 0),
+                    index2,
+                    new SearchMetricsService.IndexProperties("index2", 1, 1, false, false, 0),
+                    index3,
+                    new SearchMetricsService.IndexProperties("index3", 1, 1, false, false, 0)
+                )
+            )
+        );
+        when(searchMetricsService.getShardMetrics()).thenReturn(
+            new ConcurrentHashMap<>(Map.of(new ShardId(index1, 0), shardMetricOf(1), new ShardId(index2, 0), shardMetricOf(1)))
+        );
+
+        // First, make the update call fail
+        mockClient.makeFail(true);
+
+        // A run will request the following update:
+        // - index1, index2: 1 -> 2 replicas (due to SPmin > 250);
+        {
+            replicasUpdaterService.performReplicaUpdates();
+            mockClient.assertNoUpdate();
+
+            recordingMeterRegistry.getRecorder().collect();
+            long successfulScaleUps = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasAdded = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long successfulScaleDowns = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasRemoved = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long failedScalingEvents = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertEquals(0, successfulScaleUps);
+            assertEquals(0, replicasAdded);
+            assertEquals(0, successfulScaleDowns);
+            assertEquals(0, replicasRemoved);
+            assertEquals(2, failedScalingEvents);
+        }
+
+        // Set an auto-exapnd index, a run will now request the following updates:
+        // - index1, index2: 1 -> 2 replicas (due to SPmin > 250);
+        // - index3: 1 -> 5 replicas (auto-expand)
+        {
+            replicasUpdaterService.updateAutoExpandReplicaIndices(List.of("index3"));
+            mockClient.assertNoUpdate();
+
+            recordingMeterRegistry.getRecorder().collect();
+            long successfulScaleUps = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasAdded = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long successfulScaleDowns = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasRemoved = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long failedScalingEvents = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertEquals(0, successfulScaleUps);
+            assertEquals(0, replicasAdded);
+            assertEquals(0, successfulScaleDowns);
+            assertEquals(0, replicasRemoved);
+            assertEquals(5, failedScalingEvents); // 2 failed from before + now 3 failed
+        }
+
+        // Then, allow the update call to succeed
+        mockClient.makeFail(false);
+
+        {
+            replicasUpdaterService.performReplicaUpdates();
+            mockClient.assertUpdates("SPmin: " + spMin, Map.of(2, Set.of("index1", "index2"), 5, Set.of("index3")));
+
+            recordingMeterRegistry.getRecorder().collect();
+            long successfulScaleUps = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasAdded = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long successfulScaleDowns = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasRemoved = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long failedScalingEvents = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertEquals(3, successfulScaleUps); // all 3 indices scale up
+            assertEquals(6, replicasAdded); // 2 indices scale up by 1, another scales up by 4
+            assertEquals(0, successfulScaleDowns);
+            assertEquals(0, replicasRemoved);
+            assertEquals(5, failedScalingEvents); // no change as nothing failed
+        }
+        when(searchMetricsService.getIndices()).thenReturn(
+            new ConcurrentHashMap<>(
+                Map.of(
+                    index1,
+                    new SearchMetricsService.IndexProperties("index1", 1, 2, false, false, 0),
+                    index2,
+                    new SearchMetricsService.IndexProperties("index2", 1, 2, false, false, 0),
+                    index3,
+                    new SearchMetricsService.IndexProperties("index3", 1, 5, false, false, 0)
+                )
+            )
+        );
+
+        // Scale-down everything to 1 due to disabled systems
+        {
+            replicasUpdaterService.updateEnableReplicasForInstantFailover(false);
+            replicasUpdaterService.updatedEnableReplicasLoadBalancing(false);
+            replicasUpdaterService.performReplicaUpdates();
+            mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1", "index2", "index3")));
+
+            recordingMeterRegistry.getRecorder().collect();
+            long successfulScaleUps = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasAdded = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long successfulScaleDowns = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long replicasRemoved = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            long failedScalingEvents = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertEquals(3, successfulScaleUps);
+            assertEquals(6, replicasAdded);
+            assertEquals(3, successfulScaleDowns); // all 3 indices scale down
+            assertEquals(6, replicasRemoved); // 2 indices scale down by 1, another scales down by 4
+            assertEquals(5, failedScalingEvents);
+        }
     }
 
     private static ClusterState createClusterState(ClusterState previousState, int numIndexNodes, int numSearchNodes) {
@@ -1786,11 +1989,16 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
     private static class MockClient extends NoOpNodeClient {
         Map<Integer, Set<String>> updates = new HashMap<>();
         boolean updateSettingsToBeVerified = false;
+        boolean shouldFail = false;
 
         final AtomicInteger executionCount = new AtomicInteger(0);
 
         MockClient() {
             super(null);
+        }
+
+        void makeFail(boolean shouldFail) {
+            this.shouldFail = shouldFail;
         }
 
         @Override
@@ -1799,6 +2007,10 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
+            if (shouldFail) {
+                listener.onFailure(new RuntimeException("made to fail"));
+                return null;
+            }
             assertEquals(TransportUpdateReplicasAction.TYPE, action);
             assertThat(request, instanceOf(TransportUpdateReplicasAction.Request.class));
             TransportUpdateReplicasAction.Request updateReplicasRequest = (TransportUpdateReplicasAction.Request) request;

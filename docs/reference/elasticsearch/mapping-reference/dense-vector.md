@@ -304,7 +304,13 @@ This configuration is appropriate when full source fidelity is required, such as
 
 ## Automatically quantize vectors for kNN search [dense-vector-quantization]
 
-The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are [`int8`](#dense-vector-quantization-int8), [`int4`](#dense-vector-quantization-int4), and [`bbq`](#dense-vector-quantization-bbq) (available as [`bbq_hnsw`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-hnsw), [`bbq_flat`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-flat), or [`bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk)).
+The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
+- [`int8`](#dense-vector-quantization-int8) 
+- [`int4`](#dense-vector-quantization-int4)
+- [`bbq`](#dense-vector-quantization-bbq), available as:
+  - [`bbq_hnsw`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-hnsw)
+  - [`bbq_flat`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-flat)
+  - [`bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk)
 
 Here is an example of configuring disk-based binary quantization using `bbq_disk`:
 

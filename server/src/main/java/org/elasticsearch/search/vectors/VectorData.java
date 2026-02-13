@@ -71,6 +71,16 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
     public String stringVector() {
         return stringVector;
     }
+  
+    public int size() {
+        if (floatVector != null) {
+            return floatVector.length;
+        }
+        if (byteVector != null) {
+            return byteVector.length;
+        }
+        return 0;
+    }
 
     public byte[] asByteVector() {
         if (stringVector != null) {

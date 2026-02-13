@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.math.BigDecimal;
@@ -111,7 +112,7 @@ public final class SchemaUtil {
      */
     public static void deduceMappings(
         final Client client,
-        final Map<String, String> headers,
+        final TransformHeaders headers,
         final String transformId,
         final SettingsConfig settingsConfig,
         final PivotConfig pivotConfig,
@@ -282,7 +283,7 @@ public final class SchemaUtil {
      */
     static void getSourceFieldMappings(
         Client client,
-        Map<String, String> headers,
+        TransformHeaders headers,
         SourceConfig sourceConfig,
         String[] fields,
         ActionListener<Map<String, String>> listener
@@ -298,7 +299,7 @@ public final class SchemaUtil {
             .runtimeFields(sourceConfig.getRuntimeMappings())
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         ClientHelper.executeWithHeadersAsync(
-            headers,
+            headers.allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportFieldCapabilitiesAction.TYPE,

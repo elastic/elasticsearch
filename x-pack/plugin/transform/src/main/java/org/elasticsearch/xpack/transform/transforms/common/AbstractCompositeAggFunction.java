@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -68,15 +69,15 @@ public abstract class AbstractCompositeAggFunction implements Function {
     public void preview(
         Client client,
         TimeValue timeout,
-        Map<String, String> headers,
+        TransformHeaders headers,
         SourceConfig sourceConfig,
         Map<String, String> fieldTypeMap,
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
-        ClientHelper.assertNoAuthorizationHeader(headers);
+        ClientHelper.assertNoAuthorizationHeader(headers.allHeaders());
         ClientHelper.executeWithHeadersAsync(
-            headers,
+            headers.allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
@@ -118,14 +119,14 @@ public abstract class AbstractCompositeAggFunction implements Function {
     @Override
     public void validateQuery(
         Client client,
-        Map<String, String> headers,
+        TransformHeaders headers,
         SourceConfig sourceConfig,
         TimeValue timeout,
         ActionListener<Boolean> listener
     ) {
         SearchRequest searchRequest = buildSearchRequestForValidation("validate", sourceConfig, timeout, TEST_QUERY_PAGE_SIZE);
         ClientHelper.executeWithHeadersAsync(
-            headers,
+            headers.allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,

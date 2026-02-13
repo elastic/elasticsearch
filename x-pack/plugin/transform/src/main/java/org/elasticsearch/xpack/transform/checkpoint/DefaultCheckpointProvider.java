@@ -135,7 +135,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     threadContext,
                     CheckpointClient.local(client),
                     timeout,
-                    transformConfig.getHeaders(),
+                    transformConfig.headers().allHeaders(),
                     resolvedIndexes.getLocalIndices().toArray(new String[0]),
                     queryForShardFiltering,
                     RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
@@ -155,7 +155,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                         )
                     ),
                     timeout,
-                    transformConfig.getHeaders(),
+                    transformConfig.headers().allHeaders(),
                     remoteIndex.getValue().toArray(new String[0]),
                     queryForShardFiltering,
                     cluster,

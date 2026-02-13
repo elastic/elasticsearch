@@ -156,7 +156,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
              *
              * Hint: {@link AuthenticationContextSerializer} for decoding the header
              */
-            update.setHeaders(config.getHeaders());
+            update.setHeaders(config.headers());
 
             TransformUpdater.updateTransform(
                 securityContext,

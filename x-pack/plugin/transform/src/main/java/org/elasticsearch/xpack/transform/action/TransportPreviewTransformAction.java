@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -217,7 +218,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         final var mappings = new SetOnce<Map<String, String>>();
 
-        final var filteredHeaders = getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterService.state());
+        final var filteredHeaders = TransformHeaders.fromMap(
+            getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterService.state())
+        );
 
         ActionListener<List<Map<String, Object>>> responseDocsListener = listener.delegateFailureAndWrap((l, docs) -> {
             var generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(

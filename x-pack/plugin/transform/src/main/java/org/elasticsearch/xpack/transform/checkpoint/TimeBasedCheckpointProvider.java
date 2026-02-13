@@ -80,7 +80,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         logger.trace("query for changes based on time: {}", sourceBuilder);
 
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            transformConfig.headers().allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,

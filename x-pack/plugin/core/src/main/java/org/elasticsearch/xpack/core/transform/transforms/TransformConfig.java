@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
-import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -98,7 +96,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     private final String description;
     // headers store the user context from the creating user, which allows us to run the transform as this user
     // the header only contains name, groups and other context but no authorization keys
-    private Map<String, String> headers;
+    private TransformHeaders headers;
     private TransformConfigVersion transformVersion;
     private Instant createTime;
 
@@ -147,7 +145,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             }
 
             @SuppressWarnings("unchecked")
-            Map<String, String> headers = (Map<String, String>) args[6];
+            TransformHeaders headers = TransformHeaders.fromMap((Map<String, String>) args[6]);
 
             PivotConfig pivotConfig = (PivotConfig) args[7];
             LatestConfig latestConfig = (LatestConfig) args[8];
@@ -216,7 +214,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         final DestConfig dest,
         final TimeValue frequency,
         final SyncConfig syncConfig,
-        final Map<String, String> headers,
+        @Nullable final TransformHeaders headers,
         final PivotConfig pivotConfig,
         final LatestConfig latestConfig,
         final String description,
@@ -231,7 +229,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         this.dest = ExceptionsHelper.requireNonNull(dest, TransformField.DESTINATION.getPreferredName());
         this.frequency = frequency;
         this.syncConfig = syncConfig;
-        this.setHeaders(headers == null ? Collections.emptyMap() : headers);
+        this.headers = headers == null ? TransformHeaders.EMPTY : headers;
         this.pivotConfig = pivotConfig;
         this.latestConfig = latestConfig;
         this.description = description;
@@ -250,7 +248,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         source = new SourceConfig(in);
         dest = new DestConfig(in);
         frequency = in.readOptionalTimeValue();
-        setHeaders(in.readMap(StreamInput::readString));
+        headers = new TransformHeaders(in);
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
         latestConfig = in.readOptionalWriteable(LatestConfig::new);
         description = in.readOptionalString();
@@ -282,11 +280,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         return syncConfig;
     }
 
-    public Map<String, String> getHeaders() {
+    public TransformHeaders headers() {
         return headers;
     }
 
-    public TransformConfig setHeaders(Map<String, String> headers) {
+    public TransformConfig headers(TransformHeaders headers) {
         this.headers = headers;
         return this;
     }
@@ -437,7 +435,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         source.writeTo(out);
         dest.writeTo(out);
         out.writeOptionalTimeValue(frequency);
-        out.writeMap(headers, StreamOutput::writeString);
+        headers.writeTo(out);
         out.writeOptionalWriteable(pivotConfig);
         out.writeOptionalWriteable(latestConfig);
         out.writeOptionalString(description);
@@ -462,14 +460,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             : "unsupported behavior, exclude_generated is true and for_internal_storage is true";
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), id);
+        headers.toXContent(builder, params);
         if (excludeGenerated == false) {
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
-                    builder.field(HEADERS.getPreferredName(), headers);
-                } else {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
-                }
-            }
             if (transformVersion != null) {
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
             }
@@ -684,7 +676,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         private TimeValue frequency;
         private SyncConfig syncConfig;
         private String description;
-        private Map<String, String> headers;
+        private TransformHeaders headers;
         private TransformConfigVersion transformVersion;
         private Instant createTime;
         private PivotConfig pivotConfig;
@@ -783,12 +775,12 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             return metadata;
         }
 
-        public Builder setHeaders(Map<String, String> headers) {
+        public Builder headers(TransformHeaders headers) {
             this.headers = headers;
             return this;
         }
 
-        public Map<String, String> getHeaders() {
+        public TransformHeaders headers() {
             return headers;
         }
 

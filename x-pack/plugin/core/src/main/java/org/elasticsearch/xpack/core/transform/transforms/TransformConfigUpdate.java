@@ -82,7 +82,7 @@ public final class TransformConfigUpdate implements Writeable {
     private final SettingsConfig settings;
     private final Map<String, Object> metadata;
     private final RetentionPolicyConfig retentionPolicyConfig;
-    private Map<String, String> headers;
+    private TransformHeaders headers;
 
     public TransformConfigUpdate(
         final SourceConfig source,
@@ -114,7 +114,7 @@ public final class TransformConfigUpdate implements Writeable {
         description = in.readOptionalString();
         syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         if (in.readBoolean()) {
-            setHeaders(in.readMap(StreamInput::readString));
+            headers = new TransformHeaders(in);
         }
         settings = in.readOptionalWriteable(SettingsConfig::new);
         metadata = in.readGenericMap();
@@ -157,11 +157,11 @@ public final class TransformConfigUpdate implements Writeable {
         return retentionPolicyConfig;
     }
 
-    public Map<String, String> getHeaders() {
+    public TransformHeaders getHeaders() {
         return headers;
     }
 
-    public void setHeaders(Map<String, String> headers) {
+    public void setHeaders(TransformHeaders headers) {
         this.headers = headers;
     }
 
@@ -174,7 +174,7 @@ public final class TransformConfigUpdate implements Writeable {
         out.writeOptionalNamedWriteable(syncConfig);
         if (headers != null) {
             out.writeBoolean(true);
-            out.writeMap(headers, StreamOutput::writeString);
+            headers.writeTo(out);
         } else {
             out.writeBoolean(false);
         }
@@ -228,7 +228,7 @@ public final class TransformConfigUpdate implements Writeable {
             && isNullOrEqual(settings, config.getSettings())
             && isNullOrEqual(metadata, config.getMetadata())
             && isNullOrEqual(retentionPolicyConfig, config.getRetentionPolicyConfig())
-            && isNullOrEqual(headers, config.getHeaders());
+            && isNullOrEqual(headers, config.headers());
     }
 
     public boolean changesSettings(TransformConfig config) {
@@ -236,7 +236,7 @@ public final class TransformConfigUpdate implements Writeable {
     }
 
     public boolean changesHeaders(TransformConfig config) {
-        return isNullOrEqual(headers, config.getHeaders()) == false;
+        return isNullOrEqual(headers, config.headers()) == false;
     }
 
     public boolean changesDestIndex(TransformConfig config) {
@@ -285,7 +285,7 @@ public final class TransformConfigUpdate implements Writeable {
             builder.setDescription(description);
         }
         if (headers != null) {
-            builder.setHeaders(headers);
+            builder.headers(headers);
         }
         if (settings != null) {
             // settings are partially updateable, that means we only overwrite changed settings but keep others

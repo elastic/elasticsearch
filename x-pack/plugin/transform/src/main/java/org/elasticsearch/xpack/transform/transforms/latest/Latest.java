@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -116,7 +117,7 @@ public class Latest extends AbstractCompositeAggFunction {
     @Override
     public void deduceMappings(
         Client client,
-        Map<String, String> headers,
+        TransformHeaders headers,
         String transformId,
         SourceConfig sourceConfig,
         ActionListener<Map<String, String>> listener

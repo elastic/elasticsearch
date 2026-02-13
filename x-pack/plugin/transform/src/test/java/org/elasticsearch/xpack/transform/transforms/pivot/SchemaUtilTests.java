@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
@@ -116,7 +117,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
-                    emptyMap(),
+                    TransformHeaders.EMPTY,
                     new SourceConfig(new String[] { "index-1", "index-2" }),
                     null,
                     listener
@@ -128,7 +129,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
-                    emptyMap(),
+                    TransformHeaders.EMPTY,
                     new SourceConfig(new String[] { "index-1", "index-2" }),
                     new String[] {},
                     listener
@@ -140,7 +141,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
-                    emptyMap(),
+                    TransformHeaders.EMPTY,
                     new SourceConfig(new String[] { "index-1", "index-2" }),
                     new String[] { "field-1", "field-2" },
                     listener
@@ -157,7 +158,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
-                    emptyMap(),
+                    TransformHeaders.EMPTY,
                     new SourceConfig(new String[] { "index-1", "index-2" }, QueryConfig.matchAll(), runtimeMappings, null),
                     new String[] { "field-1", "field-2" },
                     listener
@@ -244,7 +245,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.deduceMappings(
                     client,
-                    emptyMap(),
+                    TransformHeaders.EMPTY,
                     "my-transform",
                     new SettingsConfig.Builder().setDeduceMappings(randomBoolean() ? randomBoolean() : null).build(),
                     pivotConfig,

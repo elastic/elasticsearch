@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -117,7 +118,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         }
 
         TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
-        config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
+        config.headers(TransformHeaders.fromMap(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState)));
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
@@ -132,6 +133,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
             (l, unused) -> putTransform(request, l)
         );
+
+        // TODO In between 2 and 3, we would mint a new UIAM token using the current UIAM token in config.getHeaders()
 
         // <2> Validate source and destination indices
 

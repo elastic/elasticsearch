@@ -136,7 +136,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(parentClient, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(parentClient, config.headers(), config.getId(), config.getSource(), deduceMappingsListener);
             }
         }, listener::onFailure);
 
@@ -145,7 +145,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 l.onResponse(true);
             } else {
-                function.validateQuery(parentClient, config.getHeaders(), config.getSource(), request.ackTimeout(), l);
+                function.validateQuery(parentClient, config.headers(), config.getSource(), request.ackTimeout(), l);
             }
         });
 

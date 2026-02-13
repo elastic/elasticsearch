@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
@@ -62,7 +63,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,7 +72,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggFunction.COMPOSITE_AGGREGATION_NAME;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -314,13 +313,21 @@ public class PivotTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var emptyAggregationClient = new MyMockClientWithEmptyAggregation(threadPool);
-            pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-                responseHolder.set(r);
-                latch.countDown();
-            }, e -> {
-                exceptionHolder.set(e);
-                latch.countDown();
-            }));
+            pivot.preview(
+                emptyAggregationClient,
+                null,
+                TransformHeaders.EMPTY,
+                new SourceConfig("test"),
+                null,
+                1,
+                ActionListener.wrap(r -> {
+                    responseHolder.set(r);
+                    latch.countDown();
+                }, e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                })
+            );
             assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         }
         assertThat(exceptionHolder.get(), is(nullValue()));
@@ -350,13 +357,21 @@ public class PivotTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var compositeAggregationClient = new MyMockClientWithCompositeAggregation(threadPool);
-            pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-                responseHolder.set(r);
-                latch.countDown();
-            }, e -> {
-                exceptionHolder.set(e);
-                latch.countDown();
-            }));
+            pivot.preview(
+                compositeAggregationClient,
+                null,
+                TransformHeaders.EMPTY,
+                new SourceConfig("test"),
+                null,
+                1,
+                ActionListener.wrap(r -> {
+                    responseHolder.set(r);
+                    latch.countDown();
+                }, e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                })
+            );
             assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         }
 
@@ -580,7 +595,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Function pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validateQuery(client, emptyMap(), source, null, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, TransformHeaders.EMPTY, source, null, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

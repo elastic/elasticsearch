@@ -195,7 +195,7 @@ public final class TransformIndex {
         }
 
         ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(),
+            config.headers().allHeaders(),
             TRANSFORM_ORIGIN,
             client,
             TransportCreateIndexAction.TYPE,
@@ -242,7 +242,7 @@ public final class TransformIndex {
         }
 
         ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(),
+            config.headers().allHeaders(),
             TRANSFORM_ORIGIN,
             client,
             TransportIndicesAliasesAction.TYPE,

@@ -237,7 +237,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(embeddingType);

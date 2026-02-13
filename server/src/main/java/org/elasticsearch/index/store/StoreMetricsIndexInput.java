@@ -12,7 +12,9 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.util.Map;
@@ -216,7 +218,10 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
         return result;
     }
 
-    private static class RandomAccessIndexInput extends StoreMetricsIndexInput implements RandomAccessInput {
+    private static class RandomAccessIndexInput extends StoreMetricsIndexInput
+        implements
+            RandomAccessInput,
+            MemorySegmentAccessInputAccess {
         private final RandomAccessInput delegate;
 
         private RandomAccessIndexInput(
@@ -227,6 +232,11 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
             super(resourceDescription, in, metricHolder);
             assert in instanceof RandomAccessInput;
             this.delegate = (RandomAccessInput) in;
+        }
+
+        @Override
+        public MemorySegmentAccessInput get() {
+            return delegate instanceof MemorySegmentAccessInput ms ? ms : null;
         }
 
         @Override

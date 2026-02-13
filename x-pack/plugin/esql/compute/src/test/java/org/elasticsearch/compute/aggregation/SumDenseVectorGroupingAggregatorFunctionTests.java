@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.LongDenseVectorFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,13 +26,18 @@ import static org.hamcrest.Matchers.closeTo;
 
 public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
-    private static final int VECTOR_DIMENSIONS = 3;
+    private int vectorDimensions;
+
+    @Before
+    public void setup() {
+        vectorDimensions = randomIntBetween(1, 32);
+    }
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDenseVectorFloatTupleBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomVector(VECTOR_DIMENSIONS)))
+            LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomVector(vectorDimensions)))
         );
     }
 
@@ -66,7 +72,7 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
         // Instead, append a properly-dimensioned random vector.
         FloatBlock.Builder floatBuilder = (FloatBlock.Builder) builder;
         floatBuilder.beginPositionEntry();
-        for (int i = 0; i < VECTOR_DIMENSIONS; i++) {
+        for (int i = 0; i < vectorDimensions; i++) {
             floatBuilder.appendFloat(randomFloat());
         }
         floatBuilder.endPositionEntry();
@@ -83,7 +89,7 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
         }
 
         // Compute expected sum
-        float[] expectedSum = new float[VECTOR_DIMENSIONS];
+        float[] expectedSum = new float[vectorDimensions];
         for (float[] vector : vectors) {
             for (int i = 0; i < vector.length; i++) {
                 expectedSum[i] += vector[i];
@@ -93,10 +99,10 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
         // Assert result
         assertFalse(resultBlock.isNull(position));
         int valueCount = resultBlock.getValueCount(position);
-        assertEquals(VECTOR_DIMENSIONS, valueCount);
+        assertEquals(vectorDimensions, valueCount);
 
         int start = resultBlock.getFirstValueIndex(position);
-        for (int i = 0; i < VECTOR_DIMENSIONS; i++) {
+        for (int i = 0; i < vectorDimensions; i++) {
             assertThat(
                 "Dimension " + i + " mismatch",
                 (double) resultBlock.getFloat(start + i),

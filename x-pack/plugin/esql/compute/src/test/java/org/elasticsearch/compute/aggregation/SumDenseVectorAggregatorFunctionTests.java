@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.DenseVectorFloatBlockSourceOperator;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -21,17 +22,22 @@ import static org.hamcrest.Matchers.closeTo;
 
 public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
-    private static final int VECTOR_DIMENSIONS = 3;
+    private int vectorDimensions;
+
+    @Before
+    public void setup() {
+        vectorDimensions = randomIntBetween(1, 32);
+    }
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new DenseVectorFloatBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(l -> randomVector(VECTOR_DIMENSIONS))
+            LongStream.range(0, size).mapToObj(l -> randomVector(vectorDimensions))
         );
     }
 
-    private float[] randomVector(int dimensions) {
+    private static float[] randomVector(int dimensions) {
         float[] vector = new float[dimensions];
         for (int i = 0; i < dimensions; i++) {
             vector[i] = randomFloat();
@@ -56,7 +62,7 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
-        float[] expectedSum = new float[VECTOR_DIMENSIONS];
+        float[] expectedSum = new float[vectorDimensions];
         for (Page page : input) {
             FloatBlock block = page.getBlock(0);
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -74,9 +80,9 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
         FloatBlock resultBlock = (FloatBlock) result;
         assertFalse(resultBlock.isNull(0));
         int valueCount = resultBlock.getValueCount(0);
-        assertEquals(VECTOR_DIMENSIONS, valueCount);
+        assertEquals(vectorDimensions, valueCount);
         int start = resultBlock.getFirstValueIndex(0);
-        for (int i = 0; i < VECTOR_DIMENSIONS; i++) {
+        for (int i = 0; i < vectorDimensions; i++) {
             // Use a relative tolerance since float summation order changes across partitions
             double tolerance = Math.max(1.0, Math.abs(expectedSum[i]) * 0.001);
             assertThat("Dimension " + i + " mismatch", (double) resultBlock.getFloat(start + i), closeTo(expectedSum[i], tolerance));

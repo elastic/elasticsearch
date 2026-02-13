@@ -9,11 +9,8 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -23,6 +20,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.LogMessage;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -185,7 +185,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
-            Supplier<ESLogMessage> messageProducer = () -> IndexingSlowLogMessage.of(
+            Supplier<LogMessage> messageProducer = () -> IndexingSlowLogMessage.of(
                 loggingFields.logFields(),
                 index,
                 doc,
@@ -207,7 +207,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     static final class IndexingSlowLogMessage {
 
-        public static ESLogMessage of(
+        public static LogMessage of(
             Map<String, String> additionalFields,
             Index index,
             ParsedDocument doc,
@@ -218,7 +218,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
             Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
             jsonFields.putAll(additionalFields);
-            return new ESLogMessage().withFields(jsonFields);
+            return indexLogger.newMessage(jsonFields);
         }
 
         private static Map<String, Object> prepareMap(
@@ -254,7 +254,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                  * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
                  * will be logged at the warn level.
                  */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", map.toString());
+                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", map);
                 throw new UncheckedIOException(message, e);
             }
             return map;

@@ -9,13 +9,14 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.LogMessage;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
@@ -163,38 +165,45 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
-        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(loggingFields.logFields(), context, tookInNanos);
-        if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn(messageProducer.get());
-        } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info(messageProducer.get());
-        } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug(messageProducer.get());
-        } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace(messageProducer.get());
-        }
+        logSlowPhase(context, tookInNanos, queryLogger, queryWarnThreshold, queryInfoThreshold, queryDebugThreshold, queryTraceThreshold);
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
-        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(loggingFields.logFields(), context, tookInNanos);
-        if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn(messageProducer.get());
-        } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info(messageProducer.get());
-        } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug(messageProducer.get());
-        } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace(messageProducer.get());
+        logSlowPhase(context, tookInNanos, fetchLogger, fetchWarnThreshold, fetchInfoThreshold, fetchDebugThreshold, fetchTraceThreshold);
+    }
+
+    private void logSlowPhase(
+        SearchContext context,
+        long tookInNanos,
+        Logger logger,
+        long warnThreshold,
+        long infoThreshold,
+        long debugThreshold,
+        long traceThreshold
+    ) {
+        Supplier<LogMessage> messageProducer = () -> SearchSlowLogMessage.of(loggingFields.logFields(), context, tookInNanos);
+        if (warnThreshold >= 0 && tookInNanos > warnThreshold) {
+            logger.warn(messageProducer.get());
+        } else if (infoThreshold >= 0 && tookInNanos > infoThreshold) {
+            logger.info(messageProducer.get());
+        } else if (debugThreshold >= 0 && tookInNanos > debugThreshold) {
+            logger.debug(messageProducer.get());
+        } else if (traceThreshold >= 0 && tookInNanos > traceThreshold) {
+            logger.trace(messageProducer.get());
         }
     }
 
     static final class SearchSlowLogMessage {
 
-        public static ESLogMessage of(Map<String, String> additionalFields, SearchContext context, long tookInNanos) {
+        public static LogMessage of(Map<String, String> additionalFields, SearchContext context, long tookInNanos) {
             Map<String, Object> jsonFields = prepareMap(context, tookInNanos);
             jsonFields.putAll(additionalFields);
-            return new ESLogMessage().withFields(jsonFields);
+            return queryLogger.newMessage(jsonFields);
+        }
+
+        public static String asJsonArray(Stream<String> stream) {
+            return "[" + stream.map(Strings::inQuotes).collect(Collectors.joining(", ")) + "]";
         }
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
@@ -209,7 +218,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             messageFields.put(
                 "elasticsearch.slowlog.stats",
-                escapeJson(ESLogMessage.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
+                escapeJson(asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
             );
             messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
             messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());

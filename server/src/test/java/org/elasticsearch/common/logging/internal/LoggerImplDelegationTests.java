@@ -10,6 +10,7 @@
 package org.elasticsearch.common.logging.internal;
 
 import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogMessage;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -20,7 +21,6 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -31,9 +31,11 @@ public class LoggerImplDelegationTests extends ESTestCase {
             // skip methods which do not simply pass arguments (perform argument mapping)
             // those are covered in LoggerImplMappingTests
             .filter(m -> m.getName().equals("log") == false)
+            .filter(m -> m.getName().equals("newMessage") == false)
             .filter(m -> Arrays.asList(m.getParameterTypes()).contains(Supplier.class) == false)
             .filter(m -> Arrays.asList(m.getParameterTypes()).contains(Level.class) == false)
-            .collect(Collectors.toList());
+            .filter(m -> Arrays.asList(m.getParameterTypes()).contains(LogMessage.class) == false)
+            .toList();
 
         for (Method method : methods) {
             org.apache.logging.log4j.Logger log4jMock = Mockito.mock(org.apache.logging.log4j.Logger.class);
@@ -51,7 +53,7 @@ public class LoggerImplDelegationTests extends ESTestCase {
     private Method findDelegatedMethodInLog4j(Method esMethod) {
         List<Method> collect = getPublicMethods(org.apache.logging.log4j.Logger.class).filter(m -> m.getName().equals(esMethod.getName()))
             .filter(m -> Arrays.equals(m.getParameterTypes(), esMethod.getParameterTypes()))
-            .collect(Collectors.toList());
+            .toList();
         assertThat(collect.size(), equalTo(1));
         return collect.get(0);
     }

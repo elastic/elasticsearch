@@ -946,4 +946,10 @@ public class Strings {
     public static String stripDisallowedChars(String string) {
         return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
+
+    public static String inQuotes(String s) {
+        if (s == null) return inQuotes("");
+        return "\"" + s + "\"";
+    }
+
 }

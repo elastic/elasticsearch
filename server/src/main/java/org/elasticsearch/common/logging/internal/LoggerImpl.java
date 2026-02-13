@@ -9,10 +9,14 @@
 
 package org.elasticsearch.common.logging.internal;
 
+import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogMessage;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 @SuppressLoggerChecks(reason = "safely delegates to logger")
@@ -35,6 +39,15 @@ public final class LoggerImpl implements Logger {
     @Override
     public void log(Level level, Supplier<String> messageSupplier, Throwable throwable) {
         log4jLogger.log(LevelUtil.log4jLevel(level), mapSupplier(messageSupplier), throwable);
+    }
+
+    @Override
+    public void log(Level level, LogMessage message) {
+        if (message instanceof Message) {
+            log4jLogger.log(LevelUtil.log4jLevel(level), (Message) message);
+        } else {
+            log4jLogger.log(LevelUtil.log4jLevel(level), message);
+        }
     }
 
     @Override
@@ -103,6 +116,11 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
+    public void fatal(LogMessage message) {
+        log(Level.FATAL, message);
+    }
+
+    @Override
     public void error(Supplier<String> messageSupplier) {
         log4jLogger.error(mapSupplier(messageSupplier));
     }
@@ -125,6 +143,11 @@ public final class LoggerImpl implements Logger {
     @Override
     public void error(String message, Object... params) {
         log4jLogger.error(message, params);
+    }
+
+    @Override
+    public void error(LogMessage message) {
+        log(Level.ERROR, message);
     }
 
     @Override
@@ -153,6 +176,11 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
+    public void warn(LogMessage message) {
+        log(Level.WARN, message);
+    }
+
+    @Override
     public void info(Supplier<String> messageSupplier) {
         log4jLogger.info(mapSupplier(messageSupplier));
     }
@@ -175,6 +203,11 @@ public final class LoggerImpl implements Logger {
     @Override
     public void info(String message, Object... params) {
         log4jLogger.info(message, params);
+    }
+
+    @Override
+    public void info(LogMessage message) {
+        log(Level.INFO, message);
     }
 
     @Override
@@ -203,6 +236,11 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
+    public void debug(LogMessage message) {
+        log(Level.DEBUG, message);
+    }
+
+    @Override
     public void trace(Supplier<String> messageSupplier) {
         log4jLogger.trace(mapSupplier(messageSupplier));
     }
@@ -225,5 +263,20 @@ public final class LoggerImpl implements Logger {
     @Override
     public void trace(String message, Object... params) {
         log4jLogger.trace(message, params);
+    }
+
+    @Override
+    public void trace(LogMessage message) {
+        log(Level.TRACE, message);
+    }
+
+    @Override
+    public LogMessage newMessage() {
+        return new ESLogMessage();
+    }
+
+    @Override
+    public LogMessage newMessage(Map<String, Object> fields) {
+        return new ESLogMessage(fields);
     }
 }

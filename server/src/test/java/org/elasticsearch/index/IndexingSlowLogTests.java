@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogMessage;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -219,18 +220,18 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        ESLogMessage p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, 0);
+        LogMessage p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, 0);
 
         assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo/123]"));
         assertThat(p.get("elasticsearch.slowlog.took"), equalTo("10nanos"));
         assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo("0"));
         assertThat(p.get("elasticsearch.slowlog.id"), equalTo("id"));
         assertThat(p.get("elasticsearch.slowlog.routing"), equalTo("routingValue"));
-        assertThat(p.get("elasticsearch.slowlog.source"), is(emptyOrNullString()));
+        assertThat((String) p.get("elasticsearch.slowlog.source"), is(emptyOrNullString()));
 
         // Turning on document logging logs the whole thing
         p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.get("elasticsearch.slowlog.source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
+        assertThat(p.get("elasticsearch.slowlog.source").toString(), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
     }
 
     public void testSlowLogMessageHasAdditionalFields() throws IOException {
@@ -248,7 +249,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        ESLogMessage p = IndexingSlowLogMessage.of(Map.of("field1", "value1", "field2", "value2"), index, pd, 10, true, 0);
+        LogMessage p = IndexingSlowLogMessage.of(Map.of("field1", "value1", "field2", "value2"), index, pd, 10, true, 0);
         assertThat(p.get("field1"), equalTo("value1"));
         assertThat(p.get("field2"), equalTo("value2"));
         assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo/123]"));
@@ -256,11 +257,11 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo("0"));
         assertThat(p.get("elasticsearch.slowlog.id"), equalTo("id"));
         assertThat(p.get("elasticsearch.slowlog.routing"), equalTo("routingValue"));
-        assertThat(p.get("elasticsearch.slowlog.source"), is(emptyOrNullString()));
+        assertThat((String) p.get("elasticsearch.slowlog.source"), is(emptyOrNullString()));
 
         // Turning on document logging logs the whole thing
         p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.get("elasticsearch.slowlog.source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
+        assertThat(p.get("elasticsearch.slowlog.source").toString(), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
     }
 
     public void testEmptyRoutingField() throws IOException {
@@ -278,7 +279,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
 
-        ESLogMessage p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, 0);
+        LogMessage p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, 0);
         assertThat(p.get("routing"), nullValue());
     }
 
@@ -297,8 +298,8 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        ESLogMessage p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, 0);
-        assertThat(p.getFormattedMessage(), not(containsString("source[")));
+        LogMessage p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, 0);
+        assertThat(((ESLogMessage) p).getFormattedMessage(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing
         p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, Integer.MAX_VALUE);
@@ -310,9 +311,9 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         // And you can truncate the source
         p = IndexingSlowLogMessage.of(Map.of(), index, pd, 10, true, 3);
-        assertThat(p.get("elasticsearch.slowlog.source"), containsString("{\\\"f"));
-        assertThat(p.get("elasticsearch.slowlog.message"), startsWith("[foo/123]"));
-        assertThat(p.get("elasticsearch.slowlog.took"), containsString("10nanos"));
+        assertThat(p.get("elasticsearch.slowlog.source").toString(), containsString("{\\\"f"));
+        assertThat(p.get("elasticsearch.slowlog.message").toString(), startsWith("[foo/123]"));
+        assertThat(p.get("elasticsearch.slowlog.took").toString(), containsString("10nanos"));
 
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");

@@ -10,27 +10,23 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Chars;
-import org.apache.logging.log4j.util.StringBuilders;
+import org.elasticsearch.logging.LogMessage;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
-public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
+public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements LogMessage {
     private final List<Object> arguments = new ArrayList<>();
     private String messagePattern;
 
     @SuppressWarnings("this-escape")
     public ESLogMessage(String messagePattern, Object... args) {
-        super(new LinkedHashMap<>());
+        this();
         Collections.addAll(this.arguments, args);
         this.messagePattern = messagePattern;
 
@@ -43,8 +39,12 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
         with("message", message);
     }
 
+    public ESLogMessage(Map<String, Object> fields) {
+        super(fields);
+    }
+
     public ESLogMessage() {
-        super(new LinkedHashMap<>());
+        super();
     }
 
     public ESLogMessage argAndField(String key, Object value) {
@@ -54,50 +54,7 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     }
 
     public ESLogMessage field(String key, Object value) {
-        super.with(key, value);
-        return this;
-    }
-
-    public ESLogMessage withFields(Map<String, Object> prepareMap) {
-        prepareMap.forEach(this::field);
-        return this;
-    }
-
-    /**
-     * This method is used in order to support ESJsonLayout which replaces %CustomMapFields from a pattern with JSON fields
-     * It is a modified version of {@link MapMessage#asJson(StringBuilder)} where the curly brackets are not added
-     * @param sb a string builder where JSON fields will be attached
-     */
-    protected void addJsonNoBrackets(StringBuilder sb) {
-        for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(Chars.DQUOTE);
-            int start = sb.length();
-            sb.append(getIndexedReadOnlyStringMap().getKeyAt(i));
-            StringBuilders.escapeJson(sb, start);
-            sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
-            start = sb.length();
-            Object value = getIndexedReadOnlyStringMap().getValueAt(i);
-            sb.append(value);
-            StringBuilders.escapeJson(sb, start);
-            sb.append(Chars.DQUOTE);
-        }
-    }
-
-    public static String inQuotes(String s) {
-        if (s == null) return inQuotes("");
-        return "\"" + s + "\"";
-    }
-
-    public static String inQuotes(Object s) {
-        if (s == null) return inQuotes("");
-        return inQuotes(s.toString());
-    }
-
-    public static String asJsonArray(Stream<String> stream) {
-        return "[" + stream.map(ESLogMessage::inQuotes).collect(Collectors.joining(", ")) + "]";
+        return with(key, value);
     }
 
     public Object[] getArguments() {
@@ -107,4 +64,10 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     public String getMessagePattern() {
         return messagePattern;
     }
+
+    public ESLogMessage withFields(Map<String, Object> prepareMap) {
+        prepareMap.forEach(this::with);
+        return this;
+    }
+
 }

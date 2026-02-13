@@ -262,6 +262,8 @@ public class ReplicasLoadBalancingScaler {
         int indicesBlockedFromScaleUp
     ) {}
 
+    private static final int MAX_INDICES_TO_LOG_SEARCH_LOAD = 10;
+
     /**
      * Calculates the relative search load for each index compared to the total search load across all indices.
      * <p>
@@ -387,6 +389,22 @@ public class ReplicasLoadBalancingScaler {
             desiredReplicasPerIndex.put(index, desiredReplicas);
         }
 
+        // note that desiredReplicasPerIndex is already sorted by relative search load descending
+        LOGGER.info(
+            "Top indices by search load: {}",
+            desiredReplicasPerIndex.keySet()
+                .stream()
+                .limit(MAX_INDICES_TO_LOG_SEARCH_LOAD)
+                .map(
+                    indexName -> indexName
+                        + "(load="
+                        + indicesRelativeSearchLoads.get(indexName)
+                        + ", replicas="
+                        + desiredReplicasPerIndex.get(indexName)
+                        + ")"
+                )
+                .toList()
+        );
         return new ReplicasLoadBalancingResult(immediateReplicaScaleDown, desiredReplicasPerIndex, indicesBlockedFromScaleUp);
     }
 

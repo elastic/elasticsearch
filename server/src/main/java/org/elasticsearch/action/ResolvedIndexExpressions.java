@@ -14,6 +14,7 @@ import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,6 +110,22 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
                         continue;
                     }
                     localExpressions.removeAll(expressionsToExclude);
+                }
+            }
+        }
+
+        public void excludeRemoteExpressions(String original, String expressionToExclude) {
+            outer: for (var expression : expressions) {
+                var iter = expression.remoteExpressions().iterator();
+                while (iter.hasNext()) {
+                    if (Regex.simpleMatch(expressionToExclude, iter.next())) {
+                        iter.remove();
+                    } else {
+                        expressions.add(
+                            new ResolvedIndexExpression(original, LocalExpressions.NONE, Set.of(original))
+                        );
+                        break outer;
+                    }
                 }
             }
         }

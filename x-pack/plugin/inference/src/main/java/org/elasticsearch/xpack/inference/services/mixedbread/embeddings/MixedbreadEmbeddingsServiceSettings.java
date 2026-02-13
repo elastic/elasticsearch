@@ -37,7 +37,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 /**
@@ -175,15 +174,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         @Nullable RateLimitSettings rateLimitSettings,
         Boolean dimensionsSetByUser
     ) {
-        this(
-            modelId,
-            createOptionalUri(url),
-            dimensions,
-            similarity,
-            maxInputTokens,
-            rateLimitSettings,
-            dimensionsSetByUser
-        );
+        this(modelId, createOptionalUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
     }
 
     @Override

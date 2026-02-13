@@ -48,7 +48,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
     public void testTimeSeriesQuerying() throws IOException {
         var settings = Settings.builder()
-            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false);
+            .loadFromStream("tsdb-settings.json", CsvTestsDataLoader.getResourceStream("/tsdb-settings.json"), false);
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }

@@ -1,15 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.upgrades;
-
-import com.carrotsearch.randomizedtesting.annotations.Name;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
@@ -31,56 +27,34 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
-public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
+public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
     private static final int DOC_COUNT = 10;
 
-    public TSDBSyntheticIdUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
-
     public void testRollingUpgrade() throws IOException {
-        IndexVersion oldClusterIndexVersion = getOldClusterIndexVersion();
+        IndexVersion oldClusterIndexVersion = getClusterIndexVersion();
+        int numNodes = cluster.getNumNodes();
 
         if (hasSupportForSyntheticId(oldClusterIndexVersion)) {
-            if (isOldCluster()) {
-                assertWriteIndex("old-cluster-index");
-                assertIndexRead("old-cluster-index");
+            // Should be able to create synthetic id index throughout the rolling upgrade
+            for (int i = 0; i < numNodes; i++) {
+                assertWriteIndex(indexName(i));
+                for (int j = 0; j <= i; j++) {
+                    assertIndexRead(indexName(j));
+                }
+                upgradeNode(i);
             }
-
-            if (isFirstMixedCluster()) {
-                assertWriteIndex("first-mixed-cluster-index");
-                assertIndexRead("old-cluster-index");
-                assertIndexRead("first-mixed-cluster-index");
-            }
-
-            if (isFirstMixedCluster() == false && isMixedCluster()) {
-                assertWriteIndex("second-mixed-cluster-index");
-                assertIndexRead("old-cluster-index");
-                assertIndexRead("first-mixed-cluster-index");
-                assertIndexRead("second-mixed-cluster-index");
-            }
-
-            if (isUpgradedCluster()) {
-                assertWriteIndex("upgraded-cluster-index");
-                assertIndexRead("old-cluster-index");
-                assertIndexRead("first-mixed-cluster-index");
-                assertIndexRead("second-mixed-cluster-index");
-                assertIndexRead("upgraded-cluster-index");
+            assertWriteIndex(indexName(numNodes));
+            for (int j = 0; j <= numNodes; j++) {
+                assertIndexRead(indexName(j));
             }
         } else {
-
-            if (isOldCluster()) {
-                assertNoWriteIndex("old-cluster-index", oldClusterIndexVersion);
+            // Cluster support synthetic id index after all nodes have been upgraded, not before
+            for (int i = 0; i < numNodes; i++) {
+                assertNoWriteIndex(indexName(i), oldClusterIndexVersion);
+                upgradeNode(i);
             }
-
-            if (isMixedCluster()) {
-                assertNoWriteIndex("mixed-cluster-index", oldClusterIndexVersion);
-            }
-
-            if (isUpgradedCluster()) {
-                assertWriteIndex("upgraded-cluster-index");
-                assertIndexRead("upgraded-cluster-index");
-            }
+            assertWriteIndex(indexName(numNodes));
+            assertIndexRead(indexName(numNodes));
         }
     }
 
@@ -190,7 +164,11 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
         return createIndex(indexName, settings, mapping);
     }
 
-    private boolean hasSupportForSyntheticId(IndexVersion indexVersion) {
+    private static boolean hasSupportForSyntheticId(IndexVersion indexVersion) {
         return indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
+    }
+
+    private static String indexName(int i) {
+        return "index_" + i;
     }
 }

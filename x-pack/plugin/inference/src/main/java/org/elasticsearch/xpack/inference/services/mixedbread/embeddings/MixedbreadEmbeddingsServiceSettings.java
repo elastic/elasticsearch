@@ -68,7 +68,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         var validationException = new ValidationException();
         var commonServiceSettings = extractMixedbreadCommonServiceSettings(map, context, validationException);
 
-        var dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var encodingFormat = extractOptionalString(
             map,
             MixedbreadUtils.ENCODING_FORMAT_FIELD,
@@ -93,13 +93,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
                         ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-
-                if (dims != null) {
-                    validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS)
-                    );
-                }
-                dimensionsSetByUser = false;
+                dimensionsSetByUser = dimensions != null;;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
@@ -115,7 +109,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         return new MixedbreadEmbeddingsServiceSettings(
             commonServiceSettings.model(),
             commonServiceSettings.uri(),
-            dims,
+            dimensions,
             encodingFormat,
             similarity,
             maxInputTokens,

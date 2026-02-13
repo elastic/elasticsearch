@@ -74,7 +74,8 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
         return new MixedbreadEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(INPUT), new boolean[] { false }),
-            embeddingsModel);
+            embeddingsModel
+        );
     }
 
     private Map<String, Object> getEntityAsMap(MixedbreadEmbeddingsRequest request) throws IOException {

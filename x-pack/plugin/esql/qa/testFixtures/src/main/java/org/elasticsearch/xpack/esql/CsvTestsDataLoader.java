@@ -1366,6 +1366,7 @@ public class CsvTestsDataLoader {
         public String loadPolicy() {
             return getResourceString("/enrich/policy/" + policyFileName);
         }
+
         public InputStream streamPolicy() {
             return getResourceStream("/enrich/policy/" + policyFileName);
         }

@@ -481,12 +481,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             directory.setCheckIndexOnClose(false);
 
             final var indexWriterConfig = newIndexWriterConfig();
-            indexWriterConfig.setCodec(new ES93TSDBDefaultCompressionLucene103Codec(new LegacyPerFieldMapperCodec(
-                Lucene103Codec.Mode.BEST_SPEED,
-                mapperService,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                null
-            )));
+            indexWriterConfig.setCodec(
+                new ES93TSDBDefaultCompressionLucene103Codec(
+                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                )
+            );
             // Configure the index writer for time-series indices
             indexWriterConfig.setMergePolicy(indexSettings.getMergePolicy(true));
             indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);

@@ -159,7 +159,8 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
         @Nullable String similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable HashMap<String, Integer> rateLimitSettings
+        @Nullable HashMap<String, Integer> rateLimitSettings,
+        @Nullable Boolean dimensionsSetByUser
     ) {
         HashMap<String, Object> result = new HashMap<>();
         if (modelId != null) {
@@ -179,6 +180,9 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
         }
         if (rateLimitSettings != null) {
             result.put(RateLimitSettings.FIELD_NAME, rateLimitSettings);
+        }
+        if (dimensionsSetByUser != null) {
+            result.put(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
         return result;
     }

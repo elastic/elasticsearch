@@ -155,10 +155,10 @@ public class PlannerUtils {
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
-            // MetricsInfoExec(INITIAL) requires shard-level access (_doc) to extract _tsid and _timeseries_metadata.
-            // It cannot run on a reduce node that reads from an exchange (no _doc available).
-            // Unlike AggregateExec, MetricsInfo has no INTERMEDIATE mode, so we skip node-level reduction entirely.
-            case MetricsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
+                estimatedRowSize,
+                new MetricsInfoExec(metricsInfoExec.source(), metricsInfoExec.child(), plan.output(), MetricsInfoExec.Mode.INTERMEDIATE)
+            );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }

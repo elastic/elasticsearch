@@ -869,7 +869,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planMetricsInfo(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
-        if (metricsInfoExec.mode() == MetricsInfoExec.Mode.FINAL) {
+        if (metricsInfoExec.mode() == MetricsInfoExec.Mode.FINAL || metricsInfoExec.mode() == MetricsInfoExec.Mode.INTERMEDIATE) {
             return planMetricsInfoFinal(metricsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.

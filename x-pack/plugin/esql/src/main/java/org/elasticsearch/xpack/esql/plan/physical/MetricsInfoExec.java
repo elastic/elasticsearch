@@ -40,11 +40,13 @@ public class MetricsInfoExec extends UnaryExec {
     );
 
     /**
-     * Execution mode, mirroring the two-phase pattern used by aggregations.
+     * Execution mode, mirroring the three-phase pattern used by aggregations.
      */
     public enum Mode {
         /** Data-node phase: full shard extraction → per-node metric rows. */
         INITIAL,
+        /** Node-level reduction: merges INITIAL results from multiple shards on the same data node. */
+        INTERMEDIATE,
         /** Coordinator phase: merge rows from all data nodes by metric signature. */
         FINAL
     }
@@ -101,11 +103,7 @@ public class MetricsInfoExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        // In FINAL mode the merge operator reads all 6 columns from the child (exchange),
-        // so every output attribute is also a reference to the child's output.
-        // Without this, the optimizer prunes unused columns from the exchange and the
-        // merge operator fails with missing channels.
-        if (mode == Mode.FINAL) {
+        if (mode == Mode.FINAL || mode == Mode.INTERMEDIATE) {
             return AttributeSet.builder().addAll(outputAttrs).build();
         }
         return AttributeSet.EMPTY;

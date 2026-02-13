@@ -142,6 +142,7 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -9116,7 +9117,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
-    public void testReductionPlanForMetricsInfoReturnsNoReduction() {
+    public void testReductionPlanForMetricsInfoReturnsIntermediateReduction() {
         EsRelation esRelation = new EsRelation(
             Source.EMPTY,
             "k8s",
@@ -9131,7 +9132,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FragmentExec fragment = new FragmentExec(metricsInfo);
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
 
-        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
+        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
+        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
+        var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
+        assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
+
+        assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
     }
 
     @SuppressWarnings("SameParameterValue")

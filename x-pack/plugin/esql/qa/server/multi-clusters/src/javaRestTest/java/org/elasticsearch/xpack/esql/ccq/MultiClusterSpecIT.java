@@ -214,11 +214,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
 
-        // METRICS_INFO requires a fix on the remote cluster to skip node-level reduction (which needs shard access).
-        // Remote clusters without the fix will fail with a missing _doc attribute error.
         if (testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())) {
             assumeFalse(
-                "METRICS_INFO in CCS requires the node-reduction fix on the remote cluster",
+                "METRICS_INFO not supported in CCS",
                 hasCapabilities(remoteClusterClient(), List.of(METRICS_INFO_COMMAND.capabilityName()))
             );
         }

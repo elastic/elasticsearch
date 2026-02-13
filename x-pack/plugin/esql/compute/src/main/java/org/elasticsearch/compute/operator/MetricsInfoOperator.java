@@ -418,6 +418,11 @@ public class MetricsInfoOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return false;
+    }
+
+    @Override
     public Page getOutput() {
         if (finished == false || outputProduced) {
             return null;

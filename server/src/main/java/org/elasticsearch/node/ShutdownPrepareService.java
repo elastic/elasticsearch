@@ -185,7 +185,11 @@ public class ShutdownPrepareService {
                 millisWaited += pollPeriod.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
                     logger.warn(
-                        format("timed out after waiting [%s] for [%d] " + taskName + " tasks to finish", timeout.toString(), tasksRemaining)
+                        format(
+                            "timed out after waiting [%s] for [%d] " + taskName + " tasks to finish",
+                            timeout.toString(),
+                            tasksRemaining.size()
+                        )
                     );
                     return;
                 }

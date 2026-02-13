@@ -19,7 +19,13 @@ import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.Similarities;
+
+import java.lang.foreign.MemorySegment;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -37,6 +43,9 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
+    static final boolean SUPPORTS_NATIVE_VECTORS = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
             return a.fma(b, c);
@@ -51,6 +60,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         } else {
             return a * b + c;
         }
+    }
+
+    @Override
+    public float dotProduct(float[] a, float[] b) {
+        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
+            ? Similarities.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
+            : VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b) {
+        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
+            ? Similarities.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
+            : VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -1139,5 +1162,33 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return -1;
+    }
+
+    @Override
+    public int codePointCount(final BytesRef bytesRef) {
+        // SWAR logic is faster for lengths below approximately 54
+        if (bytesRef.length < 54) {
+            return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+
+        int continuations = 0;
+        int highBits = 0xC0;
+        int continuationByte = 0x80; // continuation bytes have first bit set and second bit unset
+        final ByteVector highBitsVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, (byte) highBits);
+        final ByteVector continuationVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, (byte) continuationByte);
+        final int loopBound = PREFERRED_BYTE_SPECIES.loopBound(bytesRef.length);
+        int i = 0;
+        for (; i < loopBound; i += PREFERRED_BYTE_SPECIES.length()) {
+            ByteVector chunk = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, bytesRef.bytes, bytesRef.offset + i);
+            VectorMask<Byte> mask = chunk.and(highBitsVec).eq(continuationVec);
+            continuations += mask.trueCount();
+        }
+
+        // tail
+        for (int pos = bytesRef.offset + loopBound; pos < bytesRef.offset + bytesRef.length; pos++) {
+            continuations += (bytesRef.bytes[pos] & highBits) == continuationByte ? 1 : 0;
+        }
+
+        return bytesRef.length - continuations;
     }
 }

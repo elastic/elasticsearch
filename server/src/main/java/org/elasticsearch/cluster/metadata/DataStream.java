@@ -94,6 +94,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+    public static final String TYPE = "type";
+    public static final String DATASET = "dataset";
+    public static final String NAMESPACE = "namespace";
 
     private static final int MAX_LENGTH = 100;
     private static final String REPLACEMENT = "_";
@@ -109,8 +112,50 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET);
     }
 
+    /**
+     * Validates that the provided dataset value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param dataset the dataset value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateDataset(String dataset) {
+        validateDataStreamField(DATASET, dataset, DataStream::sanitizeDataset, DISALLOWED_IN_DATASET);
+    }
+
     public static String sanitizeNamespace(String namespace) {
         return sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    /**
+     * Validates that the provided namespace value is already in its canonical form.
+     * <p>
+     * This method validates and does not sanitize.
+     *
+     * @param namespace the namespace value to validate
+     * @throws IllegalArgumentException if the value contains disallowed characters
+     */
+    public static void validateNamespace(String namespace) {
+        validateDataStreamField(NAMESPACE, namespace, DataStream::sanitizeNamespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    private static void validateDataStreamField(
+        String fieldName,
+        String value,
+        Function<String, String> sanitizer,
+        Pattern disallowedCharactersPattern
+    ) {
+        if (Objects.equals(sanitizer.apply(value), value) == false) {
+            throw new IllegalArgumentException(
+                "data stream "
+                    + fieldName
+                    + " '"
+                    + value
+                    + "' contains disallowed characters, must conform to regex "
+                    + disallowedCharactersPattern.pattern()
+            );
+        }
     }
 
     private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {
@@ -556,8 +601,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             Index index = backingIndices.indices.get(i);
             IndexMetadata im = project.index(index);
 
-            // TODO: make index_mode, start and end time fields in IndexMetadata class.
-            // (this to avoid the overhead that occurs when reading a setting)
             if (im.getIndexMode() != IndexMode.TIME_SERIES) {
                 // Not a tsdb backing index, so skip.
                 // (This can happen if this is a migrated tsdb data stream)
@@ -566,6 +609,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
             Instant start = im.getTimeSeriesStart();
             Instant end = im.getTimeSeriesEnd();
+            assert start != null && end != null : "start and end markers cannot be null";
             // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
             if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
                 return index;
@@ -1214,29 +1258,37 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing or failure indices depending on <code>failureStore</code> and return the ones that are managed by the
-     * data stream lifecycle and past the configured retention in their lifecycle.
+     * Iterate over either the backing indices, failure indices or both depending on the types param
+     * and return the ones that are managed by the data stream lifecycle and older than the supplied
+     * {@link TimeValue}.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesPastRetention(
+    public List<Index> getIndicesOlderThan(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         TimeValue effectiveRetention,
-        boolean failureStore
+        DatastreamIndexTypes types
     ) {
         if (effectiveRetention == null) {
             return List.of();
         }
 
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getDataStreamIndices(failureStore).getIndices(),
+        List<Index> indices = new ArrayList<>();
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.BACKING_INDICES) {
+            indices.addAll(getDataStreamIndices(false).getIndices());
+        }
+        if (types == DatastreamIndexTypes.ALL || types == DatastreamIndexTypes.FAILURE_INDICES) {
+            indices.addAll(getDataStreamIndices(true).getIndices());
+        }
+
+        return getNonWriteIndicesOlderThan(
+            indices,
             effectiveRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
         );
-        return indicesPastRetention;
     }
 
     /**
@@ -2169,4 +2221,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             super(message);
         }
     }
+
+    public enum DatastreamIndexTypes {
+        BACKING_INDICES,
+        FAILURE_INDICES,
+        ALL
+    }
+
 }

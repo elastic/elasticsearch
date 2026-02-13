@@ -8,6 +8,18 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.2.4 [elasticsearch-9.2.4-known-issues]
+
+* Upgrading from 9.1.10 to 9.2.4 may cause the following error:
+
+  ```
+  fatal exception while booting Elasticsearch org.elasticsearch.ElasticsearchException: failed to load metadata at org.elasticsearch.gateway.GatewayMetaState.start(GatewayMetaState.java:119) ~[elasticsearch-9.2.4.jar:?] at [..] Caused by: org.elasticsearch.gateway.CorruptStateException: org.elasticsearch.xcontent.XContentParseException: [-1:107032] [node_shutdown] failed to parse field [nodes]
+  ...
+  org.elasticsearch.xcontent.XContentParseException: [-1:107008] [node_shutdown_info] unknown field [shutdown_started_millis] did you mean [shutdown_startedmillis]
+  ```
+  
+  This bug is addressed in version 9.2.5.
+
 ## 9.2.0 [elasticsearch-9.2.0-known-issues]
 
 * The `bbq_disk` index format, licensed under the [Enterprise subscription tier](https://www.elastic.co/subscriptions) was introduced in 9.2.0 without appropriate license enforcement. This allowed users to create and use `bbq_disk` indices without an Enterprise license. This will be addressed in version 9.3.0. Upon upgrading to 9.3+ indices created on 9.2 will still be available for updates and queries, but new indices created on 9.3+ will require an Enterprise license.
@@ -17,24 +29,24 @@ Known issues are significant defects or limitations that may impact your impleme
 ## 9.1.1 [elasticsearch-9.1.1-known-issues]
 
 * An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
-  
+
   Possible *temporary* workarounds include:
   * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
   * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
-    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.  
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
 
-The bug is addressed in version 9.1.2.  
+The bug is addressed in version 9.1.2.
 
 ## 9.1.0 [elasticsearch-9.1.0-known-issues]
 
 * An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
-  
+
   Possible *temporary* workarounds include:
   * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
   * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
-    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.  
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
 
-The bug is addressed in version 9.1.2.  
+The bug is addressed in version 9.1.2.
 
 * The `-Dvector.rescoring.directio` JVM option is enabled (set to `true`) by default. When used with `bbq_hnsw` type vector indices, this can cause significant search performance degradation; particularly when enough memory is available to hold all vector data. In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the JVM option `-Dvector.rescoring.directio=false` on all search nodes and restart them. This option can be removed in 9.1.1.
 

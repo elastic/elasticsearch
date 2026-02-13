@@ -62,6 +62,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -307,9 +308,14 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testSelectShrinkShards() {
+        int version = randomBoolean()
+            ? randomIntBetween(IndexVersions.MOD_ROUTING_FUNCTION.id(), IndexVersion.current().id())
+            : randomIntBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION.id(), IndexVersions.MOD_ROUTING_FUNCTION.id() - 1);
+        boolean postModRoutingFunction = version >= IndexVersions.MOD_ROUTING_FUNCTION.id();
+
         int numberOfReplicas = randomIntBetween(0, 10);
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", 1))
+            .settings(indexSettings(32, numberOfReplicas).put("index.version.created", version))
             .creationDate(randomLong())
             .build();
         Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(0, metadata, 8);
@@ -317,29 +323,29 @@ public class IndexMetadataTests extends ESTestCase {
             shardIds,
             Sets.newHashSet(
                 new ShardId(metadata.getIndex(), 0),
-                new ShardId(metadata.getIndex(), 1),
-                new ShardId(metadata.getIndex(), 2),
-                new ShardId(metadata.getIndex(), 3)
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 8 : 1),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 16 : 2),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 24 : 3)
             )
         );
         shardIds = IndexMetadata.selectShrinkShards(1, metadata, 8);
         assertEquals(
             shardIds,
             Sets.newHashSet(
-                new ShardId(metadata.getIndex(), 4),
-                new ShardId(metadata.getIndex(), 5),
-                new ShardId(metadata.getIndex(), 6),
-                new ShardId(metadata.getIndex(), 7)
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 1 : 4),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 9 : 5),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 17 : 6),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 25 : 7)
             )
         );
         shardIds = IndexMetadata.selectShrinkShards(7, metadata, 8);
         assertEquals(
             shardIds,
             Sets.newHashSet(
-                new ShardId(metadata.getIndex(), 28),
-                new ShardId(metadata.getIndex(), 29),
-                new ShardId(metadata.getIndex(), 30),
-                new ShardId(metadata.getIndex(), 31)
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 7 : 28),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 15 : 29),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 23 : 30),
+                new ShardId(metadata.getIndex(), postModRoutingFunction ? 31 : 31)
             )
         );
 
@@ -379,17 +385,21 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testSelectSplitShard() {
+        int version = randomBoolean()
+            ? IndexVersions.MOD_ROUTING_FUNCTION.id()
+            : randomIntBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION.id(), IndexVersions.MOD_ROUTING_FUNCTION.id() - 1);
+        boolean postModRoutingFunction = version >= IndexVersions.MOD_ROUTING_FUNCTION.id();
         IndexMetadata metadata = IndexMetadata.builder("foo")
-            .settings(indexSettings(2, 0).put("index.version.created", 1))
+            .settings(indexSettings(2, 0).put("index.version.created", version))
             .creationDate(randomLong())
             .setRoutingNumShards(4)
             .build();
         ShardId shardId = IndexMetadata.selectSplitShard(0, metadata, 4);
         assertEquals(0, shardId.getId());
         shardId = IndexMetadata.selectSplitShard(1, metadata, 4);
-        assertEquals(0, shardId.getId());
+        assertEquals(postModRoutingFunction ? 1 : 0, shardId.getId());
         shardId = IndexMetadata.selectSplitShard(2, metadata, 4);
-        assertEquals(1, shardId.getId());
+        assertEquals(postModRoutingFunction ? 0 : 1, shardId.getId());
         shardId = IndexMetadata.selectSplitShard(3, metadata, 4);
         assertEquals(1, shardId.getId());
 
@@ -800,6 +810,66 @@ public class IndexMetadataTests extends ESTestCase {
         assertNull(deserialized.getReshardingMetadata());
         // but otherwise be equal
         assertEquals(idx, IndexMetadata.builder(deserialized).reshardingMetadata(reshardingMetadata).build());
+    }
+
+    public void testReshardRemoveShards() {
+        int primaryTerm = randomIntBetween(1, 100);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(8)
+            .numberOfReplicas(randomIntBetween(0, 10))
+            .primaryTerm(1, primaryTerm)
+            .build();
+
+        // Can't use with a number that is not a factor.
+        assertThrows(IllegalArgumentException.class, () -> IndexMetadata.builder(indexMetadata).reshardRemoveShards(5));
+
+        // Can't add shards.
+        assertThrows(IllegalArgumentException.class, () -> IndexMetadata.builder(indexMetadata).reshardRemoveShards(16));
+
+        var reduce2XOneRound = IndexMetadata.builder(indexMetadata).reshardRemoveShards(4).build();
+        assertEquals(4, reduce2XOneRound.getNumberOfShards());
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(primaryTerm, reduce2XOneRound.primaryTerm(1));
+
+        var reduce2XTwoRounds = IndexMetadata.builder(reduce2XOneRound).reshardRemoveShards(2).build();
+        assertEquals(2, reduce2XTwoRounds.getNumberOfShards());
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(primaryTerm, reduce2XTwoRounds.primaryTerm(1));
+
+        var reduce4X = IndexMetadata.builder(indexMetadata).reshardRemoveShards(2).build();
+        assertEquals(2, reduce4X.getNumberOfShards());
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(primaryTerm, reduce4X.primaryTerm(1));
+
+        var reduceToOne = IndexMetadata.builder(indexMetadata).reshardRemoveShards(1).build();
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(1, reduceToOne.getNumberOfShards());
+    }
+
+    public void testChangeNumberOfShardsRoundtrip() {
+        int primaryTerm = randomIntBetween(1, 100);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(randomIntBetween(0, 10))
+            .primaryTerm(0, primaryTerm)
+            .build();
+
+        IndexMetadata maxShardsMetadata = indexMetadata;
+        for (int shards = 2; shards < 1024; shards *= 2) {
+            maxShardsMetadata = IndexMetadata.builder(maxShardsMetadata).reshardAddShards(shards).build();
+        }
+
+        IndexMetadata backToOneShardMetadata = maxShardsMetadata;
+        for (int shards = 512; shards > 0; shards /= 2) {
+            backToOneShardMetadata = IndexMetadata.builder(backToOneShardMetadata).reshardRemoveShards(shards).build();
+        }
+
+        assertEquals(1, backToOneShardMetadata.getNumberOfShards());
+        assertEquals(primaryTerm, backToOneShardMetadata.primaryTerm(0));
     }
 
     private IndexMetadata roundTripWithVersion(IndexMetadata indexMetadata, TransportVersion version) throws IOException {

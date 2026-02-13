@@ -69,7 +69,7 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
     }
 
     public void testPartialShardsAreEvictedAsynchronouslyOnDelete() throws Exception {
-        final String mountedSnapshotName = "mounted_" + randomIdentifier();
+        final String mountedSnapshotName = randomIdentifier("mounted_");
         snapshotAndMount(mountedSnapshotName, MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
 
         final Map<String, Integer> allocations = getShardCounts(mountedSnapshotName);
@@ -86,7 +86,7 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
      * Fully mounted snapshots don't use the shared blob cache, so we don't need to evict them from it
      */
     public void testFullFullShardsAreNotEvictedOnDelete() throws Exception {
-        final String mountedSnapshotName = "mounted_" + randomIdentifier();
+        final String mountedSnapshotName = randomIdentifier("mounted_");
         snapshotAndMount(mountedSnapshotName, MountSearchableSnapshotRequest.Storage.FULL_COPY);
 
         final Map<String, Integer> allocations = getShardCounts(mountedSnapshotName);
@@ -103,7 +103,7 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
      * We let relocated shards age out of the cache, rather than evicting them
      */
     public void testPartialShardsAreNotEvictedOnRelocate() throws Exception {
-        final String mountedSnapshotName = "mounted_" + randomIdentifier();
+        final String mountedSnapshotName = randomIdentifier("mounted_");
         snapshotAndMount(mountedSnapshotName, MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
 
         final Map<String, Integer> allocations = getShardCounts(mountedSnapshotName);
@@ -129,7 +129,7 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
     }
 
     public void testPartialShardsAreEvictedSynchronouslyOnFailure() throws Exception {
-        final String mountedSnapshotName = "mounted_" + randomIdentifier();
+        final String mountedSnapshotName = randomIdentifier("mounted_");
 
         snapshotAndMount(mountedSnapshotName, MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
 

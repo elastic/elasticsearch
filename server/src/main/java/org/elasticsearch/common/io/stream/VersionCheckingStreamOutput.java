@@ -35,15 +35,34 @@ public final class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     @Override
+    public long position() {
+        assert false : "should not be called";
+        throw new UnsupportedOperationException("VersionCheckingStreamOutput#position()");
+    }
+
+    @Override
     public void flush() throws IOException {
         // no-op
-
     }
 
     @Override
     public void close() throws IOException {
         // no-op
+    }
 
+    @Override
+    public void writeString(String str) throws IOException {
+        // no-op
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        // no-op
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        // no-op
     }
 
     @Override

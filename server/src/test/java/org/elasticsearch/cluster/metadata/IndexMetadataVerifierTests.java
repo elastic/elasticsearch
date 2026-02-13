@@ -135,7 +135,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             )
         );
 
-        indexCreated = randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+        indexCreated = randomVersionBetween(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
         service.verifyIndexMetadata(goodMeta, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
     }
@@ -172,7 +172,6 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             );
         }
         var indexCreated = randomVersionBetween(
-            random(),
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
         );
@@ -342,7 +341,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder newIndexMetaBuilder(String name, Settings indexSettings) {
-        final Settings settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), between(1, 5), between(0, 5)).put(
+        final Settings settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), between(1, 5), between(0, 5)).put(
             IndexMetadata.SETTING_CREATION_DATE,
             randomNonNegativeLong()
         ).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())).put(indexSettings).build();

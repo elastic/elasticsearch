@@ -8,6 +8,9 @@
     },
     "responseTime": {
       "type": "histogram"
+    },
+    "caseTestPlaceholder": {
+      "type": "histogram"
     }
   }
 }

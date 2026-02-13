@@ -623,16 +623,18 @@ public class QueryRewriteContext {
      */
     @Nullable
     public String getTierPreference() {
-        Settings settings = getIndexSettings().getSettings();
+        return getFirstTierPreference(getIndexSettings().getSettings(), null);
+    }
+
+    public static String getFirstTierPreference(Settings settings, String defaultTierPreference) {
         String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
-
         if (Strings.hasText(value) == false) {
-            return null;
+            return defaultTierPreference;
         }
-
         // Tier preference can be a comma-delimited list of tiers, ordered by preference
         // It was decided we should only test the first of these potentially multiple preferences.
-        return value.split(",")[0].trim();
+        int separatorPosition = value.indexOf(',');
+        return (separatorPosition != -1 ? value.substring(0, separatorPosition) : value).trim();
     }
 
     public QueryRewriteInterceptor getQueryRewriteInterceptor() {

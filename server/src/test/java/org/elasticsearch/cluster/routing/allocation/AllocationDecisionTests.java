@@ -36,16 +36,19 @@ public class AllocationDecisionTests extends ESTestCase {
 
     // Testing for ADD_NOT_PREFERRED_ALLOCATION_DECISION TransportVersion.
     public void testSerializationBackwardsCompatibility() throws IOException {
+        final var sentinel = randomIdentifier();
         {
             // NOT_PREFERRED should be converted to YES on writeTo.
             AllocationDecision allocationDecision = AllocationDecision.NOT_PREFERRED;
             BytesStreamOutput output = new BytesStreamOutput();
             output.setTransportVersion(TransportVersion.minimumCompatible());
             allocationDecision.writeTo(output);
+            output.writeString(sentinel);
             assertEquals(AllocationDecision.YES, AllocationDecision.readFrom(output.bytes().streamInput()));
             StreamInput input = output.bytes().streamInput();
             input.setTransportVersion(TransportVersion.minimumCompatible());
             assertEquals(AllocationDecision.readFrom(input), AllocationDecision.YES);
+            assertEquals(sentinel, input.readString());
         }
         {
             // YES and THROTTLE are unaffected by writeTo or readFrom. The enum ID values did not change.
@@ -53,10 +56,12 @@ public class AllocationDecisionTests extends ESTestCase {
             BytesStreamOutput output = new BytesStreamOutput();
             output.setTransportVersion(TransportVersion.minimumCompatible());
             allocationDecision.writeTo(output);
+            output.writeString(sentinel);
             assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id);
             StreamInput input = output.bytes().streamInput();
             input.setTransportVersion(TransportVersion.minimumCompatible());
             assertEquals(allocationDecision, AllocationDecision.readFrom(input));
+            assertEquals(sentinel, input.readString());
         }
         {
             // The following enum values will get shifted -1 for backwards compatibility because NOT_PREFERRED was added and placed before
@@ -68,11 +73,13 @@ public class AllocationDecisionTests extends ESTestCase {
             BytesStreamOutput output = new BytesStreamOutput();
             output.setTransportVersion(TransportVersion.minimumCompatible());
             allocationDecision.writeTo(output);
+            output.writeString(sentinel);
             // Without the minimumCompatible version set on the input stream, we'll see the old enum ID, which is -1 compared to the new.
             assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id + 1);
             StreamInput input = output.bytes().streamInput();
             input.setTransportVersion(TransportVersion.minimumCompatible());
             assertEquals(allocationDecision, AllocationDecision.readFrom(input));
+            assertEquals(sentinel, input.readString());
         }
     }
 

@@ -65,11 +65,15 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  *                  "secure.setting.key.three": "Y2Nj"
  *              }
  *         }
+ * @deprecated Made obsolete by SecureClusterStateSettings, to be removed as part of ES-13910
  */
+@Deprecated
 public final class LocallyMountedSecrets implements SecureSettings {
 
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
+
+    public static final long UNAVAILABLE = -1L;
 
     // TODO[wrb]: remove deprecated name once controller and performance have updated their formats
     public static final ParseField STRING_SECRETS_FIELD = new ParseField("string_secrets", "secrets");
@@ -130,7 +134,7 @@ public final class LocallyMountedSecrets implements SecureSettings {
                 throw new IllegalStateException("Error processing secrets file", e);
             }
         } else {
-            secrets.set(new LocalFileSecrets(Map.of(), new ReservedStateVersion(-1L, BuildVersion.current())));
+            secrets.set(new LocalFileSecrets(Map.of(), new ReservedStateVersion(UNAVAILABLE, BuildVersion.current())));
         }
         this.secretsDir = secretsDirPath.toString();
         this.secretsFile = secretsFilePath.toString();

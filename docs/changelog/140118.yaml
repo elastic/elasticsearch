@@ -1,5 +1,0 @@
-pr: 140118
-summary: Skip frozen nodes on disk watermark check
-area: Infra/Core
-type: bug
-issues: []

@@ -36,6 +36,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntFunction;
@@ -320,5 +321,18 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
         StringBuilder query = new StringBuilder();
         query.append("{\"query\":\"");
         return query;
+    }
+
+    protected static boolean isServerless() throws IOException {
+        for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
+            for (Object module : (List<?>) nodeInfo.get("modules")) {
+                Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                final String moduleName = moduleInfo.get("name").toString();
+                if (moduleName.startsWith("serverless-")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

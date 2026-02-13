@@ -8,6 +8,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -27,10 +28,13 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
 
   private final EvalOperator.ExpressionEvaluator datetime;
 
+  private final DateFormatter formatter;
+
   public ToStringFromDateNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
-      DriverContext driverContext) {
+      DateFormatter formatter, DriverContext driverContext) {
     super(driverContext, source);
     this.datetime = datetime;
+    this.formatter = formatter;
   }
 
   @Override
@@ -55,7 +59,7 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
 
   private BytesRef evalValue(LongVector container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDateNanos(value);
+    return ToString.fromDateNanos(value, this.formatter);
   }
 
   @Override
@@ -90,12 +94,12 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
 
   private BytesRef evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDateNanos(value);
+    return ToString.fromDateNanos(value, this.formatter);
   }
 
   @Override
   public String toString() {
-    return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + "]";
+    return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
   }
 
   @Override
@@ -115,19 +119,23 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
 
     private final EvalOperator.ExpressionEvaluator.Factory datetime;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime) {
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
+        DateFormatter formatter) {
       this.source = source;
       this.datetime = datetime;
+      this.formatter = formatter;
     }
 
     @Override
     public ToStringFromDateNanosEvaluator get(DriverContext context) {
-      return new ToStringFromDateNanosEvaluator(source, datetime.get(context), context);
+      return new ToStringFromDateNanosEvaluator(source, datetime.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + "]";
+      return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
     }
   }
 }

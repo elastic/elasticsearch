@@ -24,12 +24,14 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -59,6 +61,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build()
         );
         executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(
+            new ClusterSettings(Settings.EMPTY, Set.of()),
             allocationService,
             ShardStartedClusterStateTaskExecutorTests::neverReroutes
         );

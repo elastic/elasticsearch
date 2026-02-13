@@ -17,6 +17,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
@@ -35,7 +36,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 
 public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockServiceSettings {
     public static final String NAME = "amazon_bedrock_embeddings_service_settings";
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     private final Integer dimensions;
     private final Boolean dimensionsSetByUser;
@@ -70,13 +70,13 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         );
         Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
 
@@ -90,7 +90,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
             }
@@ -151,7 +151,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         builder.startObject();
 
         super.addBaseXContent(builder, params);
-        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;

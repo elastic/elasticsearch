@@ -8,10 +8,7 @@ applies_to:
 
 # Rescore search results
 
-Rescoring can help to improve precision by reordering just the top
-(e.g. 100 - 500) documents returned by initial retrieval phase
-(query, knn search) by using a secondary (usually more costly) algorithm,
-instead of applying the costly algorithm to all documents in the index.
+You can use the Search API's [`rescore` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-body-application-json-rescore)￼to rescore the top documents returned by a search request. Rescoring can help improve precision by reordering just the top (e.g. 100 - 500) documents returned by the initial retrieval phase (query, knn search) by using a secondary (usually more costly) algorithm, instead of applying the costly algorithm to all documents in the index.
 
 ## How `rescore` works [rescore]
 

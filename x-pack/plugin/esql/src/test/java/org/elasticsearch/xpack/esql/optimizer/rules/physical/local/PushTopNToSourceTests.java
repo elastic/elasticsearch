@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -48,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -419,7 +420,7 @@ public class PushTopNToSourceTests extends ESTestCase {
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
         var configuration = EsqlTestUtils.configuration("from test");
         var ctx = new LocalPhysicalOptimizerContext(
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsqlFlags(true),
             configuration,
             FoldContext.small(),
@@ -647,7 +648,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             }
 
             public Expression add(Expression left, Expression right) {
-                return new Add(Source.EMPTY, left, right);
+                return new Add(Source.EMPTY, left, right, TEST_CFG);
             }
 
             public Expression distance(String left, String right) {

@@ -5,15 +5,14 @@ FROM books METADATA _score
 | WHERE MATCH(description, "hobbit") OR MATCH(author, "Tolkien")
 | SORT _score DESC
 | LIMIT 100
-| RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
+| RERANK rerank_score = "hobbit" ON title, description WITH { "inference_id" : "test_reranker" }
 | EVAL original_score = _score, _score = rerank_score + original_score
 | SORT _score
 | LIMIT 3
-| KEEP title, original_score, rerank_score, _score
 ```
 
-| title:text | _score:double | rerank_score:double | rerank_score:double |
-| --- | --- | --- | --- |
-| Poems from the Hobbit | 4.012462615966797 | 0.001396648003719747 | 0.001396648003719747 |
-| The Lord of the Rings - Boxed Set | 3.768855094909668 | 0.0010020040208473802 | 0.001396648003719747 |
-| Return of the King Being the Third Part of The Lord of the Rings | 3.6248698234558105 | 9.000900317914784E-4 | 0.001396648003719747 |
+| title:text | _score:double | rerank_score:double |
+| --- | --- | --- |
+| The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278 | 0.125 |
+| A Middle English Reader and Vocabulary | 1.043297 | 0.07692308 |
+| FINAL WITNESS | 1.405817 | 0.07692308 |

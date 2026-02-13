@@ -12,11 +12,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -27,7 +29,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
 
 /**
@@ -90,7 +91,11 @@ public class StY extends SpatialUnaryDocValuesFunction {
                 default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
             };
         }
-        return new StYFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return switch (spatialField().dataType()) {
+            case GEO_POINT -> new StYFromGeoWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            case CARTESIAN_POINT -> new StYFromCartesianWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            default -> throw new IllegalArgumentException("ST_X unsupported for type " + spatialField().dataType());
+        };
     }
 
     @Override
@@ -113,9 +118,20 @@ public class StY extends SpatialUnaryDocValuesFunction {
         return NodeInfo.create(this, StY::new, spatialField());
     }
 
-    @ConvertEvaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static double fromWellKnownBinary(BytesRef in) {
-        return UNSPECIFIED.wkbAsPoint(in).getY();
+    private static double quantizeFromWKB(SpatialCoordinateTypes coordinateType, BytesRef in) {
+        Point point = coordinateType.wkbAsPoint(in);
+        long encoded = coordinateType.pointAsLong(point.getX(), point.getY());
+        return coordinateType.decodeY(encoded);
+    }
+
+    @ConvertEvaluator(extraName = "FromCartesianWKB", warnExceptions = { IllegalArgumentException.class })
+    static double fromCartesianWellKnownBinary(BytesRef in) {
+        return quantizeFromWKB(CARTESIAN, in);
+    }
+
+    @ConvertEvaluator(extraName = "FromGeoWKB", warnExceptions = { IllegalArgumentException.class })
+    static double fromGeoWellKnownBinary(BytesRef in) {
+        return quantizeFromWKB(GEO, in);
     }
 
     @ConvertEvaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })

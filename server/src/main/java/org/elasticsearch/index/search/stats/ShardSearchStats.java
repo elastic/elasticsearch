@@ -26,7 +26,6 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 
 public final class ShardSearchStats implements SearchOperationListener {
-
     private final StatsHolder totalStats;
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
@@ -166,6 +165,17 @@ public final class ShardSearchStats implements SearchOperationListener {
         totalStats.scrollCurrent.dec();
         assert totalStats.scrollCurrent.count() >= 0;
         totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
+    }
+
+    /**
+     * Accumulates the recent search load for this shard.
+     *
+     * @param tookInNanos the duration of the search work being accounted for, in nanoseconds
+     * @param nowInNanos  the current monotonic time, in nanoseconds, obtained from
+     *                    {@link System#nanoTime()}, used as the timestamp for the load sample
+     */
+    public void accumulateSearchLoad(long tookInNanos, long nowInNanos) {
+        totalStats.recentSearchLoad.addIncrement(tookInNanos, nowInNanos);
     }
 
     static final class StatsHolder {

@@ -20,9 +20,11 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+
 public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
 
-    private VectorSimilarityType function;
+    private final VectorSimilarityType function;
     private final double delta;
     private final int size;
 
@@ -37,10 +39,6 @@ public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
-    static boolean supportsHeapSegments() {
-        return Runtime.version().feature() >= 22;
-    }
-
     public void test() {
         for (int i = 0; i < 100; i++) {
             var bench = new VectorScorerFloat32OperationBenchmark();
@@ -49,8 +47,8 @@ public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
             bench.init();
             try {
                 float expected = switch (function) {
-                    case DOT_PRODUCT -> dotProductFloat32Scalar(bench.floatsA, bench.floatsB);
-                    case EUCLIDEAN -> squareDistanceFloat32Scalar(bench.floatsA, bench.floatsB);
+                    case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.floatsA, bench.floatsB);
+                    case EUCLIDEAN -> ScalarOperations.squareDistance(bench.floatsA, bench.floatsB);
                     default -> throw new AssumptionViolatedException("Not tested");
                 };
                 assertEquals(expected, bench.lucene(), delta);
@@ -78,24 +76,5 @@ public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
         }
-    }
-
-    /** Computes the dot product of the given vectors a and b. */
-    static float dotProductFloat32Scalar(float[] a, float[] b) {
-        float res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    /** Computes the dot product of the given vectors a and b. */
-    static float squareDistanceFloat32Scalar(float[] a, float[] b) {
-        float squareSum = 0;
-        for (int i = 0; i < a.length; i++) {
-            float diff = a[i] - b[i];
-            squareSum += diff * diff;
-        }
-        return squareSum;
     }
 }

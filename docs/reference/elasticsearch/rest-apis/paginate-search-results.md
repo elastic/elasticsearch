@@ -7,7 +7,7 @@ applies_to:
 
 # Paginate search results [paginate-search-results]
 
-By default, searches return the top 10 matching hits. To page through a larger set of results, you can use the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)'s `from` and `size` parameters. The `from` parameter defines the number of hits to skip, defaulting to `0`. The `size` parameter is the maximum number of hits to return. Together, these two parameters define a page of results.
+By default, searches return the top 10 matching hits. To page through a larger set of results, you can use the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)'s [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-from) and [`size`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#operation-search-size) parameters. The `from` parameter defines the number of hits to skip, defaulting to `0`. The `size` parameter is the maximum number of hits to return. Together, these two parameters define a page of results.
 
 ```console
 GET /_search

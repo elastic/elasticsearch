@@ -43,11 +43,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -70,6 +72,7 @@ public class S3HttpHandler implements HttpHandler {
     private final String basePath;
     private final String bucketAndBasePath;
     private final S3ConsistencyModel consistencyModel;
+    private final Supplier<String> uuidGenerator;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
@@ -84,6 +87,11 @@ public class S3HttpHandler implements HttpHandler {
         this.basePath = Objects.requireNonNullElse(basePath, "");
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
         this.consistencyModel = consistencyModel;
+        // Per-thread random is based on the same seed so that they generate the same sequence of results across threads.
+        // To ensure unique UUIDs across threads, we store and share a single random across threads so that each invocation
+        // generates different UUIDs.
+        final var random = new Random(ESTestCase.randomLong());
+        this.uuidGenerator = () -> UUIDs.randomBase64UUID(random);
     }
 
     /**
@@ -176,7 +184,7 @@ public class S3HttpHandler implements HttpHandler {
                             int start = Math.toIntExact(range.start());
                             int len = Math.toIntExact(range.end() - range.start() + 1);
                             var part = sourceBlob.slice(start, len);
-                            var etag = UUIDs.randomBase64UUID();
+                            var etag = getEtagFromContents(part);
                             upload.addPart(etag, part);
                             byte[] response = ("""
                                 <?xml version="1.0" encoding="UTF-8"?>
@@ -342,8 +350,27 @@ public class S3HttpHandler implements HttpHandler {
                     return;
                 }
 
-                exchange.getResponseHeaders().add("ETag", getEtagFromContents(blob));
+                final String etagFromContents = getEtagFromContents(blob);
+                final String ifMatchHeader = exchange.getRequestHeaders().getFirst("If-Match");
+                if (ifMatchHeader != null && ifMatchHeader.equals("*") == false) {
+                    if (etagFromContents.equals(ifMatchHeader) == false) {
+                        final String response = Strings.format("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                                <Code>PreconditionFailed</Code>
+                                <Message>At least one of the pre-conditions you specified did not hold</Message>
+                                <Condition>If-Match</Condition>
+                                <RequestId>test-request-id</RequestId>
+                                <HostId>test-host-id</HostId>
+                            </Error>""");
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), response.length());
+                        exchange.getResponseBody().write(response.getBytes(StandardCharsets.UTF_8));
+                        return;
+                    }
+                }
 
+                exchange.getResponseHeaders().add("ETag", etagFromContents);
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -678,7 +705,7 @@ public class S3HttpHandler implements HttpHandler {
     }
 
     MultipartUpload putUpload(String path) {
-        final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), path);
+        final var upload = new MultipartUpload(uuidGenerator.get(), path);
         synchronized (uploads) {
             assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
             return upload;

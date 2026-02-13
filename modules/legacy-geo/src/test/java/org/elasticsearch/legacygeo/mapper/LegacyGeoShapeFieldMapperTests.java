@@ -72,6 +72,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        assertWarnings(getParseMinimalWarnings());
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerConflictCheck("strategy", fieldMapping(this::minimalMapping), fieldMapping(b -> {
@@ -111,7 +116,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        return IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
     }
 
     public void testLegacySwitches() throws IOException {

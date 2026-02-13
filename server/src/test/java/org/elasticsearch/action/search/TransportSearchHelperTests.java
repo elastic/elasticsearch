@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -49,7 +50,10 @@ public class TransportSearchHelperTests extends ESTestCase {
 
     public void testParseScrollId() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
-        String scrollId = TransportSearchHelper.buildScrollId(queryResults);
+        final String scrollId;
+        try (var recycler = new MockBytesRefRecycler()) {
+            scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler);
+        }
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
         assertEquals(3, parseScrollId.getContext().length);
         assertEquals("node_1", parseScrollId.getContext()[0].getNode());

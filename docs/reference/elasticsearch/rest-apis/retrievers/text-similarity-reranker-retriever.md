@@ -86,7 +86,7 @@ score = ln(score), if score < 0
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
-`chunk_rescorer` {applies_to}`stack: beta 9.2, ga 9.4` {applies_to}`serverless: ga`
+`chunk_rescorer` {applies_to}`stack: beta 9.2-9.3, ga 9.4+` {applies_to}`serverless: ga`
 :   (Optional, `object`)
 
     Chunks and scores documents based on configured chunking settings, and only sends the best scoring chunks to the reranking model as input. This helps improve relevance when reranking long documents that would otherwise be truncated by the reranking model's token limit. It can also help to control costs by controlling the amount of tokens used for inference.

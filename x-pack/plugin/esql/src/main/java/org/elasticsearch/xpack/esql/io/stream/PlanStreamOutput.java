@@ -100,6 +100,11 @@ public final class PlanStreamOutput extends StreamOutput {
     }
 
     @Override
+    public long position() {
+        return delegate.position();
+    }
+
+    @Override
     public void flush() throws IOException {
         delegate.flush();
     }
@@ -201,6 +206,21 @@ public final class PlanStreamOutput extends StreamOutput {
         writeZLong(-1 - cacheId);
         writeCachedString(field.getWriteableName());
         return true;
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        delegate.writeString(str);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        delegate.writeOptionalString(str);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        delegate.writeGenericString(value);
     }
 
     /**

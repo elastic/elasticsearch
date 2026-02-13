@@ -68,7 +68,6 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         createSourceIndex(transformIndex);
         String transformId = "transform-throws-for-old-config";
         TransformConfigVersion transformVersion = TransformConfigVersionUtils.randomVersionBetween(
-            random(),
             TransformConfigVersion.V_7_2_0,
             TransformConfigVersionUtils.getPreviousVersion(TransformDeprecations.MIN_TRANSFORM_VERSION)
         );
@@ -160,10 +159,6 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
             builder.endObject();
             indicesAdmin().create(new CreateIndexRequest(OLD_INDEX).mapping(builder).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
         }
-    }
-
-    private void createSourceIndex(String index) {
-        indicesAdmin().create(new CreateIndexRequest(index)).actionGet();
     }
 
     private void putTransform(String transformId, String config) {

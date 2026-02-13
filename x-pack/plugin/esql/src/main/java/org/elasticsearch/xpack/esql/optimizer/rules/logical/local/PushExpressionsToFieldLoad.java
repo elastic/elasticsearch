@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
@@ -203,7 +202,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
                 return plan;
             }
             // Found a new pushable attribute, discard it *after* use so we don't modify the output.
-            return new EsqlProject(Source.EMPTY, transformedPlan, transformedPlan.output());
+            return new Project(Source.EMPTY, transformedPlan, transformedPlan.output());
         }
 
         private Expression transformExpression(LogicalPlan nodeWithExpression, Expression e, BlockLoaderExpression ble) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -17,12 +18,15 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelNameContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.StringContext;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
@@ -53,11 +57,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     private static final long MIN_DURATION_SECONDS = -9223372037L;
 
     private final Literal start, end;
+    private final QueryParams params;
 
-    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn) {
+    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         super(startLine, startColumn);
         this.start = start;
         this.end = end;
+        this.params = params;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -198,6 +204,28 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public Duration visitTimeValue(TimeValueContext ctx) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            TerminalNode node = ctx.NAMED_OR_POSITIONAL_PARAM();
+            QueryParam param = ExpressionBuilder.paramByNameOrPosition(node, source(node), params);
+            if (param == null) {
+                throw new ParsingException(
+                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
+                    "No value found for parameter [{}]",
+                    ctx.NAMED_OR_POSITIONAL_PARAM().getText()
+                );
+            }
+            if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
+                throw new ParsingException(
+                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
+                    "Expected parameter [{}] to be of type string, but found [{}]",
+                    ctx.NAMED_OR_POSITIONAL_PARAM().getText(),
+                    param.type()
+                );
+            }
+            Source source = source(ctx.NAMED_OR_POSITIONAL_PARAM());
+            return parseTimeValue(source, param.value().toString());
+        }
+
         if (ctx.number() != null) {
             var literal = typedParsing(this, ctx.number(), Literal.class);
             Number number = (Number) literal.value();

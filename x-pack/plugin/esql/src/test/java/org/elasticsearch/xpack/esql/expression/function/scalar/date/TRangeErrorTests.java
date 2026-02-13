@@ -64,7 +64,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 Source.EMPTY,
                 Literal.keyword(Source.EMPTY, "invalid_offset"),
                 null,
-                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                Literal.dateTime(Source.EMPTY, Instant.now()),
                 EsqlTestUtils.configuration(StringUtils.EMPTY)
             );
             trange.surrogate();
@@ -82,7 +82,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     Source.EMPTY,
                     Literal.keyword(Source.EMPTY, "invalid_offset"),
                     Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.dateTime(Source.EMPTY, Instant.now()),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -98,7 +98,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     Source.EMPTY,
                     Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
                     Literal.keyword(Source.EMPTY, "2024-01-01T10:00:00Z"),
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.dateTime(Source.EMPTY, Instant.now()),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -114,7 +114,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     Source.EMPTY,
                     Literal.fromDouble(Source.EMPTY, 123.45),
                     Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.dateTime(Source.EMPTY, Instant.now()),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -127,7 +127,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 Source.EMPTY,
                 Literal.fromDouble(Source.EMPTY, 123.45),
                 null,
-                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                Literal.dateTime(Source.EMPTY, Instant.now()),
                 EsqlTestUtils.configuration(StringUtils.EMPTY)
             );
             trange.surrogate();

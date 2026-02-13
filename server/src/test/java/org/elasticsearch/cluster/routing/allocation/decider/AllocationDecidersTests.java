@@ -71,7 +71,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> randomFrom(Decision.YES, Decision.THROTTLE));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF -> Decision.NOT_PREFERRED;
+            case OFF -> allDecisions.contains(Decision.THROTTLE) ? Decision.THROTTLE : Decision.NOT_PREFERRED;
             case EXCLUDE_YES_DECISIONS -> filterAndCollectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
             case ON -> collectToMultiDecision(allDecisions);
         };
@@ -283,66 +283,4 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class TestAllocationDecider extends AllocationDecider {
-
-        private final Supplier<Decision> decision;
-
-        private TestAllocationDecider(Supplier<Decision> decision) {
-            this.decision = decision;
-        }
-
-        @Override
-        public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRebalance(RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocateReplicaWhenThereIsRetentionLease(
-            ShardRouting shardRouting,
-            RoutingNode node,
-            RoutingAllocation allocation
-        ) {
-            return decision.get();
-        }
-    }
 }

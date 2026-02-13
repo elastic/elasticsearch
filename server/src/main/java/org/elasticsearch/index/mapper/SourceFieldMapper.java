@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -373,7 +374,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
                 return new SourceFieldBlockLoader();
             }
-            return BlockLoader.CONSTANT_NULLS;
+            return ConstantNull.INSTANCE;
         }
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
@@ -89,6 +90,8 @@ public class AmazonBedrockMockRequestSender implements Sender {
             }
         } else if (inferenceInputs instanceof ChatCompletionInput chatCompletionInput) {
             inputs.add(chatCompletionInput.getInputs());
+        } else if (inferenceInputs instanceof UnifiedChatInput unifiedChatInput) {
+            results.add(unifiedChatInput.getRequest());
         } else {
             throw new IllegalArgumentException(
                 "Invalid inference inputs received in mock sender: " + inferenceInputs.getClass().getSimpleName()

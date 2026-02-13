@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination.stateless;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -22,19 +23,15 @@ public class HeartbeatSerializationTests extends AbstractWireSerializingTestCase
 
     @Override
     protected Heartbeat createTestInstance() {
-        return new Heartbeat(randomPositiveLong(), randomPositiveLong());
+        return new Heartbeat(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
     protected Heartbeat mutateInstance(Heartbeat instance) throws IOException {
         if (randomBoolean()) {
-            return new Heartbeat(randomPositiveLong(), instance.absoluteTimeInMillis());
+            return new Heartbeat(randomValueOtherThan(instance.term(), ESTestCase::randomNonNegativeLong), instance.absoluteTimeInMillis());
         } else {
-            return new Heartbeat(instance.term(), randomPositiveLong());
+            return new Heartbeat(instance.term(), randomValueOtherThan(instance.absoluteTimeInMillis(), ESTestCase::randomNonNegativeLong));
         }
-    }
-
-    private long randomPositiveLong() {
-        return randomLongBetween(0, Long.MAX_VALUE);
     }
 }

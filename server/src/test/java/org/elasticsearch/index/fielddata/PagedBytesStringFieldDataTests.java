@@ -15,4 +15,14 @@ public class PagedBytesStringFieldDataTests extends AbstractStringFieldDataTestC
     protected String getFieldDataType() {
         return "string";
     }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
 }

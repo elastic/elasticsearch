@@ -18,7 +18,7 @@ import java.lang.annotation.Target;
  * Describes function parameters.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.PARAMETER)
+@Target({ ElementType.PARAMETER, ElementType.FIELD })
 public @interface Param {
     String name();
 
@@ -27,6 +27,9 @@ public @interface Param {
     String description() default "";
 
     boolean optional() default false;
+
+    // version since which the parameter is available
+    String since() default "";
 
     @Nullable
     Hint hint() default @Hint(entityType = Hint.ENTITY_TYPE.NONE);

@@ -73,7 +73,7 @@ Use the filter if you want to narrow the item set analysis to fields of interest
 
 ### Examples [frequent-item-sets-example]
 
-In the following examples, we use the e-commerce {{kib}} sample data set.
+The following examples use the {{kib}} eCommerce sample data set.
 
 
 ### Aggregation with two analyzed fields and an `exclude` parameter [_aggregation_with_two_analyzed_fields_and_an_exclude_parameter]

@@ -783,6 +783,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 projectState.metadata(),
                 indicesOptions,
                 true,
+                false,
                 names
             );
             for (ResolvedExpression s : resolvedIndexAbstractions) {

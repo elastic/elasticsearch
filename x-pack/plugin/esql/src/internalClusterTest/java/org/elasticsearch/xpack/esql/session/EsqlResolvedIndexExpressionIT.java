@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.action.AbstractCrossClusterTestCase;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -45,7 +47,7 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
 
     public void testLocalDateMathExpression() {
         var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
-        var index = "index-" + date.getYear() + "." + date.getMonthValue();
+        var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM", Locale.ROOT).format(date);
         createIndex(LOCAL_CLUSTER, index);
 
         try {

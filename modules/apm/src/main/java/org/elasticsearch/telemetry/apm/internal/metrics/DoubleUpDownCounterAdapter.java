@@ -35,7 +35,7 @@ public class DoubleUpDownCounterAdapter extends AbstractInstrument<DoubleUpDownC
 
     @Override
     public void add(double inc, Map<String, Object> attributes) {
-        getInstrument().add(inc, OtelHelper.fromMap(attributes));
+        getInstrument().add(inc, OtelHelper.fromMap(getName(), attributes));
     }
 
     private static class Builder extends AbstractInstrument.Builder<DoubleUpDownCounter> {

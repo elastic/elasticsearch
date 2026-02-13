@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCountErrorTests;
 import org.hamcrest.Matcher;
 
@@ -85,6 +86,13 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
                 args.add(randomLiteral(type));
             }
             Expression expression = build(Source.synthetic(sourceForSignature(signature)), args);
+            // Aggs cannot receive NULL typed parameters in its aggregating field since
+            // https://github.com/elastic/elasticsearch/pull/139797,
+            // and until https://github.com/elastic/elasticsearch/issues/100634 is solved.
+            // TODO: This doesn't take into account aggs with multiple aggregating parameters
+            if (expression instanceof AggregateFunction af && af.field().dataType() == DataType.NULL) {
+                continue;
+            }
             assertTrue("expected unresolved " + expression, expression.typeResolved().unresolved());
             assertThat(expression.typeResolved().message(), expectedTypeErrorMatcher(validPerPosition, signature));
             checked++;

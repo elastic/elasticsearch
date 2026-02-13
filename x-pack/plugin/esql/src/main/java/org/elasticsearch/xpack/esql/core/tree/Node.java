@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -166,6 +168,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return result;
     }
 
+    /**
+     * Traverse the plan tree from the current node to the leaves, checking the given
+     * predicate.  This function will short circuit and return early if it is able to.
+     *
+     * @param predicate condition to check against all nodes
+     * @return true iff the given predicate is true for all nodes
+     */
+    public boolean allMatch(Predicate<? super T> predicate) {
+        return anyMatch(Predicate.not(predicate)) == false;
+    }
+
     public List<T> collect(Predicate<? super T> predicate) {
         List<T> l = new ArrayList<>();
         forEachDown(n -> {
@@ -231,6 +244,23 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         T root = rule.apply((T) this);
         Node<T> node = this.equals(root) ? this : root;
         return node.transformChildren(child -> child.transformDown(rule));
+    }
+
+    @SuppressWarnings("unchecked")
+    public T transformDownSkipBranch(BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        Holder<Boolean> skipBranch = new Holder<>(Boolean.FALSE);
+        return transformDownSkipBranch(skipBranch, rule);
+    }
+
+    @SuppressWarnings("unchecked")
+    T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        T root = rule.apply((T) this, skipBranch);
+        Node<T> node = this.equals(root) ? this : root;
+        if (skipBranch.get()) {
+            skipBranch.set(false);
+            return (T) node;
+        }
+        return node.transformChildren(child -> child.transformDownSkipBranch(skipBranch, rule));
     }
 
     @SuppressWarnings("unchecked")
@@ -366,18 +396,41 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return info().properties();
     }
 
-    public String nodeString() {
+    public enum NodeStringFormat {
+        /** No list truncation, no line breaks due to string width. */
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE),
+        /** List truncation and line breaks due to string width applied. */
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH);
+
+        private final int maxProperties;
+        private final int maxWidth;
+
+        NodeStringFormat(int maxProperties, int maxWidth) {
+            this.maxProperties = maxProperties;
+            this.maxWidth = maxWidth;
+        }
+    }
+
+    public final String nodeString() {
+        return nodeString(NodeStringFormat.LIMITED);
+    }
+
+    public String nodeString(NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append("[");
-        sb.append(propertiesToString(true));
+        sb.append(propertiesToString(true, format));
         sb.append("]");
         return sb.toString();
     }
 
     @Override
     public String toString() {
-        return treeString(new StringBuilder(), 0, new BitSet()).toString();
+        return toString(NodeStringFormat.LIMITED);
+    }
+
+    public String toString(NodeStringFormat format) {
+        return treeString(new StringBuilder(), 0, new BitSet(), format).toString();
     }
 
     /**
@@ -391,7 +444,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * }
      * </pre>
      */
-    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth) {
+    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth, NodeStringFormat format) {
         if (depth > 0) {
             // draw children
             for (int column = 0; column < depth; column++) {
@@ -410,7 +463,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             sb.append("_");
         }
 
-        sb.append(nodeString());
+        sb.append(nodeString(format));
 
         @SuppressWarnings("HiddenField")
         List<T> children = children();
@@ -420,7 +473,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         for (int i = 0; i < children.size(); i++) {
             T t = children.get(i);
             hasParentPerDepth.set(depth, i < children.size() - 1);
-            t.treeString(sb, depth + 1, hasParentPerDepth);
+            t.treeString(sb, depth + 1, hasParentPerDepth, format);
             if (i < children.size() - 1) {
                 sb.append("\n");
             }
@@ -433,14 +486,14 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * one like {@code foo bar baz}. These go inside the
      * {@code [} and {@code ]} of the output of {@link #treeString}.
      */
-    public String propertiesToString(boolean skipIfChild) {
+    protected String propertiesToString(boolean skipIfChild, NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
 
         @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
-        int remainingProperties = TO_STRING_MAX_PROP;
-        int maxWidth = 0;
+        int remainingProperties = format.maxProperties;
+        int currentMaxWidth = 0;
         boolean needsComma = false;
 
         List<Object> props = nodeProperties();
@@ -449,7 +502,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             // it's not a child (optional)
             if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
                 if (remainingProperties-- < 0) {
-                    sb.append("...").append(props.size() - TO_STRING_MAX_PROP).append("fields not shown");
+                    sb.append("...").append(props.size() - format.maxProperties).append("fields not shown");
                     break;
                 }
 
@@ -457,17 +510,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                     sb.append(",");
                 }
 
-                String stringValue = toString(prop);
+                String stringValue = toString(prop, format);
 
                 // : Objects.toString(prop);
-                if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
-                    int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
-                    sb.append(stringValue.substring(0, cutoff));
+                if (currentMaxWidth + stringValue.length() > format.maxWidth) {
+                    int cutoff = Math.max(0, format.maxWidth - currentMaxWidth);
+                    sb.append(stringValue, 0, cutoff);
                     sb.append("\n");
                     stringValue = stringValue.substring(cutoff);
-                    maxWidth = 0;
+                    currentMaxWidth = 0;
                 }
-                maxWidth += stringValue.length();
+                currentMaxWidth += stringValue.length();
                 sb.append(stringValue);
 
                 needsComma = true;
@@ -477,32 +530,35 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return sb.toString();
     }
 
-    private static String toString(Object obj) {
+    private static String toString(Object obj, NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
-        toString(sb, obj);
+        toString(sb, obj, format);
         return sb.toString();
     }
 
-    private static void toString(StringBuilder sb, Object obj) {
-        if (obj instanceof Iterable) {
+    private static void toString(StringBuilder sb, Object obj, NodeStringFormat format) {
+        if (obj instanceof Iterable<?> iterable) {
             sb.append("[");
-            for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
+            for (Iterator<?> it = iterable.iterator(); it.hasNext();) {
                 Object o = it.next();
-                toString(sb, o);
+                toString(sb, o, format);
                 if (it.hasNext()) {
                     sb.append(", ");
                 }
             }
             sb.append("]");
-        } else if (obj instanceof Node<?>) {
-            sb.append(((Node<?>) obj).nodeString());
+        } else if (obj instanceof Node<?> node) {
+            sb.append(node.nodeString(format));
+        } else if (obj instanceof NameId) {
+            sb.append("#").append(obj);
         } else {
-            sb.append(Objects.toString(obj));
+            sb.append(obj);
         }
     }
 
     private <U> boolean containsNull(List<U> us) {
-        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList) throw
+        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList)
+        // throw
         // a NPE if any of the elements is null.
         for (U u : us) {
             if (u == null) {

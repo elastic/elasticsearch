@@ -48,7 +48,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomCompatibleWriteVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomCompatibleWriteVersion())
             )
         );
         ensureGreen(INDEX_NAME);

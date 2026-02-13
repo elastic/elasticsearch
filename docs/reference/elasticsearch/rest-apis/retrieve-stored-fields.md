@@ -8,7 +8,7 @@ applies_to:
 
 # Retrieve stored fields using the Get document API [get-stored-fields]
 
-Use the `stored_fields` query parameter in a [Get document](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get) API request to retrieve fields marked as stored (`"store": true`) in the index mapping.
+You can use the Get API's [`stored_fields` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get#operation-get-stored_fields) to retrieve fields marked as stored (`"store": true`) in the index mapping.
 
 Fields not marked as stored are excluded from the response, even if specified in the request.
 

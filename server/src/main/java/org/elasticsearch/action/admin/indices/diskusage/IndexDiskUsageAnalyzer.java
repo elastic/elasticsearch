@@ -55,6 +55,7 @@ import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.shard.ShardId;
@@ -130,6 +131,10 @@ final class IndexDiskUsageAnalyzer {
                 startTimeInNanos = System.nanoTime();
                 analyzeKnnVectors(reader, stats);
                 executionTime.knnVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
+
+                startTimeInNanos = System.nanoTime();
+                analyzeBloomFilter(reader, stats);
+                executionTime.bloomFilterTimeInNanos += System.nanoTime() - startTimeInNanos;
             }
         }
         logger.debug("analyzing the disk usage took {} stats: {}", executionTime, stats);
@@ -207,7 +212,12 @@ final class IndexDiskUsageAnalyzer {
         }
 
         @Override
-        public Status needsField(FieldInfo fieldInfo) throws IOException {
+        public Status needsField(FieldInfo fieldInfo) {
+            if (SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes())) {
+                // Synthetic _id field doesn't have stored values on disk but it pretends to have them, so we explicitly filter it out.
+                assert SyntheticIdField.NAME.equals(fieldInfo.getName()) : fieldInfo.getName();
+                return Status.NO;
+            }
             return Status.YES;
         }
     }
@@ -582,6 +592,23 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
+    void analyzeBloomFilter(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+        if (reader.getDocValuesReader() == null) {
+            return;
+        }
+        final DocValuesProducer docValuesReader = reader.getDocValuesReader().getMergeInstance();
+        for (FieldInfo field : reader.getFieldInfos()) {
+            if (field.getDocValuesType() != DocValuesType.BINARY) {
+                continue;
+            }
+            cancellationChecker.checkForCancellation();
+            BinaryDocValues binaryDocValues = docValuesReader.getBinary(field);
+            if (binaryDocValues instanceof BloomFilter bloomFilter) {
+                stats.addBloomFilter(field.name, bloomFilter.sizeInBytes());
+            }
+        }
+    }
+
     private static class TrackingReadBytesDirectory extends FilterDirectory {
         private final Map<String, BytesReadTracker> trackers = new HashMap<>();
 
@@ -771,10 +798,11 @@ final class IndexDiskUsageAnalyzer {
         long normsTimeInNanos;
         long termVectorsTimeInNanos;
         long knnVectorsTimeInNanos;
+        long bloomFilterTimeInNanos;
 
         long totalInNanos() {
             return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos + pointsTimeInNanos + normsTimeInNanos
-                + termVectorsTimeInNanos + knnVectorsTimeInNanos;
+                + termVectorsTimeInNanos + knnVectorsTimeInNanos + bloomFilterTimeInNanos;
         }
 
         @Override
@@ -802,6 +830,9 @@ final class IndexDiskUsageAnalyzer {
                 + "ms"
                 + ", knn vectors: "
                 + knnVectorsTimeInNanos / 1000_000
+                + "ms"
+                + ", bloom filter: "
+                + bloomFilterTimeInNanos / 1000_000
                 + "ms";
         }
     }

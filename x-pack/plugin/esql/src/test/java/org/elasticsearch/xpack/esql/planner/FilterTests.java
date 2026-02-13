@@ -66,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {
@@ -97,7 +98,8 @@ public class FilterTests extends ESTestCase {
                 Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),
                 emptyInferenceResolution(),
-                minimumVersion
+                minimumVersion,
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );

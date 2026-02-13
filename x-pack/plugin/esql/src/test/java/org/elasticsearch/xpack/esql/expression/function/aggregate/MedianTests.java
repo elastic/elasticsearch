@@ -76,7 +76,7 @@ public class MedianTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
@@ -112,5 +112,16 @@ public class MedianTests extends AbstractAggregationTestCase {
                 equalTo(expected)
             );
         });
+    }
+
+    @Override
+    public void testFold() {
+        var typedData = testCase.getData().getFirst();
+        assumeFalse(
+            "MEDIAN expects a different result for -0.0 when folded",
+            typedData.type() == DataType.DOUBLE && typedData.multiRowData().size() == 1 && typedData.multiRowData().getFirst().equals(-0.0)
+        );
+
+        super.testFold();
     }
 }

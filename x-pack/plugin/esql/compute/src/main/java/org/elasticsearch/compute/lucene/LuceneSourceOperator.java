@@ -296,7 +296,6 @@ public class LuceneSourceOperator extends LuceneOperator {
     @Override
     public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
-            assert currentPagePos == 0 : currentPagePos;
             return null;
         }
         long start = System.nanoTime();
@@ -337,7 +336,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     int b = 0;
-                    blocks[b++] = new DocVector(refCounteds, shard, leaf, docs, true).asBlock();
+                    blocks[b++] = new DocVector(refCounteds, shard, leaf, docs, DocVector.config().singleSegmentNonDecreasing(true))
+                        .asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;

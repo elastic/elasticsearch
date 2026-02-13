@@ -37,7 +37,7 @@
         "description": "API Version of the monitored system"
       },
       "interval": {
-        "type": "string",
+        "type": "time",
         "required": true,
         "description": "Collection interval (e.g., '10s' or '10000ms') of the payload"
       }

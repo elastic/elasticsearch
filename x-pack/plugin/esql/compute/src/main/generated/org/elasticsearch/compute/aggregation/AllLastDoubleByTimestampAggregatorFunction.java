@@ -44,7 +44,7 @@ public final class AllLastDoubleByTimestampAggregatorFunction implements Aggrega
 
   public static AllLastDoubleByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllLastDoubleByTimestampAggregatorFunction(driverContext, channels, AllLastDoubleByTimestampAggregator.initSingle());
+    return new AllLastDoubleByTimestampAggregatorFunction(driverContext, channels, AllLastDoubleByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

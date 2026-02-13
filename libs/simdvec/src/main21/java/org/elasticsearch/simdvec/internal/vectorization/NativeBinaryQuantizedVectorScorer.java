@@ -120,14 +120,33 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         }
 
         if (SUPPORTS_HEAP_SEGMENTS) {
+            var offsetsSegment = MemorySegment.ofArray(nodes);
+            var scoresSegment = MemorySegment.ofArray(scores);
             Similarities.dotProductD1Q4BulkWithOffsets(
                 segment,
                 MemorySegment.ofArray(q),
                 numBytes,
                 byteSize,
-                MemorySegment.ofArray(nodes),
+                offsetsSegment,
                 bulkSize,
-                MemorySegment.ofArray(scores)
+                scoresSegment
+            );
+            return ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                similarityFunction,
+                segment,
+                bulkSize,
+                numBytes,
+                byteSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryQuantizedComponentSum,
+                queryAdditionalCorrection,
+                FOUR_BIT_SCALE,
+                1.0f,
+                centroidDp,
+                offsetsSegment,
+                scoresSegment
             );
         } else {
             try (var arena = Arena.ofConfined()) {
@@ -145,38 +164,26 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                     bulkSize,
                     scoresSegment
                 );
+                var maxScore = ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                    similarityFunction,
+                    segment,
+                    bulkSize,
+                    numBytes,
+                    byteSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryQuantizedComponentSum,
+                    queryAdditionalCorrection,
+                    FOUR_BIT_SCALE,
+                    1.0f,
+                    centroidDp,
+                    offsetsSegment,
+                    scoresSegment
+                );
                 MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, bulkSize);
+                return maxScore;
             }
         }
-
-        // TODO: native/vectorize this code too
-        float maxScore = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < bulkSize; i++) {
-            var offset = ((long) nodes[i] * byteSize);
-
-            var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes);
-            var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + Float.BYTES);
-            var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + 2 * Float.BYTES);
-            var indexQuantizedComponentSum = Short.toUnsignedInt(
-                segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, offset + numBytes + 3 * Float.BYTES)
-            );
-
-            scores[i] = applyCorrections(
-                dimensions,
-                similarityFunction,
-                centroidDp,
-                scores[i],
-                queryLowerInterval,
-                queryUpperInterval,
-                queryAdditionalCorrection,
-                queryQuantizedComponentSum,
-                indexLowerInterval,
-                indexUpperInterval,
-                indexAdditionalCorrection,
-                indexQuantizedComponentSum
-            );
-            maxScore = Math.max(maxScore, scores[i]);
-        }
-        return maxScore;
     }
 }

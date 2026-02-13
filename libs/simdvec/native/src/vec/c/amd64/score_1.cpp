@@ -24,21 +24,18 @@
 #include "score_common.h"
 
 static inline __m256 apply_base_corrections(
-    const f32_t* lowerInterval,
-    const f32_t* upperInterval,
-    const int32_t* targetComponentSum,
-    const f32_t* score,
+    const __m256 ax,
+    const __m256 ui,
+    const __m256i targetComponentSum,
+    const __m256 qcDist,
     const f32_t ay,
     const f32_t ly,
     const f32_t y1,
     const f32_t dimensions,
     const f32_t indexBitScale
 ) {
-    const __m256 ax = _mm256_loadu_ps(lowerInterval);
-    const __m256 lx = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(upperInterval), ax), _mm256_set1_ps(indexBitScale));
-    const __m256 tcs = _mm256_cvtepi32_ps(_mm256_lddqu_si256((const __m256i*)(targetComponentSum)));
-
-    const __m256 qcDist = _mm256_loadu_ps(score);
+    const __m256 lx = _mm256_mul_ps(_mm256_sub_ps(ui, ax), _mm256_set1_ps(indexBitScale));
+    const __m256 tcs = _mm256_cvtepi32_ps(targetComponentSum);
 
     // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
     // ax * ay * dimensions
@@ -50,6 +47,104 @@ static inline __m256 apply_base_corrections(
     // lx * ly * qcDist
     const __m256 res4 = _mm256_mul_ps(_mm256_mul_ps(lx, _mm256_set1_ps(ly)), qcDist);
     return _mm256_add_ps(_mm256_add_ps(res1, res2), _mm256_add_ps(res3, res4));
+}
+
+EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
+        const int8_t* corrections,
+		const int32_t bulkSize,
+		const int32_t vectorSizeInBytes,
+		const int32_t pitchInBytes,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
+        int32_t* nodes,
+        f32_t* scores
+) {
+
+    const f32_t ay = queryLowerInterval;
+    const f32_t ly = (queryUpperInterval - ay) * queryBitScale;
+    const f32_t y1 = queryComponentSum;
+    f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
+
+    const corrections_t c = unpack_corrections(corrections, bulkSize);
+
+    __m256i vindex = _mm256_set_epi32(
+        0 * pitchInBytes,
+        1 * pitchInBytes,
+        2 * pitchInBytes,
+        3 * pitchInBytes,
+        4 * pitchInBytes,
+        5 * pitchInBytes,
+        6 * pitchInBytes,
+        7 * pitchInBytes
+    );
+
+    int i = 0;
+    constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
+    const int upperBound = bulkSize & ~(floats_per_cycle - 1);
+    for (; i < upperBound; i += floats_per_cycle) {
+        const int8_t* offset = corrections + ((long) nodes[i] * pitchInBytes + vectorSizeInBytes);
+        const __m256 lowerInterval = _mm256_i32gather_ps((f32_t*)offset, vindex, 1);
+        const __m256 upperInterval = _mm256_i32gather_ps((f32_t*)(offset + 1 * sizeof(f32_t)), vindex, 1);
+        const __m256 additionalCorrection = _mm256_i32gather_ps((f32_t*)(offset + 2 * sizeof(f32_t)), vindex, 1);
+        const __m256i targetComponentSum = _mm256_and_si256(
+            _mm256_i32gather_epi32((int32_t*)(offset + 3 * sizeof(f32_t)), vindex, 1),
+            _mm256_set1_epi32(0xFFFF)
+        );
+        __m256 res = apply_base_corrections(
+            lowerInterval,
+            upperInterval,
+            targetComponentSum,
+            _mm256_loadu_ps(scores + i),
+            ay,
+            ly,
+            y1,
+            dimensions,
+            indexBitScale
+        );
+
+        // For euclidean, we need to invert the score and apply the additional correction, which is
+        // assumed to be the squared l2norm of the centroid centered vectors.
+        res = _mm256_add_ps(
+            _mm256_fnmadd_ps(_mm256_set1_ps(2.0f), res, additionalCorrection),
+            _mm256_set1_ps(queryAdditionalCorrection + 1.0f)
+        );
+        res = _mm256_max_ps(_mm256_rcp_ps(res), _mm256_setzero_ps());
+
+        maxScore = fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
+        _mm256_storeu_ps(scores + i, res);
+    }
+    for (; i < bulkSize; ++i) {
+        const int8_t* offset = corrections + ((long) nodes[i] * pitchInBytes + vectorSizeInBytes);
+        const f32_t* lowerInterval = (f32_t*)offset;
+        const f32_t* upperInterval = (f32_t*)(offset + 1 * sizeof(f32_t));
+        const f32_t* additionalCorrection = (f32_t*)(offset + 2 * sizeof(f32_t));
+        const int32_t* targetComponentSum = (int32_t*)(offset + 3 * sizeof(f32_t));
+        f32_t score = apply_corrections_euclidean_inner(
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            queryBitScale,
+            indexBitScale,
+            centroidDp,
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
+            *(scores + i)
+        );
+        *(scores + i) = score;
+        maxScore = fmax(maxScore, score);
+    }
+
+    return maxScore;
 }
 
 EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
@@ -78,10 +173,10 @@ EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 additionalCorrection = _mm256_loadu_ps(c.additionalCorrections + i);
         __m256 res = apply_base_corrections(
-            c.lowerIntervals + i,
-            c.upperIntervals + i,
-            c.targetComponentSums + i,
-            scores + i,
+            _mm256_loadu_ps(c.lowerIntervals + i),
+            _mm256_loadu_ps(c.upperIntervals + i),
+            _mm256_lddqu_si256((const __m256i*)(c.targetComponentSums + i)),
+            _mm256_loadu_ps(scores + i),
             ay,
             ly,
             y1,
@@ -148,10 +243,10 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
     const int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 res = apply_base_corrections(
-            c.lowerIntervals + i,
-            c.upperIntervals + i,
-            c.targetComponentSums + i,
-            scores + i,
+            _mm256_loadu_ps(c.lowerIntervals + i),
+            _mm256_loadu_ps(c.upperIntervals + i),
+            _mm256_lddqu_si256((const __m256i*)(c.targetComponentSums + i)),
+            _mm256_loadu_ps(scores + i),
             ay,
             ly,
             y1,
@@ -230,10 +325,10 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
     const int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
         __m256 res = apply_base_corrections(
-            c.lowerIntervals + i,
-            c.upperIntervals + i,
-            c.targetComponentSums + i,
-            scores + i,
+            _mm256_loadu_ps(c.lowerIntervals + i),
+            _mm256_loadu_ps(c.upperIntervals + i),
+            _mm256_lddqu_si256((const __m256i*)(c.targetComponentSums + i)),
+            _mm256_loadu_ps(scores + i),
             ay,
             ly,
             y1,

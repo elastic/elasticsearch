@@ -46,6 +46,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
     private static final Map<OperationSignature<?>, MethodHandle> HANDLES;
 
     static final MethodHandle applyCorrectionsEuclideanBulk$mh;
+    static final MethodHandle bbqApplyCorrectionsEuclideanBulk$mh;
     static final MethodHandle applyCorrectionsMaxInnerProductBulk$mh;
     static final MethodHandle applyCorrectionsDotProductBulk$mh;
 
@@ -183,6 +184,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 );
 
                 applyCorrectionsEuclideanBulk$mh = bindFunction("diskbbq_apply_corrections_euclidean_bulk", caps, score);
+                bbqApplyCorrectionsEuclideanBulk$mh = bindFunction("diskbbq_apply_corrections_euclidean_bulk", caps, score);
                 applyCorrectionsMaxInnerProductBulk$mh = bindFunction("diskbbq_apply_corrections_maximum_inner_product_bulk", caps, score);
                 applyCorrectionsDotProductBulk$mh = bindFunction("diskbbq_apply_corrections_dot_product_bulk", caps, score);
 
@@ -195,6 +197,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 }
                 HANDLES = null;
                 applyCorrectionsEuclideanBulk$mh = null;
+                bbqApplyCorrectionsEuclideanBulk$mh = null;
                 applyCorrectionsMaxInnerProductBulk$mh = null;
                 applyCorrectionsDotProductBulk$mh = null;
                 INSTANCE = null;
@@ -450,6 +453,44 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static float bbqApplyCorrectionsEuclideanBulk(
+            MemorySegment corrections,
+            int bulkSize,
+            int vectorSizeInBytes,
+            int pitchInBytes,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment nodes,
+            MemorySegment scores
+        ) {
+            try {
+                return (float) bbqApplyCorrectionsEuclideanBulk$mh.invokeExact(
+                    corrections,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    nodes,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         private static float applyCorrectionsMaxInnerProductBulk(
             MemorySegment corrections,
             int bulkSize,
@@ -517,6 +558,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         private static final Map<OperationSignature<?>, MethodHandle> HANDLES_WITH_CHECKS;
 
         static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
+        static final MethodHandle BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
         static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
         static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
 
@@ -690,10 +732,33 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     MemorySegment.class
                 );
 
+                MethodType bbqScoringFunction = MethodType.methodType(
+                    float.class,
+                    MemorySegment.class,
+                    int.class,
+                    int.class,
+                    int.class,
+                    int.class,
+                    float.class,
+                    float.class,
+                    int.class,
+                    float.class,
+                    float.class,
+                    float.class,
+                    float.class,
+                    MemorySegment.class,
+                    MemorySegment.class
+                );
+
                 APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
                     "applyCorrectionsEuclideanBulk",
                     scoringFunction
+                );
+                BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "bbqApplyCorrectionsEuclideanBulk",
+                    bbqScoringFunction
                 );
                 APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
@@ -729,6 +794,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle applyCorrectionsEuclideanBulk() {
             return APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
+        }
+
+        @Override
+        public MethodHandle bbqApplyCorrectionsEuclideanBulk() {
+            return BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
         }
 
         @Override

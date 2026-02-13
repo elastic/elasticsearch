@@ -22,6 +22,7 @@ class ScoreCorrections {
         .orElseThrow(AssertionError::new);
 
     static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsEuclideanBulk();
+    static final MethodHandle BBQ_APPLY_CORRECTIONS_EUCLIDEAN_BULK = SIMILARITY_FUNCTIONS.bbqApplyCorrectionsEuclideanBulk();
     static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsMaxInnerProductBulk();
     static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsDotProductBulk();
 
@@ -80,6 +81,49 @@ class ScoreCorrections {
                     centroidDp,
                     scores
                 );
+            };
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static float nativeBbqApplyCorrectionsBulk(
+        VectorSimilarityFunction similarityFunction,
+        MemorySegment corrections,
+        int bulkSize,
+        int vectorSizeInBytes,
+		int pitchInBytes,
+        int dimensions,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        float queryBitScale,
+        float indexBitScale,
+        float centroidDp,
+        MemorySegment nodes,
+        MemorySegment scores
+    ) {
+        try {
+            return switch (similarityFunction) {
+                case EUCLIDEAN -> (float) BBQ_APPLY_CORRECTIONS_EUCLIDEAN_BULK.invokeExact(
+                    corrections,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    nodes,
+                    scores
+                );
+                case DOT_PRODUCT, COSINE -> throw new UnsupportedOperationException("TODO");
+                case MAXIMUM_INNER_PRODUCT -> throw new UnsupportedOperationException("TODO");
             };
         } catch (Throwable e) {
             throw rethrow(e);

@@ -470,10 +470,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/can shadow metrics}
   issue: https://github.com/elastic/elasticsearch/issues/141869
-- class: org.elasticsearch.index.query.RewriteableTests
-  method: testRewriteAndFetchWithExecutorOnFailure
-  issue: https://github.com/elastic/elasticsearch/issues/142140
-
 
 # Examples:
 #

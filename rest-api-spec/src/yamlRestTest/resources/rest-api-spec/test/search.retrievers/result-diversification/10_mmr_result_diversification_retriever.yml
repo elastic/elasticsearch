@@ -23,6 +23,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+              id:
+                type: integer
 
   - do:
       indices.create:
@@ -39,6 +41,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+              id:
+                type: integer
 
   - do:
       indices.create:
@@ -56,6 +60,8 @@ setup:
                 type: dense_vector
                 dims: 16
                 element_type: bit
+              id:
+                type: integer
 
   - do:
       indices.create:
@@ -72,6 +78,8 @@ setup:
                 dims: 4
               rankfield:
                 type: integer
+              id:
+                type: integer
 
   - do:
       headers:
@@ -81,27 +89,27 @@ setup:
         refresh: true
         body: |
           {"index":{}}
-          {"textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
+          {"id": 1, "textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
           {"index":{}}
-          {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
+          {"id": 2, "textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
           {"index":{}}
-          {"textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
+          {"id": 3, "textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
           {"index":{}}
-          {"textbody": "third text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
+          {"id": 4, "textbody": "third text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
           {"index":{}}
-          {"textbody": "third text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
+          {"id": 5, "textbody": "third text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
           {"index":{}}
-          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.6], "keywordfield": "test4"}
+          {"id": 6, "textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.6], "keywordfield": "test4"}
           {"index":{}}
-          {"textbody": "fifth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
+          {"id": 7, "textbody": "fifth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
           {"index":{}}
-          {"textbody": "sixth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
+          {"id": 8, "textbody": "sixth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
           {"index":{}}
-          {"textbody": "seventh text", "textvector": [0.1, 0.4, 0.5, 0.9], "keywordfield": "test7"}
+          {"id": 9, "textbody": "seventh text", "textvector": [0.1, 0.4, 0.5, 0.9], "keywordfield": "test7"}
           {"index":{}}
-          {"textbody": "eighth text", "textvector": [0.1, 0.9, 0.7, 0.9], "keywordfield": "test8"}
+          {"id": 10, "textbody": "eighth text", "textvector": [0.1, 0.9, 0.7, 0.9], "keywordfield": "test8"}
           {"index":{}}
-          {"textbody": "ninth text", "textvector": [0.2, 0.05, 0.2, 0.05], "keywordfield": "test9"}
+          {"id": 11, "textbody": "ninth text", "textvector": [0.2, 0.05, 0.2, 0.05], "keywordfield": "test9"}
 
   - do:
       headers:
@@ -111,21 +119,21 @@ setup:
         refresh: true
         body: |
           {"index":{}}
-          {"textbody": "first text other", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
+          {"id": 12, "textbody": "first text other", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
           {"index":{}}
-          {"textbody": "second text other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
+          {"id": 23, "textbody": "second text other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
           {"index":{}}
-          {"textbody": "second text duplicate other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
+          {"id": 14, "textbody": "second text duplicate other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
           {"index":{}}
-          {"textbody": "third text other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
+          {"id": 15, "textbody": "third text other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
           {"index":{}}
-          {"textbody": "third text duplicate other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
+          {"id": 16, "textbody": "third text duplicate other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
           {"index":{}}
-          {"textbody": "fourth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
+          {"id": 17, "textbody": "fourth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
           {"index":{}}
-          {"textbody": "fifth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
+          {"id": 18, "textbody": "fifth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
           {"index":{}}
-          {"textbody": "sixth text other", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
+          {"id": 19, "textbody": "sixth text other", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
 
   - do:
       headers:
@@ -135,19 +143,19 @@ setup:
         refresh: true
         body: |
           {"index":{}}
-          {"textbody": "first text", "textvector": "0BB8", "keywordfield": "test1"}
+          {"id": 20, "textbody": "first text", "textvector": "0BB8", "keywordfield": "test1"}
           {"index":{}}
-          {"textbody": "second text", "textvector": "94A2", "keywordfield": "test2"}
+          {"id": 21, "textbody": "second text", "textvector": "94A2", "keywordfield": "test2"}
           {"index":{}}
-          {"textbody": "second text duplicate", "textvector": "94A2", "keywordfield": "test2_dup"}
+          {"id": 22, "textbody": "second text duplicate", "textvector": "94A2", "keywordfield": "test2_dup"}
           {"index":{}}
-          {"textbody": "third text", "textvector": "0560", "keywordfield": "test3"}
+          {"id": 23, "textbody": "third text", "textvector": "0560", "keywordfield": "test3"}
           {"index":{}}
-          {"textbody": "third text duplicate", "textvector": "0560", "keywordfield": "test3_dup"}
+          {"id": 24, "textbody": "third text duplicate", "textvector": "0560", "keywordfield": "test3_dup"}
           {"index":{}}
-          {"textbody": "fourth text", "textvector": "2112", "keywordfield": "test4"}
+          {"id": 25, "textbody": "fourth text", "textvector": "2112", "keywordfield": "test4"}
           {"index":{}}
-          {"textbody": "fifth text", "textvector": "5051", "keywordfield": "test5"}
+          {"id": 26, "textbody": "fifth text", "textvector": "5051", "keywordfield": "test5"}
 
   - do:
       headers:
@@ -157,21 +165,21 @@ setup:
         refresh: true
         body: |
           {"index":{}}
-          {"textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1", "rankfield": 1}
+          {"id": 27, "textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1", "rankfield": 1}
           {"index":{}}
-          {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2", "rankfield": 2}
+          {"id": 28, "textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2", "rankfield": 2}
           {"index":{}}
-          {"textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup", "rankfield": 3}
+          {"id": 29, "textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup", "rankfield": 3}
           {"index":{}}
-          {"textbody": "another first text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another", "rankfield": 4}
+          {"id": 30, "textbody": "another first text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another", "rankfield": 4}
           {"index":{}}
-          {"textbody": "another first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another_dup", "rankfield": 5}
+          {"id": 31, "textbody": "another first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another_dup", "rankfield": 5}
           {"index":{}}
-          {"textbody": "third and fourth first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_4_1_dup", "rankfield": 6}
+          {"id": 32, "textbody": "third and fourth first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_4_1_dup", "rankfield": 6}
           {"index":{}}
-          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4", "rankfield": 7}
+          {"id": 33, "textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4", "rankfield": 7}
           {"index":{}}
-          {"textbody": "more first text to add additional results text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test1_more", "rankfield": 8}
+          {"id": 34, "textbody": "more first text to add additional results text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test1_more", "rankfield": 8}
 
 ---
 teardown:
@@ -360,6 +368,9 @@ teardown:
             standard:
               query:
                 match_all: { }
+              sort:
+                id:
+                  order: asc
 
   - match: { hits.total.value: 7 }
   - length: { hits.hits: 7 }
@@ -385,6 +396,9 @@ teardown:
                 standard:
                   query:
                     match_all: { }
+                  sort:
+                    id:
+                      order: asc
 
   - match: { hits.total.value: 7 }
   - length: { hits.hits: 3 }
@@ -431,6 +445,9 @@ teardown:
             standard:
               query:
                 match_all: { }
+              sort:
+                id:
+                  order: asc
 
   - match: { hits.total.value: 19 }
   - length: { hits.hits: 10 }

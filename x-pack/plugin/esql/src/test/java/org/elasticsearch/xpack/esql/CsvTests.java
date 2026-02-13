@@ -644,7 +644,7 @@ public class CsvTests extends ESTestCase {
     private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
         try {
             ProjectId projectId = ProjectId.fromId("dummy");
-            String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
+            String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName());
             PutViewAction.Request request = new PutViewAction.Request(
                 TimeValue.ONE_MINUTE,
                 TimeValue.ONE_MINUTE,

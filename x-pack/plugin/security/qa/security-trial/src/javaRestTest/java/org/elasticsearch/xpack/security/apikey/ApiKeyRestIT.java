@@ -1994,6 +1994,55 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(clonedKeyPath.evaluate("api_keys.0.limited_by"), equalTo(sourceKeyPath.evaluate("api_keys.0.limited_by")));
     }
 
+    public void testChainOfClonedApiKeys() throws IOException {
+        // Create source API key with role descriptors so we can assert they are preserved along the chain
+        final String allowedIndex = randomIndexName() + "-chain-allow";
+        createIndex(adminClient(), allowedIndex, null);
+        final EncodedApiKey source = createApiKey(
+            DATA_ADMIN_USER,
+            "chain-source-key",
+            Map.of(),
+            Map.of(
+                "chain-role",
+                Map.<String, Object>of(
+                    "cluster",
+                    List.of("monitor"),
+                    "indices",
+                    List.of(Map.of("names", List.of(allowedIndex), "privileges", List.of("read")))
+                )
+            )
+        );
+
+        final int numClones = randomIntBetween(2, 5);
+        EncodedApiKey current = source;
+        final List<EncodedApiKey> chain = new ArrayList<>();
+        chain.add(source);
+        for (int i = 0; i < numClones; i++) {
+            current = cloneApiKey(CLONE_API_KEY_USER, current, "chain-clone-" + (i + 1));
+            chain.add(current);
+        }
+        final EncodedApiKey finalKey = current;
+        final EncodedApiKey penultimate = chain.get(chain.size() - 2);
+
+        // Final key should match source for role_descriptors and limited_by
+        final Response sourceKeyResponse = fetchApiKeyWithUser(MANAGE_SECURITY_USER, source.id(), true);
+        final Response finalKeyResponse = fetchApiKeyWithUser(MANAGE_SECURITY_USER, finalKey.id(), true);
+        assertOK(sourceKeyResponse);
+        assertOK(finalKeyResponse);
+        final ObjectPath sourceKeyPath = assertOKAndCreateObjectPath(sourceKeyResponse);
+        final ObjectPath finalKeyPath = assertOKAndCreateObjectPath(finalKeyResponse);
+        assertThat(finalKeyPath.evaluate("api_keys.0.role_descriptors"), equalTo(sourceKeyPath.evaluate("api_keys.0.role_descriptors")));
+        assertThat(finalKeyPath.evaluate("api_keys.0.limited_by"), equalTo(sourceKeyPath.evaluate("api_keys.0.limited_by")));
+
+        // Final key metadata should contain _cloned_from pointing to the penultimate key
+        expectMetadata(finalKey.id(), Map.of("_cloned_from", penultimate.id()));
+
+        // Every API key in the chain should still be valid for authentication
+        for (EncodedApiKey key : chain) {
+            doTestAuthenticationWithApiKey(key.name(), key.id(), key.encoded());
+        }
+    }
+
     public void testCloneApiKeyRequiresPrivilege() throws IOException {
         final EncodedApiKey source = createApiKey(MANAGE_SECURITY_USER, "source-key", Map.of());
         final ResponseException e = expectThrows(ResponseException.class, () -> cloneApiKey(END_USER, source, randomAlphaOfLength(12)));

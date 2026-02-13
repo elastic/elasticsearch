@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.inference.services.mixedbread.embeddings.Mixedbre
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModelTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -84,6 +83,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
@@ -309,7 +309,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 null
             );
         }
-        return MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(TestUtils.MODEL_ID, TestUtils.CUSTOM_URL, null);
+        return getServiceSettingsMap(TestUtils.MODEL_ID, TestUtils.CUSTOM_URL, null);
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
@@ -334,7 +334,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 );
             }
         }
-        return MixedbreadRerankServiceSettingsTests.getServiceSettingsMap(TestUtils.MODEL_ID, TestUtils.CUSTOM_URL, null);
+        return getServiceSettingsMap(TestUtils.MODEL_ID, TestUtils.CUSTOM_URL, null);
     }
 
     private static Map<String, Object> createSecretSettingsMap() {

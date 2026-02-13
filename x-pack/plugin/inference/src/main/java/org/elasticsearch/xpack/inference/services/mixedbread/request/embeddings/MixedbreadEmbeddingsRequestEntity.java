@@ -42,7 +42,7 @@ public record MixedbreadEmbeddingsRequestEntity(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MixedbreadUtils.INPUT_NAME, input);
+        builder.field(MixedbreadUtils.INPUT_FIELD, input);
         builder.field(MixedbreadUtils.MODEL_FIELD, modelId);
 
         if (dimensions != null) {

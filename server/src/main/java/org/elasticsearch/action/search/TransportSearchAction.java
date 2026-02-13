@@ -705,11 +705,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         String[] indices;
         /*
-         * At this point, request.indices() holds indices that are already expanded/rewritten by the Security Action Filter.
+         * At this point, request.indices() holds indices that are already expanded/rewritten by the Security Action Filter (SAF).
          * Using these indices again for the PIT request would make it look as if the qualified index expression(s) were
          * specified by the user. They then show up in `ResolvedIndexExpressions`, which can trip the subsequent
          * `CrossProjectIndexResolutionValidator#validate()` since the PIT request is CPS compatible and goes through the
-         * SAF. To prevent that from happening, we negate the previous SAF by using the indices that the user originally
+         * SAF. To prevent that from happening, we negate the previous SAF action by using the indices that the user originally
          * specified.
          *
          * However, if `resolvedIndexExpressions` is `null`, it means that we're not in a CPS environment. In that case,

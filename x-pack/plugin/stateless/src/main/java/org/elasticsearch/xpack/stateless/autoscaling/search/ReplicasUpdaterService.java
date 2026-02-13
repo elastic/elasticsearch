@@ -216,6 +216,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     private final ClusterService clusterService;
     private final SearchMetricsService searchMetricsService;
     private final ReplicasLoadBalancingScaler replicasLoadBalancingScaler;
+    private final MeterRegistry meterRegistry;
     private ReplicasScalerCacheBudget replicasScalerCacheBudget;
 
     // package-private for testing
@@ -302,6 +303,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         this.replicasScaleDownState = new ReplicasScaleDownState();
         this.desiredTopologyContext = desiredTopologyContext;
         this.listener = listener;
+        this.meterRegistry = meterRegistry;
         meterRegistry.registerLongGauge(
             "es.autoscaling.search.total_replicas.current",
             "The current total number of replica shards (over all indices in a project) before a replicas updater run.",
@@ -346,7 +348,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             clusterService.getSettings(),
             desiredTopologyContext,
             replicasScaleDownState,
-            scaledownRepetitionSetting
+            scaledownRepetitionSetting,
+            meterRegistry
         );
         clusterSettings.initializeAndWatch(ReplicasScalerCacheBudget.REPLICA_CACHE_BUDGET_RATIO, ratio -> {
             replicasScalerCacheBudget.setCacheBudgetRatio(ratio);

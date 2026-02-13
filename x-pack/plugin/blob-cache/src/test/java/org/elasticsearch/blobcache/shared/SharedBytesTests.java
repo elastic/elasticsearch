@@ -21,6 +21,7 @@ import java.nio.file.Files;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class SharedBytesTests extends ESTestCase {
 
@@ -118,6 +119,64 @@ public class SharedBytesTests extends ESTestCase {
             if (sharedBytes != null) {
                 sharedBytes.decRef();
             }
+        }
+    }
+
+    /**
+     * Best-effort test that mmap'd SharedBytes instances release their mapped memory on close, so
+     * that the OS can reclaim disk space immediately. Without proper unmapping, each iteration leaks
+     * the cache file's data blocks (the file is unlinked but the mapping holds the blocks allocated).
+     */
+    public void testMmapResourcesReleasedOnClose() throws Exception {
+        assumeFalse("mmap not used on Windows", IOUtils.WINDOWS);
+
+        int regions = 4;
+        int regionSize = 1024 * 1024; // 1 MB per region
+        long cacheFileSize = (long) regions * regionSize; // 4 MB total
+        int iterations = 100;
+
+        var dataPath = createTempDir();
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString())
+            .build();
+
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            var cachePath = nodeEnv.nodeDataPaths()[0].resolve("shared_snapshot_cache");
+
+            // Warm up: create and close once to stabilise filesystem state
+            new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true).decRef();
+            assertFalse(Files.exists(cachePath));
+
+            long spaceBefore = Environment.getUsableSpace(nodeEnv.nodeDataPaths()[0]);
+
+            for (int i = 0; i < iterations; i++) {
+                SharedBytes sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true);
+                assertTrue("cache file should exist", Files.exists(cachePath));
+                sharedBytes.decRef();
+                assertFalse("cache file should be deleted after close", Files.exists(cachePath));
+            }
+
+            long spaceAfter = Environment.getUsableSpace(nodeEnv.nodeDataPaths()[0]);
+            long spaceLost = spaceBefore - spaceAfter;
+
+            // Without the fix, we'd lose ~iterations * cacheFileSize = 400 MB of unreclaimable space.
+            // With the fix, space is fully reclaimed. Allow a small margin for filesystem overhead and
+            // concurrent activity.
+            assertThat(
+                "Disk space was not reclaimed after closing "
+                    + iterations
+                    + " mmap'd SharedBytes instances. "
+                    + "Lost "
+                    + spaceLost
+                    + " bytes (cache file size: "
+                    + cacheFileSize
+                    + " bytes). "
+                    + "This may indicate that mmap buffers are not being properly unmapped on close.",
+                spaceLost,
+                lessThan(cacheFileSize * 3)
+            );
         }
     }
 

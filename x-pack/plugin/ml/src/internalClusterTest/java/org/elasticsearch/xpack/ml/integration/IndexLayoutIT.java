@@ -60,13 +60,18 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
 
         OriginSettingClient client = new OriginSettingClient(client(), ML_ORIGIN);
         assertThat(
-            client.admin().indices().prepareGetIndex().addIndices(AnomalyDetectorsIndex.jobStateIndexPattern()).get().indices(),
+            client.admin()
+                .indices()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .addIndices(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .get()
+                .indices(),
             arrayContaining(".ml-state-000001")
         );
         assertThat(
             client.admin()
                 .indices()
-                .prepareGetAliases(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, AnomalyDetectorsIndex.jobStateIndexPattern())
                 .get()
                 .getAliases()
                 .get(".ml-state-000001")
@@ -77,7 +82,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
         assertThat(
             client.admin()
                 .indices()
-                .prepareGetIndex()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .addIndices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
                 .get()
                 .indices().length,
@@ -86,7 +91,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
         assertThat(
             client.admin()
                 .indices()
-                .prepareGetIndex()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .addIndices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))
                 .get()
                 .indices().length,
@@ -137,7 +142,12 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
 
         OriginSettingClient client = new OriginSettingClient(client(), ML_ORIGIN);
         assertThat(
-            client.admin().indices().prepareGetIndex().addIndices(AnomalyDetectorsIndex.jobStateIndexPattern()).get().indices(),
+            client.admin()
+                .indices()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .addIndices(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .get()
+                .indices(),
             arrayContaining(".ml-state-000001")
         );
 

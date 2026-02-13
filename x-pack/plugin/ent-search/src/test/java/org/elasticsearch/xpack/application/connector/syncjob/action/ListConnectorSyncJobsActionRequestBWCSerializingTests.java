@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,7 +39,18 @@ public class ListConnectorSyncJobsActionRequestBWCSerializingTests extends Abstr
 
     @Override
     protected ListConnectorSyncJobsAction.Request mutateInstance(ListConnectorSyncJobsAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        PageParams pageParams = instance.getPageParams();
+        String connectorId = instance.getConnectorId();
+        ConnectorSyncStatus syncStatus = instance.getConnectorSyncStatus();
+        ConnectorSyncJobType syncJobType = instance.getConnectorSyncJobTypeList().get(0);
+        switch (randomIntBetween(0, 3)) {
+            case 0 -> pageParams = randomValueOtherThan(pageParams, EnterpriseSearchModuleTestUtils::randomPageParams);
+            case 1 -> connectorId = randomValueOtherThan(connectorId, () -> randomAlphaOfLength(10));
+            case 2 -> syncStatus = randomValueOtherThan(syncStatus, ConnectorTestUtils::getRandomSyncStatus);
+            case 3 -> syncJobType = randomValueOtherThan(syncJobType, ConnectorTestUtils::getRandomSyncJobType);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new ListConnectorSyncJobsAction.Request(pageParams, connectorId, syncStatus, Collections.singletonList(syncJobType));
     }
 
     @Override

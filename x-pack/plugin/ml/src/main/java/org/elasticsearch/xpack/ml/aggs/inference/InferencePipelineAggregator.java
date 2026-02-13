@@ -50,8 +50,9 @@ public class InferencePipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         try (model) {
-            InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+            InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg = asMultiBucketAggregation(
+                aggregation
+            );
             List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
             List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
@@ -100,12 +101,15 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                 } catch (Exception e) {
                     inference = new WarningInferenceResults(e.getMessage());
                 }
-
-                final List<InternalAggregation> aggs = new ArrayList<>(bucket.getAggregations().asList());
-                InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);
-                aggs.add(aggResult);
-                InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
-                newBuckets.add(newBucket);
+                newBuckets.add(
+                    originalAgg.createBucket(
+                        InternalAggregations.append(
+                            bucket.getAggregations(),
+                            new InternalInferenceAggregation(name(), metadata(), inference)
+                        ),
+                        bucket
+                    )
+                );
             }
 
             // the model is released at the end of this block.

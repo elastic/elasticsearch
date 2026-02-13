@@ -19,18 +19,18 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
@@ -44,24 +44,39 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch92Lucene103Codec.class));
     }
 
     public void testDefault() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         Codec codec = createCodecService().codec("default");
         assertEquals(
-            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
+            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=1), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
             codec.storedFieldsFormat().toString()
         );
+    }
+
+    public void testTSDBDefault() throws Exception {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        boolean syntheticIdEnabled = randomBoolean();
+        CodecService codecService = createCodecService(syntheticIdEnabled);
+        Codec codec = codecService.codec("default");
+        assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
+        CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec = (CodecService.DeduplicateFieldInfosCodec) codec;
+        if (syntheticIdEnabled) {
+            assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
+        } else {
+            assertThat(deduplicateFieldInfosCodec.delegate(), not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class)));
+        }
     }
 
     public void testBestCompression() throws Exception {
@@ -122,23 +137,29 @@ public class CodecTests extends ESTestCase {
     }
 
     private CodecService createCodecService() throws IOException {
+        return createCodecService(false);
+    }
+
+    private CodecService createCodecService(boolean syntheticIdEnabled) throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
+        var indexSettings = Settings.builder().put(nodeSettings);
+        if (syntheticIdEnabled) {
+            assertTrue(IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+            indexSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "hostname");
+        }
+        IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", indexSettings.build());
         SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
         IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.emptyMap(),
-            MapperPlugin.NOOP_FIELD_FILTER
+            MapperPlugin.NOOP_FIELD_FILTER,
+            null
         );
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {}
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {}
-        });
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, BitsetFilterCache.Listener.NOOP);
         MapperService service = new MapperService(
             () -> TransportVersion.current(),
             settings,
@@ -150,9 +171,11 @@ public class CodecTests extends ESTestCase {
             settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE,
             bitsetFilterCache::getBitSetProducer,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null,
+            null
         );
-        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
 }

@@ -29,7 +29,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
-        createIndex("test", Settings.EMPTY, "test", "title", "type=text");
+        createIndex("test", Settings.EMPTY, "title", "type=text");
         prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
         prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
         prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
@@ -57,7 +57,7 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         builder.setMetadata(metadata);
         assertResponse(client().prepareSearch("test").setSize(0).addAggregation(builder), response -> {
-            assertEquals(3, response.getHits().getTotalHits().value);
+            assertEquals(3, response.getHits().getTotalHits().value());
             InternalFilters filters = response.getAggregations().get("titles");
             assertEquals(1, filters.getBuckets().size());
             assertEquals(2, filters.getBuckets().get(0).getDocCount());

@@ -1,24 +1,37 @@
 {
-  "ilm.stop":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-stop.html",
-      "description":"Halts all lifecycle management operations and stops the index lifecycle management (ILM) plugin"
+  "ilm.stop": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-stop",
+      "description": "Stop the ILM plugin"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ilm/stop",
-          "methods":[
+          "path": "/_ilm/stop",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{}
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
+    }
   }
 }

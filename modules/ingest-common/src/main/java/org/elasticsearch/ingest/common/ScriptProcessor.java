@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -105,7 +106,8 @@ public final class ScriptProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);

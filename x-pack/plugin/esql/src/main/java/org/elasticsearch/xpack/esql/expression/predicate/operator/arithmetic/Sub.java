@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,11 +19,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -34,23 +39,30 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
 
+    private final Configuration configuration;
+
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
-        description = "Subtract one number from another. "
-            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
+        operator = "-",
+        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" },
+        description = """
+            Subtract one value from another. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
+            then the result is `null`. For dense_vector fields, both arguments should be dense_vectors. Inequal vector dimensions generate
+            null result.
+            """
     )
     public Sub(
         Source source,
         @Param(
             name = "lhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+            description = "A numeric value, dense_vector or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" }
         ) Expression left,
         @Param(
             name = "rhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
-        ) Expression right
+            description = "A numeric value, dense_vector or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" }
+        ) Expression right,
+        Configuration configuration
     ) {
         super(
             source,
@@ -61,8 +73,11 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDatetimesEvaluator.Factory::new
+            DenseVectorsEvaluator.SubFactory::new,
+            SubDatetimesEvaluator.Factory::new,
+            SubDateNanosEvaluator.Factory::new
         );
+        this.configuration = configuration;
     }
 
     private Sub(StreamInput in) throws IOException {
@@ -73,8 +88,11 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDatetimesEvaluator.Factory::new
+            DenseVectorsEvaluator.SubFactory::new,
+            SubDatetimesEvaluator.Factory::new,
+            SubDateNanosEvaluator.Factory::new
         );
+        this.configuration = ((PlanStreamInput) in).configuration();
     }
 
     @Override
@@ -104,17 +122,17 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     protected NodeInfo<Sub> info() {
-        return NodeInfo.create(this, Sub::new, left(), right());
+        return NodeInfo.create(this, Sub::new, left(), right(), configuration);
     }
 
     @Override
     protected Sub replaceChildren(Expression left, Expression right) {
-        return new Sub(source(), left, right);
+        return new Sub(source(), left, right, configuration);
     }
 
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
-        return Add::new;
+        return (source, left, right) -> new Add(source, left, right, configuration);
     }
 
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
@@ -138,9 +156,23 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
-    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
+    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
-        return asMillis(asDateTime(datetime).minus(temporalAmount));
+        return asMillis(asDateTime(datetime, zoneId).minus(temporalAmount));
+    }
+
+    @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
+    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
+        // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
+        try {
+            return DateUtils.toLong(Instant.from(asDateTime(DateUtils.toInstant(dateNanos), zoneId).minus(temporalAmount)));
+        } catch (IllegalArgumentException e) {
+            /*
+             toLong will throw IllegalArgumentException for out of range dates, but that includes the actual value which we want
+             to avoid returning here.
+            */
+            throw new DateTimeException("Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807");
+        }
     }
 
     @Override
@@ -151,5 +183,15 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     @Override
     public Duration fold(Duration left, Duration right) {
         return left.minus(right);
+    }
+
+    @Override
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    @Override
+    public Sub withConfiguration(Configuration configuration) {
+        return new Sub(source(), left(), right(), configuration);
     }
 }

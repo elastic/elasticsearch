@@ -7,24 +7,29 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvSumIntEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvSumIntEvaluator.class);
+
+  private final Source source;
+
+  private Warnings warnings;
 
   public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
     super(driverContext, field);
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    this.source = source;
   }
 
   @Override
@@ -57,12 +62,24 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
           int result = value;
           builder.appendInt(result);
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           builder.appendNull();
         }
       }
       return builder.build();
     }
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

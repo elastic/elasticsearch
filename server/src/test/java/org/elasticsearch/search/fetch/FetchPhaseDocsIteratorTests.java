@@ -17,6 +17,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -77,7 +78,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         };
 
-        SearchHit[] hits = it.iterate(null, reader, docs);
+        SearchHit[] hits = it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult());
 
         assertThat(hits.length, equalTo(docs.length));
         for (int i = 0; i < hits.length; i++) {
@@ -125,7 +126,10 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         };
 
-        Exception e = expectThrows(FetchPhaseExecutionException.class, () -> it.iterate(null, reader, docs));
+        Exception e = expectThrows(
+            FetchPhaseExecutionException.class,
+            () -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult())
+        );
         assertThat(e.getMessage(), containsString("Error running fetch phase for doc [" + badDoc + "]"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
 

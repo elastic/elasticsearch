@@ -10,6 +10,9 @@
 package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -94,15 +97,27 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.loadedTimestampRange = loadTimestampRange;
         // Also check for the existence of the timestamp field, because sometimes a segment can only contain tombstone documents,
         // which don't have any mapped fields (also not the timestamp field) and just some meta fields like _id, _seq_no etc.
-        if (loadTimestampRange && reader.getFieldInfos().fieldInfo(DataStream.TIMESTAMP_FIELD_NAME) != null) {
-            PointValues tsPointValues = reader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
-            assert tsPointValues != null : "no timestamp field for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
-            minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);
-            maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
-        } else {
-            minTimestamp = 0;
-            maxTimestamp = Long.MAX_VALUE;
+        long minTimestamp = 0;
+        long maxTimestamp = Long.MAX_VALUE;
+        if (loadTimestampRange) {
+            FieldInfo info = reader.getFieldInfos().fieldInfo(DataStream.TIMESTAMP_FIELD_NAME);
+            if (info != null) {
+                if (info.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+                    DocValuesSkipper skipper = reader.getDocValuesSkipper(DataStream.TIMESTAMP_FIELD_NAME);
+                    assert skipper != null : "no skipper for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
+                    minTimestamp = skipper.minValue();
+                    maxTimestamp = skipper.maxValue();
+                } else {
+                    PointValues tsPointValues = reader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
+                    assert tsPointValues != null
+                        : "no timestamp field for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
+                    minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);
+                    maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
+                }
+            }
         }
+        this.minTimestamp = minTimestamp;
+        this.maxTimestamp = maxTimestamp;
     }
 
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean loadTimestampRange) throws IOException {

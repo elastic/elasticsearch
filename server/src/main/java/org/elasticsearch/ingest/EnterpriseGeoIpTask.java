@@ -10,10 +10,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,7 +34,6 @@ public final class EnterpriseGeoIpTask {
     }
 
     public static final String ENTERPRISE_GEOIP_DOWNLOADER = "enterprise-geoip-downloader";
-    public static final NodeFeature GEOIP_DOWNLOADER_DATABASE_CONFIGURATION = new NodeFeature("geoip.downloader.database.configuration");
 
     public static class EnterpriseGeoIpTaskParams implements PersistentTaskParams {
 
@@ -64,7 +61,7 @@ public final class EnterpriseGeoIpTask {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

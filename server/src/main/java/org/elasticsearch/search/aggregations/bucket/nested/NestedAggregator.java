@@ -21,6 +21,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -124,7 +125,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForSingleBucket(
             owningBucketOrds,
             (owningBucketOrd, subAggregationResults) -> new InternalNested(
@@ -197,7 +198,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
             }
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
-                cachedScorer.doc = childDocId;
                 for (var bucket : bucketBuffer) {
                     collectBucket(sub, childDocId, bucket);
                 }
@@ -207,19 +207,12 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     private static class CachedScorable extends Scorable {
-        int doc;
         float score;
 
         @Override
         public final float score() {
             return score;
         }
-
-        @Override
-        public int docID() {
-            return doc;
-        }
-
     }
 
 }

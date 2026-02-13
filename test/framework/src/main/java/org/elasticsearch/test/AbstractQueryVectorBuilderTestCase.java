@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -82,6 +83,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 .queryVectorBuilder(createTestInstance())
                 .k(5)
                 .numCandidates(10)
+                .visitPercentage(10f)
                 .similarity(randomBoolean() ? null : randomFloat())
                 .build(DEFAULT_SIZE),
             getToXContentParams(),
@@ -97,6 +99,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 createTestInstance(),
                 5,
                 10,
+                10f,
+                randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
             searchBuilder.queryName(randomAlphaOfLengthBetween(5, 10));
@@ -120,6 +124,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 queryVectorBuilder,
                 5,
                 10,
+                10f,
+                randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
             KnnSearchBuilder serialized = copyWriteable(
@@ -166,7 +172,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
      */
     protected abstract ActionResponse createResponse(float[] array, T builder);
 
-    protected static float[] randomVector(int dim) {
+    public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();

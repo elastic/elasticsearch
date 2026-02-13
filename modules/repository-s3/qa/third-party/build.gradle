@@ -1,0 +1,52 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.java'
+
+dependencies {
+  testImplementation project(':modules:repository-s3')
+  testImplementation project(':test:fixtures:minio-fixture')
+  testImplementation project(':test:framework')
+  testImplementation project(':server')
+
+  testImplementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+}
+
+boolean useFixture = false
+String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
+
+// If all these variables are missing then we are testing against the MinIO fixture instead, which has the following credentials hard-coded in.
+
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+  useFixture = true
+  s3PermanentAccessKey = 's3_test_access_key'
+  s3PermanentSecretKey = 's3_test_secret_key'
+  s3PermanentBucket = 'bucket'
+  s3PermanentBasePath = 'base_path'
+}
+
+tasks.named("test").configure {
+  systemProperty("tests.use.fixture", Boolean.toString(useFixture))
+  systemProperty 'test.s3.account', s3PermanentAccessKey
+  systemProperty 'test.s3.key', s3PermanentSecretKey
+  systemProperty 'test.s3.bucket', s3PermanentBucket
+  nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
+
+  // test container accesses ~/.testcontainers.properties read
+  systemProperty "tests.security.manager", "false"
+}
+
+tasks.register("s3ThirdPartyTest") {
+  dependsOn "test"
+}

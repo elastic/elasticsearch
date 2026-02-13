@@ -30,7 +30,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory i
     private final boolean preserveOriginal;
 
     public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL);
     }
 

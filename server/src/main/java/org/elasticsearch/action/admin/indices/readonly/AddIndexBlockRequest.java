@@ -32,12 +32,14 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
     private final APIBlock block;
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private boolean markVerified = true;
 
     public AddIndexBlockRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         block = APIBlock.readFrom(in);
+        markVerified = in.readBoolean();
     }
 
     /**
@@ -103,6 +105,15 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         return this;
     }
 
+    public boolean markVerified() {
+        return markVerified;
+    }
+
+    public AddIndexBlockRequest markVerified(boolean markVerified) {
+        this.markVerified = markVerified;
+        return this;
+    }
+
     /**
      * Returns the block to be added
      */
@@ -116,6 +127,7 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         block.writeTo(out);
+        out.writeBoolean(markVerified);
     }
 
     @Override
@@ -136,4 +148,5 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
+
 }

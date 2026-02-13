@@ -237,7 +237,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             Settings.builder().put("indices.memory.index_buffer_size", "0.001%").put("indices.memory.min_index_buffer_size", "6mb").build()
         );
 
-        assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB).getBytes()));
+        assertThat(controller.indexingBufferSize(), equalTo(ByteSizeValue.of(6, ByteSizeUnit.MB).getBytes()));
     }
 
     public void testNegativeMinIndexBufferSize() {
@@ -289,7 +289,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             Settings.builder().put("indices.memory.index_buffer_size", "90%").put("indices.memory.max_index_buffer_size", "6mb").build()
         );
 
-        assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB).getBytes()));
+        assertThat(controller.indexingBufferSize(), equalTo(ByteSizeValue.of(6, ByteSizeUnit.MB).getBytes()));
     }
 
     public void testThrottling() throws Exception {

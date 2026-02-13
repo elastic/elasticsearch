@@ -16,8 +16,6 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +29,6 @@ import java.util.Objects;
 public class StoreFileMetadata implements Writeable {
 
     public static final BytesRef UNAVAILABLE_WRITER_UUID = new BytesRef();
-    private static final TransportVersion WRITER_UUID_MIN_VERSION = TransportVersions.V_7_16_0;
 
     private final String name;
 
@@ -71,11 +68,7 @@ public class StoreFileMetadata implements Writeable {
         checksum = in.readString();
         writtenBy = in.readString();
         hash = in.readBytesRef();
-        if (in.getTransportVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
-            writerUuid = StoreFileMetadata.toWriterUuid(in.readBytesRef());
-        } else {
-            writerUuid = UNAVAILABLE_WRITER_UUID;
-        }
+        writerUuid = StoreFileMetadata.toWriterUuid(in.readBytesRef());
     }
 
     @Override
@@ -85,9 +78,7 @@ public class StoreFileMetadata implements Writeable {
         out.writeString(checksum);
         out.writeString(writtenBy);
         out.writeBytesRef(hash);
-        if (out.getTransportVersion().onOrAfter(WRITER_UUID_MIN_VERSION)) {
-            out.writeBytesRef(writerUuid);
-        }
+        out.writeBytesRef(writerUuid);
     }
 
     /**
@@ -195,8 +186,7 @@ public class StoreFileMetadata implements Writeable {
      *
      * This ID may be {@link StoreFileMetadata#UNAVAILABLE_WRITER_UUID} (i.e. zero-length) if unavailable, e.g.:
      *
-     * - The file was written by a version of Lucene prior to {@link org.apache.lucene.util.Version#LUCENE_8_6_0}.
-     * - The metadata came from a version of Elasticsearch prior to {@link StoreFileMetadata#WRITER_UUID_MIN_VERSION}).
+     * - The file was written by a version of Lucene prior to 8.6.0.
      * - The file is not one of the files listed above.
      *
      */

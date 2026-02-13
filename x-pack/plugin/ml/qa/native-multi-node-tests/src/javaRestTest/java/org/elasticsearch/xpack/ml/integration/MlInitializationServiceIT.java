@@ -135,7 +135,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
             }
         }
 
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest().addAliasAction(
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
             IndicesAliasesRequest.AliasActions.add().index(".ml-anomalies-7").alias(".ml-anomalies-write").writeIndex(true)
         )
             .addAliasAction(
@@ -205,7 +205,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static Map<String, Settings> getIndexToSettingsMap(List<String> indexNames) {
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings()
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT)
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();
@@ -214,7 +214,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static Map<String, List<AliasMetadata>> getIndexToAliasesMap(List<String> indexNames) {
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases()
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT)
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();

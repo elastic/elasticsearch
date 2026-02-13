@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,9 +38,11 @@ import java.util.function.BooleanSupplier;
  */
 public class UnknownTypeRepository extends AbstractLifecycleComponent implements Repository {
 
+    private final ProjectId projectId;
     private final RepositoryMetadata repositoryMetadata;
 
-    public UnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    public UnknownTypeRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
+        this.projectId = projectId;
         this.repositoryMetadata = repositoryMetadata;
     }
 
@@ -47,6 +51,11 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
             repositoryMetadata.name(),
             "repository type [" + repositoryMetadata.type() + "] is unknown; ensure that all required plugins are installed on this node"
         );
+    }
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
     }
 
     @Override
@@ -66,7 +75,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         throw createUnknownTypeException();
     }
 
@@ -94,16 +103,6 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         Runnable onCompletion
     ) {
         repositoryDataUpdateListener.onFailure(createUnknownTypeException());
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createUnknownTypeException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createUnknownTypeException();
     }
 
     @Override
@@ -168,6 +167,21 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     @Override
     public void awaitIdle() {
 
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        /*
+         * The presence of a misconfigured repository shouldn't interfere with
+         * the collection of metrics from the other repositories. We just return
+         * null here to indicate we have nothing to contribute.
+         */
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createUnknownTypeException();
     }
 
     @Override

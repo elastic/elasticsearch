@@ -7,13 +7,17 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant double value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
@@ -37,7 +41,7 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantDoubleVector(value, positions.length);
     }
 
@@ -97,6 +101,11 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public DoubleVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantDoubleVector(value, getPositionCount());
     }
 
     @Override

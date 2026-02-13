@@ -20,7 +20,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores values in a {@link DoubleBigArrayVector}. Does not take ownership of the given
  * {@link DoubleArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayBlock.java.st} instead.
  */
 public final class DoubleBigArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
@@ -92,7 +92,7 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
     }
 
     @Override
-    public DoubleBlock filter(int... positions) {
+    public DoubleBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newDoubleBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

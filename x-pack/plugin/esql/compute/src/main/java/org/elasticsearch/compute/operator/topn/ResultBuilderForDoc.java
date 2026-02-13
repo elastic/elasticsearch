@@ -11,54 +11,38 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.core.Releasables;
 
 class ResultBuilderForDoc implements ResultBuilder {
-    private final BlockFactory blockFactory;
-    private final int[] shards;
-    private final int[] segments;
-    private final int[] docs;
-    private int position;
+    private final DocVectorEncoder encoder;
+    private final DocVector.FixedBuilder builder;
 
-    ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
-        // TODO use fixed length builders
-        this.blockFactory = blockFactory;
-        this.shards = new int[positions];
-        this.segments = new int[positions];
-        this.docs = new int[positions];
+    ResultBuilderForDoc(BlockFactory blockFactory, DocVectorEncoder encoder, int positions) {
+        this.encoder = encoder;
+        this.builder = DocVector.newFixedBuilder(blockFactory, positions);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("_doc can't be a key");
     }
 
     @Override
     public void decodeValue(BytesRef values) {
-        shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        position++;
+        int shard = encoder.decodeInt(values);
+        int segment = encoder.decodeInt(values);
+        int doc = encoder.decodeInt(values);
+
+        // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
+        encoder.refCounteds().get(shard).mustIncRef();
+
+        builder.append(shard, segment, doc);
     }
 
     @Override
     public Block build() {
-        boolean success = false;
-        IntVector shardsVector = null;
-        IntVector segmentsVector = null;
-        try {
-            shardsVector = blockFactory.newIntArrayVector(shards, position);
-            segmentsVector = blockFactory.newIntArrayVector(segments, position);
-            var docsVector = blockFactory.newIntArrayVector(docs, position);
-            var docsBlock = new DocVector(shardsVector, segmentsVector, docsVector, null).asBlock();
-            success = true;
-            return docsBlock;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(shardsVector, segmentsVector);
-            }
-        }
+        DocVector.Config config = DocVector.config().dontIncrementShardRefCounts().mayContainDuplicates();
+        // TODO figure out when we don't need to set mayContainDuplicates
+        return builder.shardRefCounters(encoder.refCounteds()).build(config).asBlock();
     }
 
     @Override
@@ -68,6 +52,6 @@ class ResultBuilderForDoc implements ResultBuilder {
 
     @Override
     public void close() {
-        // TODO memory accounting
+        builder.close();
     }
 }

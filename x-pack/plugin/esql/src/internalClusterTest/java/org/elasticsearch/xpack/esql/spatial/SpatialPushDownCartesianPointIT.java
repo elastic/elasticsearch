@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.apache.lucene.geo.XYEncodingUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 
 public class SpatialPushDownCartesianPointIT extends SpatialPushDownPointsTestCase {
 
@@ -31,4 +33,18 @@ public class SpatialPushDownCartesianPointIT extends SpatialPushDownPointsTestCa
     protected String castingFunction() {
         return "TO_CARTESIANSHAPE";
     }
+
+    @Override
+    protected double searchDistance() {
+        // We search much larger distances for Cartesian, to ensure we actually get results from the much wider data range
+        return 1e12;
+    }
+
+    @Override
+    protected Point quantizePoint(Point point) {
+        double x = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getX()));
+        double y = XYEncodingUtils.decode(XYEncodingUtils.encode((float) point.getY()));
+        return new Point(x, y);
+    }
+
 }

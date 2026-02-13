@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -98,12 +97,10 @@ public class IndicesModuleTests extends ESTestCase {
         DataStreamTimestampFieldMapper.NAME,
         FieldNamesFieldMapper.NAME };
 
-    @UpdateForV9
-    @AwaitsFix(bugUrl = "test is referencing 7.x index versions so needs to be updated for 9.0 bump")
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current());
             assertThat(
                 module.getMapperRegistry().getMapperParser("object", IndexVersion.current()),
                 instanceOf(ObjectMapper.TypeParser.class)
@@ -119,7 +116,6 @@ public class IndicesModuleTests extends ESTestCase {
         }
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );
@@ -239,21 +235,20 @@ public class IndicesModuleTests extends ESTestCase {
 
     public void testFieldNamesIsLast() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testFieldNamesIsLastWithPlugins() {
         IndicesModule module = new IndicesModule(fakePlugins);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testGetFieldFilter() {
-        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {
-        }, new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {}, new MapperPlugin() {
             @Override
             public Function<String, FieldPredicate> getFieldFilter() {
                 return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;
@@ -295,8 +290,7 @@ public class IndicesModuleTests extends ESTestCase {
         int numPlugins = randomIntBetween(0, 10);
         List<MapperPlugin> mapperPlugins = new ArrayList<>(numPlugins);
         for (int i = 0; i < numPlugins; i++) {
-            mapperPlugins.add(new MapperPlugin() {
-            });
+            mapperPlugins.add(new MapperPlugin() {});
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         Function<String, FieldPredicate> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
@@ -304,8 +298,7 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testNoOpFieldPredicate() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
-        }, new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {}, new MapperPlugin() {
             @Override
             public Function<String, FieldPredicate> getFieldFilter() {
                 return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;

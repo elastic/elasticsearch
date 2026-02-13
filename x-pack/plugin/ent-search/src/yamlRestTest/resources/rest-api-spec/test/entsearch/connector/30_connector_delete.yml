@@ -1,0 +1,174 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector-to-delete
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Delete Connector":
+  - do:
+      connector.delete:
+        connector_id: test-connector-to-delete
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      connector.get:
+        connector_id: test-connector-to-delete
+
+
+---
+"Delete Connector - Hard Delete":
+  - do:
+      connector.put:
+        connector_id: test-connector-hard-delete
+        body:
+          index_name: search-2-test
+          name: my-hard-delete-connector
+          language: en
+          is_native: false
+          service_type: super-connector
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-hard-delete
+        hard: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      connector.get:
+        connector_id: test-connector-hard-delete
+        include_deleted: true
+
+---
+"Delete Connector - deletes associated sync jobs":
+
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector-to-delete
+          job_type: full
+          trigger_method: on_demand
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector-to-delete
+          job_type: full
+          trigger_method: on_demand
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector-to-delete
+          job_type: full
+          trigger_method: on_demand
+
+  - do:
+      connector.sync_job_list:
+        connector_id: test-connector-to-delete
+
+  - match: { count: 3 }
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-to-delete
+        delete_sync_jobs: true
+
+  - match: { acknowledged: true }
+
+
+  - do:
+      connector.sync_job_list:
+        connector_id: test-connector-to-delete
+
+  - match: { count: 0 }
+
+
+---
+"Delete Connector - doesn't associated sync jobs when delete_sync_jobs is false":
+
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector-to-delete
+          job_type: full
+          trigger_method: on_demand
+
+  - do:
+      connector.sync_job_list:
+        connector_id: test-connector-to-delete
+
+  - match: { count: 1 }
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-to-delete
+        delete_sync_jobs: false
+
+  - match: { acknowledged: true }
+
+
+  - do:
+      connector.sync_job_list:
+        connector_id: test-connector-to-delete
+
+  - match: { count: 1 }
+
+---
+"Delete Connector - Connector does not exist":
+  - do:
+      catch: "missing"
+      connector.delete:
+        connector_id: test-nonexistent-connector
+
+---
+"Delete Connector - Supports soft deletes":
+
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-to-delete
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      connector.get:
+        connector_id: test-connector-to-delete
+
+  - do:
+      connector.get:
+        connector_id: test-connector-to-delete
+        include_deleted: true
+
+  - match: { id: test-connector-to-delete }
+  - match: { index_name: search-1-test }
+  - match: { service_type: super-connector }
+  - match: { name: my-connector }
+
+---
+"Delete connector fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.delete:
+        connector_id: test-connector-to-delete
+
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-to-delete

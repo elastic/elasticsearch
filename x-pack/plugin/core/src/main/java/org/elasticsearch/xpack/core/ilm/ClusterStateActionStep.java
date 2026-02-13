@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
@@ -19,7 +19,7 @@ public abstract class ClusterStateActionStep extends Step {
         super(key, nextStepKey);
     }
 
-    public abstract ClusterState performAction(Index index, ClusterState clusterState);
+    public abstract ProjectState performAction(Index index, ProjectState projectState);
 
     /**
      * Returns a tuple of index name to step key for an index *other* than the

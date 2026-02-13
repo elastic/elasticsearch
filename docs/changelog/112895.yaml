@@ -1,5 +1,0 @@
-pr: 112895
-summary: (logger) change from error to warn for short circuiting user
-area: Security
-type: enhancement
-issues: []

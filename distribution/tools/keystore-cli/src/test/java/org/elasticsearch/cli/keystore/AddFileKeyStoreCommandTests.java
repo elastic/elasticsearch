@@ -46,14 +46,14 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         for (int i = 0; i < length; ++i) {
             bytes[i] = randomByte();
         }
-        Path file = env.configFile().resolve(randomAlphaOfLength(16));
+        Path file = env.configDir().resolve(randomAlphaOfLength(16));
         Files.write(file, bytes);
         return file;
     }
 
     private void addFile(KeyStoreWrapper keystore, String setting, Path file, String password) throws Exception {
         keystore.setFile(setting, Files.readAllBytes(file));
-        keystore.save(env.configFile(), password.toCharArray());
+        keystore.save(env.configDir(), password.toCharArray());
     }
 
     public void testMissingCreateWithEmptyPasswordWhenPrompted() throws Exception {
@@ -77,7 +77,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(randomFrom("", "keystorepassword"));
         terminal.addTextInput("n"); // explicit no
         execute("foo");
-        assertNull(KeyStoreWrapper.load(env.configFile()));
+        assertNull(KeyStoreWrapper.load(env.configDir()));
     }
 
     public void testOverwritePromptDefault() throws Exception {

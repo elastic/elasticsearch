@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -21,7 +22,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -80,37 +84,59 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         );
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
         // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
-        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
+        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = ByteSizeValue.of(256, ByteSizeUnit.MB);
         public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.byteSizeSetting(
             "max_single_part_upload_size",
             DEFAULT_MAX_SINGLE_UPLOAD_SIZE,
             Property.NodeScope
         );
+
+        /**
+         * The batch size for batched delete requests
+         */
+        static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
+            "delete_objects_max_size",
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH,
+            1,
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH
+        );
+
+        /**
+         * The maximum number of concurrent batch deletes
+         */
+        static final Setting<Integer> MAX_CONCURRENT_BATCH_DELETES_SETTING = Setting.intSetting("max_concurrent_batch_deletes", 10, 1, 100);
     }
 
     private final ByteSizeValue chunkSize;
     private final AzureStorageService storageService;
     private final boolean readonly;
+    private final RepositoriesMetrics repositoriesMetrics;
 
     public AzureRepository(
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final AzureStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
+        this.repositoriesMetrics = repositoriesMetrics;
 
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
@@ -152,7 +178,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays);
+        final AzureBlobStore blobStore = new AzureBlobStore(getProjectId(), metadata, storageService, bigArrays, repositoriesMetrics);
 
         logger.debug(
             () -> format(
@@ -178,6 +204,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected Set<String> getExtraUsageFeatures() {
-        return storageService.getExtraUsageFeatures(Repository.CLIENT_NAME.get(getMetadata().settings()));
+        return storageService.getExtraUsageFeatures(getProjectId(), Repository.CLIENT_NAME.get(getMetadata().settings()));
     }
 }

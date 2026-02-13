@@ -15,41 +15,30 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
-public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineConfiguration> {
-    public PipelineConfigurationBridge(final PipelineConfiguration delegate) {
-        super(delegate);
+/**
+ * A {@link StableBridgeAPI} for {@link PipelineConfiguration}
+ */
+public interface PipelineConfigurationBridge extends StableBridgeAPI<PipelineConfiguration> {
+
+    static PipelineConfigurationBridge create(final String pipelineId, final String jsonEncodedConfig) {
+        final PipelineConfiguration internal = new PipelineConfiguration(pipelineId, new BytesArray(jsonEncodedConfig), XContentType.JSON);
+        return fromInternal(internal);
     }
 
-    public PipelineConfigurationBridge(final String pipelineId, final String jsonEncodedConfig) {
-        this(new PipelineConfiguration(pipelineId, new BytesArray(jsonEncodedConfig), XContentType.JSON));
+    static PipelineConfigurationBridge fromInternal(final PipelineConfiguration internal) {
+        return new ProxyInternalPipelineConfigurationBridge(internal);
     }
 
-    public String getId() {
-        return delegate.getId();
-    }
+    String getId();
 
-    public Map<String, Object> getConfigAsMap() {
-        return delegate.getConfigAsMap();
-    }
+    Map<String, Object> getConfig();
 
-    @Override
-    public int hashCode() {
-        return delegate.hashCode();
-    }
+    Map<String, Object> getConfig(boolean unmodifiable);
 
-    @Override
-    public String toString() {
-        return delegate.toString();
-    }
+    int hashCode();
 
-    @Override
-    public boolean equals(final Object obj) {
-        if (this == obj) {
-            return true;
-        } else if (obj instanceof PipelineConfigurationBridge other) {
-            return delegate.equals(other.delegate);
-        } else {
-            return false;
-        }
-    }
+    String toString();
+
+    boolean equals(Object o);
+
 }

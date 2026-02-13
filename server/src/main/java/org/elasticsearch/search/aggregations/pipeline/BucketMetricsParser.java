@@ -56,7 +56,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> paths = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();
                         paths.add(path);
                     }

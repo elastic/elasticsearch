@@ -9,7 +9,6 @@
 
 package org.elasticsearch.repositories.azure;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -19,12 +18,14 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class AzureRepositoryMissingCredentialsIT extends ESIntegTestCase {
 
     @Override
@@ -41,17 +42,13 @@ public class AzureRepositoryMissingCredentialsIT extends ESIntegTestCase {
 
     public void testMissingCredentialsException() {
         assertThat(
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 RepositoryVerificationException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            TransportPutRepositoryAction.TYPE,
-                            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo").type("azure"),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    TransportPutRepositoryAction.TYPE,
+                    new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo").type("azure"),
+                    l
                 )
             ).getCause().getMessage(),
             allOf(

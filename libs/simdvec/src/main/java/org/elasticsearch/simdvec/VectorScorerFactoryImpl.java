@@ -9,23 +9,44 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.util.Optional;
 
 final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
+    /*
+     * This class is never actually used, it only exists here to be referenced at compile time.
+     * The actual implementation is loaded from main21 or main22, depending on JVM version,
+     * by the multi-release jar set up by the MrjarPlugin during build time.
+     */
+
     static final VectorScorerFactoryImpl INSTANCE = null;
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
 
     @Override
     public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        RandomAccessQuantizedByteVectorValues values,
+        QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
         throw new UnsupportedOperationException("should not reach here");
@@ -34,7 +55,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7SQVectorScorer(
         VectorSimilarityFunction sim,
-        RandomAccessQuantizedByteVectorValues values,
+        QuantizedByteVectorValues values,
         float[] queryVector
     ) {
         throw new UnsupportedOperationException("should not reach here");

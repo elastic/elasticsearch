@@ -10,15 +10,12 @@
 package org.elasticsearch.unconfigured_node_name;
 
 import org.elasticsearch.common.logging.JsonLogsIntegTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.hamcrest.Matcher;
+import org.junit.ClassRule;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.io.InputStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -26,9 +23,24 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     private static final String OS_NAME = System.getProperty("os.name");
     private static final boolean WINDOWS = OS_NAME.startsWith("Windows");
 
-    // These match the values defined in org.elasticsearch.gradle.testclusters.ElasticsearchNode
-    private static final String COMPUTERNAME = "WindowsComputername";
-    private static final String HOSTNAME = "LinuxDarwinHostname";
+    private static final String COMPUTERNAME = "WindowsTestComputername";
+    private static final String HOSTNAME = "LinuxDarwinTestHostname";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .setting("xpack.security.enabled", "false")
+        .setting("discovery.type", "single-node")
+        .withNode(
+            localNodeSpecBuilder -> localNodeSpecBuilder.withoutName()
+                .environment("HOSTNAME", HOSTNAME)
+                .environment("COMPUTERNAME", COMPUTERNAME)
+        )
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Matcher<String> nodeNameMatcher() {
@@ -39,13 +51,7 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     }
 
     @Override
-    protected BufferedReader openReader(Path logFile) {
-        return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
-            try {
-                return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+    protected InputStream openLogsStream() {
+        return cluster.getNodeLog(0, LogType.SERVER_JSON);
     }
 }

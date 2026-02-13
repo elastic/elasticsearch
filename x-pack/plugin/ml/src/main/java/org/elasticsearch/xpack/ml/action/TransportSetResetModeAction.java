@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,10 +26,9 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
         TransportService transportService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
-        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, indexNameExpressionResolver);
+        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters);
     }
 
     @Override
@@ -45,17 +43,15 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
 
     @Override
     protected ClusterState setState(ClusterState oldState, SetResetModeActionRequest request) {
-        ClusterState.Builder newState = ClusterState.builder(oldState);
+        final ProjectMetadata project = oldState.metadata().getDefaultProject();
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
         if (request.shouldDeleteMetadata()) {
             assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
-            newState.metadata(
-                Metadata.builder(oldState.getMetadata()).removeCustom(MlMetadata.TYPE).removeCustom(ModelAliasMetadata.NAME).build()
-            );
+            projectBuilder.removeCustom(MlMetadata.TYPE).removeCustom(ModelAliasMetadata.NAME);
         } else {
-            MlMetadata.Builder builder = MlMetadata.Builder.from(oldState.metadata().custom(MlMetadata.TYPE))
-                .isResetMode(request.isEnabled());
-            newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
+            MlMetadata.Builder builder = MlMetadata.Builder.from(project.custom(MlMetadata.TYPE)).isResetMode(request.isEnabled());
+            projectBuilder.putCustom(MlMetadata.TYPE, builder.build());
         }
-        return newState.build();
+        return ClusterState.builder(oldState).putProjectMetadata(projectBuilder.build()).build();
     }
 }

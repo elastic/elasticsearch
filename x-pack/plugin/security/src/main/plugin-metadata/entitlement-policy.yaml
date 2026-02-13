@@ -1,0 +1,60 @@
+org.elasticsearch.security:
+  - set_https_connection_properties # for CommandLineHttpClient
+  - files:
+      - relative_path: ""
+        relative_to: config
+        mode: read
+      - relative_path: users
+        relative_to: config
+        mode: read
+        exclusive: true
+      - relative_path: x-pack/users
+        relative_to: config
+        mode: read
+        exclusive: true
+      - path_setting: xpack.security.authc.realms.ldap.*.files.role_mapping
+        basedir_if_relative: config
+        mode: read
+        exclusive: true
+      - path_setting: xpack.security.authc.realms.pki.*.files.role_mapping
+        basedir_if_relative: config
+        mode: read
+        exclusive: true
+      - path_setting: xpack.security.authc.realms.kerberos.*.keytab.path
+        basedir_if_relative: config
+        mode: read
+        exclusive: true
+      - path_setting: xpack.security.authc.realms.jwt.*.pkc_jwkset_path
+        basedir_if_relative: config
+        mode: read
+        exclusive: true
+      - path_setting: xpack.security.authc.realms.saml.*.idp.metadata.path
+        basedir_if_relative: config
+        mode: read
+        exclusive: true
+
+io.netty.transport:
+  - manage_threads
+  - inbound_network
+  - outbound_network
+io.netty.common:
+  - manage_threads
+  - inbound_network
+  - outbound_network
+  - files:
+    - path: "/etc/os-release"
+      mode: "read"
+    - path: "/usr/lib/os-release"
+      mode: "read"
+    - path: "/proc/sys/net/core/somaxconn"
+      mode: read
+org.opensaml.xmlsec.impl:
+  - write_system_properties:
+      properties:
+        - org.apache.xml.security.ignoreLineBreaks
+org.opensaml.saml.impl:
+  - files:
+    - path_setting: xpack.security.authc.realms.saml.*.idp.metadata.path
+      basedir_if_relative: config
+      mode: read
+      exclusive: true

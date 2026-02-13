@@ -16,13 +16,11 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -41,7 +39,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -52,7 +49,7 @@ import static org.mockito.Mockito.mock;
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private ThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
-    private NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private UsageService usageService = new UsageService();
     private RestController controller = new RestController(
@@ -83,8 +80,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         client.initialize(actions, taskManager, () -> "local", mock(Transport.Connection.class), null);
@@ -158,38 +154,5 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             .withParams(emptyMap())
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
-    }
-
-    public void testTypeInPath() {
-        List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
-
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/_validate/query")
-            .build();
-
-        performRequest(request);
-        assertCriticalWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testTypeParameter() {
-        List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
-
-        Map<String, String> params = new HashMap<>();
-        params.put("type", "some_type");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(RestRequest.Method.GET)
-            .withPath("_validate/query")
-            .withParams(params)
-            .build();
-
-        performRequest(request);
-        assertCriticalWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, false, 1);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        controller.dispatchRequest(request, channel, threadContext);
     }
 }

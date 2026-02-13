@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class GetShardSnapshotResponse extends ActionResponse {
-    public static GetShardSnapshotResponse EMPTY = new GetShardSnapshotResponse(null, Collections.emptyMap());
+    public static final GetShardSnapshotResponse EMPTY = new GetShardSnapshotResponse(null, Collections.emptyMap());
 
     private final ShardSnapshotInfo latestShardSnapshot;
     private final Map<String, RepositoryException> repositoryFailures;
@@ -33,7 +33,6 @@ public class GetShardSnapshotResponse extends ActionResponse {
     }
 
     GetShardSnapshotResponse(StreamInput in) throws IOException {
-        super(in);
         this.latestShardSnapshot = in.readOptionalWriteable(ShardSnapshotInfo::new);
         this.repositoryFailures = in.readMap(RepositoryException::new);
     }

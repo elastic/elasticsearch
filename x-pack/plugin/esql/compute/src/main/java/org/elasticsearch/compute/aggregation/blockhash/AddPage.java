@@ -171,6 +171,6 @@ public class AddPage implements Releasable {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(ords, addInput);
+        Releasables.closeExpectNoException(ords);
     }
 }

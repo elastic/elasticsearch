@@ -75,7 +75,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
             return innerPrepareRequest(request, client);
         } else {
             request.params().keySet().forEach(key -> request.param(key, ""));
-            request.content();
+            request.content(); // mark content consumed
             return channel -> channel.sendResponse(new RestResponse(channel, failedFeature));
         }
     }

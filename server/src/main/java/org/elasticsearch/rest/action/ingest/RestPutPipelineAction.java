@@ -9,10 +9,11 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -56,15 +58,26 @@ public class RestPutPipelineAction extends BaseRestHandler {
             }
         }
 
-        Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
+        Tuple<XContentType, ReleasableBytesReference> sourceTuple = restRequest.contentOrSourceParam();
+        var content = sourceTuple.v2();
         final var request = new PutPipelineRequest(
             getMasterNodeTimeout(restRequest),
             getAckTimeout(restRequest),
             restRequest.param("id"),
-            sourceTuple.v2(),
+            content,
             sourceTuple.v1(),
             ifVersion
         );
-        return channel -> client.execute(PutPipelineTransportAction.TYPE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            PutPipelineTransportAction.TYPE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        // pipeline_tracking info: `{created,modified}_date` system properties defined within pipeline definition.
+        return Set.of("pipeline_tracking_info", "field_access_pattern.flexible");
     }
 }

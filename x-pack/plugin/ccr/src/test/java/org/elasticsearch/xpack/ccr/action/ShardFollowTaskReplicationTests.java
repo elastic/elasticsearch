@@ -45,7 +45,6 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -116,7 +115,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 docCount += leaderGroup.appendDocs(randomInt(128));
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
-                Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+                Set<String> indexedDocIds = getShardDocIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
                     assertThat(
                         followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -213,7 +212,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
-                Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+                Set<String> indexedDocIds = getShardDocIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
                     assertThat(
                         followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -262,7 +261,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
-                Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+                Set<String> indexedDocIds = getShardDocIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
                     assertThat(
                         followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -322,7 +321,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         getEngine(shard).noOp(noOp);
                     }
                 }
-                for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
+                for (String deleteId : randomSubsetOf(getShardDocIDs(leaderGroup.getPrimary()))) {
                     BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", deleteId));
                     assertThat(resp.getFailure(), nullValue());
                 }
@@ -340,7 +339,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         fromSeqNo,
                         numOps,
                         leadingPrimary.getHistoryUUID(),
-                        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                        ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
                     );
 
                     IndexShard followingPrimary = followerGroup.getPrimary();
@@ -405,7 +404,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder()
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(between(1, 1000), ByteSizeUnit.KB))
             .build();
         IndexMetadata indexMetadata = buildIndexMetadata(between(0, 1), settings, indexMapping);
         try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
@@ -435,8 +434,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(
                         newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {
-                        }
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {}
                     );
                 }
             }
@@ -505,7 +503,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     private ReplicationGroup createFollowGroup(ReplicationGroup leaderGroup, int replicas) throws IOException {
         final Settings settings = Settings.builder()
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(between(1, 1000), ByteSizeUnit.KB))
             .build();
         IndexMetadata indexMetadata = buildIndexMetadata(replicas, settings, indexMapping);
         return new ReplicationGroup(indexMetadata) {
@@ -529,7 +527,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
                 primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
+                primaryShard.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), index.getName()) {
                     @Override
                     public void restoreShard(
                         Store store,
@@ -573,10 +571,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 64),
             between(1, 8),
             between(1, 4),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES),
             10240,
-            new ByteSizeValue(512, ByteSizeUnit.MB),
+            ByteSizeValue.of(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
@@ -755,7 +753,15 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
         try (
             Translog.Snapshot snapshot = leader.getPrimary()
-                .newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())
+                .newChangesSnapshot(
+                    "test",
+                    0,
+                    Long.MAX_VALUE,
+                    false,
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                )
         ) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
@@ -780,7 +786,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     Long.MAX_VALUE,
                     false,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                 )
             ) {
                 Translog.Operation op;

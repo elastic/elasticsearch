@@ -40,7 +40,8 @@ public record SslConfiguration(
     SslVerificationMode verificationMode,
     SslClientAuthenticationMode clientAuth,
     List<String> ciphers,
-    List<String> supportedProtocols
+    List<String> supportedProtocols,
+    long handshakeTimeoutMillis
 ) {
 
     /**
@@ -71,7 +72,8 @@ public record SslConfiguration(
         SslVerificationMode verificationMode,
         SslClientAuthenticationMode clientAuth,
         List<String> ciphers,
-        List<String> supportedProtocols
+        List<String> supportedProtocols,
+        long handshakeTimeoutMillis
     ) {
         this.settingPrefix = settingPrefix;
         this.explicitlyConfigured = explicitlyConfigured;
@@ -85,6 +87,10 @@ public record SslConfiguration(
         this.keyConfig = Objects.requireNonNull(keyConfig, "key config cannot be null");
         this.verificationMode = Objects.requireNonNull(verificationMode, "verification mode cannot be null");
         this.clientAuth = Objects.requireNonNull(clientAuth, "client authentication cannot be null");
+        if (handshakeTimeoutMillis < 1L) {
+            throw new SslConfigException("handshake timeout must be at least 1ms");
+        }
+        this.handshakeTimeoutMillis = handshakeTimeoutMillis;
         this.ciphers = Collections.unmodifiableList(ciphers);
         this.supportedProtocols = Collections.unmodifiableList(supportedProtocols);
     }
@@ -150,25 +156,5 @@ public record SslConfiguration(
         throw new SslConfigException(
             "no supported SSL/TLS protocol was found in the configured supported protocols: " + supportedProtocols
         );
-    }
-
-    // TODO Add explicitlyConfigured to equals&hashCode?
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final SslConfiguration that = (SslConfiguration) o;
-        return Objects.equals(this.settingPrefix, that.settingPrefix)
-            && Objects.equals(this.trustConfig, that.trustConfig)
-            && Objects.equals(this.keyConfig, that.keyConfig)
-            && this.verificationMode == that.verificationMode
-            && this.clientAuth == that.clientAuth
-            && Objects.equals(this.ciphers, that.ciphers)
-            && Objects.equals(this.supportedProtocols, that.supportedProtocols);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(settingPrefix, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
     }
 }

@@ -49,7 +49,13 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
-    public ConstantNullVector filter(int... positions) {
+    public ConstantNullVector filter(boolean mayContainDuplicates, int... positions) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public ConstantNullVector deepCopy(BlockFactory blockFactory) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }
@@ -110,6 +116,18 @@ public final class ConstantNullVector extends AbstractVector
 
     @Override
     public int max() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public boolean allTrue() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public boolean allFalse() {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -128,7 +127,7 @@ public class Pow extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
         var expEval = Cast.cast(source(), exponent.dataType(), DataType.DOUBLE, toEvaluator.apply(exponent));
         return new PowEvaluator.Factory(source(), baseEval, expEval);

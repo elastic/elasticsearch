@@ -23,7 +23,6 @@ public class PersistentTaskResponse extends ActionResponse {
     private final PersistentTask<?> task;
 
     public PersistentTaskResponse(StreamInput in) throws IOException {
-        super(in);
         task = in.readOptionalWriteable(PersistentTask::new);
     }
 

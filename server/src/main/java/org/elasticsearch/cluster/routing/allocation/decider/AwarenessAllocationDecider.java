@@ -120,7 +120,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(allocation.metadata().getIndexSafe(shardRouting.index()), shardRouting, node, allocation, true);
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        return underCapacity(indexMetadata, shardRouting, node, allocation, true);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -49,7 +50,10 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
         AZURE_TEST_CLIENT_ID,
-        decideAuthHeaderPredicate()
+        decideAuthHeaderPredicate(),
+        // 5% of the time, in a contended lease scenario, expire the existing lease
+        (currentLeaseId, requestLeaseId) -> currentLeaseId.equals(requestLeaseId) == false
+            && ThreadLocalRandom.current().nextDouble() < 0.05
     );
 
     private static Predicate<String> decideAuthHeaderPredicate() {
@@ -70,6 +74,7 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
         .module("snapshot-repo-test-kit")
+        .setting("thread_pool.snapshot.max", "10")
         .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
         .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> Strings.hasText(AZURE_TEST_KEY))
         .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> Strings.hasText(AZURE_TEST_SASTOKEN))
@@ -78,12 +83,6 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
             () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
-        .apply(c -> {
-            if (USE_FIXTURE) {
-                // test fixture does not support CAS yet; TODO fix this
-                c.systemProperty("test.repository_test_kit.skip_cas", "true");
-            }
-        })
         .systemProperty(
             "tests.azure.credentials.disable_instance_discovery",
             () -> "true",

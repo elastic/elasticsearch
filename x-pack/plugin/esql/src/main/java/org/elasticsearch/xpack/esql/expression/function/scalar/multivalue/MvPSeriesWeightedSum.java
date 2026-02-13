@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -66,8 +66,8 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         @Param(
             name = "p",
             type = { "double" },
-            description = "It is a constant number that represents the 'p' parameter in the P-Series. "
-                + "It impacts every element's contribution to the weighted sum."
+            description = "It is a constant number that represents the *p* parameter in the P-Series. "
+                + "It impacts every element’s contribution to the weighted sum."
         ) Expression p
     ) {
         super(source, Arrays.asList(field, p));
@@ -96,7 +96,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         }
 
         if (p.dataType() == NULL) {
-            // If the type is `null` this parameter doesn't have to be foldable. It's effectively foldable anyway.
+            // If the type is `null` this parameter doesn’t have to be foldable. It’s effectively foldable anyway.
             // TODO figure out if the tests are wrong here, or if null is really different from foldable null
             return resolution;
         }
@@ -110,13 +110,13 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(
                 source(),
                 toEvaluator.apply(field),
                 ctx -> new CompensatedSum(),
-                (Double) p.fold()
+                (Double) p.fold(toEvaluator.foldCtx())
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
@@ -144,9 +144,9 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static void process(
         DoubleBlock.Builder builder,
-        int position,
+        @Position int position,
         DoubleBlock block,
-        @Fixed(includeInToString = false, build = true) CompensatedSum sum,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) CompensatedSum sum,
         @Fixed double p
     ) {
         sum.reset(0, 0);

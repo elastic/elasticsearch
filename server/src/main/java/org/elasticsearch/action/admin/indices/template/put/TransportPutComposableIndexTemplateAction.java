@@ -23,10 +23,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.metadata.ResettableValue;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,6 +46,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -55,6 +61,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/index_template/put");
     private final MetadataIndexTemplateService indexTemplateService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutComposableIndexTemplateAction(
@@ -63,24 +70,16 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
-        super(
-            TYPE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            Request::new,
-            indexNameExpressionResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, clusterService, threadPool, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.indexTemplateService = indexTemplateService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -90,7 +89,12 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        verifyIfUsingReservedComponentTemplates(request, state);
+        ProjectId projectId = projectResolver.getProjectId();
+        verifyIfUsingReservedComponentTemplates(request, state.metadata().reservedStateMetadata().values());
+        verifyIfUsingReservedComponentTemplates(
+            request,
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values()
+        );
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         indexTemplateService.putIndexTemplateV2(
             request.cause(),
@@ -98,20 +102,21 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             request.name(),
             request.masterNodeTimeout(),
             indexTemplate,
+            projectId,
             listener
         );
     }
 
-    public static void verifyIfUsingReservedComponentTemplates(final Request request, final ClusterState state) {
+    public static void verifyIfUsingReservedComponentTemplates(Request request, Collection<ReservedStateMetadata> reservedStateMetadata) {
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         Set<String> composedOfKeys = indexTemplate.composedOf()
             .stream()
-            .map(c -> ReservedComposableIndexTemplateAction.reservedComponentName(c))
+            .map(ReservedComposableIndexTemplateAction::reservedComponentName)
             .collect(Collectors.toSet());
 
         List<String> errors = new ArrayList<>();
 
-        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
+        for (ReservedStateMetadata metadata : reservedStateMetadata) {
             Set<String> conflicts = metadata.conflicts(ReservedComposableIndexTemplateAction.NAME, composedOfKeys);
             if (conflicts.isEmpty() == false) {
                 errors.add(format("[%s] is reserved by [%s]", String.join(", ", conflicts), metadata.namespace()));
@@ -133,6 +138,18 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     @Override
     public Set<String> modifiedKeys(Request request) {
         return Set.of(ReservedComposableIndexTemplateAction.reservedComposableIndexName(request.name()));
+    }
+
+    @Override
+    protected void validateForReservedState(Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request::toString
+        );
     }
 
     /**
@@ -196,6 +213,22 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
                 if (indexTemplate.priority() != null && indexTemplate.priority() < 0) {
                     validationException = addValidationError("index template priority must be >= 0", validationException);
                 }
+                List<DataStreamLifecycle.DownsamplingRound> rounds = Optional.ofNullable(indexTemplate.template())
+                    .map(Template::lifecycle)
+                    .map(DataStreamLifecycle.Template::downsamplingRounds)
+                    .map(ResettableValue::get)
+                    .orElse(null);
+                if (rounds != null) {
+                    try {
+                        DataStreamLifecycle.DownsamplingRound.validateRounds(rounds);
+                    } catch (Exception e) {
+                        validationException = addValidationError(
+                            "template downsampling rounds are not valid: " + e.getMessage(),
+                            validationException
+                        );
+                    }
+                }
+
             }
             return validationException;
         }

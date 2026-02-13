@@ -1,54 +1,60 @@
 {
-  "indices.simulate_index_template":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-simulate-index.html",
-      "description": "Simulate matching the given index name against the index templates in the system"
+  "indices.simulate_index_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-simulate-index-template",
+      "description": "Simulate an index"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_index_template/_simulate_index/{name}",
-          "methods":[
+          "path": "/_index_template/_simulate_index/{name}",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"The name of the index (it must be a concrete index name)"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the index (it must be a concrete index name)"
             }
           }
         }
       ]
     },
-    "params":{
-      "create":{
-        "type":"boolean",
-        "description":"Whether the index template we optionally defined in the body should only be dry-run added if new or can also replace an existing one",
-        "default":false
+    "params": {
+      "create": {
+        "type": "boolean",
+        "description": "Whether the index template we optionally defined in the body should only be dry-run added if new or can also replace an existing one",
+        "default": false
       },
-      "cause":{
-        "type":"string",
-        "description":"User defined reason for dry-run creating the new template for simulation purposes",
-        "default":false
+      "cause": {
+        "type": "string",
+        "description": "User defined reason for dry-run creating the new template for simulation purposes",
+        "default": "false"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       },
-      "include_defaults":{
-        "type":"boolean",
-        "description":"Return all relevant default configurations for this index template simulation (default: false)"
+      "include_defaults": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return all relevant default configurations for this index template simulation (default: false)"
       }
     },
-    "body":{
-      "description":"New index template definition, which will be included in the simulation, as if it already exists in the system",
-      "required":false
+    "body": {
+      "description": "New index template definition, which will be included in the simulation, as if it already exists in the system",
+      "required": false
     }
   }
 }

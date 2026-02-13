@@ -11,6 +11,7 @@ package org.elasticsearch.validation;
 
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -44,5 +45,10 @@ public class DotPrefixValidationPlugin extends Plugin implements ActionPlugin {
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return actionFilters.get();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(DotPrefixValidator.VALIDATE_DOT_PREFIXES, DotPrefixValidator.IGNORED_INDEX_PATTERNS_SETTING);
     }
 }

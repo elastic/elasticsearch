@@ -30,7 +30,7 @@ public class Index implements Writeable, ToXContentObject {
 
     public static final Index[] EMPTY_ARRAY = new Index[0];
 
-    public static Comparator<Index> COMPARE_BY_NAME = Comparator.comparing(Index::getName);
+    public static final Comparator<Index> COMPARE_BY_NAME = Comparator.comparing(Index::getName);
 
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String INDEX_NAME_KEY = "index_name";

@@ -13,7 +13,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -38,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
@@ -123,12 +123,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     /**
      * Whether the aggregation will execute. If the main query matches no documents and parent aggregation isn't a global or terms
-     * aggregation with min_doc_count = 0, the the aggregator will not really execute. In those cases it doesn't make sense to load
+     * aggregation with min_doc_count = 0, the aggregator will not really execute. In those cases it doesn't make sense to load
      * global ordinals.
      * <p>
      * Some searches that will never match can still fall through and we endup running query that will produce no results.
      * However even in that case we sometimes do expensive things like loading global ordinals. This method should prevent this.
-     * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(ShardSearchRequest, SearchShardTask, ActionListener)}
+     * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(ShardSearchRequest, CancellableTask, ActionListener)}
      * always do a can match then we don't need this code here.
      */
     static boolean matchNoDocs(AggregationContext context, Aggregator parent) {
@@ -422,6 +422,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if ("global_ordinals".equals(value)) {
                 return GLOBAL_ORDINALS;
             } else if ("global_ordinals_hash".equals(value)) {
+                /*
+                 * We have no plans to remove this so we don't break anyone, no matter
+                 * how few people still use this or how long it's been deprecated.
+                 */
                 deprecationLogger.warn(
                     DeprecationCategory.AGGREGATIONS,
                     "global_ordinals_hash",

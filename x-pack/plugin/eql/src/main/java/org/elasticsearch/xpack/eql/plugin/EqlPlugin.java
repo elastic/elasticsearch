@@ -7,12 +7,9 @@
 package org.elasticsearch.xpack.eql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,6 +26,7 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -60,18 +58,42 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         Setting.Property.DeprecatedWarning
     );
 
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
+        "xpack.eql.default_allow_partial_results",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS = Setting.boolSetting(
+        "xpack.eql.default_allow_partial_sequence_results",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public EqlPlugin() {}
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        return createComponents(services.client(), services.environment().settings(), services.clusterService());
+        return createComponents(
+            services.client(),
+            services.environment().settings(),
+            services.clusterService().getClusterName().value(),
+            services.linkedProjectConfigService()
+        );
     }
 
-    private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
-        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+    private Collection<Object> createComponents(
+        Client client,
+        Settings settings,
+        String clusterName,
+        LinkedProjectConfigService linkedProjectConfigService
+    ) {
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         IndexResolver indexResolver = new IndexResolver(
             client,
-            clusterService.getClusterName().value(),
+            clusterName,
             DefaultDataTypeRegistry.INSTANCE,
             remoteClusterResolver::remoteClusters
         );
@@ -86,18 +108,18 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(EQL_ENABLED_SETTING);
+        return List.of(EQL_ENABLED_SETTING, DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS);
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
-            new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+            new ActionHandler(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
+            new ActionHandler(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
+            new ActionHandler(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
     }
 
@@ -115,7 +137,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     ) {
 
         return List.of(
-            new RestEqlSearchAction(),
+            new RestEqlSearchAction(settings),
             new RestEqlStatsAction(),
             new RestEqlGetAsyncResultAction(),
             new RestEqlGetAsyncStatusAction(),

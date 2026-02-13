@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,7 +34,7 @@ import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -65,6 +65,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -84,7 +85,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAliasesVersionIncreases("test", () -> {
             logger.info("--> aliasing index [test] with [alias1]");
-            assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1", false));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1", false));
         });
 
         logger.info("--> indexing against [alias1], should fail now");
@@ -103,7 +104,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAliasesVersionIncreases("test", () -> {
             logger.info("--> aliasing index [test] with [alias1]");
-            assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1"));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1"));
         });
 
         logger.info("--> indexing against [alias1], should work now");
@@ -118,7 +119,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAliasesVersionIncreases("test_x", () -> {
             logger.info("--> add index [test_x] with [alias1]");
-            assertAcked(indicesAdmin().prepareAliases().addAlias("test_x", "alias1"));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_x", "alias1"));
         });
 
         logger.info("--> indexing against [alias1], should fail now");
@@ -148,7 +149,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAliasesVersionIncreases("test_x", () -> {
             logger.info("--> remove aliasing index [test_x] with [alias1]");
-            assertAcked(indicesAdmin().prepareAliases().removeAlias("test_x", "alias1"));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_x", "alias1"));
         });
 
         logger.info("--> indexing against [alias1], should work now");
@@ -157,7 +158,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAliasesVersionIncreases("test_x", () -> {
             logger.info("--> add index [test_x] with [alias1] as write-index");
-            assertAcked(indicesAdmin().prepareAliases().addAlias("test_x", "alias1", true));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_x", "alias1", true));
         });
 
         logger.info("--> indexing against [alias1], should work now");
@@ -170,7 +171,11 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAliasesVersionIncreases("test_x", () -> {
             logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
-            assertAcked(indicesAdmin().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));
+            assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .removeAlias("test", "alias1")
+                    .addAlias("test_x", "alias1")
+            );
         });
 
         logger.info("--> indexing against [alias1], should work against [test_x]");
@@ -183,11 +188,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("test");
 
         // invalid filter, invalid json
-        Exception e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAliases().addAlias("test", "alias1", "abcde"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1", "abcde")
+        );
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
 
         // valid json , invalid filter
-        e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAliases().addAlias("test", "alias1", "{ \"test\": {} }"));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1", "{ \"test\": {} }")
+        );
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
     }
 
@@ -199,12 +210,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> aliasing index [test] with [alias1] and filter [user:kimchy]");
         QueryBuilder filter = termQuery("user", "kimchy");
-        assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1", filter)));
+        assertAliasesVersionIncreases(
+            "test",
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1", filter))
+        );
 
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        IndexMetadata indexMd = clusterState.metadata().index("test");
+        IndexMetadata indexMd = clusterState.metadata().getProject().index("test");
         assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("""
             {"term":{"user":{"value":"kimchy"}}}"""));
 
@@ -218,7 +232,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> aliasing index [test] with [alias1] and empty filter");
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareAliases().addAlias("test", "alias1", "{}")
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1", "{}")
         );
         assertEquals("failed to parse filter for alias [alias1]", iae.getMessage());
     }
@@ -231,19 +245,32 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> adding filtering aliases to index [test]");
 
-        assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1")));
-        assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias2")));
         assertAliasesVersionIncreases(
             "test",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "foos", termQuery("name", "foo")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1"))
         );
         assertAliasesVersionIncreases(
             "test",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "bars", termQuery("name", "bar")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias2"))
         );
         assertAliasesVersionIncreases(
             "test",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "tests", termQuery("name", "test")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "foos", termQuery("name", "foo"))
+            )
+        );
+        assertAliasesVersionIncreases(
+            "test",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "bars", termQuery("name", "bar"))
+            )
+        );
+        assertAliasesVersionIncreases(
+            "test",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test", "tests", termQuery("name", "test"))
+            )
         );
 
         logger.info("--> indexing against [test]");
@@ -262,27 +289,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
         ).actionGet();
 
-        logger.info("--> checking single filtering alias search");
-        assertResponse(
+        assertResponses(
+            searchResponse -> assertHits(searchResponse.getHits(), "1"),
             prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1")
+            prepareSearch("fo*").setQuery(QueryBuilders.matchAllQuery())
         );
 
-        logger.info("--> checking single filtering alias wildcard search");
-        assertResponse(
-            prepareSearch("fo*").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1")
-        );
-
-        assertResponse(
+        assertResponses(
+            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3"),
             prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3")
-        );
-
-        logger.info("--> checking single filtering alias search with sort");
-        assertResponse(
-            prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_index", SortOrder.ASC),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3")
+            prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_index", SortOrder.ASC)
         );
 
         logger.info("--> checking single filtering alias search with global facets");
@@ -290,7 +306,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name"))),
             searchResponse -> {
-                Global global = searchResponse.getAggregations().get("global");
+                SingleBucketAggregation global = searchResponse.getAggregations().get("global");
                 Terms terms = global.getAggregations().get("test");
                 assertThat(terms.getBuckets().size(), equalTo(4));
             }
@@ -302,7 +318,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
                 .addSort("_index", SortOrder.ASC),
             searchResponse -> {
-                Global global = searchResponse.getAggregations().get("global");
+                SingleBucketAggregation global = searchResponse.getAggregations().get("global");
                 Terms terms = global.getAggregations().get("test");
                 assertThat(terms.getBuckets().size(), equalTo(4));
             }
@@ -323,56 +339,59 @@ public class IndexAliasesIT extends ESIntegTestCase {
             searchResponse -> assertHits(searchResponse.getHits(), "1", "2")
         );
 
-        logger.info("--> checking single non-filtering alias search");
-        assertResponse(
+        assertResponses(
+            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3", "4"),
             prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3", "4")
-        );
-
-        logger.info("--> checking non-filtering alias and filtering alias search");
-        assertResponse(
             prepareSearch("alias1", "foos").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3", "4")
-        );
-
-        logger.info("--> checking index and filtering alias search");
-        assertResponse(
             prepareSearch("test", "foos").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3", "4")
-        );
-
-        logger.info("--> checking index and alias wildcard search");
-        assertResponse(
-            prepareSearch("te*", "fo*").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3", "4")
+            prepareSearch("te*", "fo*").setQuery(QueryBuilders.matchAllQuery())
         );
     }
 
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
-        logger.info("--> creating index [test1]");
-        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
-        logger.info("--> creating index [test2]");
-        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
+        logger.info("--> creating indices [test1, test2]");
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"), prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
-        assertAliasesVersionIncreases("test1", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "aliasToTest1")));
-        assertAliasesVersionIncreases("test1", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "aliasToTests")));
         assertAliasesVersionIncreases(
             "test1",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "foos", termQuery("name", "foo")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "aliasToTest1"))
         );
         assertAliasesVersionIncreases(
             "test1",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "bars", termQuery("name", "bar")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "aliasToTests"))
+        );
+        assertAliasesVersionIncreases(
+            "test1",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test1", "foos", termQuery("name", "foo"))
+            )
+        );
+        assertAliasesVersionIncreases(
+            "test1",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test1", "bars", termQuery("name", "bar"))
+            )
         );
 
         logger.info("--> adding filtering aliases to index [test2]");
-        assertAliasesVersionIncreases("test2", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "aliasToTest2")));
-        assertAliasesVersionIncreases("test2", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "aliasToTests")));
         assertAliasesVersionIncreases(
             "test2",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "foos", termQuery("name", "foo")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test2", "aliasToTest2"))
+        );
+        assertAliasesVersionIncreases(
+            "test2",
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test2", "aliasToTests"))
+        );
+        assertAliasesVersionIncreases(
+            "test2",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test2", "foos", termQuery("name", "foo"))
+            )
         );
 
         logger.info("--> indexing against [test1]");
@@ -396,7 +415,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L))
         );
 
         logger.info("--> checking filtering alias for one index");
@@ -406,7 +425,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L))
         );
 
         logger.info("--> checking filtering alias for two indices and one complete index");
@@ -416,7 +435,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(5L))
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
@@ -426,17 +445,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(5L))
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         assertResponse(
             prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(8L))
         );
         assertResponse(
             prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(8L))
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
@@ -446,7 +465,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.termQuery("name", "something")),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L))
         );
     }
 
@@ -459,31 +478,52 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding aliases to indices");
-        assertAliasesVersionIncreases("test1", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "alias12")));
-        assertAliasesVersionIncreases("test2", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "alias12")));
+        assertAliasesVersionIncreases(
+            "test1",
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "alias12"))
+        );
+        assertAliasesVersionIncreases(
+            "test2",
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test2", "alias12"))
+        );
 
         logger.info("--> adding filtering aliases to indices");
         assertAliasesVersionIncreases(
             "test1",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "filter1", termQuery("name", "test1")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test1", "filter1", termQuery("name", "test1"))
+            )
         );
 
         assertAliasesVersionIncreases(
             "test2",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "filter23", termQuery("name", "foo")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test2", "filter23", termQuery("name", "foo"))
+            )
         );
         assertAliasesVersionIncreases(
             "test3",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test3", "filter23", termQuery("name", "foo")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test3", "filter23", termQuery("name", "foo"))
+            )
         );
 
         assertAliasesVersionIncreases(
             "test1",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "filter13", termQuery("name", "baz")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test1", "filter13", termQuery("name", "baz"))
+            )
         );
         assertAliasesVersionIncreases(
             "test3",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test3", "filter13", termQuery("name", "baz")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test3", "filter13", termQuery("name", "baz"))
+            )
         );
 
         logger.info("--> indexing against [test1]");
@@ -506,89 +546,107 @@ public class IndexAliasesIT extends ESIntegTestCase {
             prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()),
             searchResponse -> assertHits(searchResponse.getHits(), "21", "31", "13", "33")
         );
-        assertResponse(
+        assertResponses(
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(4L)),
             prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L))
+            prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery())
         );
-
         assertResponse(
             prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()),
             searchResponse -> assertHits(searchResponse.getHits(), "21", "31", "11", "12", "13")
         );
         assertResponse(
             prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(5L))
         );
-
         assertResponse(
             prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()),
             searchResponse -> assertHits(searchResponse.getHits(), "11", "12", "13", "33")
         );
-        assertResponse(
-            prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L))
-        );
-
         assertResponse(
             prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()),
             searchResponse -> assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33")
         );
         assertResponse(
             prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(6L))
         );
-
         assertResponse(
             prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()),
             searchResponse -> assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33")
         );
         assertResponse(
             prepareSearch("filter23", "filter13", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(6L))
         );
-
         assertResponse(
             prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()),
             searchResponse -> assertHits(searchResponse.getHits(), "11", "12", "13", "21", "22", "23", "31", "33")
         );
         assertResponse(
             prepareSearch("filter23", "filter13", "test1", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(8L))
         );
     }
 
     public void testDeletingByQueryFilteringAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2");
-        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
-        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"), prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
-        assertAliasesVersionIncreases("test1", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "aliasToTest1")));
-        assertAliasesVersionIncreases("test1", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "aliasToTests")));
         assertAliasesVersionIncreases(
             "test1",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "foos", termQuery("name", "foo")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "aliasToTest1"))
         );
         assertAliasesVersionIncreases(
             "test1",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "bars", termQuery("name", "bar")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "aliasToTests"))
         );
         assertAliasesVersionIncreases(
             "test1",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "tests", termQuery("name", "test")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test1", "foos", termQuery("name", "foo"))
+            )
+        );
+        assertAliasesVersionIncreases(
+            "test1",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test1", "bars", termQuery("name", "bar"))
+            )
+        );
+        assertAliasesVersionIncreases(
+            "test1",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test1", "tests", termQuery("name", "test"))
+            )
         );
 
         logger.info("--> adding filtering aliases to index [test2]");
-        assertAliasesVersionIncreases("test2", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "aliasToTest2")));
-        assertAliasesVersionIncreases("test2", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "aliasToTests")));
         assertAliasesVersionIncreases(
             "test2",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "foos", termQuery("name", "foo")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test2", "aliasToTest2"))
         );
         assertAliasesVersionIncreases(
             "test2",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test2", "tests", termQuery("name", "test")))
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test2", "aliasToTests"))
+        );
+        assertAliasesVersionIncreases(
+            "test2",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test2", "foos", termQuery("name", "foo"))
+            )
+        );
+        assertAliasesVersionIncreases(
+            "test2",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test2", "tests", termQuery("name", "test"))
+            )
         );
 
         logger.info("--> indexing against [test1]");
@@ -608,21 +666,20 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking counts before delete");
         assertResponse(
             prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L))
         );
     }
 
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
-        assertAcked(prepareCreate("test1").setMapping("name", "type=text"));
-        assertAcked(prepareCreate("test2").setMapping("name", "type=text"));
+        assertAcked(prepareCreate("test1").setMapping("name", "type=text"), prepareCreate("test2").setMapping("name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
         assertAliasesVersionIncreases(
             "test1",
             () -> assertAcked(
-                indicesAdmin().prepareAliases()
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .addAlias("test1", "aliasToTest1")
                     .addAlias("test1", "aliasToTests")
                     .addAlias("test1", "foos", termQuery("name", "foo"))
@@ -635,7 +692,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAliasesVersionIncreases(
             "test2",
             () -> assertAcked(
-                indicesAdmin().prepareAliases()
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .addAlias("test2", "aliasToTest2")
                     .addAlias("test2", "aliasToTests")
                     .addAlias("test2", "foos", termQuery("name", "foo"))
@@ -646,32 +703,44 @@ public class IndexAliasesIT extends ESIntegTestCase {
         String[] indices = { "test1", "test2" };
         String[] aliases = { "aliasToTest1", "foos", "bars", "tests", "aliasToTest2", "aliasToTests" };
 
-        assertAliasesVersionIncreases(indices, () -> indicesAdmin().prepareAliases().removeAlias(indices, aliases).get());
+        assertAliasesVersionIncreases(
+            indices,
+            () -> indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias(indices, aliases).get()
+        );
 
         for (String alias : aliases) {
-            assertTrue(indicesAdmin().prepareGetAliases(alias).get().getAliases().isEmpty());
+            assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, alias).get().getAliases().isEmpty());
         }
 
         logger.info("--> creating index [foo_foo] and [bar_bar]");
-        assertAcked(prepareCreate("foo_foo"));
-        assertAcked(prepareCreate("bar_bar"));
+        assertAcked(prepareCreate("foo_foo"), prepareCreate("bar_bar"));
         ensureGreen();
 
         logger.info("--> adding [foo] alias to [foo_foo] and [bar_bar]");
-        assertAliasesVersionIncreases("foo_foo", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("foo_foo", "foo")));
-        assertAliasesVersionIncreases("bar_bar", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("bar_bar", "foo")));
+        assertAliasesVersionIncreases(
+            "foo_foo",
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("foo_foo", "foo"))
+        );
+        assertAliasesVersionIncreases(
+            "bar_bar",
+            () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("bar_bar", "foo"))
+        );
 
         assertAliasesVersionIncreases(
             "foo_foo",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo*").alias("foo")))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAliasAction(AliasActions.remove().index("foo*").alias("foo"))
+            )
         );
 
-        assertFalse(indicesAdmin().prepareGetAliases("foo").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("foo").setIndices("foo_foo").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foo").setIndices("bar_bar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("foo_foo").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("bar_bar").get().getAliases().isEmpty());
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo").alias("foo"))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.remove().index("foo").alias("foo"))
         );
         assertEquals(
             "The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
@@ -687,7 +756,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             final String aliasName = "alias" + i;
-            assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", aliasName)));
+            assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", aliasName))
+            );
             client().index(new IndexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).get();
         }
     }
@@ -700,7 +772,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             final String aliasName = "alias" + i;
-            assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", aliasName)));
+            assertAliasesVersionIncreases(
+                "test",
+                () -> assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", aliasName))
+            );
             client().index(new IndexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).get();
         }
     }
@@ -719,7 +794,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
             executor.submit(new Runnable() {
                 @Override
                 public void run() {
-                    assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", aliasName)));
+                    assertAliasesVersionIncreases(
+                        "test",
+                        () -> assertAcked(
+                            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", aliasName)
+                        )
+                    );
                     client().index(new IndexRequest(aliasName).id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
                 }
             });
@@ -738,14 +818,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> creating alias1 ");
-        assertAliasesVersionIncreases("test", () -> assertAcked((indicesAdmin().prepareAliases().addAlias("test", "alias1"))));
+        assertAliasesVersionIncreases(
+            "test",
+            () -> assertAcked((indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1")))
+        );
         TimeValue timeout = TimeValue.timeValueSeconds(2);
         logger.info("--> recreating alias1 ");
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         assertAliasesVersionUnchanged(
             "test",
-            () -> assertAcked((indicesAdmin().prepareAliases().addAlias("test", "alias1").setTimeout(timeout)))
+            () -> assertAcked(
+                (indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias1").setTimeout(timeout))
+            )
         );
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
@@ -754,7 +839,11 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final TermQueryBuilder fooFilter = termQuery("name", "foo");
         assertAliasesVersionIncreases(
             "test",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1", fooFilter).setTimeout(timeout))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test", "alias1", fooFilter)
+                    .setTimeout(timeout)
+            )
         );
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
@@ -762,7 +851,11 @@ public class IndexAliasesIT extends ESIntegTestCase {
         stopWatch.start();
         assertAliasesVersionUnchanged(
             "test",
-            () -> assertAcked((indicesAdmin().prepareAliases().addAlias("test", "alias1", fooFilter).setTimeout(timeout)))
+            () -> assertAcked(
+                (indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test", "alias1", fooFilter)
+                    .setTimeout(timeout))
+            )
         );
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
@@ -771,12 +864,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final TermQueryBuilder barFilter = termQuery("name", "bar");
         assertAliasesVersionIncreases(
             "test",
-            () -> assertAcked((indicesAdmin().prepareAliases().addAlias("test", "alias1", barFilter).setTimeout(timeout)))
+            () -> assertAcked(
+                (indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("test", "alias1", barFilter)
+                    .setTimeout(timeout))
+            )
         );
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
-        Metadata metadata = internalCluster().clusterService().state().metadata();
+        ProjectMetadata metadata = internalCluster().clusterService().state().metadata().getProject();
         IndexAbstraction ia = metadata.getIndicesLookup().get("alias1");
         AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(metadata, ia);
         assertThat(aliasMetadata.getFilter().toString(), equalTo("""
@@ -786,7 +883,11 @@ public class IndexAliasesIT extends ESIntegTestCase {
         stopWatch.start();
         assertAliasesVersionIncreases(
             "test",
-            () -> assertAcked((indicesAdmin().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout)))
+            () -> assertAcked(
+                (indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .removeAlias("test", "alias1")
+                    .setTimeout(timeout))
+            )
         );
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
     }
@@ -797,7 +898,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
         logger.info("--> deleting alias1 which does not exist");
         try {
-            indicesAdmin().prepareAliases().removeAlias("test", "alias1").get();
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test", "alias1").get();
             fail("Expected AliasesNotFoundException");
         } catch (AliasesNotFoundException e) {
             assertThat(e.getMessage(), containsString("[alias1] missing"));
@@ -818,11 +919,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> creating aliases [alias1, alias2]");
         assertAliasesVersionIncreases(
             "foobar",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("foobar", "alias1").addAlias("foobar", "alias2"))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("foobar", "alias1")
+                    .addAlias("foobar", "alias2")
+            )
         );
 
         logger.info("--> getting alias1");
-        GetAliasesResponse getResponse = indicesAdmin().prepareGetAliases("alias1").get();
+        GetAliasesResponse getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias1").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
@@ -831,10 +936,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        assertFalse(indicesAdmin().prepareGetAliases("alias1").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias1").get().getAliases().isEmpty());
 
         logger.info("--> getting all aliases that start with alias*");
-        getResponse = indicesAdmin().prepareGetAliases("alias*").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(2));
@@ -848,13 +953,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("foobar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
-        assertFalse(indicesAdmin().prepareGetAliases("alias*").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*").get().getAliases().isEmpty());
 
         logger.info("--> creating aliases [bar, baz, foo]");
         assertAliasesVersionIncreases(
             new String[] { "bazbar", "foobar" },
             () -> assertAcked(
-                indicesAdmin().prepareAliases()
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .addAlias("bazbar", "bar")
                     .addAlias("bazbar", "bac", termQuery("field", "value"))
                     .addAlias("foobar", "foo")
@@ -864,12 +969,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAliasesVersionIncreases(
             "foobar",
             () -> assertAcked(
-                indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("foobar").alias("bac").routing("bla"))
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAliasAction(AliasActions.add().index("foobar").alias("bac").routing("bla"))
             )
         );
 
         logger.info("--> getting bar and baz for index bazbar");
-        getResponse = indicesAdmin().prepareGetAliases("bar", "bac").setIndices("bazbar").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "bar", "bac").setIndices("bazbar").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
@@ -885,13 +991,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        assertFalse(indicesAdmin().prepareGetAliases("bar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("bac").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("bar").setIndices("bazbar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("bac").setIndices("bazbar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "bar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "bac").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "bar").setIndices("bazbar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "bac").setIndices("bazbar").get().getAliases().isEmpty());
 
         logger.info("--> getting *b* for index baz*");
-        getResponse = indicesAdmin().prepareGetAliases("*b*").setIndices("baz*").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "*b*").setIndices("baz*").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
@@ -907,10 +1013,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        assertFalse(indicesAdmin().prepareGetAliases("*b*").setIndices("baz*").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "*b*").setIndices("baz*").get().getAliases().isEmpty());
 
         logger.info("--> getting *b* for index *bar");
-        getResponse = indicesAdmin().prepareGetAliases("b*").setIndices("*bar").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "b*").setIndices("*bar").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(2));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
@@ -931,10 +1037,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), equalTo("bla"));
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), equalTo("bla"));
-        assertFalse(indicesAdmin().prepareGetAliases("b*").setIndices("*bar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "b*").setIndices("*bar").get().getAliases().isEmpty());
 
         logger.info("--> getting f* for index *bar");
-        getResponse = indicesAdmin().prepareGetAliases("f*").setIndices("*bar").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "f*").setIndices("*bar").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
@@ -942,11 +1048,11 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        assertFalse(indicesAdmin().prepareGetAliases("f*").setIndices("*bar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "f*").setIndices("*bar").get().getAliases().isEmpty());
 
         // alias at work
         logger.info("--> getting f* for index *bac");
-        getResponse = indicesAdmin().prepareGetAliases("foo").setIndices("*bac").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("*bac").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
@@ -955,10 +1061,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        assertFalse(indicesAdmin().prepareGetAliases("foo").setIndices("*bac").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("*bac").get().getAliases().isEmpty());
 
         logger.info("--> getting foo for index foobar");
-        getResponse = indicesAdmin().prepareGetAliases("foo").setIndices("foobar").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("foobar").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(1));
         assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
@@ -966,13 +1072,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
         assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        assertFalse(indicesAdmin().prepareGetAliases("foo").setIndices("foobar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("foobar").get().getAliases().isEmpty());
 
         for (String aliasName : new String[] { null, "_all", "*" }) {
             logger.info("--> getting {} alias for index foobar", aliasName);
             getResponse = aliasName != null
-                ? indicesAdmin().prepareGetAliases(aliasName).setIndices("foobar").get()
-                : indicesAdmin().prepareGetAliases().setIndices("foobar").get();
+                ? indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).setIndices("foobar").get()
+                : indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("foobar").get();
             assertThat(getResponse, notNullValue());
             assertThat(getResponse.getAliases().size(), equalTo(1));
             assertThat(getResponse.getAliases().get("foobar").size(), equalTo(4));
@@ -984,20 +1090,20 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         // alias at work again
         logger.info("--> getting * for index *bac");
-        getResponse = indicesAdmin().prepareGetAliases("*").setIndices("*bac").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "*").setIndices("*bac").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getAliases().size(), equalTo(2));
         assertThat(getResponse.getAliases().get("foobar").size(), equalTo(4));
         assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
-        assertFalse(indicesAdmin().prepareGetAliases("*").setIndices("*bac").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "*").setIndices("*bac").get().getAliases().isEmpty());
 
-        assertAcked(indicesAdmin().prepareAliases().removeAlias("foobar", "foo"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("foobar", "foo"));
 
-        getResponse = indicesAdmin().prepareGetAliases("foo").setIndices("foobar").get();
+        getResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("foobar").get();
         for (final Map.Entry<String, List<AliasMetadata>> entry : getResponse.getAliases().entrySet()) {
             assertTrue(entry.getValue().isEmpty());
         }
-        assertTrue(indicesAdmin().prepareGetAliases("foo").setIndices("foobar").get().getAliases().isEmpty());
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("foobar").get().getAliases().isEmpty());
     }
 
     public void testGetAllAliasesWorks() {
@@ -1006,10 +1112,14 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAliasesVersionIncreases(
             new String[] { "index1", "index2" },
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("index1", "alias1").addAlias("index2", "alias2"))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("index1", "alias1")
+                    .addAlias("index2", "alias2")
+            )
         );
 
-        GetAliasesResponse response = indicesAdmin().prepareGetAliases().get();
+        GetAliasesResponse response = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getAliases(), hasKey("index1"));
         assertThat(response.getAliases(), hasKey("index1"));
     }
@@ -1080,17 +1190,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> adding [week_20] alias to [2017-05-20]");
-        assertAcked(indicesAdmin().prepareAliases().addAlias("2017-05-20", "week_20"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("2017-05-20", "week_20"));
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("week_20").alias("tmp"))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index("week_20").alias("tmp"))
         );
         assertEquals(
             "The provided expression [week_20] matches an alias, specify the corresponding concrete indices instead.",
             iae.getMessage()
         );
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp"))
+        );
     }
 
     // Before 2.0 alias filters were parsed at alias creation time, in order
@@ -1102,15 +1216,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         assertAliasesVersionIncreases(
             "test",
-            () -> indicesAdmin().prepareAliases().addAlias("test", "a", QueryBuilders.termQuery("field1", "term")).get()
+            () -> indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("test", "a", QueryBuilders.termQuery("field1", "term"))
+                .get()
         );
         assertAliasesVersionIncreases(
             "test",
-            () -> indicesAdmin().prepareAliases().addAlias("test", "a", QueryBuilders.rangeQuery("field2").from(0).to(1)).get()
+            () -> indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("test", "a", QueryBuilders.rangeQuery("field2").from(0).to(1))
+                .get()
         );
         assertAliasesVersionIncreases(
             "test",
-            () -> indicesAdmin().prepareAliases().addAlias("test", "a", QueryBuilders.matchAllQuery()).get()
+            () -> indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("test", "a", QueryBuilders.matchAllQuery())
+                .get()
         );
     }
 
@@ -1119,13 +1239,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAliasesVersionIncreases(
             "my-index",
             () -> assertAcked(
-                indicesAdmin().prepareAliases().addAlias("my-index", "filter1", rangeQuery("timestamp").from("2016-12-01").to("2016-12-31"))
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("my-index", "filter1", rangeQuery("timestamp").from("2016-12-01").to("2016-12-31"))
             )
         );
         assertAliasesVersionIncreases(
             "my-index",
             () -> assertAcked(
-                indicesAdmin().prepareAliases().addAlias("my-index", "filter2", rangeQuery("timestamp").from("2016-01-01").to("2016-12-31"))
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias("my-index", "filter2", rangeQuery("timestamp").from("2016-01-01").to("2016-12-31"))
             )
         );
 
@@ -1150,11 +1272,23 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
                 assertAliasesVersionIncreases(
                     "test",
-                    () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2"))
+                    () -> assertAcked(
+                        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                            .addAlias("test", "alias1")
+                            .addAlias("test", "alias2")
+                    )
                 );
-                assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().removeAlias("test", "alias1")));
-                assertThat(indicesAdmin().prepareGetAliases("alias2").get().getAliases().get("test").size(), equalTo(1));
-                assertFalse(indicesAdmin().prepareGetAliases("alias2").get().getAliases().isEmpty());
+                assertAliasesVersionIncreases(
+                    "test",
+                    () -> assertAcked(
+                        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test", "alias1")
+                    )
+                );
+                assertThat(
+                    indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias2").get().getAliases().get("test").size(),
+                    equalTo(1)
+                );
+                assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias2").get().getAliases().isEmpty());
             } finally {
                 disableIndexBlock("test", block);
             }
@@ -1165,14 +1299,20 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
             assertAliasesVersionUnchanged(
                 "test",
-                () -> assertBlocked(indicesAdmin().prepareAliases().addAlias("test", "alias3"), INDEX_READ_ONLY_BLOCK)
+                () -> assertBlocked(
+                    indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias3"),
+                    INDEX_READ_ONLY_BLOCK
+                )
             );
             assertAliasesVersionUnchanged(
                 "test",
-                () -> assertBlocked(indicesAdmin().prepareAliases().removeAlias("test", "alias2"), INDEX_READ_ONLY_BLOCK)
+                () -> assertBlocked(
+                    indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test", "alias2"),
+                    INDEX_READ_ONLY_BLOCK
+                )
             );
-            assertThat(indicesAdmin().prepareGetAliases("alias2").get().getAliases().get("test").size(), equalTo(1));
-            assertFalse(indicesAdmin().prepareGetAliases("alias2").get().getAliases().isEmpty());
+            assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias2").get().getAliases().get("test").size(), equalTo(1));
+            assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias2").get().getAliases().isEmpty());
 
         } finally {
             disableIndexBlock("test", SETTING_READ_ONLY);
@@ -1183,42 +1323,53 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
             assertAliasesVersionUnchanged(
                 "test",
-                () -> assertBlocked(indicesAdmin().prepareAliases().addAlias("test", "alias3"), INDEX_METADATA_BLOCK)
+                () -> assertBlocked(
+                    indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test", "alias3"),
+                    INDEX_METADATA_BLOCK
+                )
             );
             assertAliasesVersionUnchanged(
                 "test",
-                () -> assertBlocked(indicesAdmin().prepareAliases().removeAlias("test", "alias2"), INDEX_METADATA_BLOCK)
+                () -> assertBlocked(
+                    indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test", "alias2"),
+                    INDEX_METADATA_BLOCK
+                )
             );
-            assertBlocked(indicesAdmin().prepareGetAliases("alias2"), INDEX_METADATA_BLOCK);
-            assertBlocked(indicesAdmin().prepareGetAliases("alias2"), INDEX_METADATA_BLOCK);
+            assertBlocked(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias2"), INDEX_METADATA_BLOCK);
+            assertBlocked(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias2"), INDEX_METADATA_BLOCK);
 
         } finally {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }
     }
 
-    public void testAliasActionRemoveIndex() throws InterruptedException, ExecutionException {
-        assertAcked(prepareCreate("foo_foo"));
-        assertAcked(prepareCreate("bar_bar"));
-        assertAliasesVersionIncreases(new String[] { "foo_foo", "bar_bar" }, () -> {
-            assertAcked(indicesAdmin().prepareAliases().addAlias("foo_foo", "foo"));
-            assertAcked(indicesAdmin().prepareAliases().addAlias("bar_bar", "foo"));
-        });
+    public void testAliasActionRemoveIndex() {
+        assertAcked(prepareCreate("foo_foo"), prepareCreate("bar_bar"));
+        assertAliasesVersionIncreases(
+            new String[] { "foo_foo", "bar_bar" },
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("bar_bar", "foo"),
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("foo_foo", "foo")
+            )
+        );
 
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAliases().removeIndex("foo"));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeIndex("foo")
+        );
         assertEquals(
             "The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
             iae.getMessage()
         );
 
-        assertAcked(indicesAdmin().prepareAliases().removeIndex("foo*"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeIndex("foo*"));
         assertFalse(indexExists("foo_foo"));
-        assertFalse(indicesAdmin().prepareGetAliases("foo").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").get().getAliases().isEmpty());
         assertTrue(indexExists("bar_bar"));
-        assertFalse(indicesAdmin().prepareGetAliases("foo").setIndices("bar_bar").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").setIndices("bar_bar").get().getAliases().isEmpty());
 
-        assertAcked(indicesAdmin().prepareAliases().removeIndex("bar_bar"));
-        assertTrue(indicesAdmin().prepareGetAliases("foo").get().getAliases().isEmpty());
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeIndex("bar_bar"));
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foo").get().getAliases().isEmpty());
         assertFalse(indexExists("bar_bar"));
     }
 
@@ -1227,7 +1378,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         indexRandom(true, prepareIndex("test_2").setId("test").setSource("test", "test"));
         assertAliasesVersionIncreases(
             "test_2",
-            () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test_2", "test").removeIndex("test"))
+            () -> assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_2", "test").removeIndex("test")
+            )
         );
         assertHitCount(prepareSearch("test"), 1);
     }
@@ -1238,56 +1391,93 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final String alias = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
         createIndex(index1, index2);
 
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias)));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index1).alias(alias))
+        );
 
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
         );
         logger.error("exception: {}", ex.getMessage());
         assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
 
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index(index1).alias(alias)));
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(false)));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.remove().index(index1).alias(alias))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(false))
+        );
         expectThrows(
             IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
         );
 
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index(index1).alias(alias)));
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true)));
-        expectThrows(
-            IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false))
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.remove().index(index1).alias(alias))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true))
         );
         expectThrows(
             IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false))
+        );
+        expectThrows(
+            IllegalStateException.class,
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index2).alias(alias))
         );
 
         // Both visible
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index(index1).alias(alias)));
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(false)));
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false)));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.remove().index(index1).alias(alias))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(false))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false))
+        );
 
         // Both hidden
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(AliasActions.remove().index(index1).alias(alias))
                 .addAliasAction(AliasActions.remove().index(index2).alias(alias))
         );
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true)));
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
+        );
 
         // Visible on one, then update it to hidden & add to a second as hidden simultaneously
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(AliasActions.remove().index(index1).alias(alias))
                 .addAliasAction(AliasActions.remove().index(index2).alias(alias))
         );
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false)));
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true))
                 .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
         );
@@ -1300,7 +1490,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex(writeIndex, nonWriteIndex);
 
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(AliasActions.add().index(writeIndex).alias(alias).isHidden(true).writeIndex(true))
                 .addAliasAction(AliasActions.add().index(nonWriteIndex).alias(alias).isHidden(true))
         );
@@ -1325,17 +1515,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
             searchResponse -> assertHits(searchResponse.getHits(), "2", "3")
         );
 
-        // Ensure that all docs can be gotten through the alias
-        assertResponse(
+        assertResponses(
+            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3"),
+            // Ensure that all docs can be gotten through the alias
             prepareSearch(alias).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3")
-        );
-
-        // And querying using a wildcard with indices options set to expand hidden
-        assertResponse(
+            // And querying using a wildcard with indices options set to expand hidden
             prepareSearch("alias*").setQuery(QueryBuilders.matchAllQuery())
-                .setIndicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, true, false, false)),
-            searchResponse -> assertHits(searchResponse.getHits(), "1", "2", "3")
+                .setIndicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, true, false, false))
         );
 
         // And that querying the alias with a wildcard and no expand options fails
@@ -1361,7 +1547,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     private void checkAliases() {
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases("alias1").get();
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias1").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
         AliasMetadata aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
         assertThat(aliasMetadata.alias(), equalTo("alias1"));
@@ -1370,7 +1556,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetadata.searchRouting(), nullValue());
         assertThat(aliasMetadata.isHidden(), nullValue());
 
-        getAliasesResponse = indicesAdmin().prepareGetAliases("alias2").get();
+        getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias2").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
         aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
         assertThat(aliasMetadata.alias(), equalTo("alias2"));
@@ -1379,7 +1565,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetadata.searchRouting(), nullValue());
         assertThat(aliasMetadata.isHidden(), nullValue());
 
-        getAliasesResponse = indicesAdmin().prepareGetAliases("alias3").get();
+        getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias3").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
         aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
         assertThat(aliasMetadata.alias(), equalTo("alias3"));
@@ -1388,7 +1574,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetadata.searchRouting(), equalTo("search"));
         assertThat(aliasMetadata.isHidden(), nullValue());
 
-        getAliasesResponse = indicesAdmin().prepareGetAliases("alias4").get();
+        getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias4").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
         aliasMetadata = getAliasesResponse.getAliases().get("test").get(0);
         assertThat(aliasMetadata.alias(), equalTo("alias4"));
@@ -1399,7 +1585,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());
@@ -1419,12 +1605,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final var beforeAliasesVersions = new HashMap<String, Long>(indices.length);
         final var beforeMetadata = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         for (final var index : indices) {
-            beforeAliasesVersions.put(index, beforeMetadata.index(index).getAliasesVersion());
+            beforeAliasesVersions.put(index, beforeMetadata.getProject().index(index).getAliasesVersion());
         }
         runnable.run();
         final var afterMetadata = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         for (final String index : indices) {
-            assertThat(afterMetadata.index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
+            assertThat(afterMetadata.getProject().index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
         }
     }
 
@@ -1434,6 +1620,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(index)
             .getAliasesVersion();
         runnable.run();
@@ -1442,6 +1629,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(index)
             .getAliasesVersion();
         assertThat(afterAliasesVersion, equalTo(beforeAliasesVersion));

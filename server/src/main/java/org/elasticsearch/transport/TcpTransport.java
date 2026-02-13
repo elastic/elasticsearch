@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -114,7 +115,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
-    private final TransportVersion version;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -148,7 +148,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     ) {
         this.settings = settings;
         this.profileSettingsSet = getProfileSettings(settings);
-        this.version = version;
         this.threadPool = threadPool;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
@@ -177,7 +176,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 channel,
                 requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME,
-                new TransportHandshaker.HandshakeRequest(version),
+                new TransportHandshaker.HandshakeRequest(version, Build.current().version()),
                 TransportRequestOptions.EMPTY,
                 v,
                 null,
@@ -197,11 +196,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             networkService.getHandlingTimeTracker(),
             ignoreDeserializationErrors
         );
-    }
-
-    @Override
-    public TransportVersion getVersion() {
-        return version;
     }
 
     public StatsTracker getStatsTracker() {
@@ -284,13 +278,26 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void close() {
+            handleClose(null);
+        }
+
+        @Override
+        public void closeAndFail(Exception e) {
+            handleClose(e);
+        }
+
+        private void handleClose(Exception e) {
             if (isClosing.compareAndSet(false, true)) {
                 try {
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
                     // Call the super method to trigger listeners
-                    super.close();
+                    if (e == null) {
+                        super.close();
+                    } else {
+                        super.closeAndFail(e);
+                    }
                 }
             }
         }
@@ -766,6 +773,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } finally {
             if (closeChannel) {
+                channel.setCloseException(e);
                 CloseableChannel.closeChannel(channel);
             }
         }
@@ -819,9 +827,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public void inboundMessage(TcpChannel channel, InboundMessage message) {
         try {
-            inboundHandler.inboundMessage(channel, message);
+            inboundHandler.inboundMessage(channel, /* autocloses absent exception */ message);
+            message = null;
         } catch (Exception e) {
             onException(channel, e);
+        } finally {
+            if (message != null) {
+                message.close();
+            }
         }
     }
 
@@ -1002,8 +1015,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             bytesRead,
             messagesSent,
             bytesWritten,
-            networkService.getHandlingTimeTracker().getHistogram(),
-            outboundHandlingTimeTracker.getHistogram(),
+            networkService.getHandlingTimeTracker().getSnapshot(),
+            outboundHandlingTimeTracker.getSnapshot(),
             requestHandlers.getStats()
         );
     }
@@ -1121,7 +1134,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(ActionListener.running(nodeChannels::close));
+                            ch.addCloseListener(new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void ignored) {
+                                    nodeChannels.close();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    nodeChannels.closeAndFail(new NodeDisconnectedException(node, "closed exceptionally: " + ch, null, e));
+                                }
+                            });
                         });
                         keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                         nodeChannels.addCloseListener(new ChannelCloseLogger(node, connectionId, relativeMillisTime));
@@ -1182,7 +1205,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void onFailure(Exception e) {
-            assert false : e; // never called
+            long closeTimeMillis = threadPool.relativeTimeInMillis();
+            logger.debug(
+                () -> format(
+                    "closed transport connection [%d] to [%s] with age [%dms], exception:",
+                    connectionId,
+                    node,
+                    closeTimeMillis - openTimeMillis
+                ),
+                e
+            );
         }
     }
 

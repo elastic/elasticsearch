@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,13 +18,14 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link BytesRefArrayVector}.
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
+public final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
@@ -99,7 +101,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
     }
 
     @Override
-    public BytesRefBlock filter(int... positions) {
+    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
         final BytesRef scratch = new BytesRef();
         try (var builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
             for (int pos : positions) {
@@ -110,7 +112,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
+                    builder.appendBytesRef(getBytesRef(first, scratch));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

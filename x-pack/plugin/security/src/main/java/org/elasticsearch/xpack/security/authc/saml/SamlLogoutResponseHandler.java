@@ -45,7 +45,7 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
                 if (logoutResponse.getSignature() == null) {
                     throw samlException("LogoutResponse is not signed, but is required for HTTP-Post binding");
                 }
-                validateSignature(logoutResponse.getSignature());
+                validateSignature(logoutResponse.getSignature(), logoutResponse.getIssuer());
             }
             checkInResponseTo(logoutResponse, allowedSamlRequestIds);
             checkStatus(logoutResponse.getStatus());

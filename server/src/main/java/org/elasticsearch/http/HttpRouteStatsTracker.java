@@ -91,7 +91,7 @@ public class HttpRouteStatsTracker {
     }
 
     public void addResponseTime(long timeMillis) {
-        responseTimeTracker.addHandlingTime(timeMillis);
+        responseTimeTracker.addObservation(timeMillis);
     }
 
     public HttpRouteStats getStats() {
@@ -102,7 +102,7 @@ public class HttpRouteStatsTracker {
             responseStats.count().longValue(),
             responseStats.totalSize().longValue(),
             responseStats.getHistogram(),
-            responseTimeTracker.getHistogram()
+            responseTimeTracker.getSnapshot()
         );
     }
 }

@@ -10,8 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
@@ -33,6 +32,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final Settings settings;
     private final XPackLicenseState licenseState;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public CCRUsageTransportAction(
@@ -40,27 +40,28 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        ProjectResolver projectResolver
     ) {
-        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService, threadPool, actionFilters);
         this.settings = settings;
         this.licenseState = licenseState;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        Metadata metadata = state.metadata();
+        final var project = projectResolver.getProjectMetadata(state);
 
         int numberOfFollowerIndices = 0;
         long lastFollowerIndexCreationDate = 0L;
-        for (IndexMetadata imd : metadata) {
+        for (IndexMetadata imd : project) {
             if (imd.getCustomData("ccr") != null) {
                 numberOfFollowerIndices++;
                 if (lastFollowerIndexCreationDate < imd.getCreationDate()) {
@@ -68,7 +69,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
                 }
             }
         }
-        AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = project.custom(AutoFollowMetadata.TYPE);
         int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
 
         Long lastFollowTimeInMillis;

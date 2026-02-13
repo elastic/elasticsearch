@@ -20,6 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -43,12 +44,32 @@ public final class RandomSamplingQuery extends Query {
      *                  can be generated
      */
     public RandomSamplingQuery(double p, int seed, int hash) {
-        if (p <= 0.0 || p >= 1.0) {
-            throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0, was [" + p + "]");
-        }
+        checkProbabilityRange(p);
         this.p = p;
         this.seed = seed;
         this.hash = hash;
+    }
+
+    /**
+     * Verifies that the probability is within the (0.0, 1.0) range.
+     * @throws IllegalArgumentException in case of an invalid probability.
+     */
+    public static void checkProbabilityRange(double p) throws IllegalArgumentException {
+        if (p <= 0.0 || p >= 1.0) {
+            throw new IllegalArgumentException("RandomSampling probability must be strictly between 0.0 and 1.0, was [" + p + "]");
+        }
+    }
+
+    public double probability() {
+        return p;
+    }
+
+    public int seed() {
+        return seed;
+    }
+
+    public int hash() {
+        return hash;
     }
 
     @Override
@@ -76,15 +97,15 @@ public final class RandomSamplingQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash ^ seed));
                 int maxDoc = context.reader().maxDoc();
-                return new ConstantScoreScorer(
-                    this,
+                Scorer scorer = new ConstantScoreScorer(
                     boost,
                     ScoreMode.COMPLETE_NO_SCORES,
                     new RandomSamplingIterator(maxDoc, p, random::nextInt)
                 );
+                return new DefaultScorerSupplier(scorer);
             }
         };
     }
@@ -97,13 +118,13 @@ public final class RandomSamplingQuery extends Query {
     /**
      * A DocIDSetIter that skips a geometrically random number of documents
      */
-    static class RandomSamplingIterator extends DocIdSetIterator {
+    public static class RandomSamplingIterator extends DocIdSetIterator {
         private final int maxDoc;
         private final double p;
         private final FastGeometric distribution;
         private int doc = -1;
 
-        RandomSamplingIterator(int maxDoc, double p, IntSupplier rng) {
+        public RandomSamplingIterator(int maxDoc, double p, IntSupplier rng) {
             this.maxDoc = maxDoc;
             this.p = p;
             this.distribution = new FastGeometric(rng, p);

@@ -29,6 +29,7 @@ import java.util.OptionalLong;
 import java.util.TreeMap;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
@@ -244,7 +245,7 @@ public class JobNodeSelector {
                     nodeNameAndMlAttributes(node),
                     "This node has insufficient available memory. Available memory for ML [%s (%s)], "
                         + "memory required by existing jobs [%s (%s)], "
-                        + "estimated memory required for this job [%s (%s)].",
+                        + "estimated memory required for this job [%s (%s)]. ",
                     currentLoad.getMaxMlMemory(),
                     ByteSizeValue.ofBytes(currentLoad.getMaxMlMemory()).toString(),
                     currentLoad.getAssignedJobMemory(),
@@ -252,6 +253,12 @@ public class JobNodeSelector {
                     requiredMemoryForJob,
                     ByteSizeValue.ofBytes(requiredMemoryForJob).toString()
                 );
+                if (useAutoMemoryPercentage == false) {
+                    reason += format(
+                        "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]. ",
+                        MACHINE_LEARNING_SETTINGS
+                    );
+                }
                 logger.trace(reason);
                 reasons.put(node.getName(), reason);
                 continue;

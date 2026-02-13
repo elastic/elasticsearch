@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 
 import java.io.IOException;
 

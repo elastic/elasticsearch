@@ -21,13 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-public class ComparisonTests extends ESTestCase {
+public class ComparisonTests extends TDigestTestCase {
 
     private static final int SAMPLE_COUNT = 1_000_000;
 
@@ -40,10 +39,10 @@ public class ComparisonTests extends ESTestCase {
 
     private void loadData(Supplier<Double> sampleGenerator) {
         final int COMPRESSION = 100;
-        avlTreeDigest = TDigest.createAvlTreeDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
-        mergingDigest = TDigest.createMergingDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
-        sortingDigest = TDigest.createSortingDigest(WrapperTDigestArrays.INSTANCE);
-        hybridDigest = TDigest.createHybridDigest(WrapperTDigestArrays.INSTANCE, COMPRESSION);
+        avlTreeDigest = TDigest.createAvlTreeDigest(arrays(), COMPRESSION);
+        mergingDigest = TDigest.createMergingDigest(arrays(), COMPRESSION);
+        sortingDigest = TDigest.createSortingDigest(arrays());
+        hybridDigest = TDigest.createHybridDigest(arrays(), COMPRESSION);
         samples = new double[SAMPLE_COUNT];
 
         for (int i = 0; i < SAMPLE_COUNT; i++) {
@@ -54,6 +53,10 @@ public class ComparisonTests extends ESTestCase {
             hybridDigest.add(samples[i]);
         }
         Arrays.sort(samples);
+    }
+
+    private void releaseData() {
+        Releasables.close(avlTreeDigest, mergingDigest, sortingDigest, hybridDigest);
     }
 
     public void testRandomDenseDistribution() {
@@ -68,6 +71,8 @@ public class ComparisonTests extends ESTestCase {
             assertEquals(String.valueOf(percentile), expected, mergingDigest.quantile(q), accuracy);
             assertEquals(String.valueOf(percentile), expected, hybridDigest.quantile(q), accuracy);
         }
+
+        releaseData();
     }
 
     public void testRandomSparseDistribution() {
@@ -82,6 +87,8 @@ public class ComparisonTests extends ESTestCase {
             assertEquals(String.valueOf(percentile), expected, mergingDigest.quantile(q), accuracy);
             assertEquals(String.valueOf(percentile), expected, hybridDigest.quantile(q), accuracy);
         }
+
+        releaseData();
     }
 
     public void testDenseGaussianDistribution() {
@@ -102,6 +109,8 @@ public class ComparisonTests extends ESTestCase {
         assertEquals(expectedMedian, avlTreeDigest.quantile(0.5), 0.01);
         assertEquals(expectedMedian, mergingDigest.quantile(0.5), 0.01);
         assertEquals(expectedMedian, hybridDigest.quantile(0.5), 0.01);
+
+        releaseData();
     }
 
     public void testSparseGaussianDistribution() {
@@ -123,5 +132,7 @@ public class ComparisonTests extends ESTestCase {
         assertEquals(expectedMedian, avlTreeDigest.quantile(0.5), 5000);
         assertEquals(expectedMedian, mergingDigest.quantile(0.5), 5000);
         assertEquals(expectedMedian, hybridDigest.quantile(0.5), 5000);
+
+        releaseData();
     }
 }

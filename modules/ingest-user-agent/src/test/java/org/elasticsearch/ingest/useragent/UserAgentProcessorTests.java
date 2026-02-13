@@ -331,4 +331,35 @@ public class UserAgentProcessorTests extends ESTestCase {
         device.put("name", "Other");
         assertThat(target.get("device"), is(device));
     }
+
+    public void testMaybeUpgradeConfig_removesEcsIfPresent() {
+        Map<String, Object> config = new HashMap<>(Map.of("field", "user-agent", "ecs", "whatever"));
+        boolean changed = UserAgentProcessor.maybeUpgradeConfig(config);
+        assertThat(changed, is(true));
+        assertThat(config, is(Map.of("field", "user-agent")));
+    }
+
+    public void testMaybeUpgradeConfig_doesNothingIfEcsAbsent() {
+        Map<String, Object> config = new HashMap<>(Map.of("field", "user-agent"));
+        boolean changed = UserAgentProcessor.maybeUpgradeConfig(config);
+        assertThat(changed, is(false));
+        assertThat(config, is(Map.of("field", "user-agent")));
+    }
+
+    // From https://github.com/elastic/elasticsearch/issues/116950
+    @SuppressWarnings("unchecked")
+    public void testFirefoxVersion() {
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        processor.execute(ingestDocument);
+        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+
+        assertThat(data, hasKey("target_field"));
+        Map<String, Object> target = (Map<String, Object>) data.get("target_field");
+
+        assertThat(target.get("name"), is("Firefox"));
+        assertThat(target.get("version"), is("128.0"));
+    }
 }

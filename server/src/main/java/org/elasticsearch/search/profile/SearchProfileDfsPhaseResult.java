@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,22 +41,13 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
 
     public SearchProfileDfsPhaseResult(StreamInput in) throws IOException {
         dfsShardResult = in.readOptionalWriteable(ProfileResult::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            queryProfileShardResult = in.readOptionalCollectionAsList(QueryProfileShardResult::new);
-        } else {
-            QueryProfileShardResult singleResult = in.readOptionalWriteable(QueryProfileShardResult::new);
-            queryProfileShardResult = singleResult != null ? List.of(singleResult) : null;
-        }
+        queryProfileShardResult = in.readOptionalCollectionAsList(QueryProfileShardResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(dfsShardResult);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalCollection(queryProfileShardResult);
-        } else {
-            out.writeOptionalWriteable(combineQueryProfileShardResults());
-        }
+        out.writeOptionalCollection(queryProfileShardResult);
     }
 
     public static final ParseField STATISTICS = new ParseField("statistics");

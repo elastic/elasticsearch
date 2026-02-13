@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -13,21 +14,27 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDouble}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDoubleFromLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDoubleFromLongEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator l;
+
+  public ToDoubleFromLongEvaluator(Source source, EvalOperator.ExpressionEvaluator l,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.l = l;
   }
 
   @Override
-  public String name() {
-    return "ToDoubleFromLong";
+  public EvalOperator.ExpressionEvaluator next() {
+    return l;
   }
 
   @Override
@@ -45,7 +52,7 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static double evalValue(LongVector container, int index) {
+  private double evalValue(LongVector container, int index) {
     long value = container.getLong(index);
     return ToDouble.fromLong(value);
   }
@@ -80,29 +87,46 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static double evalValue(LongBlock container, int index) {
+  private double evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
     return ToDouble.fromLong(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDoubleFromLongEvaluator[" + "l=" + l + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(l);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += l.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory l;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory l) {
       this.source = source;
+      this.l = l;
     }
 
     @Override
     public ToDoubleFromLongEvaluator get(DriverContext context) {
-      return new ToDoubleFromLongEvaluator(field.get(context), source, context);
+      return new ToDoubleFromLongEvaluator(source, l.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDoubleFromLongEvaluator[field=" + field + "]";
+      return "ToDoubleFromLongEvaluator[" + "l=" + l + "]";
     }
   }
 }

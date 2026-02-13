@@ -9,27 +9,16 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.db.DatabaseRecord;
-import com.maxmind.db.Network;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
-import com.maxmind.geoip2.model.AnonymousIpResponse;
-import com.maxmind.geoip2.model.AsnResponse;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.model.ConnectionTypeResponse;
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.model.DomainResponse;
-import com.maxmind.geoip2.model.EnterpriseResponse;
-import com.maxmind.geoip2.model.IspResponse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -37,19 +26,16 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-class DatabaseReaderLazyLoader implements IpDatabase {
+public class DatabaseReaderLazyLoader implements IpDatabase {
 
     private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
@@ -59,21 +45,32 @@ class DatabaseReaderLazyLoader implements IpDatabase {
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<Reader, IOException> loader;
+    private final ProjectId projectId;
     final SetOnce<Reader> databaseReader;
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
+    final SetOnce<Long> buildDate;
 
     private volatile boolean deleteDatabaseFileOnShutdown;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
-    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
+    // it seems insane, especially if you read the code for UnixPath, but calling toString on a path in advance here is faster enough
+    // than calling it on every call to cache.putIfAbsent that it makes the slight additional internal complication worth it
+    private final String cachedDatabasePathToString;
+
+    DatabaseReaderLazyLoader(ProjectId projectId, GeoIpCache cache, Path databasePath, String md5) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
         this.md5 = md5;
         this.loader = createDatabaseLoader(databasePath);
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
+        this.buildDate = new SetOnce<>();
+        this.projectId = projectId;
+
+        // cache the toString on construction
+        this.cachedDatabasePathToString = databasePath.toString();
     }
 
     /**
@@ -94,94 +91,13 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         return databaseType.get();
     }
 
-    @Nullable
-    @Override
-    public CityResponse getCity(String ipAddress) {
-        return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, CityResponse.class, CityResponse::new));
-    }
-
-    @Nullable
-    @Override
-    public CountryResponse getCountry(String ipAddress) {
-        return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, CountryResponse.class, CountryResponse::new));
-    }
-
-    @Nullable
-    @Override
-    public AsnResponse getAsn(String ipAddress) {
-        return getResponse(
-            ipAddress,
-            (reader, ip) -> lookup(
-                reader,
-                ip,
-                AsnResponse.class,
-                (response, responseIp, network, locales) -> new AsnResponse(response, responseIp, network)
-            )
-        );
-    }
-
-    @Nullable
-    @Override
-    public AnonymousIpResponse getAnonymousIp(String ipAddress) {
-        return getResponse(
-            ipAddress,
-            (reader, ip) -> lookup(
-                reader,
-                ip,
-                AnonymousIpResponse.class,
-                (response, responseIp, network, locales) -> new AnonymousIpResponse(response, responseIp, network)
-            )
-        );
-    }
-
-    @Nullable
-    @Override
-    public ConnectionTypeResponse getConnectionType(String ipAddress) {
-        return getResponse(
-            ipAddress,
-            (reader, ip) -> lookup(
-                reader,
-                ip,
-                ConnectionTypeResponse.class,
-                (response, responseIp, network, locales) -> new ConnectionTypeResponse(response, responseIp, network)
-            )
-        );
-    }
-
-    @Nullable
-    @Override
-    public DomainResponse getDomain(String ipAddress) {
-        return getResponse(
-            ipAddress,
-            (reader, ip) -> lookup(
-                reader,
-                ip,
-                DomainResponse.class,
-                (response, responseIp, network, locales) -> new DomainResponse(response, responseIp, network)
-            )
-        );
-    }
-
-    @Nullable
-    @Override
-    public EnterpriseResponse getEnterprise(String ipAddress) {
-        return getResponse(ipAddress, (reader, ip) -> lookup(reader, ip, EnterpriseResponse.class, EnterpriseResponse::new));
-    }
-
-    @Nullable
-    @Override
-    public IspResponse getIsp(String ipAddress) {
-        return getResponse(
-            ipAddress,
-            (reader, ip) -> lookup(
-                reader,
-                ip,
-                IspResponse.class,
-                (response, responseIp, network, locales) -> new IspResponse(response, responseIp, network)
-            )
-        );
-    }
-
+    /**
+     * Prepares the database for lookup by incrementing the usage count.
+     * If the usage count is already negative, it indicates that the database is being closed,
+     * and this method will return false to indicate that no lookup should be performed.
+     *
+     * @return true if the database is ready for lookup, false if it is being closed
+     */
     boolean preLookup() {
         return currentUsages.updateAndGet(current -> current < 0 ? current : current + 1) > 0;
     }
@@ -197,14 +113,12 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         return currentUsages.get();
     }
 
+    @Override
     @Nullable
-    private <RESPONSE> RESPONSE getResponse(
-        String ipAddress,
-        CheckedBiFunction<Reader, String, Optional<RESPONSE>, Exception> responseProvider
-    ) {
-        return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+    public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
+        return cache.putIfAbsent(projectId, ipAddress, cachedDatabasePathToString, ip -> {
             try {
-                return responseProvider.apply(get(), ipAddress).orElse(null);
+                return responseProvider.apply(get(), ipAddress);
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
@@ -241,7 +155,7 @@ class DatabaseReaderLazyLoader implements IpDatabase {
     // Visible for Testing
     protected void doShutdown() throws IOException {
         IOUtils.close(databaseReader.get());
-        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
+        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(projectId, databasePath);
         logger.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
         if (deleteDatabaseFileOnShutdown) {
             logger.info("deleting [{}]", databasePath);
@@ -261,20 +175,14 @@ class DatabaseReaderLazyLoader implements IpDatabase {
         return databasePath.toFile();
     }
 
-    @FunctionalInterface
-    private interface ResponseBuilder<RESPONSE> {
-        RESPONSE build(RESPONSE response, String responseIp, Network network, List<String> locales);
-    }
-
-    private <RESPONSE> Optional<RESPONSE> lookup(Reader reader, String ip, Class<RESPONSE> clazz, ResponseBuilder<RESPONSE> builder)
-        throws IOException {
-        InetAddress inetAddress = InetAddresses.forString(ip);
-        DatabaseRecord<RESPONSE> record = reader.getRecord(inetAddress, clazz);
-        RESPONSE result = record.getData();
-        if (result == null) {
-            return Optional.empty();
-        } else {
-            return Optional.of(builder.build(result, NetworkAddress.format(inetAddress), record.getNetwork(), List.of("en")));
+    long getBuildDateMillis() throws IOException {
+        if (buildDate.get() == null) {
+            synchronized (buildDate) {
+                if (buildDate.get() == null) {
+                    buildDate.set(loader.get().getMetadata().getBuildDate().getTime());
+                }
+            }
         }
+        return buildDate.get();
     }
 }

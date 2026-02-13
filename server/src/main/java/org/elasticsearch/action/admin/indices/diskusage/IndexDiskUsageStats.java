@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +43,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String TERM_VECTORS_IN_BYTES = "term_vectors_in_bytes";
     public static final String KNN_VECTORS = "knn_vectors";
     public static final String KNN_VECTORS_IN_BYTES = "knn_vectors_in_bytes";
+    public static final String BLOOM_FILTER = "bloom_filter";
+    public static final String BLOOM_FILTER_IN_BYTES = "bloom_filter_in_bytes";
 
     public static final String STORE_SIZE = "store_size";
     public static final String STORE_SIZE_IN_BYTES = "store_size_in_bytes";
@@ -128,6 +130,11 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         getOrAdd(fieldName).knnVectorsBytes += bytes;
     }
 
+    public void addBloomFilter(String fieldName, long bytes) {
+        checkByteSize(bytes);
+        getOrAdd(fieldName).bloomFilterBytes += bytes;
+    }
+
     public IndexDiskUsageStats add(IndexDiskUsageStats other) {
         other.fields.forEach((k, v) -> getOrAdd(k).add(v));
         this.indexSizeInBytes += other.indexSizeInBytes;
@@ -171,6 +178,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
      * Disk usage stats for a single field
      */
     public static final class PerFieldDiskUsage implements ToXContentFragment, Writeable {
+        private static final TransportVersion BLOOM_FILTER_STATS_VERSION = TransportVersion.fromName("disk_usage_stats_bloom_filter");
+
         private long invertedIndexBytes;
         private long storedFieldBytes;
         private long docValuesBytes;
@@ -178,6 +187,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         private long normsBytes;
         private long termVectorsBytes;
         private long knnVectorsBytes;
+        private long bloomFilterBytes;
 
         private PerFieldDiskUsage() {
 
@@ -190,8 +200,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes = in.readVLong();
             normsBytes = in.readVLong();
             termVectorsBytes = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                knnVectorsBytes = in.readVLong();
+            knnVectorsBytes = in.readVLong();
+            if (in.getTransportVersion().supports(BLOOM_FILTER_STATS_VERSION)) {
+                bloomFilterBytes = in.readVLong();
             }
         }
 
@@ -203,8 +214,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                out.writeVLong(knnVectorsBytes);
+            out.writeVLong(knnVectorsBytes);
+            if (out.getTransportVersion().supports(BLOOM_FILTER_STATS_VERSION)) {
+                out.writeVLong(bloomFilterBytes);
             }
         }
 
@@ -216,6 +228,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             normsBytes += other.normsBytes;
             termVectorsBytes += other.termVectorsBytes;
             knnVectorsBytes += other.knnVectorsBytes;
+            bloomFilterBytes += other.bloomFilterBytes;
         }
 
         public long getInvertedIndexBytes() {
@@ -246,8 +259,13 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             return knnVectorsBytes;
         }
 
+        public long getBloomFilterBytes() {
+            return bloomFilterBytes;
+        }
+
         long totalBytes() {
-            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes + knnVectorsBytes;
+            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes + knnVectorsBytes
+                + bloomFilterBytes;
         }
 
         @Override
@@ -278,6 +296,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
             builder.field(KNN_VECTORS, ByteSizeValue.ofBytes(knnVectorsBytes));
             builder.field(KNN_VECTORS_IN_BYTES, knnVectorsBytes);
+
+            builder.field(BLOOM_FILTER, ByteSizeValue.ofBytes(bloomFilterBytes));
+            builder.field(BLOOM_FILTER_IN_BYTES, bloomFilterBytes);
             return builder;
         }
 

@@ -1,5 +1,0 @@
-pr: 110796
-summary: Remove needless forking to GENERIC in `TransportMultiSearchAction`
-area: Search
-type: bug
-issues: []

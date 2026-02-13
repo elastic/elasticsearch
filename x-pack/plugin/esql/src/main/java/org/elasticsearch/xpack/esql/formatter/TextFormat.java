@@ -39,7 +39,8 @@ public enum TextFormat implements MediaType {
     PLAIN_TEXT() {
         @Override
         public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
-            return new TextFormatter(esqlResponse).format(hasHeader(request));
+            boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+            return new TextFormatter(esqlResponse, hasHeader(request), dropNullColumns).format();
         }
 
         @Override
@@ -282,15 +283,21 @@ public enum TextFormat implements MediaType {
      */
     public static final String URL_PARAM_FORMAT = "format";
     public static final String URL_PARAM_DELIMITER = "delimiter";
+    public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
+        boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
         return Iterators.concat(
             // if the header is requested return the info
             hasHeader(request) && esqlResponse.columns() != null
-                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter))
+                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter, dropColumns))
                 : Collections.emptyIterator(),
-            Iterators.map(esqlResponse.values(), row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter))
+            Iterators.map(
+                esqlResponse.values(),
+                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, dropColumns)
+            )
         );
     }
 
@@ -313,9 +320,14 @@ public enum TextFormat implements MediaType {
     }
 
     // utility method for consuming a row.
-    <F> void row(Writer writer, Iterator<F> row, Function<F, String> toString, Character delimiter) throws IOException {
+    <F> void row(Writer writer, Iterator<F> row, Function<F, String> toString, Character delimiter, boolean[] dropColumns)
+        throws IOException {
         boolean firstColumn = true;
-        while (row.hasNext()) {
+        for (int i = 0; row.hasNext(); i++) {
+            if (dropColumns[i]) {
+                row.next();
+                continue;
+            }
             if (firstColumn) {
                 firstColumn = false;
             } else {

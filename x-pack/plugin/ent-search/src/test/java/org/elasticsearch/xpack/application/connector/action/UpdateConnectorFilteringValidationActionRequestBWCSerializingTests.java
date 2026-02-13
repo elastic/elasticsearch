@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
 
 import java.io.IOException;
 
@@ -34,7 +35,14 @@ public class UpdateConnectorFilteringValidationActionRequestBWCSerializingTests 
     @Override
     protected UpdateConnectorFilteringValidationAction.Request mutateInstance(UpdateConnectorFilteringValidationAction.Request instance)
         throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalConnectorId = instance.getConnectorId();
+        FilteringValidationInfo validationInfo = instance.getValidation();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomUUID());
+            case 1 -> validationInfo = randomValueOtherThan(validationInfo, ConnectorTestUtils::getRandomFilteringValidationInfo);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorFilteringValidationAction.Request(originalConnectorId, validationInfo);
     }
 
     @Override

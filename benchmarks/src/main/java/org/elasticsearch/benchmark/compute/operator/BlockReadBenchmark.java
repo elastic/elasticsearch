@@ -26,6 +26,13 @@ import java.util.stream.IntStream;
 @Fork(1)
 public class BlockReadBenchmark extends BlockBenchmark {
     static {
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            // Smoke test all the expected values and force loading subclasses more like prod
+            selfTest();
+        }
+    }
+
+    static void selfTest() {
         // Smoke test all the expected values and force loading subclasses more like prod
         int totalPositions = 10;
         long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];

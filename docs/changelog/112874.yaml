@@ -1,5 +1,0 @@
-pr: 112874
-summary: Reduce heap usage for `AggregatorsReducer`
-area: Aggregations
-type: enhancement
-issues: []

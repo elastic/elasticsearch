@@ -1,5 +1,0 @@
-pr: 110578
-summary: Add `size_in_bytes` to enrich cache stats
-area: Ingest Node
-type: enhancement
-issues: []

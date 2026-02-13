@@ -50,9 +50,12 @@
 ---
 "Don't initialize failure store during data stream auto-creation on successful index":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: allowed_warnings
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       allowed_warnings:
@@ -61,12 +64,14 @@
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
               number_of_replicas: 1
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:

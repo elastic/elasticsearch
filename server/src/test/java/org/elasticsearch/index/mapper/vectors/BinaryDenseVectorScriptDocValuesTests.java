@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteBinaryDenseVectorDocValuesField;
@@ -33,7 +34,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        for (IndexVersion indexVersion : List.of(IndexVersionUtils.randomCompatibleVersion(random()), IndexVersion.current())) {
+        for (IndexVersion indexVersion : List.of(IndexVersionUtils.randomCompatibleVersion(), IndexVersion.current())) {
             BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
             DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", ElementType.FLOAT, dims, indexVersion);
             DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
@@ -236,15 +237,20 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
     }
 
     public static BytesRef mockEncodeDenseVector(float[] values, ElementType elementType, IndexVersion indexVersion) {
+        int dims = values.length;
+        if (elementType == ElementType.BIT) {
+            dims *= Byte.SIZE;
+        }
+        Element element = Element.getElement(elementType);
         int numBytes = indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.getNumBytes(values.length) + DenseVectorFieldMapper.MAGNITUDE_BYTES
-            : elementType.getNumBytes(values.length);
+            ? element.getNumBytes(dims) + DenseVectorFieldMapper.MAGNITUDE_BYTES
+            : element.getNumBytes(dims);
         double dotProduct = 0f;
-        ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes);
+        ByteBuffer byteBuffer = element.createByteBuffer(indexVersion, numBytes);
         for (float value : values) {
             if (elementType == ElementType.FLOAT) {
                 byteBuffer.putFloat(value);
-            } else if (elementType == ElementType.BYTE) {
+            } else if (elementType == ElementType.BYTE || elementType == ElementType.BIT) {
                 byteBuffer.put((byte) value);
             } else {
                 throw new IllegalStateException("unknown element_type [" + elementType + "]");

@@ -47,10 +47,12 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingHashFieldMapper());
 
+    public static final DocValueFormat TS_ROUTING_HASH_DOC_VALUE_FORMAT = TimeSeriesRoutingHashFieldType.DOC_VALUE_FORMAT;
+
     static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
 
         private static final TimeSeriesRoutingHashFieldType INSTANCE = new TimeSeriesRoutingHashFieldType();
-        private static final DocValueFormat DOC_VALUE_FORMAT = new DocValueFormat() {
+        static final DocValueFormat DOC_VALUE_FORMAT = new DocValueFormat() {
 
             @Override
             public String getWriteableName() {
@@ -65,10 +67,17 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
                 return Uid.decodeId(value.bytes, value.offset, value.length);
             }
 
+            @Override
+            public BytesRef parseBytesRef(Object value) {
+                if (value instanceof BytesRef valueAsBytesRef) {
+                    return valueAsBytesRef;
+                }
+                return Uid.encodeId(value.toString());
+            }
         };
 
         private TimeSeriesRoutingHashFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), false, Collections.emptyMap());
         }
 
         @Override
@@ -116,9 +125,16 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
             String routingHash = context.sourceToParse().routing();
             if (routingHash == null) {
                 assert context.sourceToParse().id() != null;
-                routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
-                    Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
-                );
+                if (context.indexSettings().useTimeSeriesSyntheticId()) {
+                    // The extractRoutingHashFromSyntheticId method works from the binary data representation stored in Lucene,
+                    // so we have to reencode the id with Uid#encodeId here.
+                    int hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(Uid.encodeId(context.sourceToParse().id()));
+                    routingHash = encode(hash);
+                } else {
+                    routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                        Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
+                    );
+                }
             }
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);

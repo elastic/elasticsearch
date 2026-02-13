@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -27,15 +26,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryConflictException;
@@ -59,6 +55,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -480,8 +477,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(thirdSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
 
         logger.info("--> verify both deletes have completed");
-        assertAcked(deleteSnapshotsResponse.get());
-        assertAcked(allDeletedResponse.get());
+        assertAcked(deleteSnapshotsResponse, allDeletedResponse);
 
         logger.info("--> verify that all snapshots are gone");
         assertThat(clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots(), empty());
@@ -717,8 +713,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
 
         logger.info("--> make sure all failing requests get a response");
-        assertAcked(firstDeleteFuture.get());
-        assertAcked(secondDeleteFuture.get());
+        assertAcked(firstDeleteFuture, secondDeleteFuture);
         expectThrows(SnapshotException.class, createSnapshot);
         awaitNoMoreRunningOperations();
     }
@@ -1016,8 +1011,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNDeletionsInProgress(2);
 
         unblockNode(repoName, masterName);
-        assertAcked(deleteSnapshotOne.get());
-        assertAcked(deleteSnapshotTwo.get());
+        assertAcked(deleteSnapshotOne, deleteSnapshotTwo);
 
         final RepositoryData repositoryData = getRepositoryData(repoName);
         assertThat(repositoryData.getSnapshotIds(), empty());
@@ -1363,9 +1357,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         if (deleteAndAbortAll) {
             awaitNumberOfSnapshotsInProgress(0);
             for (ActionFuture<CreateSnapshotResponse> snapshotFuture : snapshotFutures) {
-                // just check that the futures resolve, whether or not things worked out with the snapshot actually finalizing or failing
-                // due to the abort does not matter
-                assertBusy(() -> assertTrue(snapshotFuture.isDone()));
+                try {
+                    snapshotFuture.get();
+                } catch (ExecutionException e) {
+                    // just check that the futures resolve, whether or not things worked out with the snapshot actually finalizing or
+                    // failing due to the abort does not matter
+                }
             }
             assertThat(getRepositoryData(repoName).getSnapshotIds(), empty());
         } else {
@@ -1483,6 +1480,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentRestoreDeleteAndClone() throws Exception {
+        internalCluster().startNode();
         final String repository = "test-repo";
         createRepository(logger, repository, "fs");
 
@@ -1892,8 +1890,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(snapshot3);
         unblockNode(repository, master);
 
-        assertAcked(cloneSnapshot.get());
-        assertAcked(cloneSnapshot2.get());
+        assertAcked(cloneSnapshot, cloneSnapshot2);
         assertAcked(startDeleteSnapshot(repository, cloneTarget).get());
 
         assertThat(
@@ -2033,8 +2030,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(2);
 
         unblockNode(repository, master);
-        assertAcked(deleteFuture.get());
-        assertAcked(cloneFuture.get());
+        assertAcked(deleteFuture, cloneFuture);
         awaitNoMoreRunningOperations();
         assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
     }
@@ -2111,8 +2107,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(3);
 
         unblockNode(repository, master);
-        assertAcked(deleteFuture.get());
-        assertAcked(cloneFuture.get());
+        assertAcked(deleteFuture, cloneFuture);
         awaitNoMoreRunningOperations();
         assertThat(snapshot1.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
         assertThat(snapshot2.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
@@ -2143,7 +2138,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeleteIndexWithOutOfOrderFinalization() {
-
+        internalCluster().startNode();
         final var indexToDelete = "index-to-delete";
         final var indexNames = List.of(indexToDelete, "index-0", "index-1", "index-2");
 
@@ -2159,7 +2154,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final Map<String, SubscribableListener<Void>> otherIndexSnapshotListeners = indexNames.stream()
             .collect(Collectors.toMap(k -> k, k -> new SubscribableListener<>()));
         masterTransportService.<UpdateIndexShardSnapshotStatusRequest>addRequestHandlingBehavior(
-            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> {
                 final var indexName = request.shardId().getIndexName();
                 if (indexName.equals(indexToDelete)) {
@@ -2187,7 +2182,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             // ensure each snapshot has really started before moving on to the next one
             safeAwait(
                 ClusterServiceUtils.addTemporaryStateListener(
-                    internalCluster().getInstance(ClusterService.class),
                     cs -> SnapshotsInProgress.get(cs)
                         .forRepo(repoName)
                         .stream()
@@ -2207,19 +2201,23 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final var indexRecreatedListener = ClusterServiceUtils
             // wait until the snapshot has entered finalization
             .addTemporaryStateListener(
-                internalCluster().getInstance(ClusterService.class),
                 cs -> SnapshotsInProgress.get(cs)
                     .forRepo(repoName)
                     .stream()
                     .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-with-index-1") && e.state().completed())
             )
             // execute the index deletion _directly on the master_ so it happens before the snapshot finalization executes
-            .andThen(l -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
-                assertTrue(r.isAcknowledged());
-                return null;
-            })).indices(new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() })
-                .ackTimeout(TimeValue.timeValueSeconds(10))
-                .masterNodeTimeout(TimeValue.timeValueSeconds(10))))
+            .andThen(
+                l -> masterDeleteIndexService.deleteIndices(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    Set.of(internalCluster().clusterService().state().metadata().getProject().index(indexToDelete).getIndex()),
+                    l.map(r -> {
+                        assertTrue(r.isAcknowledged());
+                        return null;
+                    })
+                )
+            )
             // ultimately create the index again so that taking a full snapshot will pick up any missing shard gen blob, and deleting that
             // full snapshot will clean up all dangling shard-level blobs
             .andThen((l, ignored) -> prepareCreate(indexToDelete, indexSettingsNoReplicas(1)).execute(l.map(r -> {

@@ -11,12 +11,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -38,16 +38,24 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 
 public class CombineDisjunctionsTests extends ESTestCase {
+    private Expression combineDisjunctions(Or e) {
+        return new CombineDisjunctions().rule(e, unboundLogicalOptimizerContext());
+    }
+
+    private LogicalPlan combineDisjunctions(LogicalPlan l) {
+        return new CombineDisjunctions().apply(l, unboundLogicalOptimizerContext());
+    }
 
     public void testTwoEqualsWithOr() {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
-        Expression e = new CombineDisjunctions().rule(or);
+        Expression e = combineDisjunctions(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -58,7 +66,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, ONE));
-        Expression e = new CombineDisjunctions().rule(or);
+        Expression e = combineDisjunctions(or);
         assertEquals(Equals.class, e.getClass());
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
@@ -69,7 +77,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, List.of(TWO)));
-        Expression e = new CombineDisjunctions().rule(or);
+        Expression e = combineDisjunctions(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -80,7 +88,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, asList(ONE, TWO)));
-        Expression e = new CombineDisjunctions().rule(or);
+        Expression e = combineDisjunctions(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -92,7 +100,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
 
         Equals equals = equalsOf(fa, ONE);
         Or or = new Or(EMPTY, equals, new In(EMPTY, fa, List.of(ONE)));
-        Expression e = new CombineDisjunctions().rule(or);
+        Expression e = combineDisjunctions(or);
         assertEquals(equals, e);
     }
 
@@ -101,7 +109,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
 
         And and = new And(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
         Filter dummy = new Filter(EMPTY, relation(), and);
-        LogicalPlan transformed = new CombineDisjunctions().apply(dummy);
+        LogicalPlan transformed = combineDisjunctions(dummy);
         assertSame(dummy, transformed);
         assertEquals(and, ((Filter) transformed).condition());
     }
@@ -111,7 +119,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
         FieldAttribute fieldTwo = getFieldAttribute("TWO");
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, ONE), equalsOf(fieldTwo, TWO));
-        Expression e = new CombineDisjunctions().rule(or);
+        Expression e = combineDisjunctions(or);
         assertEquals(or, e);
     }
 
@@ -120,7 +128,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE)), new In(EMPTY, fa, List.of(TWO)));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, List.of(THREE)));
-        Expression e = new CombineDisjunctions().rule(secondOr);
+        Expression e = combineDisjunctions(secondOr);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -132,7 +140,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE)), lessThanOf(fa, TWO));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, List.of(THREE)));
-        Expression e = new CombineDisjunctions().rule(secondOr);
+        Expression e = combineDisjunctions(secondOr);
         assertEquals(Or.class, e.getClass());
         Or or = (Or) e;
         assertEquals(or.left(), firstOr.right());
@@ -160,7 +168,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
         cidrs.add(new CIDRMatch(EMPTY, faa, ipa2));
         cidrs.add(new CIDRMatch(EMPTY, fab, ipb2));
         Or oldOr = (Or) Predicates.combineOr(cidrs);
-        Expression e = new CombineDisjunctions().rule(oldOr);
+        Expression e = combineDisjunctions(oldOr);
         assertEquals(Or.class, e.getClass());
         Or newOr = (Or) e;
         assertEquals(CIDRMatch.class, newOr.left().getClass());
@@ -211,7 +219,7 @@ public class CombineDisjunctionsTests extends ESTestCase {
 
         Or oldOr = (Or) Predicates.combineOr(all);
 
-        Expression e = new CombineDisjunctions().rule(oldOr);
+        Expression e = combineDisjunctions(oldOr);
         assertEquals(Or.class, e.getClass());
         Or newOr = (Or) e;
         assertEquals(Or.class, newOr.left().getClass());

@@ -9,12 +9,12 @@
 
 package org.elasticsearch.script.field.murmur3;
 
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.field.AbstractLongDocValuesField;
 
 public class Murmur3DocValueField extends AbstractLongDocValuesField {
 
-    public Murmur3DocValueField(SortedNumericDocValues input, String name) {
+    public Murmur3DocValueField(SortedNumericLongValues input, String name) {
         super(input, name);
     }
 }

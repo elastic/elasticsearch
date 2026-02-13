@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
@@ -23,9 +24,9 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
             blockFactory.newFloatArrayVector(new float[] {}, 0),
             blockFactory.newFloatArrayVector(new float[] { 0 }, 0),
             blockFactory.newConstantFloatVector(0, 0),
-            blockFactory.newConstantFloatBlockWith(0, 0).filter().asVector(),
+            blockFactory.newConstantFloatBlockWith(0, 0).filter(false).asVector(),
             blockFactory.newFloatBlockBuilder(0).build().asVector(),
-            blockFactory.newFloatBlockBuilder(0).appendFloat(1).build().asVector().filter()
+            blockFactory.newFloatBlockBuilder(0).appendFloat(1).build().asVector().filter(false)
         );
         assertAllEquals(vectors);
     }
@@ -49,8 +50,9 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
             ),
             blockFactory.newConstantFloatBlockWith(0, 0),
             blockFactory.newFloatBlockBuilder(0).build(),
-            blockFactory.newFloatBlockBuilder(0).appendFloat(1).build().filter(),
-            blockFactory.newFloatBlockBuilder(0).appendNull().build().filter()
+            blockFactory.newFloatBlockBuilder(0).appendFloat(1).build().filter(false),
+            blockFactory.newFloatBlockBuilder(0).appendNull().build().filter(false),
+            (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
         assertAllEquals(blocks);
         Releasables.close(blocks);
@@ -62,19 +64,19 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
             blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3),
             blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3).asBlock().asVector(),
             blockFactory.newFloatArrayVector(new float[] { 1, 2, 3, 4 }, 3),
-            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3).filter(0, 1, 2),
-            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newFloatArrayVector(new float[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
-            blockFactory.newFloatArrayVector(new float[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
+            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newFloatArrayVector(new float[] { 0, 1, 2, 3 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newFloatArrayVector(new float[] { 1, 4, 2, 3 }, 4).filter(false, 0, 2, 3),
             blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(3).build().asVector(),
-            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(3).build().asVector().filter(0, 1, 2),
+            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(3).build().asVector().filter(false, 0, 1, 2),
             blockFactory.newFloatBlockBuilder(3)
                 .appendFloat(1)
                 .appendFloat(4)
                 .appendFloat(2)
                 .appendFloat(3)
                 .build()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
                 .asVector(),
             blockFactory.newFloatBlockBuilder(3)
                 .appendFloat(1)
@@ -83,7 +85,7 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
                 .appendFloat(3)
                 .build()
                 .asVector()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
         );
         assertAllEquals(vectors);
 
@@ -92,20 +94,20 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
             blockFactory.newFloatArrayVector(new float[] { 1, 1, 1 }, 3),
             blockFactory.newFloatArrayVector(new float[] { 1, 1, 1 }, 3).asBlock().asVector(),
             blockFactory.newFloatArrayVector(new float[] { 1, 1, 1, 1 }, 3),
-            blockFactory.newFloatArrayVector(new float[] { 1, 1, 1 }, 3).filter(0, 1, 2),
-            blockFactory.newFloatArrayVector(new float[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newFloatArrayVector(new float[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
-            blockFactory.newFloatArrayVector(new float[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
+            blockFactory.newFloatArrayVector(new float[] { 1, 1, 1 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newFloatArrayVector(new float[] { 1, 1, 1, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newFloatArrayVector(new float[] { 3, 1, 1, 1 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newFloatArrayVector(new float[] { 1, 4, 1, 1 }, 4).filter(false, 0, 2, 3),
             blockFactory.newConstantFloatBlockWith(1, 3).asVector(),
             blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(1).appendFloat(1).build().asVector(),
-            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(1).appendFloat(1).build().asVector().filter(0, 1, 2),
+            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(1).appendFloat(1).build().asVector().filter(false, 0, 1, 2),
             blockFactory.newFloatBlockBuilder(3)
                 .appendFloat(1)
                 .appendFloat(4)
                 .appendFloat(1)
                 .appendFloat(1)
                 .build()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
                 .asVector(),
             blockFactory.newFloatBlockBuilder(3)
                 .appendFloat(1)
@@ -114,7 +116,7 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
                 .appendFloat(1)
                 .build()
                 .asVector()
-                .filter(0, 2, 3)
+                .filter(false, 0, 2, 3)
         );
         assertAllEquals(moreVectors);
     }
@@ -139,14 +141,14 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
-            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
-            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
-            blockFactory.newFloatArrayVector(new float[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3, 4 }, 3).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 1, 2, 3, 4 }, 4).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 1, 2, 4, 3 }, 4).filter(false, 0, 1, 3).asBlock(),
             blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(3).build(),
-            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(3).build().filter(0, 1, 2),
-            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(4).appendFloat(2).appendFloat(3).build().filter(0, 2, 3),
-            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendNull().appendFloat(2).appendFloat(3).build().filter(0, 2, 3)
+            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(3).build().filter(false, 0, 1, 2),
+            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(4).appendFloat(2).appendFloat(3).build().filter(false, 0, 2, 3),
+            blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendNull().appendFloat(2).appendFloat(3).build().filter(false, 0, 2, 3)
         );
         assertAllEquals(blocks);
 
@@ -169,15 +171,15 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            blockFactory.newFloatArrayVector(new float[] { 9, 9 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newFloatArrayVector(new float[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newFloatArrayVector(new float[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
-            blockFactory.newFloatArrayVector(new float[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 9, 9 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 9, 9, 4 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 9, 9, 4 }, 3).filter(false, 0, 1).asBlock(),
+            blockFactory.newFloatArrayVector(new float[] { 9, 4, 9 }, 3).filter(false, 0, 2).asBlock(),
             blockFactory.newConstantFloatBlockWith(9, 2),
             blockFactory.newFloatBlockBuilder(2).appendFloat(9).appendFloat(9).build(),
-            blockFactory.newFloatBlockBuilder(2).appendFloat(9).appendFloat(9).build().filter(0, 1),
-            blockFactory.newFloatBlockBuilder(2).appendFloat(9).appendFloat(4).appendFloat(9).build().filter(0, 2),
-            blockFactory.newFloatBlockBuilder(2).appendFloat(9).appendNull().appendFloat(9).build().filter(0, 2)
+            blockFactory.newFloatBlockBuilder(2).appendFloat(9).appendFloat(9).build().filter(false, 0, 1),
+            blockFactory.newFloatBlockBuilder(2).appendFloat(9).appendFloat(4).appendFloat(9).build().filter(false, 0, 2),
+            blockFactory.newFloatBlockBuilder(2).appendFloat(9).appendNull().appendFloat(9).build().filter(false, 0, 2)
         );
         assertAllEquals(moreBlocks);
     }
@@ -191,7 +193,7 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
             blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3),
             blockFactory.newFloatArrayVector(new float[] { 1, 2, 4 }, 3),
             blockFactory.newConstantFloatBlockWith(9, 2).asVector(),
-            blockFactory.newFloatBlockBuilder(2).appendFloat(1).appendFloat(2).build().asVector().filter(1),
+            blockFactory.newFloatBlockBuilder(2).appendFloat(1).appendFloat(2).build().asVector().filter(false, 1),
             blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(5).build().asVector(),
             blockFactory.newFloatBlockBuilder(1).appendFloat(1).appendFloat(2).appendFloat(3).appendFloat(4).build().asVector()
         );
@@ -207,7 +209,7 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
             blockFactory.newFloatArrayVector(new float[] { 1, 2, 3 }, 3).asBlock(),
             blockFactory.newFloatArrayVector(new float[] { 1, 2, 4 }, 3).asBlock(),
             blockFactory.newConstantFloatBlockWith(9, 2),
-            blockFactory.newFloatBlockBuilder(2).appendFloat(1).appendFloat(2).build().filter(1),
+            blockFactory.newFloatBlockBuilder(2).appendFloat(1).appendFloat(2).build().filter(false, 1),
             blockFactory.newFloatBlockBuilder(3).appendFloat(1).appendFloat(2).appendFloat(5).build(),
             blockFactory.newFloatBlockBuilder(1).appendFloat(1).appendFloat(2).appendFloat(3).appendFloat(4).build(),
             blockFactory.newFloatBlockBuilder(1).appendFloat(1).appendNull().build(),
@@ -233,17 +235,20 @@ public class FloatBlockEqualityTests extends ComputeTestCase {
         boolean grow = randomBoolean();
         FloatBlock.Builder builder1 = blockFactory.newFloatBlockBuilder(grow ? 0 : positions);
         FloatBlock.Builder builder2 = blockFactory.newFloatBlockBuilder(grow ? 0 : positions);
+        ConstantNullBlock.Builder builder3 = new ConstantNullBlock.Builder(blockFactory);
         for (int p = 0; p < positions; p++) {
             builder1.appendNull();
             builder2.appendNull();
+            builder3.appendNull();
         }
         FloatBlock block1 = builder1.build();
         FloatBlock block2 = builder2.build();
+        Block block3 = builder3.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
 
-        List<FloatBlock> blocks = List.of(block1, block2);
+        List<Block> blocks = List.of(block1, block2, block3);
         assertAllEquals(blocks);
     }
 

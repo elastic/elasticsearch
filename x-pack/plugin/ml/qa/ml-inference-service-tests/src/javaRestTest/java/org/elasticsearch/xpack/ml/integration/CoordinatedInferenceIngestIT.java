@@ -150,7 +150,9 @@ public class CoordinatedInferenceIngestIT extends InferenceBaseRestTest {
             var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinitionWithFieldMap(inferenceServiceModelId), docs);
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
             var errorMsg = (String) MapHelper.dig("error.reason", simulatedDocs.get(0));
-            assertThat(errorMsg, containsString("[is_model] is configured for the _inference API and does not accept documents as input"));
+            var expectedMessage = "[is_model] is configured for the _inference API and does not accept documents as input. "
+                + "If using an inference ingest processor configure it with the [input_output] option instead of [field_map].";
+            assertThat(errorMsg, containsString(expectedMessage));
             assertThat(simulatedDocs, hasSize(2));
         }
 

@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -81,8 +81,19 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
         return similarity;
     }
 
-    public Integer getDimensions() {
+    @Override
+    public Integer dimensions() {
         return dimensions;
+    }
+
+    @Override
+    public SimilarityMeasure similarity() {
+        return similarity;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     public Integer getMaxInputTokens() {
@@ -123,7 +134,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

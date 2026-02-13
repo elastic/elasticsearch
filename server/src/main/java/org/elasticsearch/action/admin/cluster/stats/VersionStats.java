@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,19 +68,21 @@ public final class VersionStats implements ToXContentFragment, Writeable {
         }
 
         // Loop through all indices in the metadata, building the counts as needed
-        for (Map.Entry<String, IndexMetadata> cursor : metadata.indices().entrySet()) {
-            IndexMetadata indexMetadata = cursor.getValue();
-            // Increment version-specific index counts
-            indexCounts.merge(indexMetadata.getCreationVersion(), 1, Integer::sum);
-            // Increment version-specific primary shard counts
-            primaryShardCounts.merge(indexMetadata.getCreationVersion(), indexMetadata.getNumberOfShards(), Integer::sum);
-            // Increment version-specific primary shard sizes
-            String indexName = indexMetadata.getIndex().getName();
-            long indexPrimarySize = indexPrimaryShardStats.getOrDefault(indexName, Collections.emptyList())
-                .stream()
-                .mapToLong(stats -> stats.getStats().getStore().sizeInBytes())
-                .sum();
-            primaryByteCounts.merge(indexMetadata.getCreationVersion(), indexPrimarySize, Long::sum);
+        for (ProjectMetadata project : metadata.projects().values()) {
+            for (Map.Entry<String, IndexMetadata> cursor : project.indices().entrySet()) {
+                IndexMetadata indexMetadata = cursor.getValue();
+                // Increment version-specific index counts
+                indexCounts.merge(indexMetadata.getCreationVersion(), 1, Integer::sum);
+                // Increment version-specific primary shard counts
+                primaryShardCounts.merge(indexMetadata.getCreationVersion(), indexMetadata.getNumberOfShards(), Integer::sum);
+                // Increment version-specific primary shard sizes
+                String indexName = indexMetadata.getIndex().getName();
+                long indexPrimarySize = indexPrimaryShardStats.getOrDefault(indexName, Collections.emptyList())
+                    .stream()
+                    .mapToLong(stats -> stats.getStats().getStore().sizeInBytes())
+                    .sum();
+                primaryByteCounts.merge(indexMetadata.getCreationVersion(), indexPrimarySize, Long::sum);
+            }
         }
         List<SingleVersionStats> calculatedStats = new ArrayList<>(indexCounts.size());
         for (Map.Entry<IndexVersion, Integer> indexVersionCount : indexCounts.entrySet()) {

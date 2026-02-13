@@ -36,6 +36,7 @@ public class CoreProtocol {
     public static final String INDEX_INCLUDE_FROZEN_NAME = "index_include_frozen";
     public static final String RUNTIME_MAPPINGS_NAME = "runtime_mappings";
     public static final String ALLOW_PARTIAL_SEARCH_RESULTS_NAME = "allow_partial_search_results";
+    public static final String PROJECT_ROUTING_NAME = "project_routing";
     // async
     public static final String WAIT_FOR_COMPLETION_TIMEOUT_NAME = "wait_for_completion_timeout";
     public static final String KEEP_ON_COMPLETION_NAME = "keep_on_completion";

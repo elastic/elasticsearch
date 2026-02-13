@@ -16,6 +16,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -86,7 +87,8 @@ public class TokenCountFieldMapper extends FieldMapper {
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                context.isSourceSynthetic()
             );
             return new TokenCountFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -100,21 +102,22 @@ public class TokenCountFieldMapper extends FieldMapper {
             boolean isStored,
             boolean hasDocValues,
             Number nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isSyntheticSource
         ) {
             super(
                 name,
                 NumberFieldMapper.NumberType.INTEGER,
-                isSearchable,
+                IndexType.points(isSearchable, hasDocValues),
                 isStored,
-                hasDocValues,
                 false,
                 nullValue,
                 meta,
                 null,
                 false,
                 null,
-                null
+                null,
+                isSyntheticSource
             );
         }
 
@@ -127,7 +130,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     private final boolean index;
     private final boolean hasDocValues;
@@ -161,7 +164,13 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.addFields(
+            context.doc(),
+            fieldType().name(),
+            tokenCount,
+            IndexType.points(index, hasDocValues),
+            store
+        );
     }
 
     /**

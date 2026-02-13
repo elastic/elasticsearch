@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -15,16 +16,18 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link LessThan}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LessThanIntsEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
@@ -32,12 +35,14 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public LessThanIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+    this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -57,32 +62,42 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lhs.baseRamBytesUsed();
+    baseRamBytesUsed += rhs.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (lhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (lhsBlock.getValueCount(p) != 1) {
-          if (lhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (rhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (rhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rhsBlock.getValueCount(p) != 1) {
-          if (rhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBoolean(LessThan.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+        int lhs = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
+        int rhs = rhsBlock.getInt(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(LessThan.processInts(lhs, rhs));
       }
       return result.build();
     }
@@ -91,7 +106,9 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, LessThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        int lhs = lhsVector.getInt(p);
+        int rhs = rhsVector.getInt(p);
+        result.appendBoolean(p, LessThan.processInts(lhs, rhs));
       }
       return result.build();
     }
@@ -105,6 +122,13 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

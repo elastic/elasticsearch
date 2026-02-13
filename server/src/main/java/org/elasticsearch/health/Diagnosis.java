@@ -143,31 +143,34 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
     }
 
+    private boolean hasResources() {
+        return affectedResources != null && affectedResources.isEmpty() == false;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        final Iterator<? extends ToXContent> resourcesIterator;
-        if (affectedResources == null) {
-            resourcesIterator = Collections.emptyIterator();
-        } else {
-            resourcesIterator = Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams));
-        }
-        return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startObject();
             builder.field("id", definition.getUniqueId());
             builder.field("cause", definition.cause);
             builder.field("action", definition.action);
             builder.field("help_url", definition.helpURL);
 
-            if (affectedResources != null && affectedResources.size() > 0) {
+            if (hasResources()) {
+                // don't want to have a new chunk & nested iterator for this, so we start the object here
                 builder.startObject("affected_resources");
             }
             return builder;
-        }), resourcesIterator, Iterators.single((builder, params) -> {
-            if (affectedResources != null && affectedResources.size() > 0) {
-                builder.endObject();
-            }
-            builder.endObject();
-            return builder;
-        }));
+        }),
+            hasResources()
+                ? Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams))
+                : Collections.emptyIterator(),
+            ChunkedToXContentHelper.chunk((b, p) -> {
+                if (hasResources()) {
+                    b.endObject();
+                }
+                return b.endObject();
+            })
+        );
     }
 }

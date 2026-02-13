@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -35,7 +35,14 @@ public class UpdateConnectorSyncJobErrorActionRequestBWCSerializationTests exten
     @Override
     protected UpdateConnectorSyncJobErrorAction.Request mutateInstance(UpdateConnectorSyncJobErrorAction.Request instance)
         throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String jobId = instance.getConnectorSyncJobId();
+        String error = instance.getError();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> jobId = randomValueOtherThan(jobId, () -> randomAlphaOfLength(10));
+            case 1 -> error = randomValueOtherThan(error, () -> randomAlphaOfLengthBetween(5, 100));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorSyncJobErrorAction.Request(jobId, error);
     }
 
     @Override

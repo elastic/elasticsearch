@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.MockUtils;
@@ -49,7 +48,6 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             NO_VALIDATION,
             new AutoscalingLicenseChecker(() -> true)
         );
@@ -75,7 +73,6 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             NO_VALIDATION,
             new AutoscalingLicenseChecker(() -> true)
         );

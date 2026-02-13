@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -79,6 +80,7 @@ public class LimitAwareBulkIndexerTests extends ESTestCase {
     private static IndexRequest mockIndexRequest(long ramBytes) {
         IndexRequest indexRequest = mock(IndexRequest.class);
         when(indexRequest.ramBytesUsed()).thenReturn(ramBytes);
+        when(indexRequest.indexSource()).thenReturn(new IndexSource());
         return indexRequest;
     }
 }

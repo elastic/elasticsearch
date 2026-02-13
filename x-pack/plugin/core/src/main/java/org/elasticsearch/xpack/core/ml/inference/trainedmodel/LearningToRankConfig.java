@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,12 +40,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class LearningToRankConfig extends RegressionConfig implements Rewriteable<LearningToRankConfig> {
 
     public static final ParseField NAME = new ParseField("learning_to_rank");
-    static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersions.LTR_SERVERLESS_RELEASE;
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     public static final ParseField FEATURE_EXTRACTORS = new ParseField("feature_extractors");
     public static final ParseField DEFAULT_PARAMS = new ParseField("default_params");
 
-    public static LearningToRankConfig EMPTY_PARAMS = new LearningToRankConfig(null, null, null);
+    public static final LearningToRankConfig EMPTY_PARAMS = new LearningToRankConfig(null, null, null);
 
     private static final ObjectParser<LearningToRankConfig.Builder, Boolean> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<LearningToRankConfig.Builder, Boolean> STRICT_PARSER = createParser(false);
@@ -226,7 +224,7 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return MIN_SUPPORTED_TRANSPORT_VERSION;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

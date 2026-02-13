@@ -43,6 +43,7 @@ import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -95,6 +96,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -580,13 +582,14 @@ public class CCSDuelIT extends ESRestTestCase {
 
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
-        // set to a value greater than the number of shards to avoid differences due to the skipping of shards
+        // setting aggs to avoid differences due to the skipping of shards when matching none
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
         sourceBuilder.sort("type.keyword", SortOrder.ASC);
         sourceBuilder.sort("creationDate", SortOrder.DESC);
         sourceBuilder.sort("user.keyword", SortOrder.ASC);
+        sourceBuilder.aggregation(AggregationBuilders.max("max").field("creationDate"));
         CheckedConsumer<ObjectPath, IOException> responseChecker = response -> {
             assertHits(response);
             int size = response.evaluateArraySize("hits.hits");
@@ -668,33 +671,31 @@ public class CCSDuelIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
     public void testTermsAggs() throws Exception {
         assumeMultiClusterSetup();
         {
             SearchRequest searchRequest = initLocalAndRemoteSearchRequest();
             searchRequest.source(buildTermsAggsSource());
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
         {
             SearchRequest searchRequest = initRemoteOnlySearchRequest();
             searchRequest.source(buildTermsAggsSource());
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
     public void testTermsAggsWithProfile() throws Exception {
         assumeMultiClusterSetup();
         {
             SearchRequest searchRequest = initLocalAndRemoteSearchRequest();
             searchRequest.source(buildTermsAggsSource().profile(true));
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
         {
             SearchRequest searchRequest = initRemoteOnlySearchRequest();
             searchRequest.source(buildTermsAggsSource().profile(true));
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
     }
 
@@ -875,7 +876,7 @@ public class CCSDuelIT extends ESRestTestCase {
             assertNull(response.evaluate("suggest"));
             assertThat(response.evaluateArraySize("hits.hits"), greaterThan(0));
             assertThat(response.evaluate("_shards.failed"), greaterThanOrEqualTo(2));
-        }, compareAsyncAndSyncResponses);
+        }, compareAsyncAndSyncResponses, path -> true);
     }
 
     public void testTermSuggester() throws Exception {
@@ -984,18 +985,19 @@ public class CCSDuelIT extends ESRestTestCase {
     }
 
     private void duelRequest(SearchRequest searchRequest, CheckedConsumer<ObjectPath, IOException> responseChecker) throws Exception {
-        duelRequest(searchRequest, responseChecker, true);
+        duelRequest(searchRequest, responseChecker, true, p -> true);
     }
 
     private void duelRequest(
         SearchRequest searchRequest,
         CheckedConsumer<ObjectPath, IOException> responseChecker,
-        boolean compareAsyncToSyncResponses
+        boolean compareAsyncToSyncResponses,
+        Predicate<String> pathFilter
     ) throws Exception {
-        Map<String, Object> syncResponseMap = duelSearchSync(searchRequest, responseChecker);
-        Map<String, Object> asyncResponseMap = duelSearchAsync(searchRequest, responseChecker);
+        Map<String, Object> syncResponseMap = duelSearchSync(searchRequest, responseChecker, pathFilter);
+        Map<String, Object> asyncResponseMap = duelSearchAsync(searchRequest, responseChecker, pathFilter);
         if (compareAsyncToSyncResponses) {
-            compareResponseMaps(syncResponseMap, asyncResponseMap, "Comparing sync_search CCS vs. async_search CCS");
+            compareResponseMaps(syncResponseMap, asyncResponseMap, "Comparing sync_search CCS vs. async_search CCS", pathFilter);
         }
     }
 
@@ -1004,11 +1006,24 @@ public class CCSDuelIT extends ESRestTestCase {
      */
     private static Map<String, Object> duelSearchSync(SearchRequest searchRequest, CheckedConsumer<ObjectPath, IOException> responseChecker)
         throws Exception {
+        return duelSearchSync(searchRequest, responseChecker, p -> true);
+    }
+
+    /**
+     * @return responseMap from one of the Synchronous Search Requests
+     */
+    private static Map<String, Object> duelSearchSync(
+        SearchRequest searchRequest,
+        CheckedConsumer<ObjectPath, IOException> responseChecker,
+        Predicate<String> pathFilter
+    ) throws Exception {
         CountDownLatch latch = new CountDownLatch(2);
+
         AtomicReference<Exception> exception1 = new AtomicReference<>();
         AtomicReference<Response> minimizeRoundtripsResponse = new AtomicReference<>();
         searchRequest.setCcsMinimizeRoundtrips(true);
         submitSyncSearch(searchRequest, minimizeRoundtripsResponse, exception1, latch);
+
         AtomicReference<Exception> exception2 = new AtomicReference<>();
         AtomicReference<Response> fanOutResponse = new AtomicReference<>();
         searchRequest.setCcsMinimizeRoundtrips(false);
@@ -1075,7 +1090,12 @@ public class CCSDuelIT extends ESRestTestCase {
             Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
             if (minimizeRoundtripsSearchResponse.evaluate("_clusters") != null && fanOutSearchResponse.evaluate("_clusters") != null) {
                 Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-                compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing sync_search minimizeRoundTrip vs. fanOut");
+                compareResponseMaps(
+                    minimizeRoundtripsResponseMap,
+                    fanOutResponseMap,
+                    "Comparing sync_search minimizeRoundTrip vs. fanOut",
+                    pathFilter
+                );
                 assertThat(
                     minimizeRoundtripsSearchResponse.evaluate("_shards.skipped"),
                     lessThanOrEqualTo((Integer) fanOutSearchResponse.evaluate("_shards.skipped"))
@@ -1123,6 +1143,17 @@ public class CCSDuelIT extends ESRestTestCase {
     private static Map<String, Object> duelSearchAsync(
         SearchRequest searchRequest,
         CheckedConsumer<ObjectPath, IOException> responseChecker
+    ) throws Exception {
+        return duelSearchAsync(searchRequest, responseChecker, p -> true);
+    }
+
+    /**
+     * @return responseMap from one of the async searches
+     */
+    private static Map<String, Object> duelSearchAsync(
+        SearchRequest searchRequest,
+        CheckedConsumer<ObjectPath, IOException> responseChecker,
+        Predicate<String> pathFilter
     ) throws Exception {
         searchRequest.setCcsMinimizeRoundtrips(true);
         ObjectPath minimizeRoundtripsResponse = submitAsyncSearch(searchRequest, TimeValue.timeValueSeconds(1));
@@ -1183,7 +1214,12 @@ public class CCSDuelIT extends ESRestTestCase {
         Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsResponse);
         if (minimizeRoundtripsResponse.evaluate("_clusters") != null && fanOutResponse.evaluate("_clusters") != null) {
             Map<String, Object> fanOutResponseMap = responseToMap(fanOutResponse);
-            compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing async_search minimizeRoundTrip vs. fanOut");
+            compareResponseMaps(
+                minimizeRoundtripsResponseMap,
+                fanOutResponseMap,
+                "Comparing async_search minimizeRoundTrip vs. fanOut",
+                pathFilter
+            );
             assertThat(
                 minimizeRoundtripsResponse.evaluate("_shards.skipped"),
                 lessThanOrEqualTo((Integer) fanOutResponse.evaluate("_shards.skipped"))
@@ -1192,8 +1228,13 @@ public class CCSDuelIT extends ESRestTestCase {
         return minimizeRoundtripsResponseMap;
     }
 
-    private static void compareResponseMaps(Map<String, Object> responseMap1, Map<String, Object> responseMap2, String info) {
-        String diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(responseMap1, responseMap2);
+    private static void compareResponseMaps(
+        Map<String, Object> responseMap1,
+        Map<String, Object> responseMap2,
+        String info,
+        Predicate<String> pathFilter
+    ) {
+        String diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(responseMap1, responseMap2, pathFilter);
         if (diff != null) {
             NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
             builder.compareMaps(responseMap1, responseMap2);
@@ -1331,6 +1372,7 @@ public class CCSDuelIT extends ESRestTestCase {
         Map<String, Object> responseMap = XContentHelper.convertToMap(bytesReference, false, XContentType.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
+        responseMap.remove("terminated_early");
         Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         if (profile != null) {
             List<Map<String, Object>> shards = (List<Map<String, Object>>) profile.get("shards");

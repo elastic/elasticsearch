@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -23,6 +24,11 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestDeleteAnalyticsCollectionAction(XPackLicenseState licenseState) {

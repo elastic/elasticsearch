@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,6 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
@@ -356,9 +362,42 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
     }
 
     public void testAPIKeyAllowsAllRemoteClusterPrivilegesForCCS() {
-        // if users can add remote cluster permissions to a role, then the APIKey should also allow that for that permission
-        // the inverse however, is not guaranteed. cross_cluster_search exists largely for internal use and is not exposed to the users role
-        assertTrue(Set.of(CCS_CLUSTER_PRIVILEGE_NAMES).containsAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()));
+        // test to help ensure that at least 1 action that is allowed by the remote cluster permissions are supported by CCS
+        List<String> actionsToTest = List.of("cluster:monitor/xpack/enrich/esql/resolve_policy", "cluster:monitor/stats/remote");
+        // if you add new remote cluster permissions, please define an action we can test to help ensure it is supported by RCS 2.0
+        assertThat(actionsToTest.size(), equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().size()));
+
+        for (String privilege : RemoteClusterPermissions.getSupportedRemoteClusterPermissions()) {
+            boolean actionPassesRemoteClusterPermissionCheck = false;
+            ClusterPrivilege clusterPrivilege = ClusterPrivilegeResolver.resolve(privilege);
+            // each remote cluster privilege has an action to test
+            for (String action : actionsToTest) {
+                if (clusterPrivilege.buildPermission(ClusterPermission.builder())
+                    .build()
+                    .check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build())) {
+                    actionPassesRemoteClusterPermissionCheck = true;
+                    break;
+                }
+            }
+            assertTrue(
+                "privilege [" + privilege + "] does not cover any actions among [" + actionsToTest + "]",
+                actionPassesRemoteClusterPermissionCheck
+            );
+        }
+        // test that the actions pass the privilege check for CCS
+        for (String privilege : Set.of(CCS_CLUSTER_PRIVILEGE_NAMES)) {
+            boolean actionPassesRemoteCCSCheck = false;
+            ClusterPrivilege clusterPrivilege = ClusterPrivilegeResolver.resolve(privilege);
+            for (String action : actionsToTest) {
+                if (clusterPrivilege.buildPermission(ClusterPermission.builder())
+                    .build()
+                    .check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build())) {
+                    actionPassesRemoteCCSCheck = true;
+                    break;
+                }
+            }
+            assertTrue(actionPassesRemoteCCSCheck);
+        }
     }
 
     private static void assertRoleDescriptor(

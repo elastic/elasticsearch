@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -26,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineOr;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineOr;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 
 /**
@@ -61,7 +62,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
     }
 
     @Override
-    public Expression rule(Or or) {
+    public Expression rule(Or or, LogicalOptimizerContext ctx) {
         Expression e = or;
         // look only at equals, In and CIDRMatch
         List<Expression> exps = splitOr(e);
@@ -78,7 +79,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                 if (eq.right().foldable()) {
                     ins.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
                     if (eq.left().dataType() == DataType.IP) {
-                        Object value = eq.right().fold();
+                        Object value = eq.right().fold(ctx.foldCtx());
                         // ImplicitCasting and ConstantFolding(includes explicit casting) are applied before CombineDisjunctions.
                         // They fold the input IP string to an internal IP format. These happen to Equals and IN, but not for CIDRMatch,
                         // as CIDRMatch takes strings as input, ImplicitCasting does not apply to it, and the first input to CIDRMatch is a
@@ -101,7 +102,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                 if (in.value().dataType() == DataType.IP) {
                     List<Expression> values = new ArrayList<>(in.list().size());
                     for (Expression i : in.list()) {
-                        Object value = i.fold();
+                        Object value = i.fold(ctx.foldCtx());
                         // Same as Equals.
                         if (value instanceof BytesRef bytesRef) {
                             value = ipToString(bytesRef);

@@ -318,6 +318,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         verify(analyticsManager).isNodeShuttingDown();
         verify(client, atLeastOnce()).settings();
         verify(client, atLeastOnce()).threadPool();
+        verify(client, atLeastOnce()).projectResolver();
 
         if (nodeShuttingDown == false) {
             // Verify progress was persisted

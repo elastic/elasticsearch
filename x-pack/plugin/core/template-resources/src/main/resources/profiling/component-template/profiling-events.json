@@ -1,6 +1,7 @@
 {
   "template": {
     "settings": {
+      "mode": "logsdb",
       "index": {
         "number_of_shards": 4,
         "auto_expand_replicas": "0-1",
@@ -9,19 +10,31 @@
         "sort": {
           "field": [
             "profiling.project.id",
+            "k8s.namespace.name",
             "orchestrator.resource.name",
+            "service.name",
             "host.name",
             "container.name",
-            "process.thread.name"
+            "process.executable.name",
+            "process.thread.name",
+            "@timestamp"
+          ],
+          "order": [
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "desc"
           ]
         }
       },
       "codec": "best_compression"
     },
     "mappings": {
-      "_source": {
-        "mode": "synthetic"
-      },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
         "index-version": ${xpack.profiling.index.events.version},
@@ -56,8 +69,15 @@
         "process.thread.name": {
           "type": "keyword"
         },
+        "process.executable.name": {
+          "type": "keyword"
+        },
         "Stacktrace.count": {
           "type": "short",
+          "index": false
+        },
+        "Stacktrace.sampling_frequency": {
+          "type": "long",
           "index": false
         },
         "agent.version": {
@@ -79,6 +99,9 @@
           "type": "keyword"
         },
         "container.id": {
+          "type": "keyword"
+        },
+        "k8s.namespace.name": {
           "type": "keyword"
         }
       }

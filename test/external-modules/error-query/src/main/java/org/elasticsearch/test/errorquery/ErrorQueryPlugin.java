@@ -9,21 +9,74 @@
 
 package org.elasticsearch.test.errorquery;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 
 /**
  * Test plugin that exposes a way to simulate search shard failures and warnings.
  */
-public class ErrorQueryPlugin extends Plugin implements SearchPlugin {
+public class ErrorQueryPlugin extends Plugin implements SearchPlugin, ScriptPlugin {
     public ErrorQueryPlugin() {}
 
     @Override
     public List<QuerySpec<?>> getQueries() {
         return singletonList(new QuerySpec<>(ErrorQueryBuilder.NAME, ErrorQueryBuilder::new, p -> ErrorQueryBuilder.PARSER.parse(p, null)));
+    }
+
+    public static final String FAILING_FIELD_LANG = "failing_field";
+
+    @Override
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+        return new ScriptEngine() {
+            @Override
+            public String getType() {
+                return FAILING_FIELD_LANG;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <FactoryType> FactoryType compile(
+                String name,
+                String code,
+                ScriptContext<FactoryType> context,
+                Map<String, String> params
+            ) {
+                return (FactoryType) new LongFieldScript.Factory() {
+                    @Override
+                    public LongFieldScript.LeafFactory newFactory(
+                        String fieldName,
+                        Map<String, Object> params,
+                        SearchLookup searchLookup,
+                        OnScriptError onScriptError
+                    ) {
+                        return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                            @Override
+                            public void execute() {
+                                throw new IllegalStateException("Accessing failing field");
+                            }
+                        };
+                    }
+                };
+            }
+
+            @Override
+            public Set<ScriptContext<?>> getSupportedContexts() {
+                return Set.of(LongFieldScript.CONTEXT);
+            }
+        };
     }
 }

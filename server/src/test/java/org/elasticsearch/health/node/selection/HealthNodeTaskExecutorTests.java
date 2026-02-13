@@ -22,9 +22,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -43,6 +42,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -77,8 +77,8 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         localNodeId = clusterService.localNode().getId();
         persistentTasksService = mock(PersistentTasksService.class);
-        featureService = new FeatureService(List.of(new HealthFeatures()));
         settings = Settings.builder().build();
+        featureService = new FeatureService(List.of());
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
@@ -94,7 +94,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     public void testTaskCreation() throws Exception {
-        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, featureService, settings, clusterSettings);
+        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
         // Ensure that if the task is gone, it will be recreated.
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
@@ -103,26 +103,20 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 eq("health-node"),
                 eq("health-node"),
                 eq(new HealthNodeTaskParams()),
-                eq(null),
+                isNotNull(),
                 any()
             )
         );
     }
 
     public void testSkippingTaskCreationIfItExists() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, never()).sendStartRequest(
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),
-            eq(null),
+            isNotNull(),
             any()
         );
     }
@@ -132,7 +126,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
                 clusterService,
                 persistentTasksService,
-                featureService,
                 settings,
                 clusterSettings
             );
@@ -150,7 +143,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
                 clusterService,
                 persistentTasksService,
-                featureService,
                 settings,
                 clusterSettings
             );
@@ -165,13 +157,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     public void testAbortOnDisable() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeTaskParams(), state);
@@ -196,6 +182,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 localNodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(localNodeId)
+                    .setNodeEphemeralId(localNodeId)
                     .setReason("shutdown for a unit test")
                     .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())
@@ -211,10 +198,11 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
 
     private ClusterState stateWithHealthNodeSelectorTask(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        ClusterPersistentTasksCustomMetadata.Builder tasks = ClusterPersistentTasksCustomMetadata.builder();
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, new HealthNodeTaskParams(), NO_NODE_FOUND);
 
-        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata())
+            .putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build());
         return builder.metadata(metadata).build();
     }
 }

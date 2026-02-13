@@ -13,14 +13,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -29,10 +30,14 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -44,6 +49,10 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     private static IndexSettings indexSettings(Settings settings) {
         return new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
+    }
+
+    private static IndexSettings indexSettings(Settings settings, IndexVersion indexVersion) {
+        return new IndexSettings(newIndexMeta("test", settings, indexVersion), Settings.EMPTY);
     }
 
     public void testNoIndexSort() {
@@ -86,8 +95,8 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
         assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
         assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
-        assertNull(config.sortSpecs[0].mode);
-        assertNull(config.sortSpecs[1].mode);
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
     }
 
     public void testInvalidIndexSort() {
@@ -125,7 +134,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testIndexSortingNoDocValues() {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
-        MappedFieldType fieldType = new MappedFieldType("field", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        MappedFieldType fieldType = new MappedFieldType("field", IndexType.NONE, false, Collections.emptyMap()) {
             @Override
             public String typeName() {
                 return null;
@@ -160,6 +169,72 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
     }
 
+    public void testSortingAgainstAliasesPre713() {
+        IndexSettings indexSettings = indexSettings(
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_12_0).put("index.sort.field", "field").build()
+        );
+        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
+        Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
+        assertThat(sort.getSort(), arrayWithSize(1));
+        assertThat(sort.getSort()[0].getField(), equalTo("aliased"));
+        assertWarnings(
+            "Index sort for index [test] defined on field [field] which resolves to field [aliased]. "
+                + "You will not be able to define an index sort over aliased fields in new indexes"
+        );
+    }
+
+    public void testSortMissingValueDateNanoFieldPre714() {
+        MappedFieldType tsField = new DateFieldMapper.DateFieldType("@timestamp", true, DateFieldMapper.Resolution.NANOSECONDS);
+        var indexSettingsBuilder = Settings.builder();
+        indexSettingsBuilder.put("index.sort.field", "@timestamp");
+        indexSettingsBuilder.put("index.sort.order", "desc");
+
+        // test with index version 7.13 and before
+        var pre714Versions = Stream.concat(Stream.of(IndexVersions.V_7_13_0), randomVersionsBefore(IndexVersions.V_7_13_0)).toList();
+        for (var version : pre714Versions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort(), arrayWithSize(1));
+            assertThat(sort.getSort()[0].getField(), equalTo("@timestamp"));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(Long.MIN_VALUE));
+        }
+
+        // now test with index version 7.14 and after
+        var post713Versions = Stream.concat(Stream.of(IndexVersions.V_7_14_0), randomVersionsAfter(IndexVersions.V_7_14_0)).toList();
+        for (var version : post713Versions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort(), arrayWithSize(1));
+            assertThat(sort.getSort()[0].getField(), equalTo("@timestamp"));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(0L));
+        }
+
+        // asc order has not changed behaviour in any version
+        indexSettingsBuilder.put("index.sort.order", "asc");
+        var allVersions = Stream.concat(post713Versions.stream(), pre714Versions.stream()).toList();
+        for (var version : allVersions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort(), arrayWithSize(1));
+            assertThat(sort.getSort()[0].getField(), equalTo("@timestamp"));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(DateUtils.MAX_NANOSECOND));
+        }
+
+        // ensure no change in behaviour when a missing value is set
+        indexSettingsBuilder.put("index.sort.missing", "_first");
+        for (var version : allVersions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(0L));
+        }
+        indexSettingsBuilder.put("index.sort.missing", "_last");
+        for (var version : allVersions) {
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);
+            Sort sort = buildIndexSort(indexSettings(indexSettingsBuilder.build()), Map.of("@timestamp", tsField));
+            assertThat(sort.getSort()[0].getMissingValue(), equalTo(Long.MAX_VALUE));
+        }
+    }
+
     public void testTimeSeriesMode() {
         IndexSettings indexSettings = indexSettings(
             Settings.builder()
@@ -188,6 +263,156 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
     }
 
+    public void testLogsdbIndexSortWithArrays() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.field", "field1", "field2")
+            .putList("index.sort.order", "asc", "desc")
+            .putList("index.sort.missing", "_last", "_first")
+            .build();
+        IndexSettings indexSettings = indexSettings(settings);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("field1"));
+        assertThat(config.sortSpecs[1].field, equalTo("field2"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_first"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    public void testLogsdbInvalidIndexSortOrder() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.order", new String[] { "asc", "desc" })
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("setting [index.sort.order] requires [index.sort.field] to be configured"));
+    }
+
+    public void testLogsdbInvalidIndexSortMode() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.mode", new String[] { "max" })
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("setting [index.sort.mode] requires [index.sort.field] to be configured"));
+    }
+
+    public void testLogsdbInvalidIndexSortMissing() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .putList("index.sort.missing", new String[] { "_last", "_last" })
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("setting [index.sort.missing] requires [index.sort.field] to be configured"));
+    }
+
+    public void testLogsdbIndexSortWithHostname() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("host.name"));
+        assertThat(config.sortSpecs[1].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    public void testLogsdbIndexSortWithMessage() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(), true)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("message.template_id"));
+        assertThat(config.sortSpecs[1].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    public void testLogsdbIndexSortWithMessageAndHostname() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+            .put(IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(), true)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(3));
+
+        assertThat(config.sortSpecs[0].field, equalTo("host.name"));
+        assertThat(config.sortSpecs[1].field, equalTo("message.template_id"));
+        assertThat(config.sortSpecs[2].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[2].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[2].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[2].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    public void testLogsdbIndexSortTimestampOnly() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), false)
+            .build();
+        IndexSettings indexSettings = indexSettings(settings);
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(1));
+
+        assertThat(config.sortSpecs[0].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.DESC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MAX));
+    }
+
+    public void testLogsdbIndexSortTimestampBWC() {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+        IndexSettings indexSettings = indexSettings(
+            settings,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
+        );
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        assertThat(config.sortSpecs.length, equalTo(2));
+
+        assertThat(config.sortSpecs[0].field, equalTo("host.name"));
+        assertThat(config.sortSpecs[1].field, equalTo("@timestamp"));
+        assertThat(config.sortSpecs[0].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[1].order, equalTo(SortOrder.ASC));
+        assertThat(config.sortSpecs[0].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[1].missingValue, equalTo("_last"));
+        assertThat(config.sortSpecs[0].mode, equalTo(MultiValueMode.MIN));
+        assertThat(config.sortSpecs[1].mode, equalTo(MultiValueMode.MIN));
+    }
+
     private Sort buildIndexSort(IndexSettings indexSettings, MappedFieldType... mfts) {
         Map<String, MappedFieldType> lookup = Maps.newMapWithExpectedSize(mfts.length);
         for (MappedFieldType mft : mfts) {
@@ -209,5 +434,25 @@ public class IndexSortSettingsTests extends ESTestCase {
                 new FieldDataContext("test", indexSettings, s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
             )
         );
+    }
+
+    /* Returns a stream of versions before the given version */
+    Stream<IndexVersion> randomVersionsBefore(IndexVersion indexVersion) {
+        var versions = IndexVersions.getAllVersions().stream().filter(v -> v.before(indexVersion)).toList();
+        List<IndexVersion> ret = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            ret.add(randomValueOtherThanMany(ret::contains, () -> randomFrom(versions)));
+        }
+        return ret.stream();
+    }
+
+    /* Returns a stream of versions after the given version */
+    Stream<IndexVersion> randomVersionsAfter(IndexVersion indexVersion) {
+        var versions = IndexVersions.getAllVersions().stream().filter(v -> v.after(indexVersion)).toList();
+        List<IndexVersion> ret = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            ret.add(randomValueOtherThanMany(ret::contains, () -> randomFrom(versions)));
+        }
+        return ret.stream();
     }
 }

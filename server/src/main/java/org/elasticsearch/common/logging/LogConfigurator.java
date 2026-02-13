@@ -127,7 +127,7 @@ public class LogConfigurator {
             StatusLogger.getLogger().removeListener(ERROR_LISTENER);
         }
         configureESLogging();
-        configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+        configure(environment.settings(), environment.configDir(), environment.logsDir(), useConsole);
         initializeStatics();
         // creates a permanent status logger that can watch for StatusLogger events and forward to a real logger
         configureStatusLoggerForwarder();
@@ -155,6 +155,13 @@ public class LogConfigurator {
      */
     public static void loadLog4jPlugins() {
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
+    }
+
+    /**
+     * Sets the cluster name. This is called before logging is configured.
+     */
+    public static void setClusterName(String clusterName) {
+        ClusterNamePatternConverter.setClusterName(clusterName);
     }
 
     /**

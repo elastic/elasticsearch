@@ -70,7 +70,7 @@ final class NoisyChannelSpellChecker {
                 if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymFilter.TYPE_SYNONYM) {
                     assert currentSet != null;
                     TermStats termStats = generator.termStats(term);
-                    if (termStats.docFreq > 0) {
+                    if (termStats.docFreq() > 0) {
                         currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), termStats, realWordLikelihood));
                     }
                 } else {
@@ -87,7 +87,7 @@ final class NoisyChannelSpellChecker {
                     candidateSetsList.add(currentSet);
                 }
                 if (requireUnigram && anyUnigram == false && anyTokens) {
-                    throw new IllegalStateException("At least one unigram is required but all tokens were ngrams");
+                    throw new IllegalArgumentException("At least one unigram is required but all tokens were ngrams");
                 }
             }
         });

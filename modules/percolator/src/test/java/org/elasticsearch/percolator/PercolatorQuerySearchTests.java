@@ -258,7 +258,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
     public void testMapUnmappedFieldAsText() throws IOException {
         Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
-        createIndex("test", settings.build(), "query", "query", "type=percolator");
+        createIndex("test", settings.build(), "query", "type=percolator");
         prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject())
             .get();
@@ -281,7 +281,6 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex(
             "test",
             Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
             "field1",
             "type=keyword",
             "field2",
@@ -322,7 +321,9 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 searcher,
                 () -> currentTime[0],
                 null,
-                emptyMap()
+                emptyMap(),
+                null,
+                null
             );
 
             BytesReference source = BytesReference.bytes(
@@ -409,7 +410,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
         QueryBuilder query = new PercolateQueryBuilder("my_query", List.of(house1_doc, house2_doc), XContentType.JSON);
         assertResponse(client().prepareSearch("houses").setQuery(query), response -> {
-            assertEquals(2, response.getHits().getTotalHits().value);
+            assertEquals(2, response.getHits().getTotalHits().value());
 
             SearchHit[] hits = response.getHits().getHits();
             assertThat(hits[0].getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));

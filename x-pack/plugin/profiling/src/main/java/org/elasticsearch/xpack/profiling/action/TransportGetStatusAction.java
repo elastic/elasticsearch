@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -53,7 +52,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         NodeClient nodeClient,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProfilingIndexTemplateRegistry templateRegistry
     ) {
         super(
             GetStatusAction.NAME,
@@ -62,11 +61,10 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             threadPool,
             actionFilters,
             GetStatusAction.Request::new,
-            indexNameExpressionResolver,
             GetStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.resolver = new StatusResolver(clusterService, nodeClient);
+        this.resolver = new StatusResolver(clusterService, nodeClient, templateRegistry);
     }
 
     @Override
@@ -140,15 +138,17 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
     private static class StatusResolver {
         private final ClusterService clusterService;
         private final NodeClient nodeClient;
+        private final ProfilingIndexTemplateRegistry templateRegistry;
 
-        private StatusResolver(ClusterService clusterService, NodeClient nodeClient) {
+        private StatusResolver(ClusterService clusterService, NodeClient nodeClient, ProfilingIndexTemplateRegistry templateRegistry) {
             this.clusterService = clusterService;
             this.nodeClient = nodeClient;
+            this.templateRegistry = templateRegistry;
         }
 
         private boolean isResourcesCreated(ClusterState state) {
             IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean templatesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
+            boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
             boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
             boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
             return templatesCreated && indicesCreated && dataStreamsCreated;
@@ -180,7 +180,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 countRequest.source(searchSourceBuilder);
 
                 nodeClient.search(countRequest, ActionListener.wrap(searchResponse -> {
-                    boolean hasData = searchResponse.getHits().getTotalHits().value > 0;
+                    boolean hasData = searchResponse.getHits().getTotalHits().value() > 0;
                     listener.onResponse(
                         new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
                     );

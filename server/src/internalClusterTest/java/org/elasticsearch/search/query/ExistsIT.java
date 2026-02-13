@@ -88,9 +88,9 @@ public class ExistsIT extends ESIntegTestCase {
             // object fields
             singletonMap("bar", barObject),
             singletonMap("bar", singletonMap("baz", 42)),
-            // sparse_vector field empty
-            singletonMap("vec", emptyMap()),
-            // sparse_vector field non-empty
+            // sparse_vector field
+            singletonMap("vec", singletonMap("6", 100)),
+            // sparse_vector field
             singletonMap("vec", singletonMap("1", 100)),
             // empty doc
             emptyMap() };
@@ -133,7 +133,7 @@ public class ExistsIT extends ESIntegTestCase {
                                 response
                             ),
                             count,
-                            response.getHits().getTotalHits().value
+                            response.getHits().getTotalHits().value()
                         );
                     } catch (AssertionError e) {
                         for (SearchHit searchHit : allDocs.getHits()) {

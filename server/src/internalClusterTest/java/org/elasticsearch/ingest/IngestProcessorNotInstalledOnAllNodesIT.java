@@ -10,9 +10,9 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.plugins.Plugin;
@@ -61,17 +61,13 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         ensureStableCluster(2, node2);
 
         assertThat(
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 ElasticsearchParseException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            PutPipelineTransportAction.TYPE,
-                            IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    PutPipelineTransportAction.TYPE,
+                    IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
+                    l
                 )
             ).getMessage(),
             containsString("Processor type [test] is not installed on node")
@@ -84,17 +80,13 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         assertThat(
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 ElasticsearchParseException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            PutPipelineTransportAction.TYPE,
-                            IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    PutPipelineTransportAction.TYPE,
+                    IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
+                    l
                 )
             ).getMessage(),
             equalTo("No processor type exists with name [test]")
@@ -108,12 +100,16 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         String node1 = internalCluster().startNode();
 
         putJsonPipeline("_id", pipelineSource);
-        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipeline("_id");
+        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1)
+            .getIngestService()
+            .getPipeline(Metadata.DEFAULT_PROJECT_ID, "_id");
         assertThat(pipeline, notNullValue());
 
         installPlugin = false;
         String node2 = internalCluster().startNode();
-        pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipeline("_id");
+        pipeline = internalCluster().getInstance(NodeService.class, node2)
+            .getIngestService()
+            .getPipeline(Metadata.DEFAULT_PROJECT_ID, "_id");
 
         assertNotNull(pipeline);
         assertThat(pipeline.getId(), equalTo("_id"));

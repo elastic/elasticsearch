@@ -10,8 +10,9 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceDoubleBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -27,8 +28,8 @@ public class TopDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopDoubleAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new TopDoubleAggregatorFunctionSupplier(LIMIT, true);
     }
 
     @Override
@@ -37,8 +38,13 @@ public class TopDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMapToDouble(b -> allDoubles(b)).sorted().limit(LIMIT).boxed().toArray(Object[]::new);
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Object[] values = input.stream()
+            .flatMapToDouble(p -> allDoubles(p.getBlock(0)))
+            .sorted()
+            .limit(LIMIT)
+            .boxed()
+            .toArray(Object[]::new);
         assertThat((List<?>) BlockUtils.toJavaObject(result, 0), contains(values));
     }
 }

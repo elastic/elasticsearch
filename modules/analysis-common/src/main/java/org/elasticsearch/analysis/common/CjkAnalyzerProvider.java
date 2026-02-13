@@ -22,7 +22,7 @@ public class CjkAnalyzerProvider extends AbstractIndexAnalyzerProvider<CJKAnalyz
     private final CJKAnalyzer analyzer;
 
     CjkAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, CJKAnalyzer.getDefaultStopSet());
 
         analyzer = new CJKAnalyzer(stopWords);

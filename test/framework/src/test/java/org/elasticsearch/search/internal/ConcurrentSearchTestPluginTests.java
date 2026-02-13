@@ -9,34 +9,23 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
-
-import java.io.IOException;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class ConcurrentSearchTestPluginTests extends ESIntegTestCase {
 
     private final boolean concurrentSearch = randomBoolean();
 
-    public void testConcurrentSearch() throws IOException {
+    public void testConcurrentSearch() {
         client().admin().indices().prepareCreate("index").get();
-        IndicesService indicesService = internalCluster().getDataNodeInstance(IndicesService.class);
-        IndexService indexService = indicesService.iterator().next();
-        IndexShard shard = indexService.getShard(0);
-        SearchService searchService = internalCluster().getDataNodeInstance(SearchService.class);
-        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shard.shardId(), 0L, AliasFilter.EMPTY);
-        try (SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, TimeValue.MINUS_ONE)) {
-            ContextIndexSearcher searcher = searchContext.searcher();
-            if (concurrentSearch) {
-                assertEquals(1, searcher.getMinimumDocsPerSlice());
-            } else {
-                assertEquals(50_000, searcher.getMinimumDocsPerSlice());
-            }
+        ClusterService clusterService = internalCluster().getDataNodeInstance(ClusterService.class);
+        int minDocsPerSlice = SearchService.MINIMUM_DOCS_PER_SLICE.get(clusterService.getSettings());
+        if (concurrentSearch) {
+            assertEquals(1, minDocsPerSlice);
+        } else {
+            assertEquals(50_000, minDocsPerSlice);
         }
     }
 

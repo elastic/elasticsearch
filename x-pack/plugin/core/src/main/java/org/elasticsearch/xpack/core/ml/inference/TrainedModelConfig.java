@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -17,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -104,9 +101,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
     public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
     public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
-
-    public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersions.V_8_0_0;
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_11_X;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -279,28 +273,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.defaultFieldMap = in.readBoolean() ? in.readImmutableMap(StreamInput::readString) : null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
-        if (in.getTransportVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            this.modelType = in.readOptionalEnum(TrainedModelType.class);
-            this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
-        } else {
-            this.modelType = null;
-            this.location = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
-            fullDefinition = in.readOptionalBoolean();
-        } else {
-            modelPackageConfig = null;
-            fullDefinition = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            platformArchitecture = in.readOptionalString();
-        } else {
-            platformArchitecture = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
-        }
+        this.modelType = in.readOptionalEnum(TrainedModelType.class);
+        this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
+        modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
+        fullDefinition = in.readOptionalBoolean();
+        platformArchitecture = in.readOptionalString();
+        prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
     }
 
     public boolean isPackagedModel() {
@@ -472,23 +450,15 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalNamedWriteable(inferenceConfig);
-        if (out.getTransportVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            out.writeOptionalEnum(modelType);
-            out.writeOptionalNamedWriteable(location);
-        }
+        out.writeOptionalEnum(modelType);
+        out.writeOptionalNamedWriteable(location);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalWriteable(modelPackageConfig);
-            out.writeOptionalBoolean(fullDefinition);
-        }
+        out.writeOptionalWriteable(modelPackageConfig);
+        out.writeOptionalBoolean(fullDefinition);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeOptionalString(platformArchitecture);
-        }
+        out.writeOptionalString(platformArchitecture);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(prefixStrings);
-        }
+        out.writeOptionalWriteable(prefixStrings);
     }
 
     @Override
@@ -509,16 +479,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
             builder.field(VERSION.getPreferredName(), version.toString());
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
-            // If we are NOT storing the model, we should return the deprecated field name
-            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false
-                && builder.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
-                builder.humanReadableField(
-                    DEPRECATED_ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-                    ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
-                    ByteSizeValue.ofBytes(modelSize)
-                );
-            }
+            builder.timestampFieldsFromUnixEpochMillis(
+                CREATE_TIME.getPreferredName(),
+                CREATE_TIME.getPreferredName() + "_string",
+                createTime.toEpochMilli()
+            );
             builder.humanReadableField(MODEL_SIZE_BYTES.getPreferredName(), MODEL_SIZE_HUMAN, ByteSizeValue.ofBytes(modelSize));
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
             builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
@@ -1100,11 +1065,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                return new LazyModelDefinition(input.readBytesReference(), null);
-            } else {
-                return fromBase64String(input.readString());
-            }
+            return new LazyModelDefinition(input.readBytesReference(), null);
         }
 
         private LazyModelDefinition(LazyModelDefinition definition) {
@@ -1164,11 +1125,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeBytesReference(getCompressedDefinition());
-            } else {
-                out.writeString(getBase64CompressedDefinition());
-            }
+            out.writeBytesReference(getCompressedDefinition());
         }
 
         @Override

@@ -78,8 +78,8 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_0"));
         });
     }
@@ -91,8 +91,8 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
-            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
         });
     }
@@ -127,10 +127,7 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 client().prepareSearch(testIndex).setSource(source)::get
             );
-            assertThat(
-                ex.getDetailedMessage(),
-                containsString("[open_point_in_time] action requires all shards to be available. Missing shards")
-            );
+            assertThat(ex.getDetailedMessage(), containsString("Search rejected due to missing shards"));
         } finally {
             internalCluster().restartNode(randomDataNode);
         }

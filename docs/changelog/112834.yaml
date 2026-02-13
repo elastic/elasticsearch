@@ -1,5 +1,0 @@
-pr: 112834
-summary: Increase `replica_unassigned_buffer_time` default from 3s to 5s
-area: Health
-type: enhancement
-issues: []

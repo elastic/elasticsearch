@@ -26,6 +26,8 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+
 public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
 
     public void testMultiplexingFilter() throws IOException {

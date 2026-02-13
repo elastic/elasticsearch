@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.license.License;
-import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -21,16 +17,12 @@ import java.util.Set;
  */
 public class XPackFeatures implements FeatureSpecification {
 
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(
-            NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE, // Added in 8.12
-            License.INDEPENDENT_TRIAL_VERSION_FEATURE // 8.14.0
-        );
-    }
+    public static final NodeFeature AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC = new NodeFeature(
+        "aggregate_metric_double.default_metric.deprecated"
+    );
 
     @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(HealthApiUsageTransportAction.SUPPORTS_HEALTH_STATS, Version.V_8_7_0);
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC);
     }
 }

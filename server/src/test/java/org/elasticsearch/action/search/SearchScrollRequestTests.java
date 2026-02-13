@@ -78,7 +78,7 @@ public class SearchScrollRequestTests extends ESTestCase {
             searchScrollRequest.fromXContent(parser);
         }
         assertEquals("SCROLL_ID", searchScrollRequest.scrollId());
-        assertEquals(TimeValue.parseTimeValue("1m", null, "scroll"), searchScrollRequest.scroll().keepAlive());
+        assertEquals(TimeValue.parseTimeValue("1m", null, "scroll"), searchScrollRequest.scroll());
     }
 
     public void testFromXContentWithUnknownParamThrowsException() throws Exception {
@@ -138,7 +138,7 @@ public class SearchScrollRequestTests extends ESTestCase {
         if (randomBoolean()) {
             return copy.scrollId(original.scrollId() + "xyz");
         } else {
-            return copy.scroll(new TimeValue(original.scroll().keepAlive().getMillis() + 1));
+            return copy.scroll(new TimeValue(original.scroll().getMillis() + 1));
         }
     }
 }

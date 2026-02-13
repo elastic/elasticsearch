@@ -30,9 +30,9 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -104,15 +104,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            Fields f = super.getTermVectors(docID);
-            if (f != null) {
-                f = new FieldUsageTrackingTermVectorFields(f);
-            }
-            return f;
-        }
-
-        @Override
         public TermVectors termVectors() throws IOException {
             TermVectors termVectors = super.termVectors();
             return new TermVectors() {
@@ -134,11 +125,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 notifier.onPointsUsed(field);
             }
             return pointValues;
-        }
-
-        @Override
-        public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            storedFields().document(docID, visitor);
         }
 
         @Override
@@ -235,7 +221,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);
@@ -243,7 +229,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);

@@ -69,7 +69,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -142,7 +142,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -209,8 +209,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .put("cluster.routing.allocation.balance.index", 0.0f)
-                .put("cluster.routing.allocation.balance.replica", 1.0f)
-                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build()
         );
 
@@ -221,7 +219,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -317,8 +315,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -415,7 +413,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -503,7 +501,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -594,7 +592,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -667,7 +665,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -734,8 +732,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .put("cluster.routing.allocation.balance.index", 0.0f)
-                .put("cluster.routing.allocation.balance.replica", 1.0f)
-                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build()
         );
 
@@ -747,8 +743,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -834,7 +830,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -896,7 +892,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -971,7 +967,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -1019,7 +1015,9 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(
-                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build()
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                        .addAsNew(metadata.getProject().index("test"))
+                        .build()
                 )
                 .nodes(
                     DiscoveryNodes.builder()
@@ -1052,7 +1050,9 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(
-                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build()
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                        .addAsNew(metadata.getProject().index("test"))
+                        .build()
                 )
                 .nodes(
                     DiscoveryNodes.builder()
@@ -1119,7 +1119,9 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(
-                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build()
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                        .addAsNew(metadata.getProject().index("test"))
+                        .build()
                 )
                 .nodes(
                     nodesOperator.apply(

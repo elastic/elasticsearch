@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Ari
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import java.time.DateTimeException;
 import java.util.List;
@@ -41,20 +43,20 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
     }
 
     @Override
-    protected Expression rule(BinaryComparison bc) {
+    protected Expression rule(BinaryComparison bc, LogicalOptimizerContext ctx) {
         // optimize only once the expression has a literal on the right side of the binary comparison
         if (bc.right() instanceof Literal) {
             if (bc.left() instanceof ArithmeticOperation) {
-                return simplifyBinaryComparison(bc);
+                return simplifyBinaryComparison(ctx, bc);
             }
             if (bc.left() instanceof Neg) {
-                return foldNegation(bc);
+                return foldNegation(ctx.foldCtx(), bc);
             }
         }
         return bc;
     }
 
-    private Expression simplifyBinaryComparison(BinaryComparison comparison) {
+    private Expression simplifyBinaryComparison(LogicalOptimizerContext ctx, BinaryComparison comparison) {
         ArithmeticOperation operation = (ArithmeticOperation) comparison.left();
         // Use symbol comp: SQL operations aren't available in this package (as dependencies)
         String opSymbol = operation.symbol();
@@ -64,9 +66,9 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         }
         OperationSimplifier simplification = null;
         if (isMulOrDiv(opSymbol)) {
-            simplification = new MulDivSimplifier(comparison);
+            simplification = new MulDivSimplifier(ctx, comparison);
         } else if (opSymbol.equals(ADD.symbol()) || opSymbol.equals(SUB.symbol())) {
-            simplification = new AddSubSimplifier(comparison);
+            simplification = new AddSubSimplifier(ctx, comparison);
         }
 
         return (simplification == null || simplification.isUnsafe(typesCompatible)) ? comparison : simplification.apply();
@@ -76,16 +78,16 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         return opSymbol.equals(MUL.symbol()) || opSymbol.equals(DIV.symbol());
     }
 
-    private static Expression foldNegation(BinaryComparison bc) {
+    private static Expression foldNegation(FoldContext ctx, BinaryComparison bc) {
         Literal bcLiteral = (Literal) bc.right();
-        Expression literalNeg = tryFolding(new Neg(bcLiteral.source(), bcLiteral));
+        Expression literalNeg = tryFolding(ctx, new Neg(bcLiteral.source(), bcLiteral));
         return literalNeg == null ? bc : bc.reverse().replaceChildren(asList(((Neg) bc.left()).field(), literalNeg));
     }
 
-    private static Expression tryFolding(Expression expression) {
+    private static Expression tryFolding(FoldContext ctx, Expression expression) {
         if (expression.foldable()) {
             try {
-                expression = new Literal(expression.source(), expression.fold(), expression.dataType());
+                expression = new Literal(expression.source(), expression.fold(ctx), expression.dataType());
             } catch (ArithmeticException | DateTimeException e) {
                 // null signals that folding would result in an over-/underflow (such as Long.MAX_VALUE+1); the optimisation is skipped.
                 expression = null;
@@ -95,6 +97,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
     }
 
     private abstract static class OperationSimplifier {
+        final LogicalOptimizerContext ctx;
         final BinaryComparison comparison;
         final Literal bcLiteral;
         final ArithmeticOperation operation;
@@ -102,7 +105,8 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         final Expression opRight;
         final Literal opLiteral;
 
-        OperationSimplifier(BinaryComparison comparison) {
+        OperationSimplifier(LogicalOptimizerContext ctx, BinaryComparison comparison) {
+            this.ctx = ctx;
             this.comparison = comparison;
             operation = (ArithmeticOperation) comparison.left();
             bcLiteral = (Literal) comparison.right();
@@ -151,7 +155,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
 
             Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()
                 .create(bcl.source(), bcl, opRight);
-            bcRightExpression = tryFolding(bcRightExpression);
+            bcRightExpression = tryFolding(ctx.foldCtx(), bcRightExpression);
             return bcRightExpression != null
                 ? postProcess((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
                 : comparison;
@@ -169,8 +173,8 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
 
     private static class AddSubSimplifier extends OperationSimplifier {
 
-        AddSubSimplifier(BinaryComparison comparison) {
-            super(comparison);
+        AddSubSimplifier(LogicalOptimizerContext ctx, BinaryComparison comparison) {
+            super(ctx, comparison);
         }
 
         @Override
@@ -182,7 +186,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
 
             if (operation.symbol().equals(SUB.symbol()) && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
                 // if next simplification step would fail on overflow anyways, skip the optimisation already
-                return tryFolding(new Sub(EMPTY, opLeft, bcLiteral)) == null;
+                return tryFolding(ctx.foldCtx(), new Sub(EMPTY, opLeft, bcLiteral, ctx.configuration())) == null;
             }
 
             return false;
@@ -194,8 +198,8 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         private final boolean isDiv; // and not MUL.
         private final int opRightSign; // sign of the right operand in: (left) (op) (right) (comp) (literal)
 
-        MulDivSimplifier(BinaryComparison comparison) {
-            super(comparison);
+        MulDivSimplifier(LogicalOptimizerContext ctx, BinaryComparison comparison) {
+            super(ctx, comparison);
             isDiv = operation.symbol().equals(DIV.symbol());
             opRightSign = sign(opRight);
         }

@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -125,7 +126,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = searchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
@@ -176,7 +177,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(3)));
@@ -202,7 +203,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("location"), is(equalTo("POINT(10.0 10.0)")));
@@ -244,7 +245,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(2)));
@@ -277,7 +278,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     private void testNumberRangeMatchType(String rangeType) throws Exception {
         final String sourceIndex = "source-index";
-        createIndex(sourceIndex, Settings.EMPTY, "_doc", "range", "type=" + rangeType + "_range");
+        createIndex(sourceIndex, Settings.EMPTY, "range", "type=" + rangeType + "_range");
         DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {"range":{"gt":1,"lt":10},"zipcode":90210}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
@@ -286,7 +287,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("range"), is(equalTo(Map.of("lt", 10, "gt", 1))));
@@ -330,7 +331,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(2)));
@@ -346,7 +347,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     private GetIndexResponse getGetIndexResponseAndCheck(String createdEnrichIndex) {
-        GetIndexResponse enrichIndex = indicesAdmin().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        GetIndexResponse enrichIndex = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(".enrich-test1"))
+            .actionGet();
         assertThat(enrichIndex.getIndices().length, equalTo(1));
         assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
         Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
@@ -357,13 +359,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerRangeTypeWithIpRange() throws Exception {
         final String sourceIndexName = "source-index";
-        createIndex(sourceIndexName, Settings.EMPTY, "_doc", "subnet", "type=ip_range");
+        createIndex(sourceIndexName, Settings.EMPTY, "subnet", "type=ip_range");
         DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndexName).id("id").source("""
             {"subnet":"10.0.0.0/8","department":"research"}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
-        GetIndexResponse sourceIndex = indicesAdmin().getIndex(new GetIndexRequest().indices(sourceIndexName)).actionGet();
+        GetIndexResponse sourceIndex = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndexName))
+            .actionGet();
         // Validate Mapping
         Map<String, Object> sourceIndexMapping = sourceIndex.getMappings().get(sourceIndexName).sourceAsMap();
         Map<?, ?> sourceIndexProperties = (Map<?, ?>) sourceIndexMapping.get("properties");
@@ -376,7 +379,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 new SearchRequest(sourceIndexName).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("subnet"), is(equalTo("10.0.0.0/8")));
@@ -421,7 +424,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(2)));
@@ -460,7 +463,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
                 ),
                 sourceSearchResponse -> {
-                    assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                     Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                     assertNotNull(sourceDocMap);
                     assertThat(sourceDocMap.get("idx"), is(equalTo(targetIdx)));
@@ -522,7 +525,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ),
             enrichSearchResponse -> {
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(3L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(5)));
@@ -564,7 +567,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
                 ),
                 sourceSearchResponse -> {
-                    assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                     Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                     assertNotNull(sourceDocMap);
                     assertThat(sourceDocMap.get("idx"), is(equalTo(targetIdx)));
@@ -633,7 +636,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ),
             enrichSearchResponse -> {
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(3L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(5)));
@@ -688,7 +691,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
                 ),
                 sourceSearchResponse -> {
-                    assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                     Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                     assertNotNull(sourceDocMap);
                     assertThat(sourceDocMap.get("idx"), is(equalTo(targetIdx)));
@@ -749,7 +752,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ),
             enrichSearchResponse -> {
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(3L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(5)));
@@ -943,7 +946,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
@@ -993,7 +996,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(1)));
@@ -1051,7 +1054,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
@@ -1100,7 +1103,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(1)));
@@ -1158,7 +1161,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
@@ -1209,7 +1212,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(1)));
@@ -1273,7 +1276,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
@@ -1329,7 +1332,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(1)));
@@ -1395,7 +1398,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
@@ -1450,7 +1453,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ),
             enrichSearchResponse -> {
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(1)));
@@ -1519,7 +1522,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
@@ -1580,7 +1583,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021-08-19T14:00:00Z"))
                 )
             ),
-            enrichSearchResponse -> assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(0L))
+            enrichSearchResponse -> assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(0L))
         );
 
         assertResponse(
@@ -1590,7 +1593,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 )
             ),
             enrichSearchResponse -> {
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(1)));
@@ -1614,7 +1617,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("data.fields.period", "2021/08/20 at 14:00"))
                 )
             ),
-            enrichSearchResponse -> assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L))
+            enrichSearchResponse -> assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L))
         );
 
         // Validate segments
@@ -1657,7 +1660,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("data.field1"), is(equalTo("value1")));
@@ -1704,7 +1707,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             ),
             enrichSearchResponse -> {
 
-                assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                 assertNotNull(enrichDocument);
                 assertThat(enrichDocument.size(), is(equalTo(2)));
@@ -1736,7 +1739,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
@@ -1785,6 +1788,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .field("field5", "value5")
             .endObject();
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -1868,7 +1872,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 ),
                 enrichSearchResponse -> {
 
-                    assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(enrichSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                     Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
                     assertNotNull(enrichDocument);
                     assertThat(enrichDocument.size(), is(equalTo(3)));
@@ -1901,7 +1905,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
@@ -1965,6 +1969,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         };
 
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -2007,7 +2012,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
@@ -2086,6 +2091,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         };
 
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -2208,11 +2214,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testEnrichFieldsConflictMappingTypes() throws Exception {
-        createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "name", "type=text", "zipcode", "type=long");
+        createIndex("source-1", Settings.EMPTY, "user", "type=keyword", "name", "type=text", "zipcode", "type=long");
         prepareIndex("source-1").setSource("user", "u1", "name", "n", "zipcode", 90000)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "zipcode", "type=long");
+        createIndex("source-2", Settings.EMPTY, "user", "type=keyword", "zipcode", "type=long");
 
         prepareIndex("source-2").setSource("""
             {
@@ -2263,9 +2269,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testEnrichMappingConflictFormats() throws ExecutionException, InterruptedException {
-        createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy");
+        createIndex("source-1", Settings.EMPTY, "user", "type=keyword", "date", "type=date,format=yyyy");
         prepareIndex("source-1").setSource("user", "u1", "date", "2023").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy-MM");
+        createIndex("source-2", Settings.EMPTY, "user", "type=keyword", "date", "type=date,format=yyyy-MM");
 
         prepareIndex("source-2").setSource("""
             {
@@ -2302,7 +2308,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testEnrichObjectField() throws ExecutionException, InterruptedException {
-        createIndex("source-1", Settings.EMPTY, "_doc", "id", "type=keyword", "name.first", "type=keyword", "name.last", "type=keyword");
+        createIndex("source-1", Settings.EMPTY, "id", "type=keyword", "name.first", "type=keyword", "name.last", "type=keyword");
         prepareIndex("source-1").setSource("user", "u1", "name.first", "F1", "name.last", "L1")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -2405,7 +2411,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertResponse(
             client().search(new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))),
             sourceSearchResponse -> {
-                assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(sourceSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
                 Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
                 assertNotNull(sourceDocMap);
                 assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
@@ -2488,6 +2494,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         });
         ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
         return new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,

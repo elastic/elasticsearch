@@ -9,15 +9,20 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -27,6 +32,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class IndexFieldMapper extends MetadataFieldMapper {
 
@@ -63,7 +69,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
@@ -81,7 +87,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return BlockLoader.constantBytes(new BytesRef(blContext.indexName()));
+            return new ConstantBytes(new BytesRef(blContext.indexName()));
         }
 
         @Override
@@ -102,6 +108,38 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             };
         }
 
+        @Override
+        public Query wildcardLikeQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitve,
+            SearchExecutionContext context
+        ) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            return getWildcardLikeQuery(value, caseInsensitve, indexName);
+        }
+
+        @Override
+        public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            return getWildcardLikeQuery(value, caseInsensitive, indexName);
+        }
+
+        private static Query getWildcardLikeQuery(String value, boolean caseInsensitve, String indexName) {
+            if (caseInsensitve) {
+                value = value.toLowerCase(Locale.ROOT);
+                indexName = indexName.toLowerCase(Locale.ROOT);
+            }
+            if (Regex.simpleMatch(value, indexName)) {
+                return Queries.ALL_DOCS_INSTANCE;
+            }
+            return new MatchNoDocsQuery("The \"" + indexName + "\" query was rewritten to a \"match_none\" query.");
+        }
+
+        @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getFullyQualifiedIndex().getName();
+        }
     }
 
     public IndexFieldMapper() {

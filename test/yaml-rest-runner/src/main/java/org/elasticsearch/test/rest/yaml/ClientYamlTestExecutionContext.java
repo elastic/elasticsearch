@@ -21,7 +21,6 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -116,7 +115,7 @@ public class ClientYamlTestExecutionContext {
         List<Map<String, Object>> bodies,
         Map<String, String> headers
     ) throws IOException {
-        return callApi(apiName, params, bodies, headers, NodeSelector.ANY);
+        return callApi(apiName, null, params, bodies, headers, NodeSelector.ANY);
     }
 
     /**
@@ -125,6 +124,21 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(
         String apiName,
+        Map<String, String> params,
+        List<Map<String, Object>> bodies,
+        Map<String, String> headers,
+        NodeSelector nodeSelector
+    ) throws IOException {
+        return callApi(apiName, null, params, bodies, headers, nodeSelector);
+    }
+
+    /**
+     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Saves the obtained response in the execution context.
+     */
+    public ClientYamlTestResponse callApi(
+        String apiName,
+        String method,
         Map<String, String> params,
         List<Map<String, Object>> bodies,
         Map<String, String> headers,
@@ -157,7 +171,7 @@ public class ClientYamlTestExecutionContext {
 
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
+            response = callApiInternal(apiName, method, requestParams, entity, requestHeaders, nodeSelector);
             return response;
         } catch (ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -232,12 +246,13 @@ public class ClientYamlTestExecutionContext {
     // pkg-private for testing
     ClientYamlTestResponse callApiInternal(
         String apiName,
+        String method,
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
         NodeSelector nodeSelector
     ) throws IOException {
-        return clientYamlTestClient(apiName).callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
+        return clientYamlTestClient(apiName).callApi(apiName, method, params, entity, headers, nodeSelector, pathPredicate);
     }
 
     protected ClientYamlTestClient clientYamlTestClient(String apiName) {
@@ -300,46 +315,29 @@ public class ClientYamlTestExecutionContext {
             params.put("capabilities", capabilitiesString);
         }
         params.put("error_trace", "false"); // disable error trace
+        params.put("local_only", "true");   // we're calling each node individually
 
-        if (clusterHasFeature(RestNodesCapabilitiesAction.LOCAL_ONLY_CAPABILITIES.id(), false) == false) {
-            // can only check the whole cluster
-            if (any) {
-                logger.warn(
-                    "Cluster does not support checking individual nodes for capabilities,"
-                        + "check for [{} {}?{} {}] may be incorrect in mixed-version clusters",
-                    method,
-                    path,
-                    parametersString,
-                    capabilitiesString
-                );
+        // individually call each node, so we can control whether we do an 'any' or 'all' check
+        List<Node> nodes = clientYamlTestClient.getRestClient(NodeSelector.ANY).getNodes();
+
+        for (Node n : nodes) {
+            Optional<Boolean> nodeResult = checkCapability(new SpecificNodeSelector(n), params);
+            if (nodeResult.isEmpty()) {
+                return Optional.empty();
+            } else if (any == nodeResult.get()) {
+                // either any == true and node has cap,
+                // or any == false (ie all) and this node does not have cap
+                return nodeResult;
             }
-            return checkCapability(NodeSelector.ANY, params);
-        } else {
-            // check each node individually - we can actually check any here
-            params.put("local_only", "true");   // we're calling each node individually
-
-            // individually call each node, so we can control whether we do an 'any' or 'all' check
-            List<Node> nodes = clientYamlTestClient.getRestClient(NodeSelector.ANY).getNodes();
-
-            for (Node n : nodes) {
-                Optional<Boolean> nodeResult = checkCapability(new SpecificNodeSelector(n), params);
-                if (nodeResult.isEmpty()) {
-                    return Optional.empty();
-                } else if (any == nodeResult.get()) {
-                    // either any == true and node has cap,
-                    // or any == false (ie all) and this node does not have cap
-                    return nodeResult;
-                }
-            }
-
-            // if we got here, either any is true and no node has it, or any == false and all nodes have it
-            return Optional.of(any == false);
         }
+
+        // if we got here, either any is true and no node has it, or any == false and all nodes have it
+        return Optional.of(any == false);
     }
 
     private Optional<Boolean> checkCapability(NodeSelector nodeSelector, Map<String, String> params) {
         try {
-            ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap(), nodeSelector);
+            ClientYamlTestResponse resp = callApi("capabilities", null, params, emptyList(), emptyMap(), nodeSelector);
             // anything other than 200 should result in an exception, handled below
             assert resp.getStatusCode() == 200 : "Unknown response code " + resp.getStatusCode();
             return Optional.ofNullable(resp.evaluate("supported"));

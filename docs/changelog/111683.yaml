@@ -1,6 +1,0 @@
-pr: 111683
-summary: Only emit product origin in deprecation log if present
-area: Infra/Logging
-type: bug
-issues:
- - 81757

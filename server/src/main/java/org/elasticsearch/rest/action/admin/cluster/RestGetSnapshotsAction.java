@@ -13,17 +13,24 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -37,7 +44,35 @@ import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARA
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
-    public RestGetSnapshotsAction() {}
+    private static final Set<String> SUPPORTED_RESPONSE_PARAMETERS = Set.of(
+        INCLUDE_REPOSITORY_XCONTENT_PARAM,
+        INDEX_DETAILS_XCONTENT_PARAM,
+        INDEX_NAMES_XCONTENT_PARAM
+    );
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "after",
+        "from_sort_value",
+        "ignore_unavailable",
+        "offset",
+        "order",
+        "size",
+        "slm_policy_filter",
+        "sort",
+        "state",
+        "verbose"
+    );
+
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, SUPPORTED_RESPONSE_PARAMETERS, Set.of("repository", "snapshot"))
+    );
+
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestGetSnapshotsAction(Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
 
     @Override
     public List<Route> routes() {
@@ -51,7 +86,17 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Set.of(INDEX_DETAILS_XCONTENT_PARAM, INCLUDE_REPOSITORY_XCONTENT_PARAM, INDEX_NAMES_XCONTENT_PARAM);
+        return SUPPORTED_RESPONSE_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override
@@ -82,6 +127,18 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
+
+        final String stateString = request.param("state");
+        if (stateString == null) {
+            getSnapshotsRequest.states(EnumSet.allOf(SnapshotState.class));
+        } else if (Strings.hasText(stateString) == false) {
+            throw new IllegalArgumentException("[state] parameter must not be empty");
+        } else if (clusterSupportsFeature.test(GetSnapshotsFeatures.GET_SNAPSHOTS_STATE_PARAMETER)) {
+            getSnapshotsRequest.states(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::valueOf).toList()));
+        } else {
+            throw new IllegalArgumentException("[state] parameter is not supported on all nodes in the cluster");
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .getSnapshots(getSnapshotsRequest, new RestRefCountedChunkedToXContentListener<>(channel));

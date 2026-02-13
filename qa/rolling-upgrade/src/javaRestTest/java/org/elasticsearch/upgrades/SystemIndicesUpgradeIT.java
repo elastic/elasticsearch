@@ -15,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.util.Map;
 
@@ -87,25 +86,6 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
                     throw new AssertionError(".tasks index does not exist yet");
                 }
             });
-
-            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
-            // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_ENFORCED) == false) {
-                // Create an alias to make sure it gets upgraded properly
-                Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity("""
-                    {
-                      "actions": [
-                        {"add":  {"index":  ".tasks", "alias": "test-system-alias"}},
-                        {"add":  {"index":  "test_index_reindex", "alias": "test-system-alias"}}
-                      ]
-                    }""");
-                putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
-                    v.current(systemIndexWarning);
-                    v.compatible(systemIndexWarning);
-                }));
-                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
-            }
         } else if (isUpgradedCluster()) {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");

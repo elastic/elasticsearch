@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.cluster.shards;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -85,7 +84,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     public void testMultipleIndicesAllocation() {
         createIndex("test1", 4, 1);
         createIndex("test2", 4, 1);
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAliasAction(AliasActions.add().index("test1").alias("routing_alias").routing("ABC"))
             .addAliasAction(AliasActions.add().index("test2").alias("routing_alias").routing("EFG"))
             .get();
@@ -145,17 +144,13 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             enableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
             assertBlocked(
                 null,
-                asInstanceOf(
+                safeAwaitAndUnwrapFailure(
                     ClusterBlockException.class,
-                    ExceptionsHelper.unwrapCause(
-                        safeAwaitFailure(
-                            ClusterSearchShardsResponse.class,
-                            l -> client().execute(
-                                TransportClusterSearchShardsAction.TYPE,
-                                new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test-blocks"),
-                                l
-                            )
-                        )
+                    ClusterSearchShardsResponse.class,
+                    l -> client().execute(
+                        TransportClusterSearchShardsAction.TYPE,
+                        new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test-blocks"),
+                        l
                     )
                 )
             );

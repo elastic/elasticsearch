@@ -1,8 +1,6 @@
 # test how knn query interact with other queries
 setup:
   - requires:
-      cluster_features: "search.vectors.k_param_supported"
-      reason: 'k param for knn as query is required'
       test_runner_features: close_to
 
   - do:

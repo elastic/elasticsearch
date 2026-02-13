@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
-import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,19 +55,6 @@ public final class AnalyzerRules {
         protected boolean skipResolved() {
             return true;
         }
-    }
-
-    public abstract static class BaseAnalyzerRule extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan.childrenResolved() == false) {
-                return plan;
-            }
-            return doRule(plan);
-        }
-
-        protected abstract LogicalPlan doRule(LogicalPlan plan);
     }
 
     public static List<Attribute> maybeResolveAgainstList(
@@ -116,7 +104,6 @@ public final class AnalyzerRules {
             int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
             return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
         }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
-
-        throw new IllegalStateException("Reference [" + ua.name() + "] is ambiguous; " + "matches any of " + refs);
+        throw new VerificationException("Found ambiguous reference to [" + ua.name() + "]; " + "matches any of " + refs);
     }
 }

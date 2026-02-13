@@ -31,6 +31,7 @@ public class GCSRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestT
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-gcs")
         .module("snapshot-repo-test-kit")
+        .setting("thread_pool.snapshot.max", "10")
         .setting("gcs.client.repository_test_kit.endpoint", () -> fixture.getAddress(), s -> USE_FIXTURE)
         .setting("gcs.client.repository_test_kit.token_uri", () -> fixture.getAddress() + "/o/oauth2/token", s -> USE_FIXTURE)
         .apply(c -> {
@@ -44,12 +45,6 @@ public class GCSRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestT
                     "gcs.client.repository_test_kit.credentials_file",
                     Resource.fromFile(PathUtils.get(System.getProperty("test.google.account")))
                 );
-            }
-        })
-        .apply(c -> {
-            if (USE_FIXTURE) {
-                // test fixture does not support CAS yet; TODO fix this
-                c.systemProperty("test.repository_test_kit.skip_cas", "true");
             }
         })
         .build();

@@ -10,6 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -31,16 +32,16 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     void handleException(TransportException exp);
 
     /**
-     * Implementation of {@link TransportResponseHandler} that handles the empty response {@link TransportResponse.Empty}.
+     * Implementation of {@link TransportResponseHandler} that handles the empty response {@link ActionResponse.Empty}.
      */
-    abstract class Empty implements TransportResponseHandler<TransportResponse.Empty> {
+    abstract class Empty implements TransportResponseHandler<ActionResponse.Empty> {
         @Override
-        public final TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
+        public final ActionResponse.Empty read(StreamInput in) {
+            return ActionResponse.Empty.INSTANCE;
         }
 
         @Override
-        public final void handleResponse(TransportResponse.Empty ignored) {
+        public final void handleResponse(ActionResponse.Empty ignored) {
             handleResponse();
         }
 

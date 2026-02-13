@@ -1,0 +1,5 @@
+pr: 139835
+summary: DiskBBQ tail centroids should always be block encoded too
+area: Vector Search
+type: enhancement
+issues: []

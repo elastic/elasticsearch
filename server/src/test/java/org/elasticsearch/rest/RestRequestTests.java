@@ -12,17 +12,17 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.TestHttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.rest.RestRequest.OPERATOR_REQUEST;
 import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
 import static org.hamcrest.Matchers.containsString;
@@ -41,7 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestRequestTests extends ESTestCase {
 
@@ -86,11 +86,11 @@ public class RestRequestTests extends ESTestCase {
     }
 
     private <T extends Exception> void runConsumesContentTest(final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
-        final HttpRequest httpRequest = mock(HttpRequest.class);
-        when(httpRequest.uri()).thenReturn("");
-        when(httpRequest.body()).thenReturn(HttpBody.fromBytesReference(new BytesArray(new byte[1])));
-        when(httpRequest.getHeaders()).thenReturn(
-            Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson")))
+        final var httpRequest = new TestHttpRequest(
+            RestRequest.Method.GET,
+            "/",
+            Map.of("Content-Type", List.of(randomFrom("application/json", "application/x-ndjson"))),
+            new BytesArray(new byte[1])
         );
         final RestRequest request = RestRequest.request(XContentParserConfiguration.EMPTY, httpRequest, mock(HttpChannel.class));
         assertFalse(request.isContentConsumed());
@@ -120,29 +120,81 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(emptyMap(), source.get());
     }
 
-    public void testContentOrSourceParam() throws IOException {
+    public void testParamAsIntWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = randomInt();
+        String parameterKey = randomIdentifier();
+
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
+        assertEquals(defaultValue, value);
+    }
+
+    public void testParamAsIntWithIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
+        int defaultValue = randomInt();
+
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
+        assertEquals(123, value);
+    }
+
+    public void testParamAsIntWithNonIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
+        int defaultValue = randomInt();
+
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInt(parameterKey, defaultValue));
+    }
+
+    public void testParamAsIntegerWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = randomInt();
+        String parameterKey = randomIdentifier();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
+        assertEquals(defaultValue, value2.intValue());
+    }
+
+    public void testParamAsIntegerWithIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
+        int defaultValue = randomInt();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
+        assertEquals(123, value2.intValue());
+    }
+
+    public void testParamAsIntegerWithNonIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
+        int defaultValue = randomInt();
+
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInteger(parameterKey, defaultValue));
+    }
+
+    public void testContentOrSourceParam() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).contentOrSourceParam());
         assertEquals("request body or source parameter is required", e.getMessage());
-        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2());
-        assertEquals(
-            new BytesArray("stuff"),
-            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).contentOrSourceParam().v2()
+        assertThat(contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2(), equalBytes(new BytesArray("stuff")));
+        assertThat(
+            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).contentOrSourceParam().v2(),
+            equalBytes(new BytesArray("stuff"))
         );
-        assertEquals(
-            new BytesArray("{\"foo\": \"stuff\"}"),
+        assertThat(
             contentRestRequest("", Map.of("source", "{\"foo\": \"stuff\"}", "source_content_type", "application/json"))
                 .contentOrSourceParam()
-                .v2()
+                .v2(),
+            equalBytes(new BytesArray("{\"foo\": \"stuff\"}"))
         );
         e = expectThrows(ValidationException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
         assertThat(e.getMessage(), containsString("source and source_content_type parameters are required"));
     }
 
-    public void testHasContentOrSourceParam() throws IOException {
-        assertEquals(false, contentRestRequest("", emptyMap()).hasContentOrSourceParam());
-        assertEquals(true, contentRestRequest("stuff", emptyMap()).hasContentOrSourceParam());
-        assertEquals(true, contentRestRequest("stuff", singletonMap("source", "stuff2")).hasContentOrSourceParam());
-        assertEquals(true, contentRestRequest("", singletonMap("source", "stuff")).hasContentOrSourceParam());
+    public void testHasContentOrSourceParam() {
+        assertFalse(contentRestRequest("", emptyMap()).hasContentOrSourceParam());
+        assertTrue(contentRestRequest("stuff", emptyMap()).hasContentOrSourceParam());
+        assertTrue(contentRestRequest("stuff", singletonMap("source", "stuff2")).hasContentOrSourceParam());
+        assertTrue(contentRestRequest("", singletonMap("source", "stuff")).hasContentOrSourceParam());
     }
 
     public void testContentOrSourceParamParser() throws IOException {
@@ -160,7 +212,7 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testWithContentOrSourceParamParserOrNull() throws IOException {
-        contentRestRequest("", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertNull(parser));
+        contentRestRequest("", emptyMap()).withContentOrSourceParamParserOrNull(Assert::assertNull);
         contentRestRequest("{}", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertEquals(emptyMap(), parser.map()));
         contentRestRequest("{}", singletonMap("source", "stuff2")).withContentOrSourceParamParserOrNull(
             parser -> assertEquals(emptyMap(), parser.map())
@@ -239,10 +291,10 @@ public class RestRequestTests extends ESTestCase {
     public void testRequiredContent() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).requiredContent());
         assertEquals("request body is required", e.getMessage());
-        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).requiredContent());
-        assertEquals(
-            new BytesArray("stuff"),
-            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent()
+        assertThat(contentRestRequest("stuff", emptyMap()).requiredContent(), equalBytes(new BytesArray("stuff")));
+        assertThat(
+            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent(),
+            equalBytes(new BytesArray("stuff"))
         );
         e = expectThrows(
             ElasticsearchParseException.class,
@@ -257,7 +309,7 @@ public class RestRequestTests extends ESTestCase {
     public void testIsServerlessRequest() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
         request1.markAsServerlessRequest();
-        assertEquals(request1.param(SERVERLESS_REQUEST), "true");
+        assertEquals("true", request1.param(SERVERLESS_REQUEST));
         assertTrue(request1.isServerlessRequest());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsServerlessRequest);
         assertThat(exception.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
@@ -270,7 +322,7 @@ public class RestRequestTests extends ESTestCase {
     public void testIsOperatorRequest() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
         request1.markAsOperatorRequest();
-        assertEquals(request1.param(OPERATOR_REQUEST), "true");
+        assertEquals("true", request1.param(OPERATOR_REQUEST));
         assertTrue(request1.isOperatorRequest());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsOperatorRequest);
         assertThat(exception.getMessage(), is("The parameter [" + OPERATOR_REQUEST + "] is already defined."));
@@ -321,7 +373,7 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
-        public BytesReference content() {
+        public ReleasableBytesReference content() {
             return restRequest.content();
         }
     }

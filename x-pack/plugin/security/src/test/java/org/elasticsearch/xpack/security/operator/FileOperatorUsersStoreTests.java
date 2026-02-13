@@ -484,14 +484,14 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     }
 
     private Path getOperatorUsersPath() throws IOException {
-        Path xpackConf = env.configFile();
+        Path xpackConf = env.configDir();
         Files.createDirectories(xpackConf);
         return xpackConf.resolve("operator_users.yml");
     }
 
     private Path writeOperatorUsers(String input) throws IOException {
         Path file = getOperatorUsersPath();
-        Files.write(file, input.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file, input);
         return file;
     }
 

@@ -12,7 +12,6 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -21,12 +20,15 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -75,10 +77,17 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
+    protected void restoreState(WorkerResumeInfo resumeInfo) {
+        assert resumeInfo instanceof ScrollWorkerResumeInfo;
+        var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
+        setScroll(scrollResumeInfo.scrollId());
+    }
+
+    @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()));
+        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
         client.searchScroll(request, wrapListener(searchListener));
     }
 
@@ -149,7 +158,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             }
             hits = unmodifiableList(hits);
         }
-        long total = response.getHits().getTotalHits().value;
+        long total = response.getHits().getTotalHits().value();
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 

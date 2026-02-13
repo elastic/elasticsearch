@@ -21,15 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-public class AlternativeMergeTests extends ESTestCase {
+public class AlternativeMergeTests extends TDigestTestCase {
     /**
      * Computes size using the alternative scaling limit for both an idealized merge and for
      * a MergingDigest.
@@ -37,48 +34,51 @@ public class AlternativeMergeTests extends ESTestCase {
     public void testMerges() {
         for (int n : new int[] { 100, 1000, 10000, 100000 }) {
             for (double compression : new double[] { 50, 100, 200, 400 }) {
-                MergingDigest mergingDigest = new MergingDigest(WrapperTDigestArrays.INSTANCE, compression);
-                AVLTreeDigest treeDigest = new AVLTreeDigest(WrapperTDigestArrays.INSTANCE, compression);
-                List<Double> data = new ArrayList<>();
-                Random gen = random();
-                for (int i = 0; i < n; i++) {
-                    double x = gen.nextDouble();
-                    data.add(x);
-                    mergingDigest.add(x);
-                    treeDigest.add(x);
-                }
-                Collections.sort(data);
-                List<Double> counts = new ArrayList<>();
-                double soFar = 0;
-                double current = 0;
-                for (Double x : data) {
-                    double q = (soFar + (current + 1.0) / 2) / n;
-                    if (current == 0 || current + 1 < n * Math.PI / compression * Math.sqrt(q * (1 - q))) {
-                        current += 1;
-                    } else {
-                        counts.add(current);
-                        soFar += current;
-                        current = 1;
+                try (
+                    MergingDigest mergingDigest = TDigest.createMergingDigest(arrays(), compression);
+                    AVLTreeDigest treeDigest = TDigest.createAvlTreeDigest(arrays(), compression);
+                ) {
+                    List<Double> data = new ArrayList<>();
+                    Random gen = random();
+                    for (int i = 0; i < n; i++) {
+                        double x = gen.nextDouble();
+                        data.add(x);
+                        mergingDigest.add(x);
+                        treeDigest.add(x);
                     }
+                    Collections.sort(data);
+                    List<Double> counts = new ArrayList<>();
+                    double soFar = 0;
+                    double current = 0;
+                    for (Double x : data) {
+                        double q = (soFar + (current + 1.0) / 2) / n;
+                        if (current == 0 || current + 1 < n * Math.PI / compression * Math.sqrt(q * (1 - q))) {
+                            current += 1;
+                        } else {
+                            counts.add(current);
+                            soFar += current;
+                            current = 1;
+                        }
+                    }
+                    if (current > 0) {
+                        counts.add(current);
+                    }
+                    soFar = 0;
+                    for (Double count : counts) {
+                        soFar += count;
+                    }
+                    assertEquals(n, soFar, 0);
+                    soFar = 0;
+                    for (Centroid c : mergingDigest.centroids()) {
+                        soFar += c.count();
+                    }
+                    assertEquals(n, soFar, 0);
+                    soFar = 0;
+                    for (Centroid c : treeDigest.centroids()) {
+                        soFar += c.count();
+                    }
+                    assertEquals(n, soFar, 0);
                 }
-                if (current > 0) {
-                    counts.add(current);
-                }
-                soFar = 0;
-                for (Double count : counts) {
-                    soFar += count;
-                }
-                assertEquals(n, soFar, 0);
-                soFar = 0;
-                for (Centroid c : mergingDigest.centroids()) {
-                    soFar += c.count();
-                }
-                assertEquals(n, soFar, 0);
-                soFar = 0;
-                for (Centroid c : treeDigest.centroids()) {
-                    soFar += c.count();
-                }
-                assertEquals(n, soFar, 0);
             }
         }
     }

@@ -1,10 +1,10 @@
 ---
 "Test Index and Search locale dependent mappings / dates":
   - requires:
-      test_runner_features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings_regex"]
   - do:
-      allowed_warnings:
-        - "Date format [E, d MMM yyyy HH:mm:ss Z] contains textual field specifiers that could change in JDK 23"
+      allowed_warnings_regex:
+        - "Date format \\[E, d MMM yyyy HH:mm:ss Z] contains textual field specifiers that could change in JDK 23.*"
       indices.create:
           index: test_index
           body:

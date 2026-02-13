@@ -9,8 +9,10 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +29,8 @@ public class SimulateIngestService extends IngestService {
         if (request instanceof SimulateBulkRequest simulateBulkRequest) {
             try {
                 pipelineSubstitutions = getPipelineSubstitutions(simulateBulkRequest.getPipelineSubstitutions(), ingestService);
+            } catch (ElasticsearchException elasticEx) {
+                throw elasticEx;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -52,11 +56,18 @@ public class SimulateIngestService extends IngestService {
         if (rawPipelineSubstitutions != null) {
             for (Map.Entry<String, Map<String, Object>> entry : rawPipelineSubstitutions.entrySet()) {
                 String pipelineId = entry.getKey();
+                Map<String, Object> pipelineConfig = entry.getValue();
+
+                IngestService.validateNoSystemPropertiesInPipelineConfig(pipelineConfig);
+
                 Pipeline pipeline = Pipeline.create(
                     pipelineId,
-                    entry.getValue(),
+                    pipelineConfig,
                     ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
+                    ingestService.getScriptService(),
+                    ingestService.getProjectResolver().getProjectId(),
+                    (nodeFeature) -> ingestService.getFeatureService()
+                        .clusterHasFeature(ingestService.getClusterService().state(), nodeFeature)
                 );
                 parsedPipelineSubstitutions.put(pipelineId, pipeline);
             }
@@ -75,5 +86,18 @@ public class SimulateIngestService extends IngestService {
             pipeline = super.getPipeline(pipelineId);
         }
         return pipeline;
+    }
+
+    /**
+     * This method returns the Pipeline for the given pipelineId. If a substitute definition of the pipeline has been defined for the
+     * current simulate, then that pipeline is returned. Otherwise, the pipeline stored in the cluster state is returned.
+     */
+    @Override
+    public Pipeline getPipeline(ProjectId projectId, String id) {
+        Pipeline pipeline = pipelineSubstitutions.get(id);
+        if (pipeline != null) {
+            return pipeline;
+        }
+        return super.getPipeline(projectId, id);
     }
 }

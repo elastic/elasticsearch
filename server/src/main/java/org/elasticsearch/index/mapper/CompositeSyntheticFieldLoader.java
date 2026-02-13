@@ -91,7 +91,10 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        var totalCount = parts.stream().mapToLong(Layer::valueCount).sum();
+        long totalCount = 0;
+        for (Layer part : parts) {
+            totalCount += part.valueCount();
+        }
 
         if (totalCount == 0) {
             return;
@@ -127,6 +130,18 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     @Override
     public String fieldName() {
         return this.fullFieldName;
+    }
+
+    /**
+     * Returns a new {@link CompositeSyntheticFieldLoader} that merges this field loader with the given one.
+     */
+    public CompositeSyntheticFieldLoader mergedWith(CompositeSyntheticFieldLoader other) {
+        if (other == null) {
+            return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, List.copyOf(parts));
+        }
+        List<Layer> mergedParts = new ArrayList<>(parts);
+        mergedParts.addAll(other.parts);
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, mergedParts);
     }
 
     /**

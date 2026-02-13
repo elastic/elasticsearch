@@ -21,7 +21,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -191,7 +191,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 assertEquals(bucket.getKeyAsString(), Integer.toString(i), bucket.getKeyAsString());
                 assertEquals(bucket.getKeyAsString(), count, bucket.getDocCount());
 
-                final Filter filter = response.getAggregations().get("filter" + i);
+                final SingleBucketAggregation filter = response.getAggregations().get("filter" + i);
                 assertThat(filter.getDocCount(), equalTo(count));
             }
         });
@@ -293,7 +293,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 ),
             response -> {
                 assertAllSuccessful(response);
-                assertEquals(numDocs, response.getHits().getTotalHits().value);
+                assertEquals(numDocs, response.getHits().getTotalHits().value());
 
                 final Terms longTerms = response.getAggregations().get("long");
                 final Terms doubleTerms = response.getAggregations().get("double");
@@ -413,7 +413,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             ),
             response -> {
                 assertAllSuccessful(response);
-                assertEquals(numDocs, response.getHits().getTotalHits().value);
+                assertEquals(numDocs, response.getHits().getTotalHits().value());
             }
         );
     }
@@ -430,7 +430,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 )
             ),
             response -> {
-                Filter filter = response.getAggregations().get("filter");
+                SingleBucketAggregation filter = response.getAggregations().get("filter");
                 assertNotNull(filter);
                 assertEquals(1, filter.getDocCount());
 

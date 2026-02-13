@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregat
 import java.io.IOException;
 import java.util.Map;
 
-public class InternalMissing extends InternalSingleBucketAggregation implements Missing {
+public class InternalMissing extends InternalSingleBucketAggregation {
     InternalMissing(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, docCount, aggregations, metadata);
     }

@@ -10,11 +10,12 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.NodeStatsLevel;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,17 +56,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Global information on indices stats running on a specific node.
  */
 public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
-    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
+    private static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = TransportVersion.fromName(
+        "nodes_stats_supports_multi_project"
+    );
     private static final Map<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = Map.of();
 
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
     private final Map<Index, CommonStats> statsByIndex;
+    private final Map<Index, ProjectId> projectsByIndex;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
@@ -82,10 +88,14 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             statsByShard.put(index, indexShardStats);
         }
 
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            statsByIndex = in.readMap(Index::new, CommonStats::new);
+        statsByIndex = in.readMap(Index::new, CommonStats::new);
+
+        if (in.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+            projectsByIndex = in.readMap(Index::new, ProjectId::readFrom);
         } else {
-            statsByIndex = new HashMap<>();
+            // Older nodes do not include the index-to-project map, so we leave it empty. This means all indices will be treated as if the
+            // project is unknown. This does not matter as the map is only used in multi-project clusters which will not have old nodes.
+            projectsByIndex = Map.of();
         }
     }
 
@@ -93,14 +103,15 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         CommonStats oldStats,
         Map<Index, CommonStats> statsByIndex,
         Map<Index, List<IndexShardStats>> statsByShard,
+        Map<Index, ProjectId> projectsByIndex,
         boolean includeShardsStats
     ) {
         if (includeShardsStats) {
-            this.statsByShard = Objects.requireNonNull(statsByShard);
+            this.statsByShard = requireNonNull(statsByShard);
         } else {
             this.statsByShard = EMPTY_STATS_BY_SHARD;
         }
-        this.statsByIndex = Objects.requireNonNull(statsByIndex);
+        this.statsByIndex = requireNonNull(statsByIndex);
 
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
@@ -114,6 +125,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         for (CommonStats indexStats : statsByIndex.values()) {
             stats.add(indexStats);
         }
+        this.projectsByIndex = requireNonNull(projectsByIndex);
     }
 
     @Nullable
@@ -225,8 +237,9 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
         out.writeMap(statsByShard, StreamOutput::writeWriteable, StreamOutput::writeCollection);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            out.writeMap(statsByIndex);
+        out.writeMap(statsByIndex);
+        if (out.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+            out.writeMap(projectsByIndex);
         }
     }
 
@@ -235,12 +248,15 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeIndicesStats that = (NodeIndicesStats) o;
-        return stats.equals(that.stats) && statsByShard.equals(that.statsByShard) && statsByIndex.equals(that.statsByIndex);
+        return stats.equals(that.stats)
+            && statsByShard.equals(that.statsByShard)
+            && statsByIndex.equals(that.statsByIndex)
+            && projectsByIndex.equals(that.projectsByIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stats, statsByShard, statsByIndex);
+        return Objects.hash(stats, statsByShard, statsByIndex, projectsByIndex);
     }
 
     @Override
@@ -250,29 +266,28 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
             Iterators.single((builder, params) -> {
                 builder.startObject(Fields.INDICES);
-                return stats.toXContent(builder, params);
+                return stats.toXContent(builder, outerParams);
             }),
 
             switch (NodeStatsLevel.of(outerParams, NodeStatsLevel.NODE)) {
 
                 case NODE -> Collections.<ToXContent>emptyIterator();
 
-                case INDICES -> Iterators.concat(
-                    ChunkedToXContentHelper.startObject(Fields.INDICES),
+                case INDICES -> ChunkedToXContentHelper.object(
+                    Fields.INDICES,
                     Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
-                        builder.startObject(entry.getKey().getName());
-                        entry.getValue().toXContent(builder, params);
+                        builder.startObject(xContentKey(entry.getKey(), outerParams));
+                        entry.getValue().toXContent(builder, outerParams);
                         return builder.endObject();
-                    }),
-                    ChunkedToXContentHelper.endObject()
+                    })
                 );
 
-                case SHARDS -> Iterators.concat(
-                    ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                case SHARDS -> ChunkedToXContentHelper.object(
+                    Fields.SHARDS,
                     Iterators.flatMap(
                         statsByShard.entrySet().iterator(),
-                        entry -> Iterators.concat(
-                            ChunkedToXContentHelper.startArray(entry.getKey().getName()),
+                        entry -> ChunkedToXContentHelper.array(
+                            xContentKey(entry.getKey(), outerParams),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
                                 indexShardStats -> Iterators.concat(
@@ -282,16 +297,29 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                                     Iterators.flatMap(Iterators.forArray(indexShardStats.getShards()), Iterators::<ToXContent>single),
                                     Iterators.single((b, p) -> b.endObject().endObject())
                                 )
-                            ),
-                            ChunkedToXContentHelper.endArray()
+                            )
                         )
-                    ),
-                    ChunkedToXContentHelper.endObject()
+                    )
                 );
             },
 
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    private String xContentKey(Index index, ToXContent.Params outerParams) {
+        if (outerParams.paramAsBoolean(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, false)) {
+            ProjectId projectId = projectsByIndex.get(index);
+            if (projectId == null) {
+                // This can happen if the stats were captured after the IndexService was created but before the state was updated.
+                // The best we can do is handle it gracefully. We include the UUID as well as the name to ensure it is unambiguous.
+                return "<unknown>/" + index.getName() + "/" + index.getUUID();
+            } else {
+                return projectId + "/" + index.getName();
+            }
+        } else {
+            return index.getName();
+        }
     }
 
     private Map<Index, CommonStats> createCommonStatsByIndex() {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,7 +64,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    private AggregateExec(StreamInput in) throws IOException {
+    protected AggregateExec(StreamInput in) throws IOException {
         // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
         // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
         this(
@@ -85,12 +84,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteableCollection(aggregates());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS)) {
-            out.writeEnum(getMode());
-            out.writeNamedWriteableCollection(intermediateAttributes());
-        } else {
-            out.writeEnum(AggregateExec.Mode.fromAggregatorMode(getMode()));
-        }
+        out.writeEnum(getMode());
+        out.writeNamedWriteableCollection(intermediateAttributes());
         out.writeOptionalVInt(estimatedRowSize());
     }
 
@@ -117,6 +112,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return aggregates;
     }
 
+    public AggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
+        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize);
+    }
+
     public AggregateExec withMode(AggregatorMode newMode) {
         return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
     }
@@ -133,9 +132,12 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     public PhysicalPlan estimateRowSize(State state) {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
         int size = state.consumeAllFields(true);
-        return Objects.equals(this.estimatedRowSize, size)
-            ? this
-            : new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, size);
+        size = Math.max(size, 1);
+        return Objects.equals(this.estimatedRowSize, size) ? this : withEstimatedSize(size);
+    }
+
+    protected AggregateExec withEstimatedSize(int estimatedRowSize) {
+        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     public AggregatorMode getMode() {
@@ -181,7 +183,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected AttributeSet computeReferences() {
-        return mode.isInputPartial() ? new AttributeSet(intermediateAttributes) : Aggregate.computeReferences(aggregates, groupings);
+        return mode.isInputPartial() ? AttributeSet.of(intermediateAttributes) : Aggregate.computeReferences(aggregates, groupings);
     }
 
     @Override

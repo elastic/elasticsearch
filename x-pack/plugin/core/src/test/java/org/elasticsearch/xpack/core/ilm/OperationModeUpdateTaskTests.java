@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
@@ -97,28 +99,30 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         OperationMode requestMode,
         boolean assertSameClusterState
     ) {
-        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
+        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Map.of(), currentMode);
         SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
-            Collections.emptyMap(),
+            Map.of(),
             currentMode,
             new SnapshotLifecycleStats()
         );
-        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
+        ProjectMetadata.Builder project = ProjectMetadata.builder(randomProjectIdOrDefault());
         if (metadataInstalled) {
-            metadata.customs(
+            project.customs(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
             );
         }
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(requestMode);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+        OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(project.getId(), requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
             assertSame("expected the same state instance but they were different", state, newState);
         } else {
             assertThat("expected a different state instance but they were the same", state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
-        IndexLifecycleMetadata oldMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        LifecycleOperationMetadata newMetadata = newState.metadata().getProject(project.getId()).custom(LifecycleOperationMetadata.TYPE);
+        IndexLifecycleMetadata oldMetadata = newState.metadata()
+            .getProject(project.getId())
+            .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);
@@ -131,18 +135,21 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         OperationMode requestMode,
         boolean assertSameClusterState
     ) {
-        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
+        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Map.of(), currentMode);
         SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
-            Collections.emptyMap(),
+            Map.of(),
             currentMode,
             new SnapshotLifecycleStats()
         );
-        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build());
+        @FixForMultiProject(description = "OperationModeUpdateTask is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
         if (metadataInstalled) {
-            metadata.customs(
+            project.customs(
                 Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
             );
         }
+        Metadata metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build()).put(project.build()).build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         OperationModeUpdateTask task = OperationModeUpdateTask.slmMode(requestMode);
         ClusterState newState = task.execute(state);
@@ -151,8 +158,10 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         } else {
             assertThat(state, not(equalTo(newState)));
         }
-        LifecycleOperationMetadata newMetadata = newState.metadata().custom(LifecycleOperationMetadata.TYPE);
-        SnapshotLifecycleMetadata oldMetadata = newState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        LifecycleOperationMetadata newMetadata = newState.metadata().getProject(projectId).custom(LifecycleOperationMetadata.TYPE);
+        SnapshotLifecycleMetadata oldMetadata = newState.metadata()
+            .getProject(project.getId())
+            .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         return Optional.ofNullable(newMetadata)
             .map(LifecycleOperationMetadata::getSLMOperationMode)
             .orElseGet(oldMetadata::getOperationMode);

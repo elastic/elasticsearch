@@ -1,0 +1,214 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.querylog;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpan;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
+public class EsqlQueryLogTests extends ESTestCase {
+    private static ClusterSettings settings = new ClusterSettings(
+        Settings.builder()
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING.getKey(), "40ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING.getKey(), "30ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING.getKey(), "20ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING.getKey(), "10ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING.getKey(), true)
+
+            .build(),
+        new HashSet<>(
+            Arrays.asList(
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING
+            )
+        )
+    );
+
+    static MockAppender appender;
+    static Logger queryLog = LogManager.getLogger(EsqlQueryLog.LOGGER_NAME);
+    static Level origQueryLogLevel = queryLog.getLevel();
+
+    @BeforeClass
+    public static void init() throws IllegalAccessException {
+        appender = new MockAppender("test_appender");
+        appender.start();
+        Loggers.addAppender(queryLog, appender);
+
+        Loggers.setLevel(queryLog, Level.TRACE);
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        Loggers.removeAppender(queryLog, appender);
+        appender.stop();
+        Loggers.setLevel(queryLog, origQueryLogLevel);
+    }
+
+    public static ActionLoggingFieldsProvider mockLogFieldProvider() {
+        return context -> new ActionLoggingFields(context) {};
+    }
+
+    public void testPrioritiesOnSuccess() {
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        String query = "from " + randomAlphaOfLength(10);
+
+        long[] actualTook = {
+            randomLongBetween(10_000_000, 20_000_000),
+            randomLongBetween(20_000_000, 30_000_000),
+            randomLongBetween(30_000_000, 40_000_000),
+            randomLongBetween(40_000_000, 50_000_000),
+            randomLongBetween(0, 9_999_999) };
+        Level[] expectedLevel = { Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, null };
+        for (int i = 0; i < actualTook.length; i++) {
+            EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
+            queryLog.onQueryPhase(
+                new Versioned<>(
+                    new Result(List.of(), List.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
+                    TransportVersion.current()
+                ),
+                query
+            );
+            if (expectedLevel[i] != null) {
+                assertThat(appender.lastEvent(), is(not(nullValue())));
+                var msg = (ESLogMessage) appender.lastMessage();
+                long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
+                long tookMillisExpected = took / 1_000_000L;
+                long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
+                assertThat(took, is(actualTook[i]));
+                assertThat(tookMillis, is(tookMillisExpected));
+
+                // Checks values for all planning timespans
+                for (TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
+                    String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
+                    assertNotNull(tookValue);
+                    Long timeSpanTook = Long.valueOf(tookValue);
+                    long timeSpanTookMillisExpected = timeSpanTook / 1_000_000;
+                    String tookValueMillis = msg.get(
+                        ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX
+                    );
+                    assertNotNull(tookValueMillis);
+                    long timeSpanTookMillis = Long.valueOf(tookValueMillis);
+                    assertThat(timeSpanTookMillis, is(timeSpanTookMillisExpected));
+                }
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
+            } else {
+                assertThat(appender.lastEvent(), is(nullValue()));
+            }
+        }
+
+    }
+
+    public void testPrioritiesOnFailure() {
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        String query = "from " + randomAlphaOfLength(10);
+
+        long[] actualTook = {
+            randomLongBetween(10_000_000, 20_000_000),
+            randomLongBetween(20_000_000, 30_000_000),
+            randomLongBetween(30_000_000, 40_000_000),
+            randomLongBetween(40_000_000, 50_000_000),
+            randomLongBetween(0, 9_999_999) };
+
+        Level[] expectedLevel = { Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, null };
+
+        String validationError = randomAlphaOfLength(10);
+        ValidationException ex = new ValidationException().addValidationError(validationError);
+        for (int i = 0; i < actualTook.length; i++) {
+            queryLog.onQueryFailure(query, ex, actualTook[i]);
+            if (expectedLevel[i] != null) {
+                assertThat(appender.lastEvent(), is(not(nullValue())));
+                var msg = (ESLogMessage) appender.lastMessage();
+                long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
+                long tookMillisExpected = took / 1_000_000L;
+                long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
+                assertThat(took, is(actualTook[i]));
+                assertThat(tookMillis, is(tookMillisExpected));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
+            } else {
+                assertThat(appender.lastEvent(), is(nullValue()));
+            }
+        }
+    }
+
+    private static EsqlExecutionInfo getEsqlExecutionInfo(long tookNanos) {
+        EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(
+            Predicates.always(),
+            EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY
+        ) {
+            @Override
+            public TimeValue overallTook() {
+                return new TimeValue(tookNanos, TimeUnit.NANOSECONDS);
+            }
+
+            @Override
+            public EsqlQueryProfile queryProfile() {
+                return new EsqlQueryProfile(
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomIntBetween(0, 100)
+                );
+            }
+        };
+
+        return esqlExecutionInfo;
+    }
+
+    private static TimeSpan randomTimeSpan() {
+        long startNanos = randomNonNegativeLong();
+        long stopNanos = startNanos + randomLongBetween(1, 100_000);
+        return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
+    }
+}

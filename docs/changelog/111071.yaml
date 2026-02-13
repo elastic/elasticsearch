@@ -1,5 +1,0 @@
-pr: 111071
-summary: Use native scalar scorer for int8_flat index
-area: Vector Search
-type: enhancement
-issues: []

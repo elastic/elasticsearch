@@ -71,7 +71,11 @@ public class OverallBucket implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            Result.TIMESTAMP.getPreferredName(),
+            Result.TIMESTAMP.getPreferredName() + "_string",
+            timestamp.getTime()
+        );
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(OVERALL_SCORE.getPreferredName(), overallScore);
         builder.field(JOBS.getPreferredName(), jobs);

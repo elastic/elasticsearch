@@ -367,6 +367,22 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
+                "es.indexing.indexing.failed.version_conflict.total",
+                "Total number of failed indexing operations due to version conflict",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getIndexFailedDueToVersionConflictCount())
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
                 "es.indexing.deletion.docs.total",
                 "Total number of deleted documents",
                 "documents",
@@ -639,6 +655,34 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "bytes",
                 () -> new LongWithAttributes(
                     Optional.ofNullable(stats.getOrRefresh()).map(o -> o.getIndexingPressureStats()).map(o -> o.getMemoryLimit()).orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating.low_watermark_splits.total",
+                "Total number of times bulk requests are split due to SPLIT_BULK_LOW_WATERMARK",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getLowWaterMarkSplits)
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating.high_watermark_splits.total",
+                "Total number of times bulk requests are split due to SPLIT_BULK_HIGH_WATERMARK",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getHighWaterMarkSplits)
+                        .orElse(0L)
                 )
             )
         );

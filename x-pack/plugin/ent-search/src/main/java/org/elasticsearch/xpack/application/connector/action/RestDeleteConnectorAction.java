@@ -40,8 +40,9 @@ public class RestDeleteConnectorAction extends BaseRestHandler {
 
         String connectorId = restRequest.param(CONNECTOR_ID_PARAM);
         boolean shouldDeleteSyncJobs = restRequest.paramAsBoolean("delete_sync_jobs", false);
+        boolean hardDelete = restRequest.paramAsBoolean("hard", false);
 
-        DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(connectorId, shouldDeleteSyncJobs);
+        DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(connectorId, hardDelete, shouldDeleteSyncJobs);
         return channel -> client.execute(DeleteConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -47,7 +47,7 @@ class AdoptiumJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
     @Override
     def supportedRequests() {
         return [
-                [19, ADOPTIUM, MAC_OS, X86_64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/mac/x64/jdk/hotspot/normal/eclipse?project=jdk"],
+
                 [19, ADOPTIUM, LINUX, X86_64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/linux/x64/jdk/hotspot/normal/eclipse?project=jdk"],
                 [19, ADOPTIUM, WINDOWS, X86_64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/windows/x64/jdk/hotspot/normal/eclipse?project=jdk"],
                 [19, ADOPTIUM, MAC_OS, AARCH64, "https://api.adoptium.net/v3/binary/version/jdk-19.1.1.1+37.1/mac/aarch64/jdk/hotspot/normal/eclipse?project=jdk"],

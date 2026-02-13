@@ -7,58 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
-dependencies {
-  testImplementation project(':modules:rest-root')
-}
-
-BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
-  def baseCluster = testClusters.register(baseName) {
-      version = bwcVersion.toString()
-      setting 'xpack.security.enabled', 'true'
-      user username: 'admin', password: 'admin-password', role: 'superuser'
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty 'tests.cluster_version', bwcVersion
   }
-
-  tasks.register("${baseName}#integTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
-    nonInputProperties.systemProperty('tests.clustername', "${->baseCluster.get().getName()}")
-  }
-
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#integTest"
-  }
-}
-
-tasks.register("verifyDocsLuceneVersion") {
-  doFirst {
-    File docsVersionsFile = rootProject.file('docs/Versions.asciidoc')
-    List<String> versionLines = docsVersionsFile.readLines('UTF-8')
-    String docsLuceneVersion = null
-    for (String line : versionLines) {
-      if (line.startsWith(':lucene_version:')) {
-        docsLuceneVersion = line.split()[1]
-      }
-    }
-    if (docsLuceneVersion == null) {
-      throw new GradleException('Could not find lucene version in docs version file')
-    }
-    String expectedLuceneVersion = VersionProperties.lucene
-    // remove potential -snapshot-{gitrev} suffix
-    expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
-    if (docsLuceneVersion != expectedLuceneVersion) {
-      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
-    }
-  }
-}
-
-tasks.named("check").configure {
-  dependsOn "verifyDocsLuceneVersion"
 }

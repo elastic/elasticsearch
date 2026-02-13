@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.analysis.VerificationException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.ParsingException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -189,8 +189,8 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     }
 
     public void testPropertyEquationFilterUnsupported() {
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
             () -> plan("process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)")
         );
         String msg = e.getMessage();
@@ -259,6 +259,17 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     public void testSequenceWithTooLittleQueries() throws Exception {
         String s = errorParsing("sequence [any where true]");
         assertEquals("1:2: A sequence requires a minimum of 2 queries, found [1]", s);
+    }
+
+    public void testSequenceWithTooLittleQueriesWithUntil() throws Exception {
+        String s = errorParsing("sequence [any where true] until [any where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]", s);
+        plan("sequence [any where true] [any where true] until [any where true]");
+    }
+
+    public void testSequenceWithOnlyMissingEventsAndUntil() throws Exception {
+        String s = errorParsing("sequence with maxspan=1h ![process where true] until [process where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]", s);
     }
 
     public void testSequenceWithIncorrectOption() throws Exception {

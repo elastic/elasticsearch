@@ -34,7 +34,6 @@ public class GetScriptContextResponse extends ActionResponse implements ToXConte
     final Map<String, ScriptContextInfo> contexts;
 
     GetScriptContextResponse(StreamInput in) throws IOException {
-        super(in);
         int size = in.readInt();
         Map<String, ScriptContextInfo> contexts = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {

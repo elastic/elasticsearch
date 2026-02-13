@@ -1,8 +1,0 @@
-pr: 112294
-summary: "Use fallback synthetic source for `copy_to` and doc_values: false cases"
-area: Mapping
-type: enhancement
-issues:
- - 110753
- - 110038
- - 109546

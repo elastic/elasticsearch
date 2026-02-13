@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -48,7 +49,7 @@ public class TransportMainAction extends TransportAction<MainRequest, MainRespon
                 nodeName,
                 IndexVersion.current().luceneVersion().toString(),
                 clusterState.getClusterName(),
-                clusterState.metadata().clusterUUID(),
+                clusterState.metadata().clusterUUIDCommitted() ? clusterState.metadata().clusterUUID() : Metadata.UNKNOWN_CLUSTER_UUID,
                 Build.current()
             )
         );

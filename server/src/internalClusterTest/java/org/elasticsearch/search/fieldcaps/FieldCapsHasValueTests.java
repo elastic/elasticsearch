@@ -11,6 +11,7 @@ package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -51,7 +52,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
                 .setSettings(indexSettings())
                 .setMapping("nested_type", "type=nested", "object.sub_field", "type=keyword,store=true")
         );
-        assertAcked(indicesAdmin().prepareAliases().addAlias(INDEX1, ALIAS1));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(INDEX1, ALIAS1));
     }
 
     public void testNoFieldsInEmptyIndex() {
@@ -76,10 +77,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
     }
 
     public void testOnlyFieldsWithValueInAlias() {
@@ -94,10 +92,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
     }
 
     public void testOnlyFieldsWithValueInSpecifiedIndex() {
@@ -112,10 +107,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
     }
 
     public void testOnlyFieldsWithValueInSpecifiedAlias() {
@@ -130,10 +122,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
     }
 
     public void testFieldsWithValueAfterUpdate() {
@@ -150,18 +139,12 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
         // Check the capabilities for the 'bar' field.
         Map<String, FieldCapabilities> barField = response.getField("bar");
         assertEquals(1, barField.size());
         assertThat(barField, Matchers.hasKey("keyword"));
-        assertEquals(
-            new FieldCapabilities("bar", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
-            barField.get("keyword")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("bar", "keyword").build(), barField.get("keyword"));
     }
 
     public void testOnlyFieldsWithValueAfterNodesRestart() throws Exception {
@@ -177,10 +160,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
     }
 
     public void testFieldsAndAliasWithValue() {
@@ -198,26 +178,17 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
         // Check the capabilities for the 'bar' field.
         Map<String, FieldCapabilities> barField = response.getField("bar");
         assertEquals(1, barField.size());
         assertThat(barField, Matchers.hasKey("keyword"));
-        assertEquals(
-            new FieldCapabilities("bar", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
-            barField.get("keyword")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("bar", "keyword").build(), barField.get("keyword"));
         // Check the capabilities for the 'bar-alias' field.
         Map<String, FieldCapabilities> barAlias = response.getField("bar-alias");
         assertEquals(1, barAlias.size());
         assertThat(barAlias, Matchers.hasKey("keyword"));
-        assertEquals(
-            new FieldCapabilities("bar-alias", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
-            barAlias.get("keyword")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("bar-alias", "keyword").build(), barAlias.get("keyword"));
     }
 
     public void testUnmappedFieldsWithValueAfterRestart() throws Exception {
@@ -238,7 +209,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         assertEquals(2, unmappedField.size());
         assertThat(unmappedField, Matchers.hasKey("text"));
         assertEquals(
-            new FieldCapabilities("unmapped", "text", false, true, false, new String[] { INDEX1 }, null, null, Collections.emptyMap()),
+            new FieldCapabilitiesBuilder("unmapped", "text").isAggregatable(false).indices(INDEX1).build(),
             unmappedField.get("text")
         );
     }
@@ -257,18 +228,12 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
         // Check the capabilities for the 'bar' field.
         Map<String, FieldCapabilities> barField = response.getField("bar");
         assertEquals(1, barField.size());
         assertThat(barField, Matchers.hasKey("date"));
-        assertEquals(
-            new FieldCapabilities("bar", "date", false, true, true, null, null, null, Collections.emptyMap()),
-            barField.get("date")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("bar", "date").build(), barField.get("date"));
     }
 
     public void testSameFieldNameTwoIndices() {
@@ -284,15 +249,9 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> barField = response.getField("bar");
         assertEquals(2, barField.size());
         assertThat(barField, Matchers.hasKey("keyword"));
-        assertEquals(
-            new FieldCapabilities("bar", "keyword", false, true, true, new String[] { INDEX1 }, null, null, Collections.emptyMap()),
-            barField.get("keyword")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("bar", "keyword").indices(INDEX1).build(), barField.get("keyword"));
         assertThat(barField, Matchers.hasKey("date"));
-        assertEquals(
-            new FieldCapabilities("bar", "date", false, true, true, new String[] { INDEX2 }, null, null, Collections.emptyMap()),
-            barField.get("date")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("bar", "date").indices(INDEX2).build(), barField.get("date"));
     }
 
     public void testDeletedDocsReturned() {
@@ -311,10 +270,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooField = response.getField("foo");
         assertEquals(1, fooField.size());
         assertThat(fooField, Matchers.hasKey("text"));
-        assertEquals(
-            new FieldCapabilities("foo", "text", false, true, false, null, null, null, Collections.emptyMap()),
-            fooField.get("text")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("foo", "text").isAggregatable(false).build(), fooField.get("text"));
     }
 
     public void testNoNestedFieldsInEmptyIndex() {
@@ -339,7 +295,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         assertEquals(1, nestedTypeField.size());
         assertThat(nestedTypeField, Matchers.hasKey("nested"));
         assertEquals(
-            new FieldCapabilities("nested_type", "nested", false, false, false, null, null, null, Collections.emptyMap()),
+            new FieldCapabilitiesBuilder("nested_type", "nested").isSearchable(false).isAggregatable(false).build(),
             nestedTypeField.get("nested")
         );
         // Check the capabilities for the 'nested_type.nested_field' field.
@@ -347,7 +303,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         assertEquals(1, nestedTypeNestedField.size());
         assertThat(nestedTypeNestedField, Matchers.hasKey("text"));
         assertEquals(
-            new FieldCapabilities("nested_type.nested_field", "text", false, true, false, null, null, null, Collections.emptyMap()),
+            new FieldCapabilitiesBuilder("nested_type.nested_field", "text").isAggregatable(false).build(),
             nestedTypeNestedField.get("text")
         );
     }
@@ -374,17 +330,14 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         assertEquals(1, objectTypeField.size());
         assertThat(objectTypeField, Matchers.hasKey("object"));
         assertEquals(
-            new FieldCapabilities("object", "object", false, false, false, null, null, null, Collections.emptyMap()),
+            new FieldCapabilitiesBuilder("object", "object").isSearchable(false).isAggregatable(false).build(),
             objectTypeField.get("object")
         );
         // Check the capabilities for the 'object.sub_field' field.
         Map<String, FieldCapabilities> objectSubfield = response.getField("object.sub_field");
         assertEquals(1, objectSubfield.size());
         assertThat(objectSubfield, Matchers.hasKey("keyword"));
-        assertEquals(
-            new FieldCapabilities("object.sub_field", "keyword", false, true, true, null, null, null, Collections.emptyMap()),
-            objectSubfield.get("keyword")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("object.sub_field", "keyword").build(), objectSubfield.get("keyword"));
     }
 
     public void testWithIndexFilter() throws InterruptedException {

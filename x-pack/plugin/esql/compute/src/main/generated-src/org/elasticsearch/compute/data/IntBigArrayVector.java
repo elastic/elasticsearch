@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link IntArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
@@ -119,7 +119,7 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

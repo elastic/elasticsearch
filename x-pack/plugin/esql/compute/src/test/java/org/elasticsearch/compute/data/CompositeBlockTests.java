@@ -7,32 +7,51 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompositeBlockTests extends ComputeTestCase {
 
     static List<ElementType> supportedSubElementTypes = Arrays.stream(ElementType.values())
-        .filter(e -> e != ElementType.COMPOSITE && e != ElementType.UNKNOWN && e != ElementType.DOC)
+        .filter(
+            e -> e != ElementType.COMPOSITE
+                && e != ElementType.UNKNOWN
+                && e != ElementType.DOC
+                && e != ElementType.AGGREGATE_METRIC_DOUBLE
+                && e != ElementType.LONG_RANGE
+        )
         .toList();
 
-    public static CompositeBlock randomCompositeBlock(BlockFactory blockFactory, int numBlocks, int positionCount) {
+    public static CompositeBlock randomCompositeBlock(
+        BlockFactory blockFactory,
+        Supplier<ElementType> randomElementType,
+        boolean nullAllowed,
+        int numBlocks,
+        int positionCount,
+        int minValuesPerPosition,
+        int maxValuesPerPosition,
+        int minDupsPerPosition,
+        int maxDupsPerPosition
+    ) {
         Block[] blocks = new Block[numBlocks];
         for (int b = 0; b < numBlocks; b++) {
-            ElementType elementType = randomFrom(supportedSubElementTypes);
-            blocks[b] = BasicBlockTests.randomBlock(
+            ElementType elementType = randomElementType.get();
+            blocks[b] = RandomBlock.randomBlock(
                 blockFactory,
                 elementType,
                 positionCount,
-                elementType == ElementType.NULL || randomBoolean(),
-                0,
-                between(1, 2),
-                0,
-                between(1, 2)
+                nullAllowed && (elementType == ElementType.NULL || randomBoolean()),
+                minValuesPerPosition,
+                maxValuesPerPosition,
+                minDupsPerPosition,
+                maxDupsPerPosition
             ).block();
         }
         return new CompositeBlock(blocks);
@@ -42,20 +61,75 @@ public class CompositeBlockTests extends ComputeTestCase {
         final BlockFactory blockFactory = blockFactory();
         int numBlocks = randomIntBetween(1, 1000);
         int positionCount = randomIntBetween(1, 1000);
-        try (CompositeBlock origComposite = randomCompositeBlock(blockFactory, numBlocks, positionCount)) {
+        try (
+            CompositeBlock origComposite = randomCompositeBlock(
+                blockFactory,
+                () -> randomFrom(supportedSubElementTypes),
+                true,
+                numBlocks,
+                positionCount,
+                0,
+                between(1, 2),
+                0,
+                between(1, 2)
+            )
+        ) {
             int[] selected = new int[randomIntBetween(0, positionCount * 3)];
             for (int i = 0; i < selected.length; i++) {
                 selected[i] = randomIntBetween(0, positionCount - 1);
             }
-            try (CompositeBlock filteredComposite = origComposite.filter(selected)) {
+            try (CompositeBlock filteredComposite = origComposite.filter(true, selected)) {
                 assertThat(filteredComposite.getBlockCount(), equalTo(numBlocks));
                 assertThat(filteredComposite.getPositionCount(), equalTo(selected.length));
                 for (int b = 0; b < numBlocks; b++) {
-                    try (Block filteredSub = origComposite.getBlock(b).filter(selected)) {
+                    try (Block filteredSub = origComposite.getBlock(b).filter(true, selected)) {
                         assertThat(filteredComposite.getBlock(b), equalTo(filteredSub));
                     }
                 }
             }
+        }
+    }
+
+    public void testDeepCopy() {
+        final BlockFactory blockFactory1 = blockFactory();
+        final BlockFactory blockFactory2 = blockFactory();
+        int numBlocks = randomIntBetween(1, 1000);
+        int positionCount = randomIntBetween(1, 1000);
+        try (
+            CompositeBlock origComposite = randomCompositeBlock(
+                blockFactory1,
+                () -> randomFrom(supportedSubElementTypes),
+                true,
+                numBlocks,
+                positionCount,
+                0,
+                between(1, 2),
+                0,
+                between(1, 2)
+            )
+        ) {
+            assertDeepCopy(origComposite);
+        }
+    }
+
+    public void testTotalValueCount() {
+        final BlockFactory blockFactory = blockFactory();
+        int numBlocks = randomIntBetween(1, 1000);
+        int positionCount = randomIntBetween(1, 1000);
+        try (
+            CompositeBlock composite = randomCompositeBlock(
+                blockFactory,
+                () -> randomValueOtherThan(ElementType.NULL, () -> randomFrom(supportedSubElementTypes)),
+                false,
+                numBlocks,
+                positionCount,
+                1,
+                1,
+                0,
+                0
+            )
+        ) {
+            assertThat(composite.getTotalValueCount(), equalTo(numBlocks * positionCount));
         }
     }
 }

@@ -14,17 +14,17 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private final String policyName;
-    private final BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner;
+    private final EnrichProcessorFactory.SearchRunner searchRunner;
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
@@ -35,7 +35,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     protected AbstractEnrichProcessor(
         String tag,
         String description,
-        BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner,
+        EnrichProcessorFactory.SearchRunner searchRunner,
         String policyName,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
@@ -68,20 +68,23 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 return;
             }
 
-            QueryBuilder queryBuilder = getQueryBuilder(value);
-            ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
-            SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
-            searchBuilder.from(0);
-            searchBuilder.size(maxMatches);
-            searchBuilder.trackScores(false);
-            searchBuilder.fetchSource(true);
-            searchBuilder.query(constantScore);
-            SearchRequest req = new SearchRequest();
-            req.indices(EnrichPolicy.getBaseName(getPolicyName()));
-            req.preference(Preference.LOCAL.type());
-            req.source(searchBuilder);
+            final Function<String, SearchRequest> searchRequestBuilder = (concreteEnrichIndex) -> {
+                QueryBuilder queryBuilder = getQueryBuilder(value);
+                ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
+                SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+                searchBuilder.from(0);
+                searchBuilder.size(maxMatches);
+                searchBuilder.trackScores(false);
+                searchBuilder.fetchSource(true);
+                searchBuilder.query(constantScore);
+                SearchRequest req = new SearchRequest();
+                req.indices(concreteEnrichIndex);
+                req.preference(Preference.LOCAL.type());
+                req.source(searchBuilder);
+                return req;
+            };
 
-            searchRunner.accept(req, (searchHits, e) -> {
+            searchRunner.accept(value, maxMatches, searchRequestBuilder, (searchHits, e) -> {
                 if (e != null) {
                     handler.accept(null, e);
                     return;
@@ -90,7 +93,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 // If the index is empty, return the unchanged document
                 // If the enrich key does not exist in the index, throw an error
                 // If no documents match the key, return the unchanged document
-                if (searchHits.size() < 1) {
+                if (searchHits.isEmpty()) {
                     handler.accept(ingestDocument, null);
                     return;
                 }

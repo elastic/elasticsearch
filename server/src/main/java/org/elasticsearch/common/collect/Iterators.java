@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
@@ -34,22 +35,27 @@ public class Iterators {
      * Returns a single element iterator over the supplied value.
      */
     public static <T> Iterator<T> single(T element) {
-        return new Iterator<>() {
+        return new SingleIterator<>(element);
+    }
 
-            private T value = Objects.requireNonNull(element);
+    private static final class SingleIterator<T> implements Iterator<T> {
+        private T value;
 
-            @Override
-            public boolean hasNext() {
-                return value != null;
-            }
+        SingleIterator(T element) {
+            value = Objects.requireNonNull(element);
+        }
 
-            @Override
-            public T next() {
-                final T res = value;
-                value = null;
-                return res;
-            }
-        };
+        @Override
+        public boolean hasNext() {
+            return value != null;
+        }
+
+        @Override
+        public T next() {
+            final T res = value;
+            value = null;
+            return res;
+        }
     }
 
     @SafeVarargs
@@ -465,6 +471,79 @@ public class Iterators {
         }
     }
 
+    /**
+     * Cycles infinitely over the elements in the {@code source} parameter
+     */
+    public static <T> Iterator<T> cycling(final Iterable<T> source) {
+        return new CyclingIterator<>(Objects.requireNonNull(source));
+    }
+
+    private static class CyclingIterator<T> implements Iterator<T> {
+        private final Iterable<T> source;
+        private Iterator<T> iterator;
+
+        CyclingIterator(Iterable<T> source) {
+            this.source = source;
+            this.iterator = source.iterator();
+            if (iterator.hasNext() == false) {
+                throw new IllegalArgumentException("Cannot cycle over empty iterable");
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public T next() {
+            if (iterator.hasNext()) {
+                return iterator.next();
+            }
+            iterator = source.iterator();
+            if (iterator.hasNext() == false) {
+                throw new IllegalArgumentException("Cannot cycle over empty iterable");
+            }
+            return iterator.next();
+        }
+    }
+
+    /**
+     * Adds a wrapper around {@code iterator} which asserts that {@link Iterator#remove()} is not called.
+     */
+    public static <T> Iterator<T> assertReadOnly(final Iterator<T> iterator) {
+        return Assertions.ENABLED ? new AssertReadOnlyIterator<>(Objects.requireNonNull(iterator)) : iterator;
+    }
+
+    private static class AssertReadOnlyIterator<T> implements Iterator<T> {
+
+        private final Iterator<T> delegate;
+
+        AssertReadOnlyIterator(Iterator<T> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return delegate.next();
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            delegate.forEachRemaining(action);
+        }
+
+        @Override
+        public void remove() {
+            throw new AssertionError();
+        }
+    }
+
     public static <T> boolean equals(Iterator<? extends T> iterator1, Iterator<? extends T> iterator2, BiPredicate<T, T> itemComparer) {
         if (iterator1 == null) {
             return iterator2 == null;
@@ -496,5 +575,4 @@ public class Iterators {
         }
         return result;
     }
-
 }

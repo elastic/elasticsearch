@@ -10,20 +10,21 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.NodeStatsLevel;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,8 +41,10 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesStatsAction extends BaseRestHandler {
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesStatsAction.class);
-    private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in nodes stats requests is deprecated.";
+
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("dense_vector_off_heap_stats");
+
+    private final ProjectIdResolver projectIdResolver;
 
     @Override
     public List<Route> routes() {
@@ -65,23 +68,27 @@ public class RestNodesStatsAction extends BaseRestHandler {
         FLAGS = Collections.unmodifiableMap(flags);
     }
 
+    public RestNodesStatsAction(ProjectIdResolver projectIdResolver) {
+        this.projectIdResolver = projectIdResolver;
+    }
+
     @Override
     public String getName() {
         return "nodes_stats_action";
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("types")) {
-            deprecationLogger.compatibleCritical("nodes_stats_types", TYPES_DEPRECATION_MESSAGE);
-            request.param("types");
-        }
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
+    }
 
+    @Override
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metricNames = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
-        nodesStatsRequest.timeout(getTimeout(request));
+        nodesStatsRequest.setTimeout(getTimeout(request));
         // level parameter validation
         nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 
@@ -181,7 +188,17 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .nodesStats(nodesStatsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            .nodesStats(
+                nodesStatsRequest,
+                new RestRefCountedChunkedToXContentListener<>(channel, xContentParamsForRequest(channel.request()))
+            );
+    }
+
+    private ToXContent.DelegatingMapParams xContentParamsForRequest(RestRequest request) {
+        return new ToXContent.DelegatingMapParams(
+            Map.of(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, Boolean.toString(projectIdResolver.supportsMultipleProjects())),
+            request
+        );
     }
 
     private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

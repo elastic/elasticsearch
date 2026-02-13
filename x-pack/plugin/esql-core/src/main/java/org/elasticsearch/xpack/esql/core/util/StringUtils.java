@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.util;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,7 +29,6 @@ import java.util.Locale;
 import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong;
 
@@ -39,6 +40,7 @@ public final class StringUtils {
     public static final String NEW_LINE = "\n";
     public static final String SQL_WILDCARD = "%";
     public static final String WILDCARD = "*";
+    public static final String EXCLUSION = "-";
 
     private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 
@@ -173,6 +175,48 @@ public final class StringUtils {
             }
         }
         regex.append('$');
+
+        return regex.toString();
+    }
+
+    /**
+     * Translates a Lucene wildcard pattern to a Lucene RegExp one.
+     * Note: all RegExp "optional" characters are escaped too (allowing the use of the {@code RegExp.ALL} flag).
+     * @param wildcard Lucene wildcard pattern
+     * @return Lucene RegExp pattern
+     */
+    public static String luceneWildcardToRegExp(String wildcard) {
+        StringBuilder regex = new StringBuilder();
+
+        for (int i = 0, wcLen = wildcard.length(); i < wcLen; i++) {
+            char c = wildcard.charAt(i); // this will work chunking through Unicode as long as all values matched are ASCII
+            switch (c) {
+                case WildcardQuery.WILDCARD_STRING -> regex.append(".*");
+                case WildcardQuery.WILDCARD_CHAR -> regex.append(".");
+                case WildcardQuery.WILDCARD_ESCAPE -> {
+                    if (i + 1 < wcLen) {
+                        // consume the wildcard escaping, consider the next char
+                        char next = wildcard.charAt(i + 1);
+                        i++;
+                        switch (next) {
+                            case WildcardQuery.WILDCARD_STRING, WildcardQuery.WILDCARD_CHAR, WildcardQuery.WILDCARD_ESCAPE ->
+                                // escape `*`, `.`, `\`, since these are special chars in RegExp as well
+                                regex.append("\\");
+                            // default: unnecessary escaping -- just ignore the escaping
+                        }
+                        regex.append(next);
+                    } else {
+                        // "else fallthru, lenient parsing with a trailing \" -- according to WildcardQuery#toAutomaton
+                        regex.append("\\\\");
+                    }
+                }
+                // reserved RegExp characters
+                case '"', '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> regex.append("\\").append(c);
+                // reserved optional RegExp characters
+                case '#', '&', '<', '>' -> regex.append("\\").append(c);
+                default -> regex.append(c);
+            }
+        }
 
         return regex.toString();
     }
@@ -378,10 +422,8 @@ public final class StringUtils {
     }
 
     public static Tuple<String, String> splitQualifiedIndex(String indexName) {
-        int separatorOffset = indexName.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
-        return separatorOffset > 0
-            ? Tuple.tuple(indexName.substring(0, separatorOffset), indexName.substring(separatorOffset + 1))
-            : Tuple.tuple(null, indexName);
+        String[] split = RemoteClusterAware.splitIndexName(indexName);
+        return Tuple.tuple(split[0], split[1]);
     }
 
     public static String qualifyAndJoinIndices(String cluster, String[] indices) {
@@ -393,7 +435,7 @@ public final class StringUtils {
     }
 
     public static boolean isQualified(String indexWildcard) {
-        return indexWildcard.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+        return RemoteClusterAware.isRemoteIndexName(indexWildcard);
     }
 
     public static boolean isInteger(String value) {

@@ -14,6 +14,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.util.Map;
+
 public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable, FilteredXContent {
 
     /**
@@ -35,6 +37,15 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
     }
 
     /**
+     * Boolean signifying whether the dimensions were set by the user
+     *
+     * @return boolean signifying whether the dimensions were set by the user
+     */
+    default Boolean dimensionsSetByUser() {
+        return null;
+    }
+
+    /**
      * The data type for the embeddings this service works with. Defaults to null,
      * Text Embedding models should return a non-null value
      *
@@ -42,6 +53,10 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
      */
     default DenseVectorFieldMapper.ElementType elementType() {
         return null;
+    }
+
+    default boolean isMultimodal() {
+        return false;
     }
 
     /**
@@ -52,4 +67,8 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
      */
     @Nullable
     String modelId();
+
+    default ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        return this;
+    }
 }

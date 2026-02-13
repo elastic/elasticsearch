@@ -21,10 +21,12 @@
 
 package org.elasticsearch.benchmark.tdigest;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.Sort;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
 import org.elasticsearch.tdigest.arrays.TDigestIntArray;
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -51,7 +53,8 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class SortBench {
     private final int size = 100000;
-    private final TDigestDoubleArray values = WrapperTDigestArrays.INSTANCE.newDoubleArray(size);
+    private final TDigestArrays arrays = new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("default-wrapper-tdigest-arrays"));
+    private final TDigestDoubleArray values = arrays.newDoubleArray(size);
 
     @Param({ "0", "1", "-1" })
     public int sortDirection;
@@ -72,7 +75,7 @@ public class SortBench {
 
     @Benchmark
     public void stableSort() {
-        TDigestIntArray order = WrapperTDigestArrays.INSTANCE.newIntArray(size);
+        TDigestIntArray order = arrays.newIntArray(size);
         for (int i = 0; i < size; i++) {
             order.set(i, i);
         }

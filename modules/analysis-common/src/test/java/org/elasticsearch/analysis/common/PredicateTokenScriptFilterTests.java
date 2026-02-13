@@ -9,13 +9,8 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -25,22 +20,33 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 
 public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
+    private TestThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        threadPool.shutdownNow();
+    }
 
     public void testSimpleFilter() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
@@ -61,7 +67,13 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             }
         };
 
-        ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L) {
+        ScriptService scriptService = new ScriptService(
+            indexSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        ) {
             @Override
             @SuppressWarnings("unchecked")
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
@@ -70,14 +82,8 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
                 return (FactoryType) factory;
             }
         };
-        Client client = new MockClient(Settings.EMPTY, null);
 
-        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
-        when(services.client()).thenReturn(client);
-        when(services.scriptService()).thenReturn(scriptService);
-        plugin.createComponents(services);
-
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(scriptService).build();
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(plugin),
@@ -90,20 +96,5 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             assertNotNull(analyzer);
             assertAnalyzesTo(analyzer, "Oh what a wonderful thing to be", new String[] { "Oh", "what", "to", "be" });
         }
-
     }
-
-    private static class MockClient extends AbstractClient {
-        MockClient(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool);
-        }
-
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {}
-    }
-
 }

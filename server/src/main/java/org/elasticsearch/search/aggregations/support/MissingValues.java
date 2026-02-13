@@ -10,14 +10,13 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
@@ -100,8 +99,8 @@ public enum MissingValues {
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
-                final SortedNumericDocValues values = valuesSource.longValues(context);
+            public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
+                final SortedNumericLongValues values = valuesSource.longValues(context);
                 return replaceMissing(values, missing.longValue());
             }
 
@@ -118,8 +117,8 @@ public enum MissingValues {
         };
     }
 
-    public static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
-        return new AbstractSortedNumericDocValues() {
+    public static SortedNumericLongValues replaceMissing(final SortedNumericLongValues values, final long missing) {
+        return new SortedNumericLongValues() {
 
             private int count;
 
@@ -271,18 +270,17 @@ public enum MissingValues {
                 if (hasOrds) {
                     return values.nextOrd();
                 } else {
-                    // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
-                    // more values
-                    long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
-                    return ordToReturn;
+                    return nextMissingOrd;
                 }
             }
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                if (hasOrds) {
+                    return values.docValueCount();
+                } else {
+                    return 1;
+                }
             }
 
             @Override
@@ -321,7 +319,11 @@ public enum MissingValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                if (hasOrds) {
+                    return values.docValueCount();
+                } else {
+                    return 1;
+                }
             }
 
             @Override
@@ -339,12 +341,7 @@ public enum MissingValues {
                         return ord + 1;
                     }
                 } else {
-                    // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
-                    // more values
-                    long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
-                    return ordToReturn;
+                    return nextMissingOrd;
                 }
             }
 
@@ -414,7 +411,7 @@ public enum MissingValues {
             }
 
             @Override
-            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+            public SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context) {
                 return replaceMissing(valuesSource.geoSortedNumericDocValues(context), missing.getEncoded());
             }
 

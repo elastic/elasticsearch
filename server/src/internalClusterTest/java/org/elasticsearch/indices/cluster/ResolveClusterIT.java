@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionReques
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionResponse;
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterInfo;
 import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -28,7 +29,6 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +54,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
     private static long LATEST_TIMESTAMP = 1691348820000L;
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 
@@ -406,6 +406,52 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    // corresponds to the GET _resolve/cluster endpoint with no index expression specified
+    public void testClusterResolveWithNoIndexExpression() throws IOException {
+        Map<String, Object> testClusterInfo = setupThreeClusters(false);
+        boolean skipUnavailable1 = (Boolean) testClusterInfo.get("remote1.skip_unavailable");
+        boolean skipUnavailable2 = true;
+
+        {
+            String[] noIndexSpecified = new String[0];
+            boolean clusterInfoOnly = true;
+            boolean runningOnQueryingCluster = true;
+            ResolveClusterActionRequest request = new ResolveClusterActionRequest(
+                noIndexSpecified,
+                IndicesOptions.DEFAULT,
+                clusterInfoOnly,
+                runningOnQueryingCluster
+            );
+
+            ActionFuture<ResolveClusterActionResponse> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(TransportResolveClusterAction.TYPE, request);
+            ResolveClusterActionResponse response = future.actionGet(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            Map<String, ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            assertEquals(2, clusterInfo.size());
+
+            // only remote clusters should be present (not local)
+            Set<String> expectedClusterNames = Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
+            assertThat(clusterInfo.keySet(), equalTo(expectedClusterNames));
+
+            ResolveClusterInfo remote1 = clusterInfo.get(REMOTE_CLUSTER_1);
+            assertThat(remote1.isConnected(), equalTo(true));
+            assertThat(remote1.getSkipUnavailable(), equalTo(skipUnavailable1));
+            assertThat(remote1.getMatchingIndices(), equalTo(null));  // should not be set
+            assertNotNull(remote1.getBuild().version());
+            assertNull(remote1.getError());
+
+            ResolveClusterInfo remote2 = clusterInfo.get(REMOTE_CLUSTER_2);
+            assertThat(remote2.isConnected(), equalTo(true));
+            assertThat(remote2.getSkipUnavailable(), equalTo(skipUnavailable2));
+            assertThat(remote2.getMatchingIndices(), equalTo(null));  // should not be set
+            assertNotNull(remote2.getBuild().version());
+            assertNull(remote2.getError());
+        }
+    }
+
     public void testClusterResolveWithMatchingAliases() throws IOException {
         Map<String, Object> testClusterInfo = setupThreeClusters(true);
         String localAlias = (String) testClusterInfo.get("local.alias");
@@ -523,6 +569,24 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testClusterResolveWithNoMatchingClustersReturnsEmptyResult() throws Exception {
+        setupThreeClusters(false);
+        {
+            String[] indexExpressions = new String[] { "no_matching_cluster*:foo" };
+            ResolveClusterActionRequest request = new ResolveClusterActionRequest(indexExpressions);
+
+            ActionFuture<ResolveClusterActionResponse> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(TransportResolveClusterAction.TYPE, request);
+            ResolveClusterActionResponse response = future.actionGet(10, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            Map<String, ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            assertEquals(0, clusterInfo.size());
+            assertThat(Strings.toString(response), equalTo("{}"));
+        }
+    }
+
     public void testClusterResolveDisconnectedAndErrorScenarios() throws Exception {
         Map<String, Object> testClusterInfo = setupThreeClusters(false);
         String localIndex = (String) testClusterInfo.get("local.index");
@@ -616,9 +680,49 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
             assertNotNull(local.getBuild().version());
             assertNull(local.getError());
         }
+
+        // cluster1 was stopped/disconnected, so it should return a connected:false response when querying with no index expression,
+        // corresponding to GET _resolve/cluster endpoint
+        {
+            String[] noIndexSpecified = new String[0];
+            boolean clusterInfoOnly = true;
+            boolean runningOnQueryingCluster = true;
+            ResolveClusterActionRequest request = new ResolveClusterActionRequest(
+                noIndexSpecified,
+                IndicesOptions.DEFAULT,
+                clusterInfoOnly,
+                runningOnQueryingCluster
+            );
+
+            ActionFuture<ResolveClusterActionResponse> future = client(LOCAL_CLUSTER).admin()
+                .indices()
+                .execute(TransportResolveClusterAction.TYPE, request);
+            ResolveClusterActionResponse response = future.actionGet(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            Map<String, ResolveClusterInfo> clusterInfo = response.getResolveClusterInfo();
+            assertEquals(2, clusterInfo.size());
+            // local cluster is not present when querying without an index expression
+            Set<String> expectedClusterNames = Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
+            assertThat(clusterInfo.keySet(), equalTo(expectedClusterNames));
+
+            ResolveClusterInfo remote1 = clusterInfo.get(REMOTE_CLUSTER_1);
+            assertThat(remote1.isConnected(), equalTo(false));
+            assertThat(remote1.getSkipUnavailable(), equalTo(skipUnavailable1));
+            assertNull(remote1.getMatchingIndices());
+            assertNull(remote1.getBuild());
+            assertNull(remote1.getError());
+
+            ResolveClusterInfo remote2 = clusterInfo.get(REMOTE_CLUSTER_2);
+            assertThat(remote2.isConnected(), equalTo(true));
+            assertThat(remote2.getSkipUnavailable(), equalTo(skipUnavailable2));
+            assertNull(remote2.getMatchingIndices());  // not present when no index expression specified
+            assertNotNull(remote2.getBuild().version());
+            assertNull(remote2.getError());
+        }
     }
 
-    private Map<String, Object> setupThreeClusters(boolean useAlias) throws IOException {
+    private Map<String, Object> setupThreeClusters(boolean useAlias) {
         String localAlias = randomAlphaOfLengthBetween(5, 25);
         String remoteAlias1 = randomAlphaOfLengthBetween(5, 25);
         String remoteAlias2 = randomAlphaOfLengthBetween(5, 25);
@@ -641,7 +745,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
             IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(
                 IndicesAliasesRequest.AliasActions.Type.ADD
             ).index(localIndex).aliases(localAlias);
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(addAction);
 
             assertAcked(client(LOCAL_CLUSTER).admin().indices().aliases(aliasesAddRequest));
@@ -669,7 +773,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
             IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(
                 IndicesAliasesRequest.AliasActions.Type.ADD
             ).index(remoteIndex1).aliases(remoteAlias1);
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(addAction);
 
             assertAcked(client(REMOTE_CLUSTER_1).admin().indices().aliases(aliasesAddRequest));
@@ -707,7 +811,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
             IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(
                 IndicesAliasesRequest.AliasActions.Type.ADD
             ).index(remoteIndex2).aliases(remoteAlias2);
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(addAction);
 
             assertAcked(client(REMOTE_CLUSTER_2).admin().indices().aliases(aliasesAddRequest));

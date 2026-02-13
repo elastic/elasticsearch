@@ -43,50 +43,6 @@
               "default_metric": "value_count"
             }
           }
-        },
-        {
-          "histogram": {
-            "mapping": {
-              "type": "histogram",
-              "ignore_malformed": true
-            }
-          }
-        },
-        {
-          "counter_long": {
-            "mapping": {
-              "type": "long",
-              "time_series_metric": "counter",
-              "ignore_malformed": true
-            }
-          }
-        },
-        {
-          "gauge_long": {
-            "mapping": {
-              "type": "long",
-              "time_series_metric": "gauge",
-              "ignore_malformed": true
-            }
-          }
-        },
-        {
-          "counter_double": {
-            "mapping": {
-              "type": "double",
-              "time_series_metric": "counter",
-              "ignore_malformed": true
-            }
-          }
-        },
-        {
-          "gauge_double": {
-            "mapping": {
-              "type": "double",
-              "time_series_metric": "gauge",
-              "ignore_malformed": true
-            }
-          }
         }
       ],
       "properties": {

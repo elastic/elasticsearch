@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Objects;
+
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows the caller to be notified after the master has
  * computed, published, accepted, committed, and applied the cluster state update AND only after the rest of the nodes
@@ -54,7 +56,7 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
     ) {
         super(priority, masterNodeTimeout);
         this.listener = (ActionListener<AcknowledgedResponse>) listener;
-        this.ackTimeout = ackTimeout;
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
     }
 
     /**
@@ -81,10 +83,6 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
         return AcknowledgedResponse.of(acknowledged);
     }
 
-    /**
-     * Called once the acknowledgement timeout defined by
-     * {@link AckedClusterStateUpdateTask#ackTimeout()} has expired
-     */
     public void onAckTimeout() {
         listener.onResponse(newResponse(false));
     }
@@ -94,9 +92,6 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
         listener.onFailure(e);
     }
 
-    /**
-     * Acknowledgement timeout, maximum time interval to wait for acknowledgements
-     */
     public final TimeValue ackTimeout() {
         return ackTimeout;
     }

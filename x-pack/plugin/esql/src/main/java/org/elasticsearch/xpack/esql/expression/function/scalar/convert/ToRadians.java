@@ -41,11 +41,11 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DOUBLE, ToRadiansEvaluator.Factory::new),
-        Map.entry(INTEGER, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromIntEvaluator.Factory(field, source), source)),
-        Map.entry(LONG, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromLongEvaluator.Factory(field, source), source)),
+        Map.entry(INTEGER, (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromIntEvaluator.Factory(source, field))),
+        Map.entry(LONG, (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromLongEvaluator.Factory(source, field))),
         Map.entry(
             UNSIGNED_LONG,
-            (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromUnsignedLongEvaluator.Factory(field, source), source)
+            (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromUnsignedLongEvaluator.Factory(source, field))
         )
     );
 

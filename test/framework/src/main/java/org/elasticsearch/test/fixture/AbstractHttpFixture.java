@@ -175,6 +175,10 @@ public abstract class AbstractHttpFixture extends ExternalResource {
         return "http://127.0.0.1:" + httpServer.getAddress().getPort();
     }
 
+    public String getHostAndPort() {
+        return "127.0.0.1:" + httpServer.getAddress().getPort();
+    }
+
     @FunctionalInterface
     public interface RequestHandler {
         Response handle(Request request) throws IOException;

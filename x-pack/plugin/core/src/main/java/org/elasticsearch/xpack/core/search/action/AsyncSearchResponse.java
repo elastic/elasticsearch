@@ -10,9 +10,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -232,30 +234,39 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> ob.append((builder, p) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, p) -> {
+            builder.startObject();
             if (id != null) {
                 builder.field("id", id);
             }
             builder.field("is_partial", isPartial);
             builder.field("is_running", isRunning);
-            builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
             if (searchResponse != null) {
                 if (isRunning == false) {
                     TimeValue took = searchResponse.getTook();
-                    builder.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + took.millis()
+                    );
                 }
                 builder.field("response");
             }
             return builder;
-        }).appendIfPresent(searchResponse).append((builder, p) -> {
-            if (error != null) {
-                builder.startObject("error");
-                ElasticsearchException.generateThrowableXContent(builder, p, error);
+        }),
+            searchResponse == null ? Collections.emptyIterator() : searchResponse.toXContentChunked(params),
+            ChunkedToXContentHelper.chunk((builder, p) -> {
+                if (error != null) {
+                    builder.startObject("error");
+                    ElasticsearchException.generateThrowableXContent(builder, params, error);
+                    builder.endObject();
+                }
                 builder.endObject();
-            }
-            return builder;
-        }));
+                return builder;
+            })
+        );
     }
 
     @Override

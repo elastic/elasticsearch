@@ -43,8 +43,10 @@ public final class ContentPath {
         path = newPath;
     }
 
-    public void remove() {
-        path[--index] = null;
+    public String remove() {
+        var ret = path[--index];
+        path[index] = null;
+        return ret;
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {
@@ -56,6 +58,9 @@ public final class ContentPath {
     }
 
     public String pathAsText(String name) {
+        if (index == 0) {
+            return name;
+        }
         sb.setLength(0);
         for (int i = 0; i < index; i++) {
             sb.append(path[i]).append(DELIMITER);

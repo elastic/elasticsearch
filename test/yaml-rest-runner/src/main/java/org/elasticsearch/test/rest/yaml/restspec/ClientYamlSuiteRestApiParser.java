@@ -34,6 +34,12 @@ public class ClientYamlSuiteRestApiParser {
     public ClientYamlSuiteRestApi parse(String location, XContentParser parser) throws IOException {
 
         while (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+            if (parser.currentToken() == null) {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Invalid rest spec file found at [" + location + "]. No API name found in file"
+                );
+            }
             // move to first field name
         }
 

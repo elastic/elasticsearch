@@ -126,4 +126,20 @@ public class ArrayUtils {
             end--;
         }
     }
+
+    /**
+     * Reverse the {@code length} values on the array starting from {@code offset}.
+     */
+    public static void reverseArray(byte[] array, int offset, int length) {
+        int start = offset;
+        int end = offset + length;
+        while (start < end) {
+            final byte temp = array[start];
+            array[start] = array[end - 1];
+            array[end - 1] = temp;
+            start++;
+            end--;
+        }
+    }
+
 }

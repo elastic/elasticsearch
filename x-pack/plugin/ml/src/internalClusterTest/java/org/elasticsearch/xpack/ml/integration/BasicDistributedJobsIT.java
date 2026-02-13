@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -63,6 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     public void testFailOverBasics() throws Exception {
@@ -76,7 +78,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         awaitJobOpenedAndAssigned(job.getId(), null);
-        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(10, ChronoUnit.SECONDS), null);
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(30, ChronoUnit.SECONDS), null);
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
@@ -84,13 +86,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
         awaitJobOpenedAndAssigned(job.getId(), null);
-        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(10, ChronoUnit.SECONDS), null);
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(30, ChronoUnit.SECONDS), null);
 
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
         awaitJobOpenedAndAssigned(job.getId(), null);
-        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(10, ChronoUnit.SECONDS), null);
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(job.getId()), Duration.of(30, ChronoUnit.SECONDS), null);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82591")
@@ -231,7 +233,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
@@ -261,7 +263,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102657")
     public void testMaxConcurrentJobAllocations() throws Exception {
         int numMlNodes = 2;
         internalCluster().ensureAtMostNumDataNodes(0);
@@ -278,7 +279,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         // Sample each cs update and keep track each time a node holds more than `maxConcurrentJobAllocations` opening jobs.
         List<String> violations = new CopyOnWriteArrayList<>();
         internalCluster().clusterService(nonMlNode).addListener(event -> {
-            PersistentTasksCustomMetadata tasks = event.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = event.state().metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             if (tasks == null) {
                 return;
             }
@@ -368,7 +369,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         // Create the indices (using installed templates) and set the routing to specific nodes
         // State and results go on the state-and-results node, config goes on the config node
-        indicesAdmin().prepareCreate(".ml-anomalies-shared")
+        indicesAdmin().prepareCreate(".ml-anomalies-shared-000001")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
@@ -434,7 +435,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         );
         assertThat(detailedMessage, containsString("because not all primary shards are active for the following indices"));
         assertThat(detailedMessage, containsString(".ml-state"));
-        assertThat(detailedMessage, containsString(".ml-anomalies-shared"));
+        assertThat(detailedMessage, containsString(".ml-anomalies-shared-000001"));
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(

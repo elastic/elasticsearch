@@ -12,3 +12,6 @@ template:
       ignore_malformed: true
       total_fields:
         ignore_dynamic_beyond_limit: true
+  data_stream_options:
+    failure_store:
+      enabled: true

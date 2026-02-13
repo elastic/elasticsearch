@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -34,6 +35,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -208,11 +210,20 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 REPO_TYPE,
-                metadata -> new TestRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new TestRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }
@@ -223,6 +234,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
         private final AtomicReference<CyclicBarrier> barrierRef = new AtomicReference<>();
 
         public TestRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -230,7 +242,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         public CyclicBarrier blockOnceForListBlobs() {

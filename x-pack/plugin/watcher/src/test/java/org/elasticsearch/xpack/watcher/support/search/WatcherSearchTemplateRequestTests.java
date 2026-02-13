@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -52,8 +51,11 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
             """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             parser.nextToken();
-            WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()));
-            assertThat(result.getIndices(), arrayContaining(".ml-anomalies-*"));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()))
+            );
+            assertThat(e.getMessage(), is("could not read search request. unexpected array field [types]"));
         }
     }
 
@@ -74,7 +76,7 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
                 ElasticsearchParseException.class,
                 () -> WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()))
             );
-            assertThat(e.getMessage(), is("could not read search request. unsupported non-empty array field [types]"));
+            assertThat(e.getMessage(), is("could not read search request. unexpected array field [types]"));
         }
     }
 

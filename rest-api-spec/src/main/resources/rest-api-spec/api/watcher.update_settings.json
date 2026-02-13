@@ -1,34 +1,41 @@
 {
-  "watcher.update_settings":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-update-settings.html",
-      "description":"Update settings for the watcher system index"
+  "watcher.update_settings": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-update-settings",
+      "description": "Update Watcher index settings"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_watcher/settings",
-          "methods":["PUT"]
+          "path": "/_watcher/settings",
+          "methods": [
+            "PUT"
+          ]
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "description":"Specify timeout for waiting for acknowledgement from all nodes"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specify timeout for waiting for acknowledgement from all nodes"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     },
-    "body":{
+    "body": {
       "description": "An object with the new index settings",
       "required": true
     }

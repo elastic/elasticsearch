@@ -44,7 +44,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         public static final int DEFAULT_VALUE = 1;
 
         public DocCountFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.NONE, false, Collections.emptyMap());
         }
 
         @Override
@@ -128,7 +128,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(new SyntheticFieldLoader());
+        return new SyntheticSourceSupport.Native(SyntheticFieldLoader::new);
     }
 
     /**

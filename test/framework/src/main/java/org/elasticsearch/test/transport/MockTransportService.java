@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -39,26 +41,31 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -80,12 +87,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.spy;
 
 /**
  * A mock delegate service that allows to simulate different network topology failures.
@@ -104,6 +112,9 @@ public class MockTransportService extends TransportService {
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
 
     private final List<Runnable> onStopListeners = new CopyOnWriteArrayList<>();
+    private final AtomicReference<Consumer<Transport.Connection>> onConnectionClosedCallback = new AtomicReference<>();
+
+    private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -184,12 +195,13 @@ public class MockTransportService extends TransportService {
         Set<String> taskHeaders,
         TransportInterceptor interceptor
     ) {
+        String nodeId = UUIDs.randomBase64UUID();
         return new MockTransportService(
             settings,
-            new StubbableTransport(transport),
+            transport,
             threadPool,
             interceptor,
-            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+            boundAddress -> DiscoveryNodeUtils.builder(nodeId)
                 .name(Node.NODE_NAME_SETTING.get(settings))
                 .address(boundAddress.publishAddress())
                 .attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
@@ -197,7 +209,8 @@ public class MockTransportService extends TransportService {
                 .version(version)
                 .build(),
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
+            taskHeaders,
+            nodeId
         );
     }
 
@@ -212,31 +225,18 @@ public class MockTransportService extends TransportService {
     private final Transport original;
     private final EsThreadPoolExecutor testExecutor;
 
-    /**
-     * Build the service.
-     *
-     * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
-     *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
-     */
-    public MockTransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor interceptor,
-        @Nullable ClusterSettings clusterSettings
-    ) {
-        this(
-            settings,
-            new StubbableTransport(transport),
+    /** Build the service. */
+    public static MockTransportService createMockTransportService(Transport transport, ThreadPool threadPool) {
+        String nodeId = UUIDs.randomBase64UUID();
+        return new MockTransportService(
+            Settings.EMPTY,
+            transport,
             threadPool,
-            interceptor,
-            (boundAddress) -> DiscoveryNodeUtils.builder(settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID()))
-                .applySettings(settings)
-                .address(boundAddress.publishAddress())
-                .build(),
-            clusterSettings,
-            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (boundAddress) -> DiscoveryNodeUtils.builder(nodeId).address(boundAddress.publishAddress()).build(),
+            null, // clusterSettings
+            Set.of(),
+            nodeId
         );
     }
 
@@ -254,7 +254,8 @@ public class MockTransportService extends TransportService {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        String nodeId
     ) {
         this(
             settings,
@@ -263,37 +264,36 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
+            MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
+            new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
+            new TelemetryProvider() {
+                final MeterRegistry meterRegistry = new RecordingMeterRegistry();
+
+                @Override
+                public Tracer getTracer() {
+                    return Tracer.NOOP;
+                }
+
+                @Override
+                public MeterRegistry getMeterRegistry() {
+                    return meterRegistry;
+                }
+            },
+            DefaultProjectResolver.INSTANCE
         );
     }
 
     public MockTransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor interceptor,
-        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        @Nullable ClusterSettings clusterSettings
-    ) {
-        this(
-            settings,
-            new StubbableTransport(transport),
-            threadPool,
-            interceptor,
-            localNodeFactory,
-            clusterSettings,
-            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
-        );
-    }
-
-    private MockTransportService(
         Settings settings,
         StubbableTransport transport,
         ThreadPool threadPool,
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        TaskManager taskManager
+        TaskManager taskManager,
+        LinkedProjectConfigService linkedProjectConfigService,
+        TelemetryProvider telemetryProvider,
+        ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -304,17 +304,19 @@ public class MockTransportService extends TransportService {
             clusterSettings,
             new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
             taskManager,
-            Tracer.NOOP
+            linkedProjectConfigService,
+            telemetryProvider,
+            projectResolver
         );
         this.original = transport.getDelegate();
         this.testExecutor = EsExecutors.newScaling(
             "mock-transport",
-            0,
+            1,
             4,
             30,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.daemonThreadFactory("mock-transport"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("mock-transport"),
             threadPool.getThreadContext()
         );
     }
@@ -325,22 +327,6 @@ public class MockTransportService extends TransportService {
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
-    }
-
-    public static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
-        if (MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings)) {
-            return spy(createMockTaskManager(settings, threadPool, taskHeaders, tracer));
-        } else {
-            return createMockTaskManager(settings, threadPool, taskHeaders, tracer);
-        }
-    }
-
-    private static TaskManager createMockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
-        if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-            return new MockTaskManager(settings, threadPool, taskHeaders);
-        } else {
-            return new TaskManager(settings, threadPool, taskHeaders, tracer);
-        }
     }
 
     /**
@@ -583,13 +569,8 @@ public class MockTransportService extends TransportService {
                 // poor mans request cloning...
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
-                final TransportRequest clonedRequest;
-                if (request instanceof BytesTransportRequest) {
-                    clonedRequest = copyRawBytesForBwC(bStream);
-                } else {
-                    RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
-                    clonedRequest = reg.newRequest(bStream.bytes().streamInput());
-                }
+                RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
+                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())
                     : clonedRequest + " vs " + request;
 
@@ -635,15 +616,6 @@ public class MockTransportService extends TransportService {
                         threadPool.schedule(runnable, delay, testExecutor);
                     }
                 }
-            }
-
-            // Some request handlers read back a BytesTransportRequest
-            // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
-            // in those cases we just copy the raw bytes back to a BytesTransportRequest.
-            // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
-            @UpdateForV9
-            private static TransportRequest copyRawBytesForBwC(BytesStreamOutput bStream) throws IOException {
-                return new BytesTransportRequest(bStream.bytes().streamInput());
             }
 
             @Override
@@ -788,6 +760,19 @@ public class MockTransportService extends TransportService {
         }));
     }
 
+    public void setOnConnectionClosedCallback(Consumer<Transport.Connection> callback) {
+        onConnectionClosedCallback.set(callback);
+    }
+
+    @Override
+    public void onConnectionClosed(Transport.Connection connection) {
+        final Consumer<Transport.Connection> callback = onConnectionClosedCallback.get();
+        if (callback != null) {
+            callback.accept(connection);
+        }
+        super.onConnectionClosed(connection);
+    }
+
     public void addOnStopListener(Runnable listener) {
         onStopListeners.add(listener);
     }
@@ -815,8 +800,95 @@ public class MockTransportService extends TransportService {
         }
     }
 
-    public DiscoveryNode getLocalDiscoNode() {
-        return this.getLocalNode();
+    @Override
+    public void onRequestReceived(long requestId, String action) {
+        super.onRequestReceived(requestId, action);
+        messageListener.onRequestReceived(requestId, action);
     }
 
+    @Override
+    public void onRequestSent(
+        DiscoveryNode node,
+        long requestId,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options
+    ) {
+        super.onRequestSent(node, requestId, action, request, options);
+        messageListener.onRequestSent(node, requestId, action, request, options);
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
+        super.onResponseReceived(requestId, holder);
+        messageListener.onResponseReceived(requestId, holder);
+    }
+
+    @Override
+    public void onResponseSent(long requestId, String action) {
+        super.onResponseSent(requestId, action);
+        messageListener.onResponseSent(requestId, action);
+    }
+
+    @Override
+    public void onResponseSent(long requestId, String action, Exception e) {
+        super.onResponseSent(requestId, action, e);
+        messageListener.onResponseSent(requestId, action, e);
+    }
+
+    public void addMessageListener(TransportMessageListener listener) {
+        messageListener.listeners.add(listener);
+    }
+
+    public void removeMessageListener(TransportMessageListener listener) {
+        messageListener.listeners.remove(listener);
+    }
+
+    private static final class DelegatingTransportMessageListener implements TransportMessageListener {
+
+        private final List<TransportMessageListener> listeners = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void onRequestReceived(long requestId, String action) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onRequestReceived(requestId, action);
+            }
+        }
+
+        @Override
+        public void onResponseSent(long requestId, String action) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onResponseSent(requestId, action);
+            }
+        }
+
+        @Override
+        public void onResponseSent(long requestId, String action, Exception error) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onResponseSent(requestId, action, error);
+            }
+        }
+
+        @Override
+        public void onRequestSent(
+            DiscoveryNode node,
+            long requestId,
+            String action,
+            TransportRequest request,
+            TransportRequestOptions finalOptions
+        ) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onRequestSent(node, requestId, action, request, finalOptions);
+            }
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onResponseReceived(requestId, holder);
+            }
+        }
+    }
 }

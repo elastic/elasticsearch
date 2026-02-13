@@ -13,6 +13,7 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -50,7 +51,9 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(
             query,
-            either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class)).or(instanceOf(MatchAllQueryBuilder.class))
+            either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class))
+                .or(instanceOf(MatchAllQueryBuilder.class))
+                .or(instanceOf(SpanMatchNoDocsQuery.class))
         );
         if (query instanceof SpanNearQuery spanNearQuery) {
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));

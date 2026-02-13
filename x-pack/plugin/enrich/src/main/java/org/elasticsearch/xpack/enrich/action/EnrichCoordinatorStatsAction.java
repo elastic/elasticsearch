@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
@@ -45,13 +45,13 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
     }
 
     // This always executes on all ingest nodes, hence no node ids need to be provided.
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
         public Request() {
             super(new String[0]);
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         NodeRequest() {}
 

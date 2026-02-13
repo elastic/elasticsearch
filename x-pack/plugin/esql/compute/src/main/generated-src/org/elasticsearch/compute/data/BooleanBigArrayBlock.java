@@ -20,7 +20,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores values in a {@link BooleanBigArrayVector}. Does not take ownership of the given
  * {@link BitArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayBlock.java.st} instead.
  */
 public final class BooleanBigArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
@@ -113,7 +113,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
     }
 
     @Override
-    public BooleanBlock filter(int... positions) {
+    public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newBooleanBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

@@ -25,6 +25,9 @@
     },
     "year": {
       "type": "integer"
+    },
+    "collection": {
+      "type": "text"
     }
   }
 }

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -33,7 +33,10 @@ public class PutAnalyticsCollectionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected PutAnalyticsCollectionAction.Request mutateInstance(PutAnalyticsCollectionAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PutAnalyticsCollectionAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            randomValueOtherThan(instance.getName(), () -> randomIdentifier())
+        );
     }
 
     @Override

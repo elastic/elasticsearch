@@ -14,16 +14,23 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.is;
 
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;
@@ -32,6 +39,36 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+        testCase(ft, iw -> {}, stats -> {
+            assertEquals(0d, stats.getCount(), 0);
+            assertEquals(0d, stats.getSum(), 0);
+            assertEquals(Float.NaN, stats.getAvg(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
+            assertEquals(Double.NaN, stats.getVariance(), 0);
+            assertEquals(Double.NaN, stats.getVariancePopulation(), 0);
+            assertEquals(Double.NaN, stats.getVarianceSampling(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviation(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviationPopulation(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviationSampling(), 0);
+            assertEquals(0d, stats.getSumOfSquares(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(stats));
+        });
+    }
+
+    public void testEmptyDate() throws IOException {
+        DateFormatter.forPattern("epoch_millis");
+        final MappedFieldType ft = new DateFieldMapper.DateFieldType(
+            "field",
+            IndexType.points(true, true),
+            false,
+            true,
+            DateFormatter.forPattern("epoch_millis"),
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            null,
+            Map.of()
+        );
         testCase(ft, iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);
@@ -267,6 +304,13 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             .sigma(randomDoubleBetween(0, 10, true));
 
         testCase(buildIndex, verify, new AggTestConfig(aggBuilder, ft));
+    }
+
+    @Override
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void verifyOutputFieldNames(T aggregationBuilder, V agg)
+        throws IOException {
+        assertTrue(aggregationBuilder.getOutputFieldNames().isPresent());
+        assertThat(aggregationBuilder.getOutputFieldNames().get(), is(InternalExtendedStats.Fields.OUTPUT_FORMAT));
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

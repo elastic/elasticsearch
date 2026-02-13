@@ -17,11 +17,13 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -34,16 +36,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ResolvedRepositories;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
@@ -51,6 +53,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -79,6 +82,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -90,10 +94,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
-
-    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
 
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
@@ -128,6 +131,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().beforeIndexDeletion();
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
@@ -165,7 +169,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected RepositoryData getRepositoryData(String repoName, IndexVersion version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
-        if (SnapshotsService.includesUUIDs(version) == false) {
+        if (SnapshotsServiceUtils.includesUUIDs(version) == false) {
             return repositoryData.withoutUUIDs();
         } else {
             return repositoryData;
@@ -366,14 +370,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     /**
      * Randomly write an empty snapshot of an older version to an empty repository to simulate an older repository metadata format.
      */
-    @UpdateForV9
-    // This used to pick an index version from 7.0.0 to 8.9.0. The minimum now is 8.0.0 but it's not clear what the upper range should be
     protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws Exception {
         if (randomBoolean() && randomBoolean()) {
             initWithSnapshotVersion(
                 repoName,
                 repoPath,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_9_0)
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
             );
         }
     }
@@ -425,7 +427,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     .replace(IndexVersion.current().toString(), version.toString())
             )
         ) {
-            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
+            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(new ProjectRepo(ProjectId.DEFAULT, repoName), parser);
         }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
         BlobStoreRepository.SNAPSHOT_FORMAT.write(
@@ -515,7 +517,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      */
     protected void addBwCFailedSnapshot(String repoName, String snapshotName, Map<String, Object> metadata) throws Exception {
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+        final RepositoriesMetadata repositoriesMetadata = state.metadata().getProject().custom(RepositoriesMetadata.TYPE);
         assertNotNull(repositoriesMetadata);
         final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);
         assertNotNull(initialRepoMetadata);
@@ -547,19 +549,20 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         safeAwait(
             (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
-                    ShardGenerations.EMPTY,
+                    false,
+                    UpdatedShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
                     listener,
-                    info -> {}
+                    () -> {}
                 )
             )
         );
     }
 
-    protected void awaitNDeletionsInProgress(int count) throws Exception {
+    protected void awaitNDeletionsInProgress(int count) {
         logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
         awaitClusterState(state -> SnapshotDeletionsInProgress.get(state).getEntries().size() == count);
     }
@@ -571,7 +574,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(
-            logger,
             viaNode,
             state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).hasDeletionsInProgress() == false
         );
@@ -606,13 +608,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .execute();
     }
 
-    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
+    protected void awaitNumberOfSnapshotsInProgress(int count) {
         awaitNumberOfSnapshotsInProgress(logger, count);
     }
 
-    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(logger, state -> SnapshotsInProgress.get(state).count() == count);
+        awaitClusterState(state -> SnapshotsInProgress.get(state).count() == count);
     }
 
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
@@ -700,11 +702,59 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return createNSnapshots(logger, repoName, count);
     }
 
+    protected static SubscribableListener<Void> createSnapshotInStateListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName,
+        int numShards,
+        SnapshotsInProgress.ShardState shardState
+    ) {
+        return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
+            final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
+            if (entriesForRepo.isEmpty()) {
+                // it's (just about) possible for the data node to apply the initial snapshot state, start on the first shard snapshot, and
+                // hit the IO block, before the master even applies this cluster state, in which case we simply retry:
+                return false;
+            }
+            assertThat(entriesForRepo, hasSize(1));
+            final var shardSnapshotStatuses = entriesForRepo.iterator()
+                .next()
+                .shards()
+                .entrySet()
+                .stream()
+                .flatMap(e -> e.getKey().getIndexName().equals(indexName) ? Stream.of(e.getValue()) : Stream.of())
+                .toList();
+            assertThat(shardSnapshotStatuses, hasSize(numShards));
+            for (var shardStatus : shardSnapshotStatuses) {
+                assertThat(shardStatus.state(), oneOf(SnapshotsInProgress.ShardState.INIT, shardState));
+                if (shardStatus.state() == SnapshotsInProgress.ShardState.INIT) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    protected static SubscribableListener<Void> createSnapshotPausedListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName,
+        int numShards
+    ) {
+        return createSnapshotInStateListener(
+            clusterService,
+            repoName,
+            indexName,
+            numShards,
+            SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
+        );
+    }
+
     public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + randomIdentifier() + "-";
+        final String prefix = randomSnapshotName() + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.spatial.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeometryParserFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -318,7 +319,8 @@ public final class GeoGridProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);

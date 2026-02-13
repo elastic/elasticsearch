@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -69,7 +69,7 @@ public class CombiIT extends ESIntegTestCase {
             response -> {
                 InternalAggregations aggs = response.getAggregations();
 
-                Missing missing = aggs.get("missing_values");
+                SingleBucketAggregation missing = aggs.get("missing_values");
                 assertNotNull(missing);
                 assertThat(missing.getDocCount(), equalTo(finalMissingValues));
 
@@ -115,7 +115,7 @@ public class CombiIT extends ESIntegTestCase {
                 histogram("values").field("value1").interval(1).subAggregation(terms("names").field("name").collectMode(aggCollectionMode))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, Matchers.equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), Matchers.equalTo(0L));
                 Histogram values = response.getAggregations().get("values");
                 assertThat(values, notNullValue());
                 assertThat(values.getBuckets().isEmpty(), is(true));

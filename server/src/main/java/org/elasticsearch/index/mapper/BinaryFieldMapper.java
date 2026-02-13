@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,13 +50,13 @@ public class BinaryFieldMapper extends FieldMapper {
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final boolean isSyntheticSourceEnabled;
         private final Parameter<Boolean> hasDocValues;
 
-        public Builder(String name, boolean isSyntheticSourceEnabledViaIndexMode) {
+        public Builder(String name, boolean isSyntheticSourceEnabled) {
             super(name);
-            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabledViaIndexMode;
-            this.hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, isSyntheticSourceEnabledViaIndexMode);
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, isSyntheticSourceEnabled);
         }
 
         @Override
@@ -79,13 +80,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexSettings().getMode().isSyntheticSourceEnabled())
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, SourceFieldMapper.isSynthetic(c.getIndexSettings())));
 
     public static final class BinaryFieldType extends MappedFieldType {
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
+            super(name, hasDocValues ? IndexType.docValuesOnly() : IndexType.NONE, isStored, meta);
         }
 
         public BinaryFieldType(String name) {
@@ -129,7 +128,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, BinaryDocValuesField::new);
         }
 
         @Override
@@ -140,13 +139,13 @@ public class BinaryFieldMapper extends FieldMapper {
 
     private final boolean stored;
     private final boolean hasDocValues;
-    private final boolean isSyntheticSourceEnabledViaIndexMode;
+    private final boolean isSyntheticSourceEnabled;
 
     protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
-        this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabledViaIndexMode;
+        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
     }
 
     @Override
@@ -186,7 +185,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabled).init(this);
     }
 
     @Override
@@ -197,7 +196,7 @@ public class BinaryFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+            return new SyntheticSourceSupport.Native(() -> new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
                 @Override
                 protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                     var in = new ByteArrayStreamInput();
@@ -223,9 +222,7 @@ public class BinaryFieldMapper extends FieldMapper {
                         b.endArray();
                     }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            });
         }
 
         return super.syntheticSourceSupport();

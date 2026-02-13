@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRol
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.security.Security;
+import org.junit.Assert;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.randomCr
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -89,13 +91,10 @@ public class RestUpdateCrossClusterApiKeyActionTests extends ESTestCase {
         // Disallow by license
         when(licenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(false);
 
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray("""
-                {
-                  "metadata": {}
-                }"""),
-            XContentType.JSON
-        ).withParams(Map.of("id", randomAlphaOfLength(10))).build();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("""
+            {
+              "metadata": {}
+            }"""), XContentType.JSON).withParams(Map.of("id", randomAlphaOfLength(10))).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
@@ -113,4 +112,87 @@ public class RestUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             containsString("current license is non-compliant for [advanced-remote-cluster-security]")
         );
     }
+
+    public void testUpdateWithValidCertificateIdentity() throws Exception {
+        final String id = randomAlphaOfLength(10);
+        final String access = randomCrossClusterApiKeyAccessField();
+        final String certificateIdentity = "CN=test,OU=engineering,DC=example,DC=com";
+
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(Strings.format("""
+                {
+                  "access": %s,
+                  "certificate_identity": "%s"
+                }""", access, certificateIdentity)),
+            XContentType.JSON
+        ).withParams(Map.of("id", id)).build();
+
+        final NodeClient client = mock(NodeClient.class);
+        action.handleRequest(restRequest, mock(RestChannel.class), client);
+
+        final ArgumentCaptor<UpdateCrossClusterApiKeyRequest> requestCaptor = ArgumentCaptor.forClass(
+            UpdateCrossClusterApiKeyRequest.class
+        );
+        verify(client).execute(eq(UpdateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
+
+        final UpdateCrossClusterApiKeyRequest request = requestCaptor.getValue();
+        Assert.assertNotNull(request.getCertificateIdentity());
+        assertThat(request.getCertificateIdentity().value(), equalTo(certificateIdentity));
+    }
+
+    public void testUpdateWithExplicitNullCertificateIdentity() throws Exception {
+        final String id = randomAlphaOfLength(10);
+        final String access = randomCrossClusterApiKeyAccessField();
+
+        // Request with an explicit null for certificate_identity. This indicates that the user wants to
+        // remove an associated certificate identity from a Cross Cluster API Key.
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(Strings.format("""
+                {
+                  "access": %s,
+                  "certificate_identity": null
+                }""", access)),
+            XContentType.JSON
+        ).withParams(Map.of("id", id)).build();
+
+        final NodeClient client = mock(NodeClient.class);
+        action.handleRequest(restRequest, mock(RestChannel.class), client);
+
+        final ArgumentCaptor<UpdateCrossClusterApiKeyRequest> requestCaptor = ArgumentCaptor.forClass(
+            UpdateCrossClusterApiKeyRequest.class
+        );
+        verify(client).execute(eq(UpdateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
+
+        final UpdateCrossClusterApiKeyRequest request = requestCaptor.getValue();
+        // Verify that certificate identity wrapper exists but contains null value
+        assertThat(request.getCertificateIdentity(), is(not(nullValue())));
+        assertThat(request.getCertificateIdentity().value(), is(nullValue()));
+    }
+
+    public void testUpdateWithoutCertificateIdentityField() throws Exception {
+        final String id = randomAlphaOfLength(10);
+        final String access = randomCrossClusterApiKeyAccessField();
+
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(Strings.format("""
+                {
+                  "access": %s,
+                  "metadata": {"key": "value"}
+                }""", access)),
+            XContentType.JSON
+        ).withParams(Map.of("id", id)).build();
+
+        final NodeClient client = mock(NodeClient.class);
+        action.handleRequest(restRequest, mock(RestChannel.class), client);
+
+        final ArgumentCaptor<UpdateCrossClusterApiKeyRequest> requestCaptor = ArgumentCaptor.forClass(
+            UpdateCrossClusterApiKeyRequest.class
+        );
+        verify(client).execute(eq(UpdateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
+
+        final UpdateCrossClusterApiKeyRequest request = requestCaptor.getValue();
+        // Verify that certificate identity is completely null (field omitted)
+        assertThat(request.getCertificateIdentity(), is(nullValue()));
+    }
+
 }

@@ -21,14 +21,14 @@ public class InlineStatsSerializationTests extends AbstractLogicalPlanSerializat
         LogicalPlan child = randomChild(0);
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = randomFieldAttributes(0, 5, false).stream().map(a -> (NamedExpression) a).toList();
-        return new InlineStats(source, child, groupings, aggregates);
+        return new InlineStats(source, new Aggregate(source, child, groupings, aggregates));
     }
 
     @Override
     protected InlineStats mutateInstance(InlineStats instance) throws IOException {
         LogicalPlan child = instance.child();
-        List<Expression> groupings = instance.groupings();
-        List<? extends NamedExpression> aggregates = instance.aggregates();
+        List<Expression> groupings = instance.aggregate().groupings();
+        List<? extends NamedExpression> aggregates = instance.aggregate().aggregates();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(
@@ -40,6 +40,7 @@ public class InlineStatsSerializationTests extends AbstractLogicalPlanSerializat
                 () -> randomFieldAttributes(0, 5, false).stream().map(a -> (NamedExpression) a).toList()
             );
         }
-        return new InlineStats(instance.source(), child, groupings, aggregates);
+        Aggregate agg = new Aggregate(instance.source(), child, groupings, aggregates);
+        return new InlineStats(instance.source(), agg);
     }
 }

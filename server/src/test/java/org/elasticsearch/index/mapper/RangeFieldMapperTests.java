@@ -50,6 +50,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -307,6 +312,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         private final boolean includeFrom;
         private final boolean includeTo;
 
+        private final boolean skipDefaultFrom = randomBoolean();
+        private final boolean skipDefaultTo = randomBoolean();
+
         public TestRange(RangeType type, T from, T to, boolean includeFrom, boolean includeTo) {
             this.type = type;
             this.from = from;
@@ -321,13 +329,13 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
             return (ToXContent) (builder, params) -> {
                 builder.startObject();
-                if (includeFrom && from == null && randomBoolean()) {
+                if (includeFrom && from == null && skipDefaultFrom) {
                     // skip field entirely since it is equivalent to a default value
                 } else {
                     builder.field(fromKey, from);
                 }
 
-                if (includeTo && to == null && randomBoolean()) {
+                if (includeTo && to == null && skipDefaultTo) {
                     // skip field entirely since it is equivalent to a default value
                 } else {
                     builder.field(toKey, to);
@@ -384,7 +392,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
     }
 
     protected Source getSourceFor(CheckedConsumer<XContentBuilder, IOException> mapping, List<?> inputValues) throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(mapping));
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(mapping)).documentMapper();
 
         CheckedConsumer<XContentBuilder, IOException> input = b -> {
             b.field("field");
@@ -405,7 +413,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
+                SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), null, SourceFieldMetrics.NOOP);
                 Source syntheticSource = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
 
                 return syntheticSource;
@@ -422,5 +430,10 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
         assumeFalse("DocValuesFetcher doesn't work", true);
         return null;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

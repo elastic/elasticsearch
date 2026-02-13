@@ -28,20 +28,15 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public class LearningToRankRescorer implements Rescorer {
 
+    private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
     public static final LearningToRankRescorer INSTANCE = new LearningToRankRescorer();
     private static final Logger logger = LogManager.getLogger(LearningToRankRescorer.class);
-
-    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
-        int cmp = Float.compare(o2.score, o1.score);
-        return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
-    };
 
     private LearningToRankRescorer() {
 
@@ -61,7 +56,7 @@ public class LearningToRankRescorer implements Rescorer {
 
         // Because scores of the first-pass query and the LTR model are not comparable, there is no way to combine the results.
         // We will truncate the {@link TopDocs} to the window size so rescoring will be done on the full topDocs.
-        topDocs = topN(topDocs, rescoreContext.getWindowSize());
+        topDocs = Rescorer.topN(topDocs, rescoreContext.getWindowSize());
 
         // Save doc IDs for which rescoring was applied to be used in score explanation
         Set<Integer> topDocIDs = Arrays.stream(topDocs.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
@@ -78,7 +73,12 @@ public class LearningToRankRescorer implements Rescorer {
         List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
         List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
+        int count = 0;
         while (hitUpto < hitsToRescore.length) {
+            if (count % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                rescoreContext.checkCancellation();
+            }
+            count++;
             final ScoreDoc hit = hitsToRescore[hitUpto];
             final int docID = hit.doc;
             while (docID >= endDoc) {
@@ -106,6 +106,9 @@ public class LearningToRankRescorer implements Rescorer {
             hitUpto++;
         }
         for (int i = 0; i < hitsToRescore.length; i++) {
+            if (i % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                rescoreContext.checkCancellation();
+            }
             Map<String, Object> features = docFeatures.get(i);
             try {
                 InferenceResults results = definition.inferLtr(features, ltrRescoreContext.learningToRankConfig);
@@ -160,21 +163,24 @@ public class LearningToRankRescorer implements Rescorer {
         List<FeatureExtractor> featureExtractors = ltrContext.buildFeatureExtractors(searcher);
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
 
-        Map<String, Object> features = Maps.newMapWithExpectedSize(featureSize);
+        Map<String, Object> extractedFeatures = Maps.newMapWithExpectedSize(featureSize);
 
         for (FeatureExtractor featureExtractor : featureExtractors) {
             featureExtractor.setNextReader(currentSegment);
-            featureExtractor.addFeatures(features, targetDoc);
+            featureExtractor.addFeatures(extractedFeatures, targetDoc);
         }
 
         // Predicting the value
-        var ltrScore = ((Number) localModelDefinition.inferLtr(features, ltrContext.learningToRankConfig).predictedValue()).floatValue();
+        var ltrScore = ((Number) localModelDefinition.inferLtr(extractedFeatures, ltrContext.learningToRankConfig).predictedValue())
+            .floatValue();
 
         List<Explanation> featureExplanations = new ArrayList<>();
-        for (String featureName : features.keySet()) {
-            Number featureValue = Objects.requireNonNullElse((Number) features.get(featureName), 0);
-            featureExplanations.add(Explanation.match(featureValue, "feature value for [" + featureName + "]"));
-        }
+        ltrContext.learningToRankConfig.getFeatureExtractorBuilders().forEach(featureExtractor -> {
+            String featureName = featureExtractor.featureName();
+            if (extractedFeatures.containsKey(featureName) && extractedFeatures.get(featureName) instanceof Number featureValue) {
+                featureExplanations.add(Explanation.match(featureValue, "feature value for [" + featureName + "]"));
+            }
+        });
 
         return Explanation.match(
             ltrScore,
@@ -182,18 +188,5 @@ public class LearningToRankRescorer implements Rescorer {
             Explanation.match(sourceExplanation.getValue(), "first pass query score", sourceExplanation),
             Explanation.match(0f, "extracted features", featureExplanations)
         );
-    }
-
-    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
-     *  topN. */
-    private static TopDocs topN(TopDocs in, int topN) {
-        if (in.scoreDocs.length < topN) {
-            return in;
-        }
-
-        ScoreDoc[] subset = new ScoreDoc[topN];
-        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
-
-        return new TopDocs(in.totalHits, subset);
     }
 }

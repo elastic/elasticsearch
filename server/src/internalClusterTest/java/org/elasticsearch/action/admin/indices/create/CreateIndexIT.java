@@ -98,7 +98,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
         assertThat(metadata, notNullValue());
-        Map<String, IndexMetadata> indices = metadata.getIndices();
+        Map<String, IndexMetadata> indices = metadata.getProject().indices();
         assertThat(indices, notNullValue());
         assertThat(indices.size(), equalTo(1));
         IndexMetadata index = indices.get("test");
@@ -120,7 +120,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             )
         );
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -130,7 +130,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -150,7 +150,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject())
         );
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -158,8 +158,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testTwoEmptyEqualMappings() throws Exception {
-        assertAcked(prepareCreate("test1"));
-        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        assertAcked(prepareCreate("test1"), prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
         FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
         fieldCapsReq1.indices("test1");
         fieldCapsReq1.fields("*");
@@ -200,7 +199,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testCreateIndexWithMetadataBlocks() {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
-        assertBlocked(indicesAdmin().prepareGetSettings("test"), IndexMetadata.INDEX_METADATA_BLOCK);
+        assertBlocked(indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test"), IndexMetadata.INDEX_METADATA_BLOCK);
         disableIndexBlock("test", IndexMetadata.SETTING_BLOCKS_METADATA);
     }
 
@@ -306,8 +305,8 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)),
             expected -> assertNoFailuresAndResponse(prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()), all -> {
-                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-                logger.info("total: {}", expected.getHits().getTotalHits().value);
+                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value(), all.getHits().getTotalHits().value());
+                logger.info("total: {}", expected.getHits().getTotalHits().value());
             })
         );
     }

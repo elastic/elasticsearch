@@ -14,8 +14,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -37,9 +40,11 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -98,13 +103,13 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Maximum size of files that can be uploaded using a single upload request.
      */
-    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
+    static final ByteSizeValue MAX_FILE_SIZE = ByteSizeValue.of(5, ByteSizeUnit.GB);
 
     /**
      * Minimum size of parts that can be uploaded using the Multipart Upload API.
      * (see http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html)
      */
-    static final ByteSizeValue MIN_PART_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.MB);
+    static final ByteSizeValue MIN_PART_SIZE_USING_MULTIPART = ByteSizeValue.of(5, ByteSizeUnit.MB);
 
     /**
      * Maximum size of parts that can be uploaded using the Multipart Upload API.
@@ -115,7 +120,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Maximum size of files that can be uploaded using the Multipart Upload API.
      */
-    static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.TB);
+    static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = ByteSizeValue.of(5, ByteSizeUnit.TB);
 
     /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
@@ -136,9 +141,14 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "chunk_size",
         MAX_FILE_SIZE_USING_MULTIPART,
-        new ByteSizeValue(5, ByteSizeUnit.MB),
+        ByteSizeValue.of(5, ByteSizeUnit.MB),
         MAX_FILE_SIZE_USING_MULTIPART
     );
+
+    /**
+     * Maximum parts number for multipart upload. (see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+     */
+    static final Setting<Integer> MAX_MULTIPART_PARTS = Setting.intSetting("max_multipart_parts", 10_000, 1, 10_000);
 
     /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
@@ -197,6 +207,41 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
+    /**
+     * We will retry deletes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
+     * with the following parameters
+     */
+    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_DELAY_INCREMENT = Setting.timeSetting(
+        "throttled_delete_retry.delay_increment",
+        TimeValue.timeValueMillis(50),
+        TimeValue.ZERO
+    );
+    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_MAXIMUM_DELAY = Setting.timeSetting(
+        "throttled_delete_retry.maximum_delay",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO
+    );
+    static final Setting<Integer> RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+        "throttled_delete_retry.maximum_number_of_retries",
+        10,
+        0
+    );
+
+    /**
+     * Time to wait before trying again if getRegister fails.
+     */
+    static final Setting<TimeValue> GET_REGISTER_RETRY_DELAY = Setting.timeSetting(
+        "get_register_retry_delay",
+        new TimeValue(5, TimeUnit.SECONDS),
+        new TimeValue(0, TimeUnit.MILLISECONDS),
+        Setting.Property.Dynamic
+    );
+
+    static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
+        "unsafely_incompatible_with_s3_conditional_writes",
+        false
+    );
+
     private final S3Service service;
 
     private final String bucket;
@@ -217,6 +262,13 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     private final TimeValue coolDown;
 
+    /**
+     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
+     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
+     * {@link #UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
+     */
+    private final boolean supportsConditionalWrites;
+
     private final Executor snapshotExecutor;
 
     private final S3RepositoriesMetrics s3RepositoriesMetrics;
@@ -225,22 +277,26 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Constructs an s3 backed repository
      */
     S3Repository(
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final S3RepositoriesMetrics s3RepositoriesMetrics
+        final S3RepositoriesMetrics s3RepositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.service = service;
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
@@ -253,7 +309,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxChunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxPartsNum = MAX_MULTIPART_PARTS.get(metadata.settings());
+        this.chunkSize = objectSizeLimit(maxChunkSize, bufferSize, maxPartsNum);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -280,12 +338,24 @@ class S3Repository extends MeteredBlobStoreRepository {
             deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "s3_repository_secret_settings",
-                "Using s3 access/secret key from repository settings. Instead "
-                    + "store these in named clients and the elasticsearch keystore for secure settings."
+                INSECURE_CREDENTIALS_DEPRECATION_WARNING
             );
         }
 
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
+        supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.get(metadata.settings()) == Boolean.FALSE;
+
+        if (supportsConditionalWrites == false) {
+            logger.warn(
+                """
+                    repository [{}] is configured to unsafely avoid conditional writes which may lead to repository corruption; to resolve \
+                    this warning, upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [{}] \
+                    repository setting; for more information, see [{}]""",
+                metadata.name(),
+                UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(),
+                ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
+            );
+        }
 
         logger.debug(
             "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
@@ -298,8 +368,27 @@ class S3Repository extends MeteredBlobStoreRepository {
         );
     }
 
+    static final String INSECURE_CREDENTIALS_DEPRECATION_WARNING = Strings.format("""
+        This repository's settings include a S3 access key and secret key, but repository settings are stored in plaintext and must not be \
+        used for security-sensitive information. Instead, store all secure settings in the keystore. See [%s] for more information.\
+        """, ReferenceDocs.SECURE_SETTINGS);
+
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
+    }
+
+    /**
+     * Calculates S3 object size limit based on 2 constraints: maximum object(chunk) size
+     * and maximum number of parts for multipart upload.
+     * https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+     *
+     * @param chunkSize s3 object size
+     * @param bufferSize s3 multipart upload part size
+     * @param maxPartsNum s3 multipart upload max parts number
+     */
+    private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
+        var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
+        return ByteSizeValue.ofBytes(bytes);
     }
 
     /**
@@ -311,19 +400,20 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
         final FinalizeSnapshotContext wrappedFinalizeContext;
-        if (SnapshotsService.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
+        if (SnapshotsServiceUtils.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
             final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
             wrappedFinalizeContext = new FinalizeSnapshotContext(
+                finalizeSnapshotContext.serializeProjectMetadata(),
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 finalizeSnapshotContext.clusterMetadata(),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
                 wrapWithWeakConsistencyProtection(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
-                info -> metadataDone.addListener(new ActionListener<>() {
+                () -> metadataDone.addListener(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
-                        finalizeSnapshotContext.onDone(info);
+                        finalizeSnapshotContext.onDone();
                     }
 
                     @Override
@@ -394,16 +484,23 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     protected S3BlobStore createBlobStore() {
         return new S3BlobStore(
+            getProjectId(),
             service,
             bucket,
             serverSideEncryption,
             bufferSize,
             cannedACL,
             storageClass,
+            supportsConditionalWrites,
             metadata,
             bigArrays,
             threadPool,
-            s3RepositoriesMetrics
+            s3RepositoriesMetrics,
+            BackoffPolicy.linearBackoff(
+                RETRY_THROTTLED_DELETE_DELAY_INCREMENT.get(metadata.settings()),
+                RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.get(metadata.settings()),
+                RETRY_THROTTLED_DELETE_MAXIMUM_DELAY.get(metadata.settings())
+            )
         );
     }
 

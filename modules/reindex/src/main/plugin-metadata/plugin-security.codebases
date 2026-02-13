@@ -1,2 +1,0 @@
-elasticsearch-rest-client: org.elasticsearch.client.RestClient
-httpasyncclient: org.apache.http.nio.client.HttpAsyncClient

@@ -147,19 +147,18 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
     @Override
     public A finalizeSampling(SamplingContext samplingContext) {
-        return createWithFilter(
-            name,
-            getBuckets().stream()
-                .map(
-                    b -> createBucket(
-                        samplingContext.scaleUp(b.getDocCount()),
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
-                        b
-                    )
+        final List<B> originalBuckets = getBuckets();
+        final List<B> buckets = new ArrayList<>(originalBuckets.size());
+        for (B bucket : originalBuckets) {
+            buckets.add(
+                createBucket(
+                    samplingContext.scaleUp(bucket.getDocCount()),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext),
+                    bucket
                 )
-                .toList(),
-            filter
-        );
+            );
+        }
+        return createWithFilter(name, buckets, filter);
     }
 
     public abstract boolean containsTerm(SetBackedScalingCuckooFilter filter, B bucket);

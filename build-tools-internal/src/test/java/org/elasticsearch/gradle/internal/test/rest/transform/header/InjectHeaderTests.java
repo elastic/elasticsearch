@@ -26,9 +26,9 @@ public class InjectHeaderTests extends InjectFeatureTests {
 
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
-        "application/vnd.elasticsearch+json;compatible-with=7",
+        "application/vnd.elasticsearch+json;compatible-with=8",
         "Accept",
-        "application/vnd.elasticsearch+json;compatible-with=7"
+        "application/vnd.elasticsearch+json;compatible-with=8"
     );
 
     /**

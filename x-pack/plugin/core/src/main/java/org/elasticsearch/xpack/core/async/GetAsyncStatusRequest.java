@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.async;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -19,12 +18,13 @@ import java.util.Objects;
 /**
  * A request class to get a status update of the async search request
  */
-public class GetAsyncStatusRequest extends ActionRequest {
+public class GetAsyncStatusRequest extends LegacyActionRequest {
     private final String id;
     private TimeValue keepAlive = TimeValue.MINUS_ONE;
 
     /**
      * Creates a new request
+     *
      * @param id The id of the search progress request.
      */
     public GetAsyncStatusRequest(String id) {
@@ -34,18 +34,14 @@ public class GetAsyncStatusRequest extends ActionRequest {
     public GetAsyncStatusRequest(StreamInput in) throws IOException {
         super(in);
         this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.keepAlive = in.readTimeValue();
-        }
+        this.keepAlive = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeTimeValue(keepAlive);
-        }
+        out.writeTimeValue(keepAlive);
     }
 
     @Override

@@ -39,11 +39,6 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
      */
     protected abstract int size(long bucketOrd);
 
-    /**
-     * return the current values in the counter.
-     */
-    protected abstract HashesIterator values(long bucketOrd);
-
     public int collect(long bucketOrd, long hash) {
         final int k = encodeHash(hash, p);
         return addEncoded(bucketOrd, k);
@@ -96,5 +91,24 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
          * @return the current value of the counter.
          */
         int value();
+
+        HashesIterator EMPTY = new EmptyIterator();
+    }
+
+    private static class EmptyIterator implements HashesIterator {
+        @Override
+        public int size() {
+            return 0;
+        }
+
+        @Override
+        public boolean next() {
+            return false;
+        }
+
+        @Override
+        public int value() {
+            throw new IllegalStateException("empty iterator");
+        }
     }
 }

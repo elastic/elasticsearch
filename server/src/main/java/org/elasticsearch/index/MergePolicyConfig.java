@@ -14,6 +14,7 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -116,9 +117,9 @@ public final class MergePolicyConfig {
     private final ByteSizeValue defaultMaxTimeBasedMergedSegment;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
-    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = ByteSizeValue.of(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
-    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
+    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = ByteSizeValue.of(5, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "indices.merge.policy.max_merged_segment",
         DEFAULT_MAX_MERGED_SEGMENT,
@@ -131,7 +132,7 @@ public final class MergePolicyConfig {
      * of merging fewer segments together than the merge factor, which in-turn increases write amplification. So we set an arbitrarily high
      * roof that serves as a protection that we expect to never hit.
      */
-    public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = new ByteSizeValue(100, ByteSizeUnit.GB);
+    public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = ByteSizeValue.of(100, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "indices.merge.policy.max_time_based_merged_segment",
         DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT,
@@ -236,7 +237,7 @@ public final class MergePolicyConfig {
         "index.merge.policy.max_merge_at_once_explicit",
         30,
         2,
-        Property.Deprecated, // When removing in 9.0 follow the approach of IndexSettingDeprecatedInV7AndRemovedInV8
+        Property.IndexSettingDeprecatedInV9AndRemovedInV10,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -398,26 +399,32 @@ public final class MergePolicyConfig {
             return new CompoundFileThreshold(1.0d);
         } else if (noCFSRatio.equalsIgnoreCase("false")) {
             return new CompoundFileThreshold(0.0d);
-        } else {
+        }
+        NumberFormatException suppressedNfe = null;
+        if (noCFSRatio.endsWith("b") == false) {
+            // If the value ends with a `b`, it implies it is probably a byte size value, so do not try to parse as a ratio at all.
+            // The main motivation is to make parsing faster. Using exception throwing and catching when trying to parse
+            // as a ratio as a means of identifying that a string is not a ratio can be quite slow.
             try {
-                try {
-                    return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
-                } catch (NumberFormatException ex) {
-                    throw new IllegalArgumentException(
-                        "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
-                            + noCFSRatio
-                            + "]",
-                        ex
-                    );
-                }
-            } catch (IllegalArgumentException e) {
-                try {
-                    return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
-                } catch (RuntimeException e2) {
-                    e.addSuppressed(e2);
-                }
-                throw e;
+                return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
+            } catch (NumberFormatException e) {
+                // ignore for now, see if it parses as bytes
+                suppressedNfe = e;
             }
+        }
+        try {
+            return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
+        } catch (ElasticsearchParseException ex) {
+            final var illegalArgumentException = new IllegalArgumentException(
+                "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
+                    + noCFSRatio
+                    + "]",
+                ex
+            );
+            if (suppressedNfe != null) {
+                illegalArgumentException.addSuppressed(suppressedNfe);
+            }
+            throw illegalArgumentException;
         }
     }
 

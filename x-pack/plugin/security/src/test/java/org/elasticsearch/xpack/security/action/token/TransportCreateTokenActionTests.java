@@ -27,8 +27,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
@@ -93,6 +95,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     private AuthenticationService authenticationService;
     private MockLicenseState license;
     private SecurityContext securityContext;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setupClient() {
@@ -149,11 +152,13 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         // setup lifecycle service
         securityIndex = mock(SecurityIndexManager.class);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
 
         doAnswer(invocationOnMock -> {
             AuthenticationToken authToken = (AuthenticationToken) invocationOnMock.getArguments()[2];
@@ -169,7 +174,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
                     && new String((byte[]) token.credentials(), StandardCharsets.UTF_8).equals("fail")) {
                     String errorMessage = "failed to authenticate user, gss context negotiation not complete";
                     ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
-                    ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
+                    ese.addBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
                     authListener.onFailure(ese);
                     return Void.TYPE;
                 }
@@ -190,6 +195,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         this.license = mock(MockLicenseState.class);
         when(license.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
+
+        this.bytesRefRecycler = new MockBytesRefRecycler();
     }
 
     @After
@@ -197,6 +204,11 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         if (threadPool != null) {
             terminate(threadPool);
         }
+    }
+
+    @After
+    public void cleanupMocks() {
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testClientCredentialsCreatesWithoutRefreshToken() throws Exception {
@@ -208,7 +220,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -249,7 +262,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -292,7 +306,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -318,9 +333,9 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         action.doExecute(null, createTokenRequest, tokenResponseFuture);
         if (failOrSuccess.equals("fail")) {
             ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> tokenResponseFuture.actionGet());
-            assertNotNull(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE));
-            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size(), is(1));
-            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), is("Negotiate FAIL"));
+            assertNotNull(ese.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE));
+            assertThat(ese.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size(), is(1));
+            assertThat(ese.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), is("Negotiate FAIL"));
         } else {
             CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
             assertNotNull(createTokenResponse.getRefreshToken());
@@ -345,7 +360,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe"))
@@ -387,7 +403,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build(false);
         authentication.writeToContext(threadPool.getThreadContext());

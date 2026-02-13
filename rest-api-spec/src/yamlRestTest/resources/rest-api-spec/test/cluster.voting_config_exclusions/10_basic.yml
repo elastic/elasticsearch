@@ -1,3 +1,16 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_cluster/voting_config_exclusions
+          capabilities: [ plain_text_empty_response ]
+        - method: DELETE
+          path: /_cluster/voting_config_exclusions
+          capabilities: [ plain_text_empty_response ]
+      reason: needs these capabilities
+
+---
 teardown:
   - do:
       cluster.delete_voting_config_exclusions: {}

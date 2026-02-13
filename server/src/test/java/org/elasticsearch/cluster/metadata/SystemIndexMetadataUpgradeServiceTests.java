@@ -11,20 +11,32 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
@@ -46,19 +58,64 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         .setAliasName(SYSTEM_ALIAS_NAME)
         .setSettings(getSettingsBuilder().build())
         .setMappings(MAPPINGS)
-        .setVersionMetaKey("version")
         .setOrigin("FAKE_ORIGIN")
         .build();
 
-    private SystemIndexMetadataUpgradeService service;
+    private static final String SYSTEM_DATA_STREAM_NAME = ".my-ds";
+    private static final String SYSTEM_DATA_STREAM_INDEX_NAME = DataStream.BACKING_INDEX_PREFIX + SYSTEM_DATA_STREAM_NAME + "-1";
+    private static final String SYSTEM_DATA_STREAM_FAILSTORE_NAME = DataStream.FAILURE_STORE_PREFIX + SYSTEM_DATA_STREAM_NAME;
+    private static final SystemDataStreamDescriptor SYSTEM_DATA_STREAM_DESCRIPTOR = new SystemDataStreamDescriptor(
+        SYSTEM_DATA_STREAM_NAME,
+        "System datastream for test",
+        SystemDataStreamDescriptor.Type.INTERNAL,
+        ComposableIndexTemplate.builder().build(),
+        Collections.emptyMap(),
+        Collections.singletonList("FAKE_ORIGIN"),
+        "FAKE_ORIGIN",
+        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+    );
 
+    private SystemIndexMetadataUpgradeService service;
+    private ClusterStateTaskListener task;
+    private ClusterStateTaskExecutor<ClusterStateTaskListener> executor;
+
+    @SuppressWarnings("unchecked")
     @Before
     public void setUpTest() {
         // set up a system index upgrade service
+        ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<ClusterStateTaskListener> queue = mock(MasterServiceTaskQueue.class);
+        when(clusterService.createTaskQueue(eq("system-indices-metadata-upgrade"), eq(Priority.NORMAL), any())).thenAnswer(invocation -> {
+            executor = invocation.getArgument(2, ClusterStateTaskExecutor.class);
+            return queue;
+        });
+        doAnswer(invocation -> {
+            task = invocation.getArgument(1, ClusterStateTaskListener.class);
+            return null;
+        }).when(queue).submitTask(any(), any(), any());
+
         this.service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(List.of(new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
-            mock(ClusterService.class)
+            new SystemIndices(
+                List.of(
+                    new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)),
+                    new SystemIndices.Feature(
+                        "sds",
+                        "system data stream feature",
+                        Collections.emptyList(),
+                        Collections.singletonList(SYSTEM_DATA_STREAM_DESCRIPTOR)
+                    )
+                )
+            ),
+            clusterService
         );
+    }
+
+    private ClusterState executeTask(ClusterState clusterState) {
+        try {
+            return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, Collections.singletonList(task));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -74,6 +131,54 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .build();
 
         assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
+    }
+
+    public void testUpgradeDataStreamToSystemDataStream() {
+        IndexMetadata dsIndexMetadata = IndexMetadata.builder(SYSTEM_DATA_STREAM_INDEX_NAME)
+            .system(false)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        IndexMetadata fsIndexMetadata = IndexMetadata.builder(SYSTEM_DATA_STREAM_FAILSTORE_NAME)
+            .system(false)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        DataStream.DataStreamIndices failureIndices = DataStream.DataStreamIndices.failureIndicesBuilder(
+            Collections.singletonList(fsIndexMetadata.getIndex())
+        ).build();
+        DataStream dataStream = DataStream.builder(SYSTEM_DATA_STREAM_NAME, Collections.singletonList(dsIndexMetadata.getIndex()))
+            .setFailureIndices(failureIndices)
+            .setHidden(false)
+            .setSystem(false)
+            .build();
+
+        assertTrue(dataStream.containsIndex(dsIndexMetadata.getIndex().getName()));
+        assertTrue(dataStream.containsIndex(fsIndexMetadata.getIndex().getName()));
+
+        Metadata.Builder clusterMetadata = new Metadata.Builder();
+        clusterMetadata.put(dataStream);
+        clusterMetadata.put(dsIndexMetadata, true);
+        clusterMetadata.put(fsIndexMetadata, true);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(clusterMetadata.build())
+            .customs(Map.of())
+            .build();
+
+        service.submitUpdateTask(Collections.emptyList(), Collections.singletonList(dataStream));
+        // Execute a metadata upgrade task on the initial cluster state
+        ClusterState newState = executeTask(clusterState);
+
+        DataStream updatedDataStream = newState.metadata().getProject().dataStreams().get(dataStream.getName());
+        assertThat(updatedDataStream.isSystem(), equalTo(true));
+        assertThat(updatedDataStream.isHidden(), equalTo(true));
+
+        IndexMetadata updatedIndexMetadata = newState.metadata().getProject().index(dsIndexMetadata.getIndex().getName());
+        assertThat(updatedIndexMetadata.isSystem(), equalTo(true));
+        assertThat(updatedIndexMetadata.isHidden(), equalTo(true));
+
+        IndexMetadata updatedFailstoreMetadata = newState.metadata().getProject().index(fsIndexMetadata.getIndex().getName());
+        assertThat(updatedFailstoreMetadata.isSystem(), equalTo(true));
+        assertThat(updatedFailstoreMetadata.isHidden(), equalTo(true));
     }
 
     /**
@@ -210,7 +315,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         assertThat(service.requiresUpdate(systemVisibleIndex), equalTo(true));
     }
 
-    private void assertSystemUpgradeAppliesHiddenSetting(IndexMetadata hiddenIndexMetadata) throws Exception {
+    private void assertSystemUpgradeAppliesHiddenSetting(IndexMetadata hiddenIndexMetadata) {
         assertTrue("Metadata should require update but does not", service.requiresUpdate(hiddenIndexMetadata));
         Metadata.Builder clusterMetadata = new Metadata.Builder();
         clusterMetadata.put(IndexMetadata.builder(hiddenIndexMetadata));
@@ -220,10 +325,11 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .customs(Map.of())
             .build();
 
+        service.submitUpdateTask(Collections.singletonList(hiddenIndexMetadata.getIndex()), Collections.emptyList());
         // Get a metadata upgrade task and execute it on the initial cluster state
-        ClusterState newState = service.getTask().execute(clusterState);
+        ClusterState newState = executeTask(clusterState);
 
-        IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
+        IndexMetadata result = newState.metadata().getProject().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
         assertThat(result.isHidden(), equalTo(true));
     }
@@ -238,10 +344,11 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .customs(Map.of())
             .build();
 
+        service.submitUpdateTask(Collections.singletonList(visibleAliasMetadata.getIndex()), Collections.emptyList());
         // Get a metadata upgrade task and execute it on the initial cluster state
-        ClusterState newState = service.getTask().execute(clusterState);
+        ClusterState newState = executeTask(clusterState);
 
-        IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
+        IndexMetadata result = newState.metadata().getProject().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
         assertThat(result.getAliases().values().stream().allMatch(AliasMetadata::isHidden), equalTo(true));
     }

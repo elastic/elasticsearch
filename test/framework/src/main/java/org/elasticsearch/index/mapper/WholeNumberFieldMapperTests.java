@@ -39,6 +39,8 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
 
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
         assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {
@@ -47,30 +49,14 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
     }
 
@@ -80,11 +66,11 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
             b.field("time_series_dimension", true);
         }), IndexMode.TIME_SERIES);
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field", randomNumber(), randomNumber(), randomNumber());
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
@@ -122,5 +108,10 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::longValue, ignoreMalformed);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(Number::longValue, ignoreMalformed, sourceKeepMode);
     }
 }

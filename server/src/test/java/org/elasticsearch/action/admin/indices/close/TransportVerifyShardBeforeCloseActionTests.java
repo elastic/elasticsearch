@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -25,12 +26,17 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,7 +46,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -58,6 +63,7 @@ import static org.elasticsearch.action.support.replication.ClusterStateCreationU
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,6 +80,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
+    private ProjectId projectId;
     private IndexShard indexShard;
     private TransportVerifyShardBeforeCloseAction action;
     private ClusterService clusterService;
@@ -90,6 +97,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
+        projectId = randomProjectIdOrDefault();
         indexShard = mock(IndexShard.class);
         when(indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
 
@@ -99,11 +107,19 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
 
         clusterBlock = MetadataIndexStateService.createIndexClosingBlock();
+        final var projectMetadata = ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder(indexShard.shardId().getIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build(),
+                false
+            )
+            .build();
         setState(
             clusterService,
-            new ClusterState.Builder(clusterService.state()).blocks(
-                ClusterBlocks.builder().blocks(clusterService.state().blocks()).addIndexBlock("index", clusterBlock).build()
-            ).build()
+            new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectMetadata)
+                .blocks(
+                    ClusterBlocks.builder().blocks(clusterService.state().blocks()).addIndexBlock(projectId, "index", clusterBlock).build()
+                )
+                .build()
         );
 
         transport = new CapturingTransport();
@@ -144,10 +160,14 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     }
 
     private void executeOnPrimaryOrReplica() throws Throwable {
-        executeOnPrimaryOrReplica(false);
+        executeOnPrimaryOrReplica(indexShard, false);
     }
 
     private void executeOnPrimaryOrReplica(boolean phase1) throws Throwable {
+        executeOnPrimaryOrReplica(indexShard, phase1);
+    }
+
+    private void executeOnPrimaryOrReplica(IndexShard indexShard, boolean phase1) throws Throwable {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request = new TransportVerifyShardBeforeCloseAction.ShardRequest(
             indexShard.shardId(),
@@ -171,7 +191,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        doReturn(true).when(indexShard).flush(flushRequest.capture());
+        doReturn(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED).when(indexShard).flush(flushRequest.capture());
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));
@@ -180,6 +200,20 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     public void testShardIsSynced() throws Throwable {
         executeOnPrimaryOrReplica(true);
         verify(indexShard, times(1)).sync();
+    }
+
+    public void testOperationFailsWhenProjectOrIndexNotFound() {
+        final var anotherIndexShard = mock(IndexShard.class);
+        final ShardId shardId = new ShardId("another-index", "another-uuid", randomIntBetween(0, 3));
+        when(anotherIndexShard.shardId()).thenReturn(shardId);
+        when(anotherIndexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
+
+        IndexNotFoundException exception = expectThrows(
+            IndexNotFoundException.class,
+            () -> executeOnPrimaryOrReplica(anotherIndexShard, false)
+        );
+        assertThat(exception.getMessage(), containsString("no such index [" + anotherIndexShard.shardId().getIndex() + "]"));
+        verify(anotherIndexShard, times(0)).flush(any(FlushRequest.class));
     }
 
     public void testOperationFailsWhenNotBlocked() {
@@ -194,7 +228,13 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     }
 
     public void testOperationFailsWithNoBlock() {
-        setState(clusterService, new ClusterState.Builder(new ClusterName("test")).build());
+        final var projectMetadata = ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder(indexShard.shardId().getIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build(),
+                false
+            )
+            .build();
+        setState(clusterService, new ClusterState.Builder(new ClusterName("test")).putProjectMetadata(projectMetadata).build());
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         assertThat(
@@ -226,11 +266,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         for (int i = 0; i < replicaStates.length; i++) {
             replicaStates[i] = ShardRoutingState.STARTED;
         }
-        final ClusterState clusterState = state(index, true, ShardRoutingState.STARTED, replicaStates);
+        final ClusterState clusterState = state(projectId, index, true, ShardRoutingState.STARTED, replicaStates);
         setState(clusterService, clusterState);
 
-        IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(index).shard(shardId.id());
-        final IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+        IndexShardRoutingTable shardRoutingTable = clusterState.routingTable(projectId).index(index).shard(shardId.id());
+        final IndexMetadata indexMetadata = clusterState.getMetadata().getProject(projectId).index(index);
         final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
         final long primaryTerm = indexMetadata.primaryTerm(0);
 
@@ -280,7 +320,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                 assertThat(capturedRequest.request(), instanceOf(ShardStateAction.FailedShardEntry.class));
                 String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request()).getAllocationId();
                 assertTrue(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
-                transport.handleResponse(capturedRequest.requestId(), TransportResponse.Empty.INSTANCE);
+                transport.handleResponse(capturedRequest.requestId(), ActionResponse.Empty.INSTANCE);
 
             } else if (actionName.startsWith(TransportVerifyShardBeforeCloseAction.NAME)) {
                 assertThat(capturedRequest.request(), instanceOf(ConcreteShardRequest.class));

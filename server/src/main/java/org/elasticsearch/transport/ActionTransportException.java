@@ -9,7 +9,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -25,10 +24,6 @@ public class ActionTransportException extends TransportException {
 
     public ActionTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_1_0)) {
-            in.readOptionalWriteable(TransportAddress::new);
-            in.readOptionalString();
-        }
     }
 
     public ActionTransportException(String name, TransportAddress address, String action, Throwable cause) {
@@ -46,10 +41,6 @@ public class ActionTransportException extends TransportException {
     @Override
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
-        if (out.getTransportVersion().before(TransportVersions.V_8_1_0)) {
-            out.writeMissingWriteable(TransportAddress.class);
-            out.writeMissingString(); // action
-        }
     }
 
     private static String buildMessage(String name, InetSocketAddress address, String action, String msg) {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -23,13 +22,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -37,10 +37,9 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.LongSupplier;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -52,11 +51,8 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    private final ThreadPool threadPool;
-
-    public RestClusterStateAction(SettingsFilter settingsFilter, ThreadPool threadPool) {
+    public RestClusterStateAction(SettingsFilter settingsFilter) {
         this.settingsFilter = settingsFilter;
-        this.threadPool = threadPool;
     }
 
     @Override
@@ -82,7 +78,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        RestUtils.consumeDeprecatedLocalParameter(request);
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
@@ -111,13 +107,22 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
         settingsFilter.addFilterSettingParams(request);
 
+        // We'll probably want to review this approach of adding the XContent parameter.
+        @FixForMultiProject
+        final Map<String, String> params;
+        if (request.paramAsBoolean("multi_project", false)) {
+            params = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API, "multi-project", "true");
+            clusterStateRequest.multiproject(true);
+        } else {
+            params = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             ClusterStateAction.INSTANCE,
             clusterStateRequest,
-            new RestChunkedToXContentListener<RestClusterStateResponse>(
-                channel,
-                new ToXContent.DelegatingMapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request)
-            ).map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool.relativeTimeInMillisSupplier()))
+            new RestChunkedToXContentListener<RestClusterStateResponse>(channel, new ToXContent.DelegatingMapParams(params, request)).map(
+                response -> new RestClusterStateResponse(clusterStateRequest, response)
+            )
         );
     }
 
@@ -136,28 +141,10 @@ public class RestClusterStateAction extends BaseRestHandler {
         static final String CLUSTER_NAME = "cluster_name";
     }
 
-    private static class RestClusterStateResponse implements ChunkedToXContent {
-
-        private final ClusterStateRequest request;
-        private final ClusterStateResponse response;
-        private final LongSupplier currentTimeMillisSupplier;
-        private final long startTimeMillis;
-
-        RestClusterStateResponse(ClusterStateRequest request, ClusterStateResponse response, LongSupplier currentTimeMillisSupplier) {
-            this.request = request;
-            this.response = response;
-            this.currentTimeMillisSupplier = currentTimeMillisSupplier;
-            this.startTimeMillis = currentTimeMillisSupplier.getAsLong();
-        }
+    private record RestClusterStateResponse(ClusterStateRequest request, ClusterStateResponse response) implements ChunkedToXContent {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-            if (request.local() == false
-                && request.masterNodeTimeout().millis() >= 0
-                && currentTimeMillisSupplier.getAsLong() - startTimeMillis > request.masterNodeTimeout().millis()) {
-                throw new ElasticsearchTimeoutException("Timed out getting cluster state");
-            }
-
             final ClusterState responseState = response.getState();
 
             return Iterators.concat(Iterators.single((builder, params) -> {

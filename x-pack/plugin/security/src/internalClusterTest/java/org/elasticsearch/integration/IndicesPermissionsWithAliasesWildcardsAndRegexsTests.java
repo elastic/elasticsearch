@@ -206,7 +206,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
         );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         aliasesRequest.addAliasAction(
             new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD).aliases("my_alias", "an_alias")
                 .index("test")

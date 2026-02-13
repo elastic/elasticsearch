@@ -36,11 +36,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.MAX_MODEL_MEMORY_LIMIT;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderServiceTests.AUTO_NODE_TIERS_NO_MONITORING;

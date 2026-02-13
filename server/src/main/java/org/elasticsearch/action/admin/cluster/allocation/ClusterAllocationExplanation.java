@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,7 +36,7 @@ import java.util.Iterator;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
 /**
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard is unassigned,
@@ -80,11 +79,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-            this.specificShard = in.readBoolean();
-        } else {
-            this.specificShard = true; // suppress "this is a random shard" warning in BwC situations
-        }
+        this.specificShard = in.readBoolean();
         this.shardRouting = new ShardRouting(in);
         this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.relocationTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
@@ -94,9 +89,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-            out.writeBoolean(specificShard);
-        } // else suppress "this is a random shard" warning in BwC situations
+        out.writeBoolean(specificShard);
         shardRouting.writeTo(out);
         out.writeOptionalWriteable(currentNode);
         out.writeOptionalWriteable(relocationTargetNode);
@@ -169,7 +162,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
     }
 
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(singleChunk((builder, p) -> {
+        return Iterators.concat(chunk((builder, p) -> {
             builder.startObject();
 
             if (isSpecificShard() == false) {
@@ -196,11 +189,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
             return builder;
         }),
             this.clusterInfo != null
-                ? Iterators.concat(
-                    ChunkedToXContentHelper.startObject("cluster_info"),
-                    this.clusterInfo.toXContentChunked(params),
-                    ChunkedToXContentHelper.endObject()
-                )
+                ? ChunkedToXContentHelper.object("cluster_info", this.clusterInfo.toXContentChunked(params))
                 : Collections.emptyIterator(),
             getShardAllocationDecisionChunked(params),
             Iterators.single((builder, p) -> builder.endObject())

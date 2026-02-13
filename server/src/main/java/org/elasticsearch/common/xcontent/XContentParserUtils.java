@@ -72,7 +72,21 @@ public final class XContentParserUtils {
         }
     }
 
-    private static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
+    /**
+     * Makes sure the provided token {@linkplain Token#isValue() is a value type}
+     *
+     * @throws ParsingException if the token is not a value type
+     */
+    public static void expectValueToken(Token actual, XContentParser parser) {
+        if (actual.isValue() == false) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Failed to parse object: expecting value token but found [%s]", actual)
+            );
+        }
+    }
+
+    public static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
         return new ParsingException(
             parser.getTokenLocation(),
             String.format(Locale.ROOT, "Failed to parse object: expecting token of type [%s] but found [%s]", expected, actual)

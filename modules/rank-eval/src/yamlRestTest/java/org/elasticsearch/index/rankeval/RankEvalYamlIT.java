@@ -12,10 +12,16 @@ package org.elasticsearch.index.rankeval;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class RankEvalYamlIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-mustache").module("rank-eval").build();
+
     public RankEvalYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
@@ -23,5 +29,10 @@ public class RankEvalYamlIT extends ESClientYamlSuiteTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

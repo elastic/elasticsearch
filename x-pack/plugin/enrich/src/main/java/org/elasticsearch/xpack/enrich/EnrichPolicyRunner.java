@@ -40,10 +40,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -102,6 +103,7 @@ public class EnrichPolicyRunner {
      */
     static final TimeValue ENRICH_MASTER_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
+    private final ProjectId projectId;
     private final String policyName;
     private final EnrichPolicy policy;
     private final ExecuteEnrichPolicyTask task;
@@ -114,6 +116,7 @@ public class EnrichPolicyRunner {
     private final int maxForceMergeAttempts;
 
     EnrichPolicyRunner(
+        ProjectId projectId,
         String policyName,
         EnrichPolicy policy,
         ExecuteEnrichPolicyTask task,
@@ -125,6 +128,7 @@ public class EnrichPolicyRunner {
         int fetchSize,
         int maxForceMergeAttempts
     ) {
+        this.projectId = projectId;
         this.policyName = Objects.requireNonNull(policyName);
         this.policy = Objects.requireNonNull(policy);
         this.task = Objects.requireNonNull(task);
@@ -147,7 +151,7 @@ public class EnrichPolicyRunner {
                 // Collect the source index information
                 final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
                 logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
-                GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
+                GetIndexRequest getIndexRequest = new GetIndexRequest(ENRICH_MASTER_REQUEST_TIMEOUT).indices(sourceIndices);
                 // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
                 client.admin().indices().getIndex(getIndexRequest, l);
             })
@@ -480,7 +484,7 @@ public class EnrichPolicyRunner {
 
     private void prepareReindexOperation(ActionListener<AcknowledgedResponse> listener) {
         // Check to make sure that the enrich pipeline exists, and create it if it is missing.
-        if (EnrichPolicyReindexPipeline.exists(clusterService.state())) {
+        if (EnrichPolicyReindexPipeline.exists(clusterService.state().getMetadata().getProject(projectId))) {
             listener.onResponse(null);
         } else {
             EnrichPolicyReindexPipeline.create(enrichOriginClient(), listener);
@@ -700,8 +704,8 @@ public class EnrichPolicyRunner {
      * and recreated with invalid mappings/data. We validate that the mapping exists and that it contains the expected meta fields on it to
      * guard against accidental removal and recreation during policy execution.
      */
-    private void validateIndexBeforePromotion(String destinationIndexName, ClusterState clusterState) {
-        IndexMetadata destinationIndex = clusterState.metadata().index(destinationIndexName);
+    private void validateIndexBeforePromotion(String destinationIndexName, ProjectMetadata project) {
+        IndexMetadata destinationIndex = project.index(destinationIndexName);
         if (destinationIndex == null) {
             throw new IndexNotFoundException(
                 "was not able to promote it as part of executing enrich policy [" + policyName + "]",
@@ -748,13 +752,13 @@ public class EnrichPolicyRunner {
     private void updateEnrichPolicyAlias(ActionListener<IndicesAliasesResponse> listener) {
         String enrichIndexBase = EnrichPolicy.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, enrichIndexName, enrichIndexBase);
-        GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
-        ClusterState clusterState = clusterService.state();
-        validateIndexBeforePromotion(enrichIndexName, clusterState);
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
+        GetAliasesRequest aliasRequest = new GetAliasesRequest(ENRICH_MASTER_REQUEST_TIMEOUT, enrichIndexBase);
+        final var project = clusterService.state().metadata().getProject(projectId);
+        validateIndexBeforePromotion(enrichIndexName, project);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(project, aliasRequest);
         String[] aliases = aliasRequest.aliases();
-        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
-        String[] indices = clusterState.metadata().findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
+        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest(ENRICH_MASTER_REQUEST_TIMEOUT, ENRICH_MASTER_REQUEST_TIMEOUT);
+        String[] indices = project.findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }

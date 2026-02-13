@@ -11,6 +11,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryTests;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.test.ESTestCase;
@@ -41,7 +43,6 @@ public class AddPageTests extends ESTestCase {
         }
         expected.add(added(3, 4));
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     public void testMvBlockEndsOnBatchBoundary() {
@@ -69,7 +70,6 @@ public class AddPageTests extends ESTestCase {
          * about.
          */
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     public void testMvPositionEndOnBatchBoundary() {
@@ -92,7 +92,6 @@ public class AddPageTests extends ESTestCase {
         // Because the first position ended on a block boundary we uselessly emit an empty position there
         expected.add(new Added(0, List.of(List.of(), List.of(0, 2))));
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     public void testMv() {
@@ -114,7 +113,6 @@ public class AddPageTests extends ESTestCase {
         }
         expected.add(new Added(1, List.of(List.of(2))));
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     /**
@@ -158,12 +156,9 @@ public class AddPageTests extends ESTestCase {
     }
 
     private class TestAddInput implements GroupingAggregatorFunction.AddInput {
-        private boolean closed = false;
-
         private final List<Added> added = new ArrayList<>();
 
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        private void addBlock(int positionOffset, IntBlock groupIds) {
             List<List<Integer>> result = new ArrayList<>(groupIds.getPositionCount());
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
                 int valueCount = groupIds.getValueCount(p);
@@ -179,13 +174,23 @@ public class AddPageTests extends ESTestCase {
         }
 
         @Override
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+            addBlock(positionOffset, groupIds);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            addBlock(positionOffset, groupIds);
+        }
+
+        @Override
         public void add(int positionOffset, IntVector groupIds) {
-            add(positionOffset, groupIds.asBlock());
+            addBlock(positionOffset, groupIds.asBlock());
         }
 
         @Override
         public void close() {
-            closed = true;
+            fail("shouldn't close");
         }
     }
 
@@ -193,7 +198,12 @@ public class AddPageTests extends ESTestCase {
         private int count;
 
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+            count++;
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
             count++;
         }
 

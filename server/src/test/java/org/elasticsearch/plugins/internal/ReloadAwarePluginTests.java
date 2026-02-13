@@ -22,7 +22,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ESTestCase.WithoutSecurityManager
 public class ReloadAwarePluginTests extends ESTestCase {
 
     public void testNodeInitializesReloadingPlugin() throws Exception {

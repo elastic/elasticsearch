@@ -49,7 +49,7 @@ public class MvMedian extends AbstractMultivalueFunction {
             @Example(
                 description = "If the row has an even number of values for a column, "
                     + "the result will be the average of the middle two entries. If the column is not floating point, "
-                    + "the average rounds *down*:",
+                    + "the average rounds **down**:",
                 file = "math",
                 tag = "mv_median_round_down"
             ) }

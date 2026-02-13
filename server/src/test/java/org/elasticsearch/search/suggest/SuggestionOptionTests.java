@@ -10,11 +10,11 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;

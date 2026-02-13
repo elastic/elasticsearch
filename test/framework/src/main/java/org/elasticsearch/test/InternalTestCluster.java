@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -25,10 +26,12 @@ import org.elasticsearch.action.admin.cluster.configuration.TransportClearVoting
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
@@ -74,7 +77,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -146,6 +148,8 @@ import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOS
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.assertFalse;
+import static org.elasticsearch.test.ESTestCase.assertTrue;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.runInParallel;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
@@ -160,9 +164,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -175,8 +177,30 @@ import static org.junit.Assert.fail;
  * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
  * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
  * </p>
+ * <h2>{@link NodeConfigurationSource#nodeSettings} ordinals</h2>
+ * The supplied node ordinal for this node settings getter is generated as follows:
+ * <ol>
+ *     <li>
+ *         The first indices correspond to the dedicated master nodes, enabled with the {@code randomlyAddDedicatedMasters} setting.
+ *         Its amount can't currently be configured.
+ *     </li>
+ *     <li>
+ *         Then, the data nodes, controlled by the @{code minNumDataNodes} and @{code maxNumDataNodes} settings.
+ *     </li>
+ *     <li>
+ *         Finally, the coordinating-only, configured with the {@code numClientNodes} setting.
+ *     </li>
+ * </ol>
  */
 public final class InternalTestCluster extends TestCluster {
+
+    /**
+     * Temporarily adds node paths based entitlements based on a node's {@code settings} and {@code configPath}
+     * until the returned handle is closed.
+     */
+    public interface EntitledNodePathsProvider {
+        Closeable addEntitledNodePaths(Settings settings, Path configPath);
+    }
 
     private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
@@ -254,6 +278,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final int numDataPaths;
 
+    private String internalClientOrigin = null;
+
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -277,6 +303,8 @@ public final class InternalTestCluster extends TestCluster {
     // index of node to bootstrap as master, or BOOTSTRAP_MASTER_NODE_INDEX_AUTO or BOOTSTRAP_MASTER_NODE_INDEX_DONE
     private int bootstrapMasterNodeIndex = BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
 
+    private final EntitledNodePathsProvider entitledNodePathsProvider;
+
     public InternalTestCluster(
         final long clusterSeed,
         final Path baseDir,
@@ -289,7 +317,8 @@ public final class InternalTestCluster extends TestCluster {
         final int numClientNodes,
         final String nodePrefix,
         final Collection<Class<? extends Plugin>> mockPlugins,
-        final Function<Client, Client> clientWrapper
+        final Function<Client, Client> clientWrapper,
+        EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         this(
             clusterSeed,
@@ -306,7 +335,8 @@ public final class InternalTestCluster extends TestCluster {
             clientWrapper,
             true,
             false,
-            true
+            true,
+            entitledNodePathsProvider
         );
     }
 
@@ -325,7 +355,8 @@ public final class InternalTestCluster extends TestCluster {
         final Function<Client, Client> clientWrapper,
         final boolean forbidPrivateIndexSettings,
         final boolean forceSingleDataPath,
-        final boolean autoManageVotingExclusions
+        final boolean autoManageVotingExclusions,
+        final EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
@@ -334,6 +365,7 @@ public final class InternalTestCluster extends TestCluster {
         this.baseDir = baseDir;
         this.clusterName = clusterName;
         this.autoManageVotingExclusions = autoManageVotingExclusions;
+        this.entitledNodePathsProvider = entitledNodePathsProvider;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -574,12 +606,12 @@ public final class InternalTestCluster extends TestCluster {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
                 );
             } else {
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
                 );
             }
         }
@@ -724,6 +756,11 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public InternalTestCluster internalClientOrigin(String origin) {
+        this.internalClientOrigin = origin;
+        return this;
+    }
+
     private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings) {
         final Settings settings = getSettings(nodeId, seed, extraSettings);
 
@@ -782,7 +819,14 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(settings, plugins, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+        Path configPath = nodeConfigurationSource.nodeConfigPath(nodeId);
+        MockNode node = new MockNode(
+            settings,
+            plugins,
+            configPath,
+            forbidPrivateIndexSettings,
+            entitledNodePathsProvider.addEntitledNodePaths(settings, configPath)
+        );
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -830,14 +874,25 @@ public final class InternalTestCluster extends TestCluster {
     public Client client() {
         /* Randomly return a client to one of the nodes in the cluster */
         NodeAndClient c = getRandomNodeAndClient();
-        ensureOpen();
         if (c == null) {
-            synchronized (this) {
-                return getOrBuildRandomNode().client();
-            }
-        } else {
-            return c.client();
+            throw new AssertionError("Unable to get client, no node found");
         }
+        ensureOpen();
+        return c.client();
+    }
+
+    @Override
+    protected Client internalClient() {
+        return internalClient(null);
+    }
+
+    private Client internalClient(@Nullable String nodeName) {
+        Client client = nodeName != null ? client(nodeName) : client();
+        return makeInternal(client);
+    }
+
+    private Client makeInternal(Client client) {
+        return internalClientOrigin != null ? new OriginSettingClient(client, internalClientOrigin) : client;
     }
 
     /**
@@ -1060,7 +1115,12 @@ public final class InternalTestCluster extends TestCluster {
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins, forbidPrivateIndexSettings);
+            node = new MockNode(
+                finalSettings,
+                plugins,
+                forbidPrivateIndexSettings,
+                entitledNodePathsProvider.addEntitledNodePaths(finalSettings, null)
+            );
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {
@@ -1240,16 +1300,29 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth(TEST_REQUEST_TIMEOUT)
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNodes(Integer.toString(expectedNodes.size()))
-                .get(TimeValue.timeValueSeconds(40))
-                .isTimedOut()
-        );
         try {
+            assertBusy(() -> {
+                try {
+                    final boolean timeout = internalClient().admin()
+                        .cluster()
+                        .prepareHealth(TEST_REQUEST_TIMEOUT)
+                        .setWaitForEvents(Priority.LANGUID)
+                        .setWaitForNodes(Integer.toString(expectedNodes.size()))
+                        .get(TimeValue.timeValueSeconds(40))
+                        .isTimedOut();
+                    if (timeout) {
+                        throw new IllegalStateException("timed out waiting for cluster to form");
+                    }
+                } catch (UnavailableShardsException e) {
+                    if (e.getMessage() != null && e.getMessage().contains(".security")) {
+                        // security index may not be ready yet, throwing assertion error to retry
+                        throw new AssertionError(e);
+                    } else {
+                        throw e;
+                    }
+                }
+            }, 30, TimeUnit.SECONDS);
+
             final Object[] previousStates = new Object[1];
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
@@ -1404,6 +1477,20 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public void assertMergeExecutorIsDone() throws Exception {
+        assertBusy(() -> {
+            for (String nodeName : getNodeNames()) {
+                IndicesService indicesService = getInstance(IndicesService.class, nodeName);
+                if (indicesService.getThreadPoolMergeExecutorService() != null) {
+                    assertTrue(
+                        "thread pool merge executor is not done after test",
+                        indicesService.getThreadPoolMergeExecutorService().allDone()
+                    );
+                }
+            }
+        });
+    }
+
     public void assertNoInFlightDocsInEngine() throws Exception {
         assertBusy(() -> {
             for (String nodeName : getNodeNames()) {
@@ -1485,50 +1572,7 @@ public final class InternalTestCluster extends TestCluster {
      * Asserts that all shards with the same shardId should have document Ids.
      */
     public void assertSameDocIdsOnShards() throws Exception {
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
-                for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
-                    IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
-                    if (primaryShard == null) {
-                        continue;
-                    }
-                    final List<DocIdSeqNoAndSource> docsOnPrimary;
-                    try {
-                        docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
-                    } catch (AlreadyClosedException ex) {
-                        continue;
-                    }
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
-                        IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
-                        if (replicaShard == null) {
-                            continue;
-                        }
-                        final List<DocIdSeqNoAndSource> docsOnReplica;
-                        try {
-                            docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
-                        } catch (AlreadyClosedException ex) {
-                            continue;
-                        }
-                        assertThat(
-                            "out of sync shards: primary=["
-                                + primaryShardRouting
-                                + "] num_docs_on_primary=["
-                                + docsOnPrimary.size()
-                                + "] vs replica=["
-                                + replicaShardRouting
-                                + "] num_docs_on_replica=["
-                                + docsOnReplica.size()
-                                + "]",
-                            docsOnReplica,
-                            equalTo(docsOnPrimary)
-                        );
-                    }
-                }
-            }
-        });
+        assertBusy(() -> ESIntegTestCase.assertSameDocIdsOnShards(this));
     }
 
     private void randomlyResetClients() {
@@ -1536,7 +1580,9 @@ public final class InternalTestCluster extends TestCluster {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            logger.info("Resetting [{}] node clients on internal test cluster", nodesAndClients.size());
             for (NodeAndClient nodeAndClient : nodesAndClients) {
+                logger.info("Resetting [{}] node client on internal test cluster", nodeAndClient.name);
                 nodeAndClient.resetClient();
             }
         }
@@ -1647,7 +1693,7 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, MASTER_NODE_PREDICATE);
     }
 
-    private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
+    private <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
         if (randomNodeAndClient == null) {
             throw new AssertionError("no node matches [" + predicate + "]");
@@ -1792,7 +1838,7 @@ public final class InternalTestCluster extends TestCluster {
                     .distinct()
                     .collect(Collectors.toList());
                 Set<Path> configPaths = Stream.concat(currentNodes.stream(), newNodes.stream())
-                    .map(nac -> nac.node.getEnvironment().configFile())
+                    .map(nac -> nac.node.getEnvironment().configDir())
                     .collect(Collectors.toSet());
                 logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
                 for (final Path configPath : configPaths) {
@@ -1806,7 +1852,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Path> configPaths() {
-        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configFile()).toList();
+        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configDir()).toList();
     }
 
     private void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {
@@ -1931,7 +1977,7 @@ public final class InternalTestCluster extends TestCluster {
 
                 logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeNames);
                 try {
-                    client().execute(
+                    internalClient().execute(
                         TransportAddVotingConfigExclusionsAction.TYPE,
                         new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
@@ -1948,7 +1994,7 @@ public final class InternalTestCluster extends TestCluster {
         if (autoManageVotingExclusions && excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
-                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
+                Client client = makeInternal(getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client());
                 client.execute(
                     TransportClearVotingConfigExclusionsAction.TYPE,
                     new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT)
@@ -2006,13 +2052,37 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getMasterName(@Nullable String viaNode) {
+        viaNode = viaNode != null ? viaNode : getRandomNodeName();
+        if (viaNode == null) {
+            throw new AssertionError("Unable to get master name, no node found");
+        }
         try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName();
+            ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
+            final ClusterState state = internalClient(viaNode).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setBlocks(true)
+                .setNodes(true)
+                .get()
+                .getState();
+            final DiscoveryNode masterNode = state.nodes().getMasterNode();
+            if (masterNode == null) {
+                throw new AssertionError("Master is not stable but the method expects a stable master node");
+            }
+            return masterNode.getName();
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);
         }
+    }
+
+    public String getNonMasterNodeName() {
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.getName();
+        }
+        throw new AssertionError("No non-master node found");
     }
 
     /**
@@ -2020,6 +2090,13 @@ public final class InternalTestCluster extends TestCluster {
      */
     public String getRandomNodeName() {
         return getNodeNameThat(Predicates.always());
+    }
+
+    /**
+     * @return the name of a random data node in a cluster
+     */
+    public String getRandomDataNodeName() {
+        return getNodeNameThat(DiscoveryNode::canContainData);
     }
 
     /**
@@ -2274,6 +2351,11 @@ public final class InternalTestCluster extends TestCluster {
         return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
     }
 
+    public Set<String> masterEligibleNodeNames() {
+        var masterEligibleNodes = filterNodes(nodes, NodeAndClient::isMasterEligible);
+        return masterEligibleNodes.stream().map(nodeAndClient -> nodeAndClient.name).collect(Collectors.toSet());
+    }
+
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         assert activeDisruptionScheme == null
             : "there is already and active disruption [" + activeDisruptionScheme + "]. call clearDisruptionScheme first";
@@ -2345,10 +2427,10 @@ public final class InternalTestCluster extends TestCluster {
                     greaterThan(shard)
                 );
                 ClusterState clusterState = clusterService.state();
-                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getProject().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard("id", routing, null, null, null)) {
+                    if (shard == indexRouting.indexShard(new IndexRequest().id("id").routing(routing))) {
                         return routing;
                     }
                 }
@@ -2510,6 +2592,7 @@ public final class InternalTestCluster extends TestCluster {
         assertRequestsFinished();
         assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
+        assertMergeExecutorIsDone();
         awaitIndexShardCloseAsyncTasks();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();

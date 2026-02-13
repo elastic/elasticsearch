@@ -22,13 +22,15 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY;
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER;
+import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_NODE_ATTRIBUTE;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,5 +96,52 @@ public class RemoteClusterSettingsTests extends ESTestCase {
     public void testProxyDefault() {
         final String alias = randomAlphaOfLength(8);
         assertThat(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
+    }
+
+    public void testSkipUnavailableAlwaysTrueIfCPSEnabled() {
+        final var alias = randomAlphaOfLength(8);
+        final var skipUnavailableSetting = REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(alias);
+        final var modeSetting = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(alias);
+        final var proxyAddressSetting = PROXY_ADDRESS.getConcreteSettingForNamespace(alias);
+        final var cpsEnabledSettings = Settings.builder().put("serverless.cross_project.enabled", true).build();
+        final var proxyEnabledSettings = Settings.builder()
+            .put(modeSetting.getKey(), RemoteConnectionStrategy.ConnectionStrategy.PROXY.toString())
+            .put(proxyAddressSetting.getKey(), "localhost:9400")
+            .build();
+
+        // Ensure the validator still throws in non-CPS environment if a connection mode is not set.
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> skipUnavailableSetting.get(Settings.builder().put(skipUnavailableSetting.getKey(), true).build())
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("Cannot configure setting [" + skipUnavailableSetting.getKey() + "] if remote cluster is not enabled.")
+        );
+
+        // Ensure we can still get the set value in non-CPS environment.
+        final var randomSkipUnavailableSettingValue = randomBoolean();
+        assertThat(
+            skipUnavailableSetting.get(
+                Settings.builder().put(proxyEnabledSettings).put(skipUnavailableSetting.getKey(), randomSkipUnavailableSettingValue).build()
+            ),
+            equalTo(randomSkipUnavailableSettingValue)
+        );
+
+        // Check the validator rejects the skip_unavailable setting if present when CPS is enabled.
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> skipUnavailableSetting.get(
+                Settings.builder()
+                    .put(cpsEnabledSettings)
+                    .put(proxyEnabledSettings)
+                    .put(skipUnavailableSetting.getKey(), randomBoolean())
+                    .build()
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("setting [" + skipUnavailableSetting.getKey() + "] is unavailable when CPS is enabled"));
+
+        // Should not throw if the setting is not present, returning the expected default value of true.
+        assertTrue(skipUnavailableSetting.get(Settings.builder().put(cpsEnabledSettings).put(proxyEnabledSettings).build()));
     }
 }

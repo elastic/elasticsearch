@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,7 +62,6 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
     public ClusterHealthResponse() {}
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
-        super(in);
         clusterName = in.readString();
         clusterHealthStatus = ClusterHealthStatus.readFrom(in);
         clusterStateHealth = new ClusterStateHealth(in);
@@ -74,13 +74,23 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
+        this(
+            clusterName,
+            concreteIndices,
+            clusterState,
+            clusterState.metadata().getProject().id(),
+            -1,
+            -1,
+            -1,
+            TimeValue.timeValueHours(0)
+        );
     }
 
     public ClusterHealthResponse(
         String clusterName,
         String[] concreteIndices,
         ClusterState clusterState,
+        ProjectId projectId,
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         int delayedUnassignedShards,
@@ -91,7 +101,7 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         this.numberOfInFlightFetch = numberOfInFlightFetch;
         this.delayedUnassignedShards = delayedUnassignedShards;
         this.taskMaxWaitingTime = taskMaxWaitingTime;
-        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, projectId);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 

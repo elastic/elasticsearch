@@ -11,6 +11,7 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Weight;
@@ -18,10 +19,10 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -84,7 +85,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 LeafCollector leafCollector = null;
                 try {
                     leafCollector = collector.getLeafCollector(context);
-                    scorer.score(leafCollector, context.reader().getLiveDocs());
+                    scorer.score(leafCollector, context.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf

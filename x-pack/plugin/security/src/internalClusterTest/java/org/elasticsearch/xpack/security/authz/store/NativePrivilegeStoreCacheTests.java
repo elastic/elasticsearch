@@ -277,7 +277,6 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93447")
     public void testRolesCacheIsClearedWhenPrivilegesIsChanged() {
         final Client client = client();
 

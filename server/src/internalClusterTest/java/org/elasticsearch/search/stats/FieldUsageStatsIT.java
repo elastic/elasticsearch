@@ -105,7 +105,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertTrue(stats.hasField("field2"));
         // positions because of span query
         assertEquals(
-            Set.of(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS),
+            Set.of(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS, UsageContext.NORMS),
             stats.get("field2").keySet()
         );
         assertEquals(1L * numShards, stats.get("field2").getTerms());
@@ -158,11 +158,15 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
 
         assertTrue(stats.hasField("date_field"));
         assertEquals(Set.of(UsageContext.POINTS), stats.get("date_field").keySet());
-        // can_match does not enter search stats
-        // there is a special case though where we have no hit but we need to get at least one search response in order
-        // to produce a valid search result with all the aggs etc., so we hit one of the two shards
+
+        long expectedShards = 2L * numShards;
+        if (numShards == 1) {
+            // with 1 shard and setPreFilterShardSize(1) we don't perform can_match phase but instead directly query the shard
+            expectedShards += 1;
+        }
+
         assertEquals(
-            (2 * numShards) + 1,
+            expectedShards,
             indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)

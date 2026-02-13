@@ -66,7 +66,11 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportRemoveIndexBlockAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -90,9 +94,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -115,6 +116,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -218,6 +220,19 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(TransportAddIndexBlockAction.TYPE, request, listener);
     }
 
+    public RemoveIndexBlockRequestBuilder prepareRemoveBlock(
+        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        APIBlock block,
+        String... indices
+    ) {
+        return new RemoveIndexBlockRequestBuilder(this, masterTimeout, ackTimeout, block, indices);
+    }
+
+    public void removeBlock(RemoveIndexBlockRequest request, ActionListener<RemoveIndexBlockResponse> listener) {
+        execute(TransportRemoveIndexBlockAction.TYPE, request, listener);
+    }
+
     public OpenIndexRequestBuilder prepareOpen(String... indices) {
         return new OpenIndexRequestBuilder(this, indices);
     }
@@ -266,8 +281,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         return execute(GetMappingsAction.INSTANCE, request);
     }
 
-    public GetMappingsRequestBuilder prepareGetMappings(String... indices) {
-        return new GetMappingsRequestBuilder(this, indices);
+    public GetMappingsRequestBuilder prepareGetMappings(TimeValue masterTimeout, String... indices) {
+        return new GetMappingsRequestBuilder(this, masterTimeout, indices);
     }
 
     public void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener) {
@@ -324,8 +339,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(TransportIndicesAliasesAction.TYPE, request, listener);
     }
 
-    public IndicesAliasesRequestBuilder prepareAliases() {
-        return new IndicesAliasesRequestBuilder(this);
+    public IndicesAliasesRequestBuilder prepareAliases(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        return new IndicesAliasesRequestBuilder(this, masterNodeTimeout, ackTimeout);
     }
 
     public ActionFuture<GetAliasesResponse> getAliases(GetAliasesRequest request) {
@@ -336,8 +351,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetAliasesAction.INSTANCE, request, listener);
     }
 
-    public GetAliasesRequestBuilder prepareGetAliases(String... aliases) {
-        return new GetAliasesRequestBuilder(this, aliases);
+    public GetAliasesRequestBuilder prepareGetAliases(TimeValue masterTimeout, String... aliases) {
+        return new GetAliasesRequestBuilder(this, masterTimeout, aliases);
     }
 
     public ActionFuture<GetIndexResponse> getIndex(GetIndexRequest request) {
@@ -348,8 +363,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetIndexAction.INSTANCE, request, listener);
     }
 
-    public GetIndexRequestBuilder prepareGetIndex() {
-        return new GetIndexRequestBuilder(this);
+    public GetIndexRequestBuilder prepareGetIndex(TimeValue masterTimeout) {
+        return new GetIndexRequestBuilder(this, masterTimeout);
     }
 
     public ActionFuture<BroadcastResponse> clearCache(final ClearIndicesCacheRequest request) {
@@ -420,8 +435,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetIndexTemplatesAction.INSTANCE, request, listener);
     }
 
-    public GetIndexTemplatesRequestBuilder prepareGetTemplates(String... names) {
-        return new GetIndexTemplatesRequestBuilder(this, names);
+    public GetIndexTemplatesRequestBuilder prepareGetTemplates(TimeValue masterTimeout, String... names) {
+        return new GetIndexTemplatesRequestBuilder(this, masterTimeout, names);
     }
 
     public ActionFuture<ValidateQueryResponse> validateQuery(final ValidateQueryRequest request) {
@@ -444,16 +459,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         return execute(GetSettingsAction.INSTANCE, request);
     }
 
-    public GetSettingsRequestBuilder prepareGetSettings(String... indices) {
-        return new GetSettingsRequestBuilder(this, indices);
-    }
-
-    public ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex) {
-        return new ResizeRequestBuilder(this).setSourceIndex(sourceIndex).setTargetIndex(new CreateIndexRequest(targetIndex));
-    }
-
-    public void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener) {
-        execute(ResizeAction.INSTANCE, request, listener);
+    public GetSettingsRequestBuilder prepareGetSettings(TimeValue masterTimeout, String... indices) {
+        return new GetSettingsRequestBuilder(this, masterTimeout, indices);
     }
 
     public RolloverRequestBuilder prepareRolloverIndex(String alias) {

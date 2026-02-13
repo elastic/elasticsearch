@@ -153,8 +153,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         pauseMaintenanceService();
         ensureAllSearchContextsReleased();
 
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
-        });
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
         unpauseMaintenanceService();
         ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
@@ -314,9 +313,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
                     assertNull(newResponse.getSearchResponse().getAggregations());
                     assertNotNull(newResponse.getSearchResponse().getHits().getTotalHits());
-                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(0L));
+                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value(), equalTo(0L));
                     assertThat(
-                        newResponse.getSearchResponse().getHits().getTotalHits().relation,
+                        newResponse.getSearchResponse().getHits().getTotalHits().relation(),
                         equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO)
                     );
                 } else {

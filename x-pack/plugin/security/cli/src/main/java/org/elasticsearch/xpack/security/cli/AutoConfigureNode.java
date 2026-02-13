@@ -102,6 +102,9 @@ import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
+import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
+import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE;
 
 /**
  * Configures a new cluster node, by appending to the elasticsearch.yml, so that it forms a single node cluster with
@@ -163,7 +166,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final boolean inEnrollmentMode = options.has(enrollmentTokenParam);
 
         // skipping security auto-configuration because node considered as restarting.
-        for (Path dataPath : env.dataFiles()) {
+        for (Path dataPath : env.dataDirs()) {
             if (Files.isDirectory(dataPath) && false == isDirEmpty(dataPath)) {
                 final String msg = "Skipping security auto configuration because it appears that the node is not starting up for the "
                     + "first time. The node might already be part of a cluster and this auto setup utility is designed to configure "
@@ -173,7 +176,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
 
         // pre-flight checks for the files that are going to be changed
-        final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
+        final Path ymlPath = env.configDir().resolve("elasticsearch.yml");
         // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
         // but auto configuration should not be concerned with fixing it (by creating the file) and let the node startup fail
         if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)) {
@@ -194,7 +197,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             );
             notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, msg);
         }
-        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configDir());
         // Inform that auto-configuration will not run if keystore cannot be read.
         if (Files.exists(keystorePath)
             && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) || false == Files.isReadable(keystorePath))) {
@@ -218,7 +221,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         checkExistingConfiguration(env.settings(), inEnrollmentMode, terminal);
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
-        final Path tempGeneratedTlsCertsDir = env.configFile()
+        final Path tempGeneratedTlsCertsDir = env.configDir()
             .resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.tmp", autoConfigDate.toInstant().getEpochSecond()));
         try {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that file owners match
@@ -247,12 +250,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         // If the node process works OK given the owner of the config dir, it should also tolerate the auto-created config dir,
         // provided that they both have the same owner and permissions.
         final UserPrincipal newFileOwner = Files.getOwner(tempGeneratedTlsCertsDir, LinkOption.NOFOLLOW_LINKS);
-        if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
+        if (false == newFileOwner.equals(Files.getOwner(env.configDir(), LinkOption.NOFOLLOW_LINKS))) {
             // the following is only printed once, if the node starts successfully
             UserException userException = new UserException(
                 ExitCodes.CONFIG,
                 "Aborting auto configuration because of config dir ownership mismatch. Config dir is owned by "
-                    + Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS).getName()
+                    + Files.getOwner(env.configDir(), LinkOption.NOFOLLOW_LINKS).getName()
                     + " but auto-configuration directory would be owned by "
                     + newFileOwner.getName()
             );
@@ -411,7 +414,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     null,
                     true,
                     TRANSPORT_CA_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    null,
+                    Set.of()
                 );
                 // transport key/certificate
                 final KeyPair transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
@@ -424,7 +429,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     transportCaKey,
                     false,
                     TRANSPORT_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    null,
+                    Set.of()
                 );
 
                 final KeyPair httpCaKeyPair = CertGenUtils.generateKeyPair(HTTP_CA_KEY_SIZE);
@@ -438,7 +445,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     null,
                     true,
                     HTTP_CA_CERTIFICATE_DAYS,
-                    SIGNATURE_ALGORITHM
+                    SIGNATURE_ALGORITHM,
+                    buildKeyUsage(DEFAULT_CA_KEY_USAGE),
+                    Set.of()
                 );
             } catch (Throwable t) {
                 try {
@@ -464,6 +473,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 HTTP_CERTIFICATE_DAYS,
                 SIGNATURE_ALGORITHM,
+                buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
                 Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
             );
 
@@ -496,7 +506,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
 
         // save the existing keystore before replacing
-        final Path keystoreBackupPath = env.configFile()
+        final Path keystoreBackupPath = env.configDir()
             .resolve(
                 String.format(Locale.ROOT, KeyStoreWrapper.KEYSTORE_FILENAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond())
             );
@@ -514,7 +524,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
 
         final SetOnce<SecureString> nodeKeystorePassword = new SetOnce<>();
-        try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
+        try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configDir(), () -> {
             nodeKeystorePassword.set(new SecureString(terminal.readSecret("")));
             return nodeKeystorePassword.get().clone();
         })) {
@@ -581,7 +591,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 nodeKeystore.setString("xpack.security.http.ssl.keystore.secure_password", httpKeystorePassword.getChars());
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
-            nodeKeystore.save(env.configFile(), nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars());
+            nodeKeystore.save(env.configDir(), nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars());
         } catch (Throwable t) {
             // restore keystore to revert possible keystore bootstrap
             try {
@@ -614,10 +624,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         try {
             // all certs and keys have been generated in the temp certs dir, therefore:
             // 1. backup (move) any previously existing tls certs dir (this backup is NOT removed when auto-conf finishes)
-            if (Files.exists(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
+            if (Files.exists(env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
                 moveDirectory(
-                    env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME),
-                    env.configFile()
+                    env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME),
+                    env.configDir()
                         .resolve(
                             String.format(
                                 Locale.ROOT,
@@ -628,7 +638,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
             }
             // 2. move the newly populated temp certs dir to its permanent static dir name
-            moveDirectory(tempGeneratedTlsCertsDir, env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+            moveDirectory(tempGeneratedTlsCertsDir, env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME));
         } catch (Throwable t) {
             // restore keystore to revert possible keystore bootstrap
             try {
@@ -649,7 +659,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // revert any previously existing TLS certs
             try {
                 if (Files.exists(
-                    env.configFile()
+                    env.configDir()
                         .resolve(
                             String.format(
                                 Locale.ROOT,
@@ -659,7 +669,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         )
                 )) {
                     moveDirectory(
-                        env.configFile()
+                        env.configDir()
                             .resolve(
                                 String.format(
                                     Locale.ROOT,
@@ -667,7 +677,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                                     autoConfigDate.toInstant().getEpochSecond()
                                 )
                             ),
-                        env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME)
+                        env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME)
                     );
                 }
             } catch (Exception ex) {
@@ -686,7 +696,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             final Environment localFinalEnv = env;
             final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss", Locale.ROOT);
             List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
-            fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
+            fullyWriteFile(env.configDir(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
                     // start with the existing config lines
                     for (String line : existingConfigLines) {
@@ -827,16 +837,16 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
             try {
                 // this removes a statically named directory, so it is potentially dangerous
-                deleteDirectory(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+                deleteDirectory(env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME));
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
-            Path backupCertsDir = env.configFile()
+            Path backupCertsDir = env.configDir()
                 .resolve(
                     String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond())
                 );
             if (Files.exists(backupCertsDir)) {
-                moveDirectory(backupCertsDir, env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+                moveDirectory(backupCertsDir, env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME));
             }
             throw t;
         }
@@ -887,14 +897,14 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         // with --enrolment-token token, in the first place.
         final List<String> existingConfigLines;
         try {
-            existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
+            existingConfigLines = Files.readAllLines(env.configDir().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
         } catch (IOException e) {
             // This shouldn't happen, we would have failed earlier but we need to catch the exception
             throw new UserException(ExitCodes.IO_ERROR, "Aborting enrolling to cluster. Unable to read elasticsearch.yml.", e);
         }
         final List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
         if (false == existingConfigLines.equals(existingConfigWithoutAutoconfiguration)
-            && Files.exists(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
+            && Files.exists(env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
             terminal.println("");
             terminal.println("This node will be reconfigured to join an existing cluster, using the enrollment token that you provided.");
             terminal.println("This operation will overwrite the existing configuration. Specifically: ");
@@ -907,7 +917,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
             removeAutoConfigurationFromKeystore(env, terminal);
             try {
-                fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
+                fullyWriteFile(env.configDir(), "elasticsearch.yml", true, stream -> {
                     try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
                         for (String l : existingConfigWithoutAutoconfiguration) {
                             bw.write(l);
@@ -915,7 +925,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         }
                     }
                 });
-                deleteDirectory(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+                deleteDirectory(env.configDir().resolve(TLS_GENERATED_CERTS_DIR_NAME));
             } catch (Throwable t) {
                 throw new UserException(
                     ExitCodes.IO_ERROR,
@@ -1262,9 +1272,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     }
 
     private static void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws UserException {
-        if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
+        if (Files.exists(KeyStoreWrapper.keystorePath(env.configDir()))) {
             try (
-                KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
+                KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configDir());
                 SecureString keystorePassword = existingKeystore.hasPassword()
                     ? new SecureString(terminal.readSecret("Enter password for the elasticsearch keystore: "))
                     : new SecureString(new char[0]);
@@ -1288,7 +1298,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     }
                     existingKeystore.remove(setting);
                 }
-                existingKeystore.save(env.configFile(), keystorePassword.getChars());
+                existingKeystore.save(env.configDir(), keystorePassword.getChars());
             } catch (Exception e) {
                 terminal.errorPrintln(Terminal.Verbosity.VERBOSE, "");
                 terminal.errorPrintln(Terminal.Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));

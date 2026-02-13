@@ -1,3 +1,15 @@
+setup:
+  - requires:
+      reason: "Data stream options was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+
 ---
 teardown:
   - do:
@@ -32,13 +44,6 @@ teardown:
 
 ---
 "Redirect ingest failure in data stream to failure store":
-  - requires:
-      reason: "Failure store status was added in 8.16+"
-      test_runner_features: [capabilities, allowed_warnings, contains]
-      capabilities:
-        - method: POST
-          path: /{index}/_doc
-          capabilities: [ 'failure_store_status' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -78,14 +83,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
               number_of_replicas: 1
               index:
                 default_pipeline: "parent_failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -147,14 +154,6 @@ teardown:
 
 ---
 "Redirect shard failure in data stream to failure store":
-  - requires:
-      reason: "Failure store status was added in 8.16+"
-      test_runner_features: [ capabilities, allowed_warnings, contains ]
-      capabilities:
-        - method: POST
-          path: /{index}/_doc
-          capabilities: [ 'failure_store_status' ]
-
   - do:
       allowed_warnings:
         - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
@@ -162,8 +161,7 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
@@ -174,7 +172,9 @@ teardown:
                   type: date
                 count:
                   type: long
-
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -231,13 +231,6 @@ teardown:
 
 ---
 "Ensure failure is redirected to correct failure store after a reroute processor":
-  - requires:
-      test_runner_features: [allowed_warnings, capabilities]
-      reason: "Failure store status was added in 8.16+"
-      capabilities:
-        - method: POST
-          path: /{index}/_doc
-          capabilities: [ 'failure_store_status' ]
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -262,14 +255,16 @@ teardown:
         name: destination_template
         body:
           index_patterns: destination-data-stream
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
               number_of_replicas: 1
               index:
                 default_pipeline: "failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:
@@ -331,11 +326,6 @@ teardown:
 
 ---
 "Failure redirects to original failure store during index change if self referenced":
-  - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ allowed_warnings, contains ]
-
   - do:
       ingest.put_pipeline:
         id: "failing_pipeline"
@@ -365,14 +355,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "failing_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -430,14 +422,6 @@ teardown:
 
 ---
 "Failure redirects to original failure store during index change if final pipeline changes target":
-  - requires:
-      reason: "Failure store status was added in 8.16+"
-      test_runner_features: [ capabilities, allowed_warnings, contains ]
-      capabilities:
-        - method: POST
-          path: /{index}/_doc
-          capabilities: [ 'failure_store_status' ]
-
   - do:
       ingest.put_pipeline:
         id: "change_index_pipeline"
@@ -462,14 +446,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 final_pipeline: "change_index_pipeline"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -526,14 +512,6 @@ teardown:
 
 ---
 "Failure redirects to correct failure store when index loop is detected":
-  - requires:
-      reason: "Failure store status was added in 8.16+"
-      test_runner_features: [ capabilities, allowed_warnings, contains ]
-      capabilities:
-        - method: POST
-          path: /{index}/_doc
-          capabilities: [ 'failure_store_status' ]
-
   - do:
       ingest.put_pipeline:
         id: "send_to_destination"
@@ -575,14 +553,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "send_to_destination"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       allowed_warnings:
@@ -591,14 +571,16 @@ teardown:
         name: destination_logs_template
         body:
           index_patterns: destination-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "send_back_to_original"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -657,14 +639,6 @@ teardown:
 
 ---
 "Failure redirects to correct failure store when pipeline loop is detected":
-  - requires:
-      reason: "Failure store status was added in 8.16+"
-      test_runner_features: [ capabilities, allowed_warnings, contains ]
-      capabilities:
-        - method: POST
-          path: /{index}/_doc
-          capabilities: [ 'failure_store_status' ]
-
   - do:
       ingest.put_pipeline:
         id: "step_1"
@@ -706,14 +680,16 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
               index:
                 default_pipeline: "step_1"
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       index:
@@ -773,9 +749,6 @@ teardown:
 
 ---
 "Version conflicts are not redirected to failure store":
-  - requires:
-      test_runner_features: [ allowed_warnings]
-
   - do:
       allowed_warnings:
         - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
@@ -783,8 +756,7 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
@@ -795,6 +767,9 @@ teardown:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       bulk:
@@ -811,18 +786,7 @@ teardown:
   - is_false: items.1.create.failure_store
 
 ---
-"Test failure store status with bulk request":
-  - requires:
-      test_runner_features: [ allowed_warnings, capabilities ]
-      reason: "Failure store status was added in 8.16+"
-      capabilities:
-        - method: POST
-          path: /_bulk
-          capabilities: [ 'failure_store_status' ]
-        - method: PUT
-          path: /_bulk
-          capabilities: [ 'failure_store_status' ]
-
+"Test failure store status with bulk request failing on mappings":
   - do:
       allowed_warnings:
         - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
@@ -830,8 +794,7 @@ teardown:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
@@ -842,6 +805,9 @@ teardown:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
   - do:
       allowed_warnings:
         - "index template [no-fs] has index patterns [no-fs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-fs] will take precedence during new index creation"
@@ -849,8 +815,7 @@ teardown:
         name: no-fs
         body:
           index_patterns: no-fs*
-          data_stream:
-            failure_store: false
+          data_stream: {}
           template:
             settings:
               number_of_shards: 1
@@ -861,6 +826,9 @@ teardown:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: false
 
 
   - do:
@@ -879,7 +847,7 @@ teardown:
   # Successfully indexed to backing index
   - match: { items.0.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { items.0.create.status: 201 }
-  - is_false: items.1.create.failure_store
+  - is_false: items.0.create.failure_store
 
   # Rejected but not eligible to go to failure store
   - match: { items.1.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
@@ -897,3 +865,90 @@ teardown:
   - match: { items.3.create.status: 400 }
   - match: { items.3.create.error.type: document_parsing_exception }
   - match: { items.3.create.failure_store: not_enabled }
+
+---
+"Test failure store status with bulk request failing in ingest":
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fail": {
+                  "message" : "error_message",
+                  "tag": "foo-tag"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "failing_pipeline"
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
+  - do:
+      allowed_warnings:
+        - "index template [no-fs] has index patterns [no-fs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-fs] will take precedence during new index creation"
+      indices.put_index_template:
+        name: no-fs
+        body:
+          index_patterns: no-fs*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              index:
+                default_pipeline: "failing_pipeline"
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: false
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": 1 }'
+          - '{ "create": { "_index": "no-fs", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": 1 }'
+  - is_true: errors
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - match: { items.0.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.1.create._index: 'no-fs' }
+  - match: { items.1.create.status: 500 }
+  - match: { items.1.create.failure_store: not_enabled }
+  - match: { items.1.create.error.type: fail_processor_exception }
+  - contains: { items.1.create.error.reason: error_message }

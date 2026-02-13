@@ -1,5 +1,0 @@
-pr: 110554
-summary: Fix `MapperBuilderContext#isDataStream` when used in dynamic mappers
-area: "Mapping"
-type: bug
-issues: []

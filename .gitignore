@@ -1,4 +1,15 @@
 
+# claude
+.claude
+
+# JetBrainsAI/Junie
+.junie/
+
+# Cursor rules and commands, if we want to implement project level rules and commands we'll want to remove these
+# These are based on the cursor docs here: https://cursor.com/docs/cli/using#rules
+# Prefix slash ensures these are only ignored at the same level as this file
+/.cursor/
+
 # intellij files
 .idea/
 *.iml
@@ -43,6 +54,7 @@ build/
 **/.local*
 .vagrant/
 /logs/
+**/target/
 
 # osx stuff
 .DS_Store
@@ -69,3 +81,9 @@ testfixtures_shared/
 # Generated
 checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/
+x-pack/plugin/esql/src/test/resources/org/elasticsearch/xpack/esql/**/golden_tests/**/*.actual
+
+server/src/main/resources/transport/definitions/manifest.txt
+
+# JEnv
+.java-version

@@ -42,7 +42,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -177,8 +176,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private void assertClusterStateEqual(ClusterState expected, ClusterState actual) {
         assertThat(actual.version(), equalTo(expected.version()));
         assertTrue(Metadata.isGlobalStateEquals(actual.metadata(), expected.metadata()));
-        for (IndexMetadata indexMetadata : expected.metadata()) {
-            assertThat(actual.metadata().index(indexMetadata.getIndex()), equalTo(indexMetadata));
+        for (IndexMetadata indexMetadata : expected.metadata().getProject()) {
+            assertThat(actual.metadata().getProject().index(indexMetadata.getIndex()), equalTo(indexMetadata));
         }
     }
 
@@ -237,7 +236,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             gateway.setLastAcceptedState(newClusterState);
 
             gateway = maybeNew(gateway);
-            assertThat(gateway.getLastAcceptedState().metadata().index(indexName), equalTo(newIndexMetadata));
+            assertThat(gateway.getLastAcceptedState().metadata().getProject().index(indexName), equalTo(newIndexMetadata));
         } finally {
             IOUtils.close(gateway);
         }
@@ -321,7 +320,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             nodeEnvironment,
             xContentRegistry(),
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
+            () -> 0L,
+            ESTestCase::randomBoolean
         );
         final ClusterState state = createClusterState(
             randomNonNegativeLong(),
@@ -352,7 +352,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     nodeEnvironment,
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 );
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse(onDiskState.empty());
@@ -368,7 +369,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(value = "org.elasticsearch.gateway:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/87952")
     public void testDataOnlyNodePersistence() throws Exception {
         final List<Closeable> cleanup = new ArrayList<>(2);
 
@@ -393,7 +393,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                ESTestCase::randomBoolean
             );
             gateway.start(
                 settings,
@@ -504,7 +505,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     GatewayMetaState.AsyncPersistedState.resetVotingConfiguration(state),
                     reloadedPersistedState.getLastAcceptedState()
                 );
-                assertNotNull(reloadedPersistedState.getLastAcceptedState().metadata().index(indexName));
+                assertNotNull(reloadedPersistedState.getLastAcceptedState().metadata().getProject().index(indexName));
             }
         } finally {
             IOUtils.close(cleanup);
@@ -518,7 +519,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             nodeEnvironment,
             xContentRegistry(),
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
+            () -> 0L,
+            ESTestCase::randomBoolean
         ) {
             @Override
             protected Directory createDirectory(Path path) {
@@ -611,7 +613,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     nodeEnvironment,
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ) {
                     @Override
                     CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
@@ -661,7 +664,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                         nodeEnvironment,
                         xContentRegistry(),
                         new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                        () -> 0L
+                        () -> 0L,
+                        ESTestCase::randomBoolean
                     ),
                     currentTerm,
                     state
@@ -716,7 +720,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     nodeEnvironment,
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 );
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse("loaded state from " + path, onDiskState.empty());

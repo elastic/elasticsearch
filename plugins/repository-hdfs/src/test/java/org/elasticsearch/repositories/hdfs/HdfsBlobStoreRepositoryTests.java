@@ -47,11 +47,6 @@ public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTest
     }
 
     @Override
-    public void testBlobStoreBulkDeletion() throws Exception {
-        // HDFS does not implement bulk deletion from different BlobContainers
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(HdfsPlugin.class);
     }

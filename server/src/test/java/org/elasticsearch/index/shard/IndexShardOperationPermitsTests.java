@@ -565,9 +565,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
             assertEquals(
                 "timeout while blocking operations after [0s]",
-                asInstanceOf(
+                safeAwaitFailure(
                     ElasticsearchTimeoutException.class,
-                    safeAwaitFailure(Releasable.class, f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic()))
+                    Releasable.class,
+                    f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic())
                 ).getMessage()
             );
 

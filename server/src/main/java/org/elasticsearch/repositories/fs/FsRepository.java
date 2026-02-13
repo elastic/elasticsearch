@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -20,9 +21,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -75,6 +78,7 @@ public class FsRepository extends BlobStoreRepository {
      * Constructs a shared file system repository.
      */
     public FsRepository(
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
@@ -82,7 +86,23 @@ public class FsRepository extends BlobStoreRepository {
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+        this(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, SnapshotMetrics.NOOP);
+    }
+
+    /**
+     * Constructs a shared file system repository.
+     */
+    public FsRepository(
+        @Nullable ProjectId projectId,
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        SnapshotMetrics snapshotMetrics
+    ) {
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY, snapshotMetrics);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
@@ -92,13 +112,13 @@ public class FsRepository extends BlobStoreRepository {
             );
             throw new RepositoryException(metadata.name(), "missing location");
         }
-        Path locationFile = environment.resolveRepoFile(location);
+        Path locationFile = environment.resolveRepoDir(location);
         if (locationFile == null) {
-            if (environment.repoFiles().length > 0) {
+            if (environment.repoDirs().length > 0) {
                 logger.warn(
                     "The specified location [{}] doesn't start with any " + "repository paths specified by the path.repo setting: [{}] ",
                     location,
-                    environment.repoFiles()
+                    environment.repoDirs()
                 );
                 throw new RepositoryException(
                     metadata.name(),
@@ -127,7 +147,7 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     protected BlobStore createBlobStore() throws Exception {
         final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
-        final Path locationFile = environment.resolveRepoFile(location);
+        final Path locationFile = environment.resolveRepoDir(location);
         return new FsBlobStore(bufferSize, locationFile, isReadOnly());
     }
 

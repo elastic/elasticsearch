@@ -17,18 +17,24 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.text.ParseException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 
 public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
+    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("noop");
 
     public void testLenientParser() throws IOException, ParseException {
-        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer());
+        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer(), NOOP_CIRCUIT_BREAKER);
         String rules = """
             s(100000001,1,'&',a,1,0).
             s(100000001,2,'and',a,1,0).
@@ -47,7 +53,7 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
     public void testLenientParserWithSomeIncorrectLines() throws IOException, ParseException {
         CharArraySet stopSet = new CharArraySet(1, true);
         stopSet.add("bar");
-        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer(stopSet));
+        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer(stopSet), NOOP_CIRCUIT_BREAKER);
         String rules = """
             s(100000001,1,'foo',v,1,0).
             s(100000001,2,'bar',v,1,0).
@@ -62,7 +68,7 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
     }
 
     public void testNonLenientParser() {
-        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, false, new StandardAnalyzer());
+        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, false, new StandardAnalyzer(), NOOP_CIRCUIT_BREAKER);
         String rules = """
             s(100000001,1,'&',a,1,0).
             s(100000001,2,'and',a,1,0).
@@ -74,4 +80,17 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
         assertThat(ex.getMessage(), containsString("Invalid synonym rule at line 1"));
     }
 
+    public void testCircuitBreaker() {
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
+        circuitBreaker.startBreaking();
+
+        // Circuit breaker should be called on the first rule and every 1024th rule afterward, so even a single-rule synonym set should
+        // be able to trip the breaker
+        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer(), circuitBreaker);
+        String rules = """
+            s(100000001,1,'foo',a,1,0).
+            s(100000001,2,'bar',a,1,0).""";
+        StringReader rulesReader = new StringReader(rules);
+        assertThrows(CircuitBreakingException.class, () -> parser.parse(rulesReader));
+    }
 }

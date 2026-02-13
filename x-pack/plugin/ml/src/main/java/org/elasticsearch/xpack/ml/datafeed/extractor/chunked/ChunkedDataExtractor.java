@@ -162,6 +162,10 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private void advanceTime() {
+        // Destroy the previous extractor to clean up any scroll contexts before creating a new one
+        if (currentExtractor != null) {
+            currentExtractor.destroy();
+        }
         currentStart = currentEnd;
         currentEnd = Math.min(currentStart + chunkSpan, context.end());
         currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);

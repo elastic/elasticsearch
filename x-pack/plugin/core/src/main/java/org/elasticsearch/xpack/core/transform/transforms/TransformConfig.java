@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -25,7 +26,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
-import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
@@ -47,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -63,8 +64,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final TransformConfigVersion CONFIG_VERSION_LAST_DEFAULTS_CHANGED = TransformConfigVersion.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
-    /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
-    private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
+
+    public static final FeatureFlag TRANSFORM_CROSS_PROJECT = new FeatureFlag("transform_cross_project");
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -341,15 +342,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
      * @return version
      */
     public List<SourceDestValidation> getAdditionalSourceDestValidations() {
-        if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
-            SourceDestValidation validation = new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION,
-                "source.runtime_mappings field was set"
-            );
-            return Collections.singletonList(validation);
-        } else {
-            return Collections.emptyList();
-        }
+        return List.of();
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -368,13 +361,50 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         return validationException;
     }
 
+    public ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActionRequestValidationException validationException
+    ) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            return validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(TRANSFORM_CROSS_PROJECT.isEnabled(), validationException);
+        }
+        return validationException;
+    }
+
+    // visible for testing
+    // remove both this and validateNoCrossProjectWhenCrossProjectIsDisabled when the feature is launched
+    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(
+        boolean featureEnabled,
+        ActionRequestValidationException validationException
+    ) {
+        if (featureEnabled == false) {
+            // verify there are no remote indices
+            var indices = getSource().getIndex();
+            var remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(indices);
+            if (remoteIndices.isEmpty() == false) {
+                validationException = addValidationError(
+                    "Cross-project calls are not supported, but remote indices were requested: " + remoteIndices,
+                    validationException
+                );
+            }
+            // verify there is no project routing
+            if (getSource().getProjectRouting() != null) {
+                validationException = addValidationError(
+                    "Cross-project calls are not supported, but project_routing was requested: " + getSource().getProjectRouting(),
+                    validationException
+                );
+            }
+        }
+        return validationException;
+    }
+
     /**
      * Parses the transform configuration for deprecations
      *
      * @param namedXContentRegistry XContent registry required for aggregations and query DSL
      * @return The deprecations of this transform
      */
-    public List<DeprecationIssue> checkForDeprecations(NamedXContentRegistry namedXContentRegistry) {
+    public List<DeprecationIssue> checkForDeprecations(NamedXContentRegistry namedXContentRegistry) throws IOException {
 
         List<DeprecationIssue> deprecations = new ArrayList<>();
 
@@ -404,6 +434,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         if (retentionPolicyConfig != null) {
             retentionPolicyConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
         }
+
         return deprecations;
     }
 
@@ -450,7 +481,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
             }
             if (createTime != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     TransformField.CREATE_TIME.getPreferredName(),
                     TransformField.CREATE_TIME.getPreferredName() + "_string",
                     createTime.toEpochMilli()
@@ -578,32 +609,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
     private static TransformConfig applyRewriteForUpdate(Builder builder) {
         // 1. Move pivot.max_page_size_search to settings.max_page_size_search
-        if (builder.getPivotConfig() != null && builder.getPivotConfig().getMaxPageSearchSize() != null) {
-
-            // find maxPageSearchSize value
-            Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
-            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
-                ? builder.getSettings().getMaxPageSearchSize()
-                : maxPageSearchSizeDeprecated;
-
-            // create a new pivot config but set maxPageSearchSize to null
-            builder.setPivotConfig(
-                new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
-            );
-            // create new settings with maxPageSearchSize
-            builder.setSettings(
-                new SettingsConfig(
-                    maxPageSearchSize,
-                    builder.getSettings().getDocsPerSecond(),
-                    builder.getSettings().getDatesAsEpochMillis(),
-                    builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings(),
-                    builder.getSettings().getNumFailureRetries(),
-                    builder.getSettings().getUnattended()
-                )
-            );
-        }
+        migrateMaxPageSearchSize(builder);
 
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
         if (builder.getVersion() != null && builder.getVersion().before(TransformConfigVersion.V_7_11_0)) {
@@ -638,6 +644,40 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
 
         return builder.setVersion(TransformConfigVersion.CURRENT).build();
+    }
+
+    public boolean shouldAutoMigrateMaxPageSearchSize() {
+        return getPivotConfig() != null && getPivotConfig().getMaxPageSearchSize() != null;
+    }
+
+    public static Builder migrateMaxPageSearchSize(Builder builder) {
+        if (builder.getPivotConfig() != null && builder.getPivotConfig().getMaxPageSearchSize() != null) {
+
+            // find maxPageSearchSize value
+            Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
+            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
+                ? builder.getSettings().getMaxPageSearchSize()
+                : maxPageSearchSizeDeprecated;
+
+            // create a new pivot config but set maxPageSearchSize to null
+            builder.setPivotConfig(
+                new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
+            );
+            // create new settings with maxPageSearchSize
+            builder.setSettings(
+                new SettingsConfig(
+                    maxPageSearchSize,
+                    builder.getSettings().getDocsPerSecond(),
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    builder.getSettings().getAlignCheckpoints(),
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
+                )
+            );
+        }
+        return builder;
     }
 
     public static Builder builder() {

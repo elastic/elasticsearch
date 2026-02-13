@@ -1,11 +1,16 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 esplugin {
   name = 'x-pack-sql'
-  description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
+  description = 'The Elasticsearch plugin that powers SQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
@@ -137,7 +142,7 @@ allprojects {
   }
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("internalClusterTest").configure{enabled = false }
 }

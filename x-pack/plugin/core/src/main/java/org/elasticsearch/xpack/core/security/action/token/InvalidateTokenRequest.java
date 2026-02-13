@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +20,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for invalidating a token so that it can no longer be used
  */
-public final class InvalidateTokenRequest extends ActionRequest {
+public final class InvalidateTokenRequest extends LegacyActionRequest {
 
     public enum Type {
         ACCESS_TOKEN("token"),
@@ -66,9 +66,9 @@ public final class InvalidateTokenRequest extends ActionRequest {
 
     /**
      * @param tokenString the string representation of the token to be invalidated
-     * @param tokenType the type of the token to be invalidated
-     * @param realmName the name of the realm for which all tokens will be invalidated
-     * @param userName the principal of the user for which all tokens will be invalidated
+     * @param tokenType   the type of the token to be invalidated
+     * @param realmName   the name of the realm for which all tokens will be invalidated
+     * @param userName    the principal of the user for which all tokens will be invalidated
      */
     public InvalidateTokenRequest(
         @Nullable String tokenString,

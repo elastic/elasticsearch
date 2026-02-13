@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -22,8 +21,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -57,10 +54,6 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             builder.field(STATUS, response.status().getStatus());
         } else {
             builder.field(_INDEX, failure.getIndex());
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-            }
-
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             failure.getFailureStoreStatus().toXContent(builder, params);
@@ -194,38 +187,24 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
          */
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readString();
-                // can't make an assertion about type names here because too many tests still set their own
-                // types bypassing various checks
-            }
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
             term = in.readVLong();
             aborted = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
-                failureStoreStatus = IndexDocFailureStoreStatus.read(in);
-            } else {
-                failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-            }
+            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeOptionalString(id);
             out.writeException(cause);
             out.writeZLong(seqNo);
             out.writeVLong(term);
             out.writeBoolean(aborted);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
-                failureStoreStatus.writeTo(out);
-            }
+            failureStoreStatus.writeTo(out);
         }
 
         /**
@@ -301,9 +280,6 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field("type", MapperService.SINGLE_MAPPING_NAME);
-            }
             if (id != null) {
                 builder.field(ID_FIELD, id);
             }

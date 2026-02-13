@@ -14,15 +14,20 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.not;
 
 public class ProcessWorkerExecutorServiceTests extends ESTestCase {
 
@@ -137,7 +142,105 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("future error"));
     }
 
+    public void testNotifyQueueRunnables_notifiesAllQueuedAbstractRunnables() throws InterruptedException {
+        notifyQueueRunnables(false);
+    }
+
+    public void testNotifyQueueRunnables_notifiesAllQueuedAbstractRunnables_withError() throws InterruptedException {
+        notifyQueueRunnables(true);
+    }
+
+    private void notifyQueueRunnables(boolean withError) {
+        int entries = 10;
+        var executor = createExecutorService();
+
+        List<QueueDrainingRunnable> abstractRunnables = new ArrayList<>();
+        // First fill the queue with both AbstractRunnable and Runnable
+        for (int i = 0; i < entries; ++i) {
+            QueueDrainingRunnable abstractRunnable = new QueueDrainingRunnable();
+            abstractRunnables.add(abstractRunnable);
+            executor.execute(abstractRunnable);
+            Runnable runnable = () -> fail("Should not be invoked");
+            executor.execute(runnable);
+        }
+
+        assertThat(executor.queueSize(), is(entries * 2));
+
+        // Set the executor to be stopped
+        if (withError) {
+            executor.shutdownNowWithError(new Exception());
+        } else {
+            executor.shutdownNow();
+        }
+
+        // Start the executor, which will cause notifyQueueRunnables() to be called immediately since the executor is already stopped
+        executor.start();
+
+        // Confirm that all the abstract runnables were notified
+        for (QueueDrainingRunnable runnable : abstractRunnables) {
+            assertThat(runnable.initialized, is(true));
+            assertThat(runnable.hasBeenRun, is(false));
+            assertThat(runnable.hasBeenRejected, not(withError));
+            assertThat(runnable.hasBeenFailed, is(withError));
+        }
+
+        assertThat(executor.queueSize(), is(0));
+    }
+
+    public void testQueuedAbstractRunnablesAreNotified_whenRunnableFutureEncountersError() {
+        var executor = createExecutorService();
+
+        // First queue a RunnableFuture that will stop the executor then throw an Exception wrapping an error when it completes
+        Error expectedError = new Error("Expected");
+        FutureTask<Void> runnableFuture = new FutureTask<>(() -> { throw new Exception(expectedError); });
+        executor.execute(runnableFuture);
+
+        // Then queue an AbstractRunnable that should be notified if it's still in the queue when the start() method returns
+        QueueDrainingRunnable abstractRunnable = new QueueDrainingRunnable();
+        executor.execute(abstractRunnable);
+
+        // Start the executor and expect the error to be thrown and the executor to be marked as shut down
+        Error error = assertThrows(Error.class, executor::start);
+        assertThat(error, is(expectedError));
+        assertThat(executor.isShutdown(), is(true));
+        assertThat(executor.isTerminated(), is(true));
+
+        // Confirm that all the abstract runnable was notified
+        assertThat(abstractRunnable.initialized, is(true));
+        assertThat(abstractRunnable.hasBeenRun, is(false));
+        assertThat(abstractRunnable.hasBeenRejected, is(true));
+        assertThat(abstractRunnable.hasBeenFailed, is(false));
+    }
+
     private ProcessWorkerExecutorService createExecutorService() {
         return new ProcessWorkerExecutorService(threadPool.getThreadContext(), TEST_PROCESS, QUEUE_SIZE);
+    }
+
+    private static class QueueDrainingRunnable extends AbstractInitializableRunnable {
+
+        private boolean initialized = false;
+        private boolean hasBeenRun = false;
+        private boolean hasBeenRejected = false;
+        private boolean hasBeenFailed = false;
+
+        @Override
+        public void init() {
+            initialized = true;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            hasBeenRejected = true;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            hasBeenFailed = true;
+        }
+
+        @Override
+        protected void doRun() {
+            hasBeenRun = true;
+        }
     }
 }

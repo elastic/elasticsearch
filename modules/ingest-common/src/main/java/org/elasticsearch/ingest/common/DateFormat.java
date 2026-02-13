@@ -97,6 +97,7 @@ enum DateFormat {
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false
                     && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
+                    && accessor.isSupported(WeekFields.ISO.weekBasedYear()) == false
                     && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false
                     && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();

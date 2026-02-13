@@ -20,7 +20,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores values in a {@link FloatBigArrayVector}. Does not take ownership of the given
  * {@link FloatArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayBlock.java.st} instead.
  */
 public final class FloatBigArrayBlock extends AbstractArrayBlock implements FloatBlock {
 
@@ -92,7 +92,7 @@ public final class FloatBigArrayBlock extends AbstractArrayBlock implements Floa
     }
 
     @Override
-    public FloatBlock filter(int... positions) {
+    public FloatBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newFloatBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

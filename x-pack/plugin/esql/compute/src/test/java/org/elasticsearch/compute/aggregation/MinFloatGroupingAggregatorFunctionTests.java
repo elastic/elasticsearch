@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -31,8 +31,8 @@ public class MinFloatGroupingAggregatorFunctionTests extends GroupingAggregatorF
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinFloatAggregatorFunctionSupplier();
     }
 
     @Override

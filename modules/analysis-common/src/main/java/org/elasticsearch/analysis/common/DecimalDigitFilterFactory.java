@@ -23,7 +23,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     DecimalDigitFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
     }
 
     @Override

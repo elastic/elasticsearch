@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.core.application;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-public class ProfilingUsage extends XPackFeatureSet.Usage {
+public class ProfilingUsage extends XPackFeatureUsage {
     public ProfilingUsage(StreamInput input) throws IOException {
         super(input);
     }
@@ -26,6 +25,6 @@ public class ProfilingUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 }

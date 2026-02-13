@@ -8,7 +8,7 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   description = "Runs rest tests against an elasticsearch cluster with Kerberos."
   // required for krb5kdc-fixture to work
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'

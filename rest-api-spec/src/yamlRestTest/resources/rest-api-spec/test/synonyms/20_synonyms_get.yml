@@ -14,7 +14,6 @@ setup:
             - synonyms: "test => check"
               id: "test-id-3"
 
-
 ---
 "Get synonyms set":
   - do:
@@ -31,7 +30,6 @@ setup:
           id: "test-id-2"
         - synonyms: "test => check"
           id: "test-id-3"
-
 ---
 "Get synonyms set - not found":
   - do:

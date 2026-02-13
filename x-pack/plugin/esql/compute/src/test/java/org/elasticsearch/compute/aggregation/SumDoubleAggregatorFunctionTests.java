@@ -13,9 +13,11 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -33,8 +35,8 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -43,8 +45,8 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        double sum = input.stream().flatMapToDouble(b -> allDoubles(b)).sum();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        double sum = input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))).sum();
         assertThat(((DoubleBlock) result).getDouble(0), closeTo(sum, .0001));
     }
 
@@ -52,15 +54,14 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(Double.MAX_VALUE - 1, 2)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertThat(results.get(0).<DoubleBlock>getBlock(0).getDouble(0), equalTo(Double.MAX_VALUE + 1));
         assertDriverContext(driverContext);
@@ -70,18 +71,17 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(
                     driverContext.blockFactory(),
                     DoubleStream.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
                 ),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertEquals(15.3, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), Double.MIN_NORMAL);
         assertDriverContext(driverContext);
@@ -99,15 +99,14 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         }
         driverContext = driverContext();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(values)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertEquals(sum, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 1e-10);
         assertDriverContext(driverContext);
@@ -121,15 +120,14 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         }
         driverContext = driverContext();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertEquals(Double.POSITIVE_INFINITY, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 0d);
         assertDriverContext(driverContext);
@@ -140,15 +138,14 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         }
         driverContext = driverContext();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertEquals(Double.NEGATIVE_INFINITY, results.get(0).<DoubleBlock>getBlock(0).getDouble(0), 0d);
         assertDriverContext(driverContext);

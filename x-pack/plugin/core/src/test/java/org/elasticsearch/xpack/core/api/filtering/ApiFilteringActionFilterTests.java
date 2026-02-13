@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.api.filtering;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +30,7 @@ public class ApiFilteringActionFilterTests extends ESTestCase {
         boolean isOperator = randomBoolean();
         final ThreadContext threadContext = getTestThreadContext(isOperator);
         String action = "test.action";
-        ApiFilteringActionFilter<TestResponse> filter = new TestFilter(threadContext);
+        ApiFilteringActionFilter<TestResponse> filter = new TestFilter(threadContext, false);
         Task task = null;
         TestRequest request = new TestRequest();
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
@@ -57,6 +57,37 @@ public class ApiFilteringActionFilterTests extends ESTestCase {
         assertThat(listenerCalled.get(), equalTo(true));
         // The response should only have been modified if we are not an operator user
         assertThat(responseModified.get(), equalTo(isOperator == false));
+    }
+
+    public void testApplyAsOperator() {
+        final ThreadContext threadContext = getTestThreadContext(true);
+        ApiFilteringActionFilter<TestResponse> filter = new TestFilter(threadContext, true);
+        Task task = null;
+        TestRequest request = new TestRequest();
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        AtomicBoolean responseModified = new AtomicBoolean(false);
+        ActionListener<TestResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(TestResponse testResponse) {
+                listenerCalled.set(true);
+                responseModified.set(testResponse.modified);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(Strings.format("Unexpected exception: %s", e.getMessage()));
+            }
+        };
+        ActionFilterChain<TestRequest, TestResponse> chain = (task1, action1, request1, listener1) -> {
+            listener1.onResponse(new TestResponse());
+        };
+        filter.apply(task, "wrong.action", request, listener, chain);
+        assertThat(listenerCalled.get(), equalTo(true));
+        assertThat(responseModified.get(), equalTo(false));
+        filter.apply(task, "test.action", request, listener, chain);
+        assertThat(listenerCalled.get(), equalTo(true));
+        // The response should always be modified
+        assertThat(responseModified.get(), equalTo(true));
     }
 
     public void testApplyWithException() {
@@ -94,8 +125,8 @@ public class ApiFilteringActionFilterTests extends ESTestCase {
 
     private static class TestFilter extends ApiFilteringActionFilter<TestResponse> {
 
-        TestFilter(ThreadContext threadContext) {
-            super(threadContext, "test.action", TestResponse.class);
+        TestFilter(ThreadContext threadContext, boolean filterOperatorRequests) {
+            super(threadContext, "test.action", TestResponse.class, filterOperatorRequests);
         }
 
         @Override
@@ -127,7 +158,7 @@ public class ApiFilteringActionFilterTests extends ESTestCase {
         return new ThreadContext(settings);
     }
 
-    private static class TestRequest extends ActionRequest {
+    private static class TestRequest extends LegacyActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

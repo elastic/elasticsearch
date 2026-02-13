@@ -22,7 +22,6 @@ public class FrozenCacheInfoResponse extends ActionResponse {
     }
 
     FrozenCacheInfoResponse(StreamInput in) throws IOException {
-        super(in);
         hasFrozenCache = in.readBoolean();
     }
 

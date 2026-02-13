@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.junit.After;
 
@@ -31,12 +31,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     private final List<Exception> unclosed = Collections.synchronizedList(new ArrayList<>());
 
-    // TODO some version of this test that applies across all aggs
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+    protected AggregatorFunctionSupplier aggregatorFunction() {
         return new FilteredAggregatorFunctionSupplier(
-            new SumIntAggregatorFunctionSupplier(inputChannels),
-            new AnyGreaterThanFactory(unclosed, inputChannels)
+            new SumIntAggregatorFunctionSupplier(),
+            new AnyGreaterThanFactory(unclosed, List.of(1))
         );
     }
 
@@ -152,6 +151,11 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
                 }
                 return result.build().asBlock();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 0;
         }
 
         @Override

@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A repository cleanup request entry. Part of the cluster state.
@@ -30,6 +31,10 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     public static final RepositoryCleanupInProgress EMPTY = new RepositoryCleanupInProgress(List.of());
 
     public static final String TYPE = "repository_cleanup";
+
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
+        "project_id_in_snapshots_deletions_and_repo_cleanup"
+    );
 
     private final List<Entry> entries;
 
@@ -49,8 +54,8 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return readDiffFrom(ClusterState.Custom.class, TYPE, in);
     }
 
-    public static Entry startedEntry(String repository, long repositoryStateId) {
-        return new Entry(repository, repositoryStateId);
+    public static Entry startedEntry(ProjectId projectId, String repository, long repositoryStateId) {
+        return new Entry(projectId, repository, repositoryStateId);
     }
 
     public boolean hasCleanupInProgress() {
@@ -87,24 +92,44 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        RepositoryCleanupInProgress that = (RepositoryCleanupInProgress) o;
+        return Objects.equals(entries, that.entries);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(entries);
+    }
+
+    @Override
     public String toString() {
         return Strings.toString(this);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersion.zero();
     }
 
-    public record Entry(String repository, long repositoryStateId) implements Writeable, RepositoryOperation {
+    public record Entry(ProjectId projectId, String repository, long repositoryStateId) implements Writeable, RepositoryOperation {
 
         public static Entry readFrom(StreamInput in) throws IOException {
-            return new Entry(in.readString(), in.readLong());
+            final ProjectId projectId = in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
+                ? ProjectId.readFrom(in)
+                : ProjectId.DEFAULT;
+            return new Entry(projectId, in.readString(), in.readLong());
         }
 
         @Override
         public long repositoryStateId() {
             return repositoryStateId;
+        }
+
+        @Override
+        public ProjectId projectId() {
+            return projectId;
         }
 
         @Override
@@ -114,6 +139,18 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)) {
+                projectId.writeTo(out);
+            } else {
+                if (ProjectId.DEFAULT.equals(projectId) == false) {
+                    final var message = "Cannot write repository cleanup entry with non-default project id "
+                        + projectId
+                        + " to version before "
+                        + PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP;
+                    assert false : message;
+                    throw new IllegalStateException(message);
+                }
+            }
             out.writeString(repository);
             out.writeLong(repositoryStateId);
         }

@@ -22,12 +22,12 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
+public class QuerySearchRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final ShardSearchContextId contextId;
     private final AggregatedDfs dfs;

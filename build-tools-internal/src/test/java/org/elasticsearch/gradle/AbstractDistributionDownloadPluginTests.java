@@ -10,12 +10,14 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.info.DevelopmentBranch;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.List;
 
 public class AbstractDistributionDownloadPluginTests {
     protected static Project rootProject;
@@ -28,22 +30,32 @@ public class AbstractDistributionDownloadPluginTests {
     protected static final Version BWC_STAGED_VERSION = Version.fromString("1.0.0");
     protected static final Version BWC_BUGFIX_VERSION = Version.fromString("1.0.1");
     protected static final Version BWC_MAINTENANCE_VERSION = Version.fromString("0.90.1");
+    protected static final List<DevelopmentBranch> DEVELOPMENT_BRANCHES = Arrays.asList(
+        new DevelopmentBranch("main", Version.fromString("2.0.0")),
+        new DevelopmentBranch("1.1", Version.fromString("1.1.0")),
+        new DevelopmentBranch("1.0", Version.fromString("1.0.1")),
+        new DevelopmentBranch("0.90", Version.fromString("0.90.1"))
+    );
 
     protected static final BwcVersions BWC_MINOR = new BwcVersions(
         BWC_MAJOR_VERSION,
-        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
+        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
     protected static final BwcVersions BWC_STAGED = new BwcVersions(
         BWC_MAJOR_VERSION,
-        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
+        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
     protected static final BwcVersions BWC_BUGFIX = new BwcVersions(
         BWC_MAJOR_VERSION,
-        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
+        Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
     protected static final BwcVersions BWC_MAINTENANCE = new BwcVersions(
         BWC_MINOR_VERSION,
-        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_BUGFIX_VERSION, BWC_MINOR_VERSION)
+        Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_BUGFIX_VERSION, BWC_MINOR_VERSION),
+        DEVELOPMENT_BRANCHES
     );
 
     protected static String projectName(String base, boolean bundledJdk) {

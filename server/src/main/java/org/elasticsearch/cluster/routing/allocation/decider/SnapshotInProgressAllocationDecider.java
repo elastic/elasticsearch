@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Objects;
 
@@ -73,7 +74,9 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             return YES_NOT_SNAPSHOTTED;
         }
 
-        for (final var entriesByRepo : snapshotsInProgress.entriesByRepo()) {
+        @FixForMultiProject(description = "replace with entriesByRepo(ProjectId), see also ES-12195")
+        final var entriesByRepoIterable = snapshotsInProgress.entriesByRepo();
+        for (final var entriesByRepo : entriesByRepoIterable) {
             for (final var entry : entriesByRepo) {
                 if (entry.isClone()) {
                     // clones do not run on data nodes

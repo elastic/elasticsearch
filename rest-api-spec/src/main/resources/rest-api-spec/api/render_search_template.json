@@ -1,41 +1,46 @@
 {
-  "render_search_template":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/render-search-template-api.html",
-      "description":"Allows to use the Mustache language to pre-render a search definition."
+  "render_search_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-render-search-template",
+      "description": "Render a search template"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_render/template",
-          "methods":[
+          "path": "/_render/template",
+          "methods": [
             "GET",
             "POST"
           ]
         },
         {
-          "path":"/_render/template/{id}",
-          "methods":[
+          "path": "/_render/template/{id}",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The id of the stored search template"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The id of the stored search template"
             }
           }
         }
       ]
     },
-    "body":{
-      "description":"The search definition template and its params"
+    "body": {
+      "description": "The search definition template and its params",
+      "required": true
     }
   }
 }

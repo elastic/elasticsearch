@@ -1,5 +1,0 @@
-pr: 110718
-summary: "ESQL: Add boolean support to TOP aggregation"
-area: ES|QL
-type: feature
-issues: []

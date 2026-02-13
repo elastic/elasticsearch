@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -42,6 +44,12 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
         doubles(suppliers);
         bytesRefs(suppliers);
         nulls(suppliers);
+
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> nullPosition == 0 ? nullValueDataType : original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
+        );
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -110,6 +118,20 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
         }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.KEYWORD), () -> {
+            List<Long> field = randomList(1, 10, () -> randomLong());
+            BytesRef order = new BytesRef("DESC");
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DATE_NANOS, "field"),
+                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
+                ),
+                "MvSortLong[field=Attribute[channel=0], order=false]",
+                DataType.DATE_NANOS,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
+            );
+        }));
     }
 
     private static void doubles(List<TestCaseSupplier> suppliers) {
@@ -129,61 +151,22 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
-            BytesRef order = new BytesRef("DESC");
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.KEYWORD, "field"),
-                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
-                ),
-                "MvSortBytesRef[field=Attribute[channel=0], order=false]",
-                DataType.KEYWORD,
-                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
-            );
-        }));
-
-        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT, DataType.KEYWORD), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
-            BytesRef order = new BytesRef("ASC");
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.TEXT, "field"),
-                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
-                ),
-                "MvSortBytesRef[field=Attribute[channel=0], order=true]",
-                DataType.TEXT,
-                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
-            );
-        }));
-
-        suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.KEYWORD), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
-            BytesRef order = new BytesRef("DESC");
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.IP, "field"),
-                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
-                ),
-                "MvSortBytesRef[field=Attribute[channel=0], order=false]",
-                DataType.IP,
-                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
-            );
-        }));
-
-        suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.KEYWORD), () -> {
-            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
-            BytesRef order = new BytesRef("ASC");
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.VERSION, "field"),
-                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
-                ),
-                "MvSortBytesRef[field=Attribute[channel=0], order=true]",
-                DataType.VERSION,
-                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
-            );
-        }));
+        for (DataType type : List.of(DataType.KEYWORD, DataType.TEXT, DataType.IP, DataType.VERSION)) {
+            suppliers.add(new TestCaseSupplier(List.of(type, DataType.KEYWORD), () -> {
+                List<BytesRef> field = randomList(1, 10, () -> (BytesRef) randomLiteral(type).value());
+                boolean order = randomBoolean();
+                var sortedData = field.stream().sorted(order ? Comparator.naturalOrder() : Comparator.reverseOrder()).toList();
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field, type, "field"),
+                        new TestCaseSupplier.TypedData(new BytesRef(order ? "ASC" : "DESC"), DataType.KEYWORD, "order").forceLiteral()
+                    ),
+                    "MvSortBytesRef[field=Attribute[channel=0], order=" + order + "]",
+                    type,
+                    equalTo(sortedData.size() == 1 ? sortedData.get(0) : sortedData)
+                );
+            }));
+        }
     }
 
     private static void nulls(List<TestCaseSupplier> suppliers) {

@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -120,7 +120,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         var prefixLengthV4EvaluatorSupplier = toEvaluator.apply(prefixLengthV4Field);
         var prefixLengthV6EvaluatorSupplier = toEvaluator.apply(prefixLengthV6Field);
@@ -139,7 +139,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         BytesRef ip,
         int prefixLengthV4,
         int prefixLengthV6,
-        @Fixed(includeInToString = false, build = true) BytesRef scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) {
         if (prefixLengthV4 < 0 || prefixLengthV4 > 32) {
             throw new IllegalArgumentException("Prefix length v4 must be in range [0, 32], found " + prefixLengthV4);
@@ -167,6 +167,8 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private static void makePrefix(BytesRef ip, BytesRef scratch, int fullBytes, int remainingBits) {
+        int filledBytes = fullBytes;
+
         // Copy the first full bytes
         System.arraycopy(ip.bytes, ip.offset, scratch.bytes, 0, fullBytes);
 
@@ -174,11 +176,12 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         if (remainingBits > 0) {
             byte lastByteMask = (byte) (0xFF << (8 - remainingBits));
             scratch.bytes[fullBytes] = (byte) (ip.bytes[ip.offset + fullBytes] & lastByteMask);
+            filledBytes++;
         }
 
-        // Copy the last empty bytes
-        if (fullBytes < 16) {
-            Arrays.fill(scratch.bytes, fullBytes + 1, 16, (byte) 0);
+        // Fill the last untouched bytes with zeroes
+        if (filledBytes < 16) {
+            Arrays.fill(scratch.bytes, filledBytes, 16, (byte) 0);
         }
     }
 

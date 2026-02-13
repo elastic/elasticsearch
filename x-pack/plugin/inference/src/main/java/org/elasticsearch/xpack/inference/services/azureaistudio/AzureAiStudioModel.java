@@ -12,7 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionVisitor;
+import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -101,4 +101,17 @@ public abstract class AzureAiStudioModel extends Model {
     }
 
     public abstract ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings);
+
+    /**
+     * Strips the last trailing slash from a String
+     * @param url
+     * @return
+     */
+    public static String stripTrailingSlash(String url) {
+        if (url.endsWith("/")) {
+            return url.substring(0, url.length() - 1);
+        } else {
+            return url;
+        }
+    }
 }

@@ -19,6 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class WordDelimiterTokenFilterFactoryTests extends BaseWordDelimiterTokenFilterFactoryTestCase {
     public WordDelimiterTokenFilterFactoryTests() {
         super("word_delimiter");

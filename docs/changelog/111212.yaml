@@ -1,6 +1,0 @@
-pr: 111212
-summary: Fix score count validation in reranker response
-area: Ranking
-type: bug
-issues:
- - 111202

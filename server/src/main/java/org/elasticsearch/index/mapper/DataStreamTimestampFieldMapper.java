@@ -49,7 +49,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         static final TimestampFieldType INSTANCE = new TimestampFieldType();
 
         private TimestampFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
+            super(NAME, IndexType.NONE, false, Map.of());
         }
 
         @Override
@@ -139,7 +139,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
-        if (dateFieldMapper.fieldType().isIndexed() == false) {
+        IndexType indexType = dateFieldMapper.fieldType().indexType();
+        if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
@@ -165,10 +166,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             Map<?, ?> configuredSettings = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
             configuredSettings = (Map<?, ?>) configuredSettings.values().iterator().next();
 
-            // Only type, meta and format attributes are allowed:
+            // Only type, meta, format, and locale attributes are allowed:
             configuredSettings.remove("type");
             configuredSettings.remove("meta");
             configuredSettings.remove("format");
+            configuredSettings.remove("locale");
 
             // ignoring malformed values is disallowed (see previous check),
             // however if `index.mapping.ignore_malformed` has been set to true then

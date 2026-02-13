@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.slm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -25,32 +25,28 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public SLMUsageTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
-        super(
-            XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata slmMeta = projectResolver.getProjectMetadata(state).custom(SnapshotLifecycleMetadata.TYPE);
         final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

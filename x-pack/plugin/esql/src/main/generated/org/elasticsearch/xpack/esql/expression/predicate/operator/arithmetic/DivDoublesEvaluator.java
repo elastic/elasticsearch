@@ -8,22 +8,25 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Div}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DivDoublesEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
@@ -31,12 +34,14 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public DivDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+    this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -56,35 +61,45 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lhs.baseRamBytesUsed();
+    baseRamBytesUsed += rhs.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (lhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (lhsBlock.getValueCount(p) != 1) {
-          if (lhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (rhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (rhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rhsBlock.getValueCount(p) != 1) {
-          if (rhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
+        double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Div.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+          result.appendDouble(Div.processDoubles(lhs, rhs));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -95,10 +110,12 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double lhs = lhsVector.getDouble(p);
+        double rhs = rhsVector.getDouble(p);
         try {
-          result.appendDouble(Div.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+          result.appendDouble(Div.processDoubles(lhs, rhs));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -114,6 +131,13 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

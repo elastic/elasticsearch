@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -33,20 +34,20 @@ import static org.hamcrest.Matchers.nullValue;
 public class NodeInfoTests extends ESTestCase {
 
     /**
-     * Check that the the {@link NodeInfo#getInfo(Class)} method returns null
+     * Check that the {@link NodeInfo#getInfo(Class)} method returns null
      * for absent info objects, and returns the right thing for present info
      * objects.
      */
     public void testGetInfo() {
         NodeInfo nodeInfo = new NodeInfo(
             Build.current().version(),
-            TransportVersion.current(),
+            new CompatibilityVersions(TransportVersion.current(), Map.of()),
             IndexVersion.current(),
             Map.of(),
             Build.current(),
             DiscoveryNodeUtils.builder("test_node")
                 .roles(emptySet())
-                .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomCompatibleVersion(random()))
+                .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomCompatibleVersion())
                 .build(),
             null,
             null,

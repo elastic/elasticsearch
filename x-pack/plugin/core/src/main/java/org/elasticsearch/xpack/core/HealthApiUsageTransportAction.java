@@ -11,10 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -30,10 +27,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
  */
 public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    static final NodeFeature SUPPORTS_HEALTH_STATS = new NodeFeature("health.supports_health_stats");
-
     private final Client client;
-    private final FeatureService featureService;
 
     @Inject
     public HealthApiUsageTransportAction(
@@ -41,24 +35,14 @@ public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client,
-        FeatureService featureService
+        Client client
     ) {
-        super(
-            XPackUsageFeatureAction.HEALTH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.HEALTH.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
-        this.featureService = featureService;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -70,7 +54,7 @@ public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAct
             client.threadPool().getThreadContext()
         );
 
-        if (state.clusterRecovered() && featureService.clusterHasFeature(state, SUPPORTS_HEALTH_STATS)) {
+        if (state.clusterRecovered()) {
             HealthApiStatsAction.Request statsRequest = new HealthApiStatsAction.Request();
             statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
             client.execute(HealthApiStatsAction.INSTANCE, statsRequest, preservingListener.delegateFailureAndWrap((l, r) -> {

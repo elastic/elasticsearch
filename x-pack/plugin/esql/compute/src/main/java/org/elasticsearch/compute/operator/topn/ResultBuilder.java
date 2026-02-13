@@ -21,8 +21,11 @@ interface ResultBuilder extends Releasable {
      * Called for each sort key before {@link #decodeValue} to consume the sort key and
      * store the value of the key for {@link #decodeValue} can use it to reconstruct
      * the value. This will only be called if the value is part of the key.
+     * @param asc Is the sort ascending ({@code true}) or descending ({@code false})?
+     *            Keys are encoded with their bits flipped when sorting descending. This
+     *            undoes that.
      */
-    void decodeKey(BytesRef keys);
+    void decodeKey(BytesRef keys, boolean asc);
 
     /**
      * Called once per row to decode the value and write to the internal {@link Block.Builder}.
@@ -53,7 +56,11 @@ interface ResultBuilder extends Releasable {
             case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
-            case DOC -> new ResultBuilderForDoc(blockFactory, positions);
+            case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
+            case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
+            case LONG_RANGE -> new ResultBuilderForLongRange(blockFactory, positions);
+            case EXPONENTIAL_HISTOGRAM -> new ResultBuilderForExponentialHistogram(blockFactory, positions);
+            case TDIGEST -> new ResultBuilderForTDigest(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";
                 throw new UnsupportedOperationException("Result builder for [" + elementType + "]");

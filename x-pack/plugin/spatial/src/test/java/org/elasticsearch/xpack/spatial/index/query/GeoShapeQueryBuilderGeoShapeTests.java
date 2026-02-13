@@ -13,6 +13,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -87,15 +88,27 @@ public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTestC
         }
         if (ESTestCase.randomBoolean()) {
             SearchExecutionContext context = AbstractBuilderTestCase.createSearchExecutionContext();
-            if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
-                builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
+            if (context.indexVersionCreated().onOrAfter(IndexVersions.V_7_5_0)) { // CONTAINS is only supported from version 7.5
+                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
+                    builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
+                } else {
+                    builder.relation(
+                        ESTestCase.randomFrom(
+                            ShapeRelation.DISJOINT,
+                            ShapeRelation.INTERSECTS,
+                            ShapeRelation.WITHIN,
+                            ShapeRelation.CONTAINS
+                        )
+                    );
+                }
             } else {
-                builder.relation(
-                    ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN, ShapeRelation.CONTAINS)
-                );
+                if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
+                    builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
+                } else {
+                    builder.relation(ESTestCase.randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
+                }
             }
         }
-
         if (ESTestCase.randomBoolean()) {
             builder.ignoreUnmapped(ESTestCase.randomBoolean());
         }

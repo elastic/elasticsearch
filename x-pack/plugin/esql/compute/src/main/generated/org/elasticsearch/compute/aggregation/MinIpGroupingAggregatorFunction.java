@@ -16,14 +16,15 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MinIpAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
 public final class MinIpGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -58,23 +59,26 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    BytesRefVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      if (valuesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+    BytesRefBlock valueBlock = page.getBlock(channels.get(0));
+    BytesRefVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valueBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
@@ -84,13 +88,18 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valueVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
@@ -99,69 +108,174 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        MinIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values) {
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      MinIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, BytesRefBlock values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefBlock valueBlock) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          MinIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+          MinIpAggregator.combine(state, groupId, valueValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BytesRefVector values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefVector valueVector) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
       }
+      int valuesPosition = groupPosition + positionOffset;
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        MinIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+        MinIpAggregator.combine(state, groupId, valueValue);
       }
     }
   }
 
   @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector max = ((BytesRefBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
+    BytesRef maxScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesPosition = groupPosition + positionOffset;
+        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock valueBlock) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+          MinIpAggregator.combine(state, groupId, valueValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups,
+      BytesRefVector valueVector) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+        MinIpAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector max = ((BytesRefBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
+    BytesRef maxScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesPosition = groupPosition + positionOffset;
+        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock valueBlock) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groups.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+        MinIpAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector valueVector) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      int groupId = groups.getInt(groupPosition);
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      MinIpAggregator.combine(state, groupId, valueValue);
+    }
   }
 
   @Override
@@ -179,21 +293,23 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
+      int valuesPosition = groupPosition + positionOffset;
+      MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock valueBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    MinIpAggregator.GroupingState inState = ((MinIpGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MinIpAggregator.combineStates(state, groupId, inState, position);
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -203,8 +319,8 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

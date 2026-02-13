@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -40,7 +42,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
         return new StringExtractOperator.StringExtractOperatorFactory(
             new String[] { "test" },
@@ -50,6 +52,11 @@ public class StringExtractOperatorTests extends OperatorTestCase {
                     Block block = page.getBlock(0);
                     block.incRef();
                     return block;
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return 0;
                 }
 
                 @Override
@@ -91,6 +98,11 @@ public class StringExtractOperatorTests extends OperatorTestCase {
                 Block block = page.getBlock(0);
                 block.incRef();
                 return block;
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override

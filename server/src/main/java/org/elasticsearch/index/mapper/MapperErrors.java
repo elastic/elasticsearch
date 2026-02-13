@@ -14,6 +14,12 @@ public class MapperErrors {
         throw new IllegalArgumentException("can't merge a non object mapping [" + fieldName + "] with an object mapping");
     }
 
+    static void throwPassThroughMappingConflictError(String fieldName) throws IllegalArgumentException {
+        throw new IllegalArgumentException(
+            "can't merge a passthrough mapping [" + fieldName + "] with an object mapping that is either root or has subobjects enabled"
+        );
+    }
+
     static void throwNestedMappingConflictError(String fieldName) throws IllegalArgumentException {
         throw new IllegalArgumentException("can't merge a non-nested mapping [" + fieldName + "] with a nested mapping");
     }

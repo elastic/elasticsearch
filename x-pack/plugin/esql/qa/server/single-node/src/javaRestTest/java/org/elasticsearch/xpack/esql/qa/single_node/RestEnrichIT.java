@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RestEnrichTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.ClassRule;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)

@@ -33,11 +33,13 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -171,10 +173,14 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoShapeWithDocValuesFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
+                /*
+                 * We have no plans to fail on multifields because it isn't worth breaking
+                 * even the tiny fraction of users.
+                 */
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
-                    "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [geo_shape] mappers has no effect"
                 );
             }
             GeometryParser geometryParser = new GeometryParser(
@@ -192,6 +198,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 parser,
                 scriptValues(),
                 geoFormatterFactory,
+                context.isSourceSynthetic(),
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -211,6 +218,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         private final FieldValues<Geometry> scriptValues;
+        private final boolean isSyntheticSource;
 
         public GeoShapeWithDocValuesFieldType(
             String name,
@@ -221,11 +229,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeoShapeParser parser,
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, indexed, isStored, hasDocValues, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -254,7 +264,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 );
             }
             Query query;
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
                 if (hasDocValues()) {
                     final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
@@ -297,6 +307,26 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return geoFormatterFactory.getFormatter(format, Function.identity());
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new GeoBoundsBlockLoader(name());
+            }
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
+        }
+
+        static class GeoBoundsBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader {
+
+            GeoBoundsBlockLoader(String fieldName) {
+                super(fieldName);
+            }
         }
     }
 
@@ -349,6 +379,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     private final Builder builder;
     private final GeoShapeIndexer indexer;
+    private final boolean indexed;
 
     public GeoShapeWithDocValuesFieldMapper(
         String simpleName,
@@ -370,6 +401,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         );
         this.builder = builder;
         this.indexer = indexer;
+        this.indexed = mappedFieldType.indexType().hasPoints();
     }
 
     @Override
@@ -380,7 +412,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
         final Geometry normalizedGeometry = indexer.normalize(geometry);
         final List<IndexableField> fields = indexer.getIndexableFields(normalizedGeometry);
-        if (fieldType().isIndexed()) {
+        if (indexed) {
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
@@ -392,7 +424,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
             docValuesField.add(fields, geometry);
-        } else if (fieldType().isIndexed()) {
+        } else if (indexed) {
             context.addToFieldNames(fieldType().name());
         }
 

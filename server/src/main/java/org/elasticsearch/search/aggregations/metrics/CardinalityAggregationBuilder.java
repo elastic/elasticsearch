@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -37,6 +36,12 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     public static final ValuesSourceRegistry.RegistryKey<CardinalityAggregatorSupplier> REGISTRY_KEY =
         new ValuesSourceRegistry.RegistryKey<>(NAME, CardinalityAggregatorSupplier.class);
 
+    /**
+     * Pre-2.0 rehashing was configurable, but it hasn't been for ~10 years. We always rehash because it's
+     * quite cheap. Attempting to enable or disable it is just a noop with a deprecation message. We have
+     * no plans to remove this parameter because it isn't worth breaking even the tiny fraction of users
+     * who are sending it. Deprecation was in #12931.
+     */
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
@@ -87,9 +92,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            executionHint = in.readOptionalString();
-        }
+        executionHint = in.readOptionalString();
     }
 
     @Override
@@ -104,9 +107,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (hasPrecisionThreshold) {
             out.writeLong(precisionThreshold);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalString(executionHint);
-        }
+        out.writeOptionalString(executionHint);
     }
 
     @Override
@@ -197,6 +198,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

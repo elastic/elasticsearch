@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.profiling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -103,8 +101,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
-        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get()));
-        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get()));
+        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
+        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
@@ -113,7 +111,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
         }
-        return List.of(createLicenseChecker());
+        return List.of(createLicenseChecker(), registry.get());
     }
 
     protected ProfilingLicenseChecker createLicenseChecker() {
@@ -184,14 +182,14 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
-            new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
-            new ActionHandler<>(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
-            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)
+            new ActionHandler(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
+            new ActionHandler(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
+            new ActionHandler(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
+            new ActionHandler(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+            new ActionHandler(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)
         );
     }
 

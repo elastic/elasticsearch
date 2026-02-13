@@ -11,11 +11,12 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
@@ -55,12 +58,16 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest
+public class BulkRequest extends LegacyActionRequest
     implements
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,
         Accountable,
         RawIndexingDataTransportRequest {
+
+    private static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = TransportVersion.fromName(
+        "streams_endpoint_param_restrictions"
+    );
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
@@ -83,6 +90,8 @@ public class BulkRequest extends ActionRequest
     private String globalIndex;
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
+    private boolean includeSourceOnError = true;
+    private Set<String> paramsUsed = emptySet();
 
     private long sizeInBytes = 0;
 
@@ -97,10 +106,10 @@ public class BulkRequest extends ActionRequest
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
-            incrementalState = new BulkRequest.IncrementalState(in);
-        } else {
-            incrementalState = BulkRequest.IncrementalState.EMPTY;
+        incrementalState = new BulkRequest.IncrementalState(in);
+        includeSourceOnError = in.readBoolean();
+        if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
     }
 
@@ -166,7 +175,7 @@ public class BulkRequest extends ActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        sizeInBytes += request.indexSource().byteLength() + REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
     }
@@ -184,10 +193,10 @@ public class BulkRequest extends ActionRequest
 
         requests.add(request);
         if (request.doc() != null) {
-            sizeInBytes += request.doc().source().length();
+            sizeInBytes += request.doc().indexSource().byteLength();
         }
         if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().source().length();
+            sizeInBytes += request.upsertRequest().indexSource().byteLength();
         }
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;
@@ -277,7 +286,7 @@ public class BulkRequest extends ActionRequest
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
         Boolean requireDataStream = valueOrDefault(defaultRequireDataStream, globalRequireDatsStream);
-        new BulkRequestParser(true, restApiVersion).parse(
+        new BulkRequestParser(true, includeSourceOnError, restApiVersion).parse(
             data,
             defaultIndex,
             routing,
@@ -340,6 +349,11 @@ public class BulkRequest extends ActionRequest
         this.incrementalState = incrementalState;
     }
 
+    public final BulkRequest includeSourceOnError(boolean includeSourceOnError) {
+        this.includeSourceOnError = includeSourceOnError;
+        return this;
+    }
+
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
@@ -398,6 +412,10 @@ public class BulkRequest extends ActionRequest
         return globalRequireDatsStream;
     }
 
+    public boolean includeSourceOnError() {
+        return includeSourceOnError;
+    }
+
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
@@ -453,8 +471,10 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
-            incrementalState.writeTo(out);
+        incrementalState.writeTo(out);
+        out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            out.writeCollection(paramsUsed, StreamOutput::writeString);
         }
     }
 
@@ -498,11 +518,23 @@ public class BulkRequest extends ActionRequest
         return false; // Always false, but may be overridden by a subclass
     }
 
+    public Set<String> requestParamsUsed() {
+        return paramsUsed;
+    }
+
+    public void requestParamsUsed(Set<String> paramsUsed) {
+        this.paramsUsed = paramsUsed;
+    }
+
     /*
      * Returns any component template substitutions that are to be used as part of this bulk request. We would likely only have
      * substitutions in the event of a simulated request.
      */
     public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
+        return Map.of();
+    }
+
+    public Map<String, ComposableIndexTemplate> getIndexTemplateSubstitutions() throws IOException {
         return Map.of();
     }
 
@@ -532,6 +564,7 @@ public class BulkRequest extends ActionRequest
         bulkRequest.routing(routing());
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
+        bulkRequest.requestParamsUsed(requestParamsUsed());
         return bulkRequest;
     }
 }

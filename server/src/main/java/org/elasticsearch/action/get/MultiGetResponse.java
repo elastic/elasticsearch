@@ -10,14 +10,11 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,9 +45,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
         Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readOptionalString();
-            }
             id = in.readString();
             exception = in.readException();
         }
@@ -79,9 +73,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeString(id);
             out.writeException(exception);
         }
@@ -90,9 +81,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-            }
             builder.field(ID.getPreferredName(), id);
             ElasticsearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();

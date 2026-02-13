@@ -1,19 +1,21 @@
 {
-  "ml.info":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html",
-      "description":"Returns defaults and limits used by machine learning."
+  "ml.info": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-info",
+      "description": "Get machine learning information"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/info",
-          "methods":[
+          "path": "/_ml/info",
+          "methods": [
             "GET"
           ]
         }

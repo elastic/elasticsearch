@@ -16,46 +16,57 @@ import java.util.stream.Collectors;
 /**
  * A {@code StableBridgeAPI} is the stable bridge to an Elasticsearch API, and can produce instances
  * from the actual API that they mirror. As part of the LogstashBridge project, these classes are relied
- * upon by the "Elastic Integration Filter Plugin" for Logstash and their external shapes mut not change
+ * upon by the "Elastic Integration Filter Plugin" for Logstash and their external shapes must not change
  * without coordination with the maintainers of that project.
  *
- * @param <T> the actual type of the Elasticsearch API being mirrored
+ * @param <INTERNAL> the actual type of the Elasticsearch API being mirrored
  */
-public interface StableBridgeAPI<T> {
-    T unwrap();
+public interface StableBridgeAPI<INTERNAL> {
+    INTERNAL toInternal();
 
-    static <T> T unwrapNullable(final StableBridgeAPI<T> nullableStableBridgeAPI) {
+    static <T> T toInternalNullable(final StableBridgeAPI<T> nullableStableBridgeAPI) {
         if (Objects.isNull(nullableStableBridgeAPI)) {
             return null;
         }
-        return nullableStableBridgeAPI.unwrap();
+        return nullableStableBridgeAPI.toInternal();
     }
 
-    static <K, T> Map<K, T> unwrap(final Map<K, ? extends StableBridgeAPI<T>> bridgeMap) {
-        return bridgeMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().unwrap()));
+    static <K, T> Map<K, T> toInternal(final Map<K, ? extends StableBridgeAPI<T>> bridgeMap) {
+        return bridgeMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().toInternal()));
     }
 
-    static <K, T, B extends StableBridgeAPI<T>> Map<K, B> wrap(final Map<K, T> rawMap, final Function<T, B> wrapFunction) {
-        return rawMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> wrapFunction.apply(e.getValue())));
+    static <K, T, B extends StableBridgeAPI<T>> Map<K, B> fromInternal(final Map<K, T> rawMap, final Function<T, B> externalizor) {
+        return rawMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> externalizor.apply(e.getValue())));
     }
 
-    static <T, B extends StableBridgeAPI<T>> B wrap(final T delegate, final Function<T, B> wrapFunction) {
+    static <T, B extends StableBridgeAPI<T>> B fromInternal(final T delegate, final Function<T, B> externalizor) {
         if (Objects.isNull(delegate)) {
             return null;
         }
-        return wrapFunction.apply(delegate);
+        return externalizor.apply(delegate);
     }
 
-    abstract class Proxy<T> implements StableBridgeAPI<T> {
-        protected final T delegate;
+    /**
+     * An {@code ProxyInternal<INTERNAL>} is an implementation of {@code StableBridgeAPI<INTERNAL>} that
+     * proxies calls to a delegate that is an actual {@code INTERNAL}.
+     *
+     * <p>
+     *     implementations are intended to be <em>opaque</em> to consumers of this library,
+     *     and should <em>NOT</em> have public constructors.
+     * </p>
+     *
+     * @param <INTERNAL>
+     */
+    abstract class ProxyInternal<INTERNAL> implements StableBridgeAPI<INTERNAL> {
+        protected final INTERNAL internalDelegate;
 
-        protected Proxy(final T delegate) {
-            this.delegate = delegate;
+        protected ProxyInternal(final INTERNAL internalDelegate) {
+            this.internalDelegate = internalDelegate;
         }
 
         @Override
-        public T unwrap() {
-            return delegate;
+        public INTERNAL toInternal() {
+            return internalDelegate;
         }
     }
 }

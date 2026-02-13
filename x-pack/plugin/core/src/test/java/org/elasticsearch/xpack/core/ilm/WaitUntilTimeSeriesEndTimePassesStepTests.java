@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -30,7 +33,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
     protected WaitUntilTimeSeriesEndTimePassesStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, Instant::now);
     }
 
     @Override
@@ -42,12 +45,12 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
-        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, Instant::now);
     }
 
     @Override
     protected WaitUntilTimeSeriesEndTimePassesStep copyInstance(WaitUntilTimeSeriesEndTimePassesStep instance) {
-        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), Instant::now);
     }
 
     public void testEvaluateCondition() {
@@ -59,26 +62,27 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
         Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
 
         String dataStreamName = "logs_my-app_prod";
-        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+        final var project = DataStreamTestHelper.getProjectWithDataStream(
+            randomProjectIdOrDefault(),
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
-        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.id());
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
 
         WaitUntilTimeSeriesEndTimePassesStep step = new WaitUntilTimeSeriesEndTimePassesStep(
             randomStepKey(),
             randomStepKey(),
-            () -> currentTime,
-            client
+            () -> currentTime
         );
         {
             // end_time has lapsed already so condition must be met
             Index previousGeneration = dataStream.getIndices().get(0);
 
-            step.evaluateCondition(clusterState.metadata(), previousGeneration, new AsyncWaitStep.Listener() {
+            step.evaluateCondition(state, project.index(previousGeneration), new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(true));
                 }
 
@@ -93,12 +97,12 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             // end_time is in the future
             Index writeIndex = dataStream.getIndices().get(1);
 
-            step.evaluateCondition(clusterState.metadata(), writeIndex, new AsyncWaitStep.Listener() {
+            step.evaluateCondition(state, project.index(writeIndex), new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(false));
-                    String information = Strings.toString(infomationContext);
+                    String information = Strings.toString(informationContext);
                     assertThat(
                         information,
                         containsString(
@@ -126,11 +130,11 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
                 .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()).build())
                 .build();
 
-            Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMeta, true).build();
-            step.evaluateCondition(newMetadata, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
+            ProjectState newState = state.updateProject(ProjectMetadata.builder(project).put(indexMeta, true).build());
+            step.evaluateCondition(newState, indexMeta, new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(true));
                 }
 

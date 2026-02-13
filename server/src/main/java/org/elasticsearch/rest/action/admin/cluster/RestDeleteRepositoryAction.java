@@ -10,10 +10,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -45,19 +42,11 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String name = request.param("repository");
-        final var deleteRepositoryRequest = new DeleteRepositoryRequest(getMasterNodeTimeout(request), getAckTimeout(request), name);
-        return channel -> client.admin()
-            .cluster()
-            .deleteRepository(
-                deleteRepositoryRequest,
-                new RestToXContentListener<AcknowledgedResponse>(channel).delegateResponse((delegate, err) -> {
-                    if (request.getRestApiVersion().equals(RestApiVersion.V_7) && err instanceof RepositoryConflictException) {
-                        delegate.onFailure(new IllegalStateException(((RepositoryConflictException) err).getBackwardCompatibleMessage()));
-                    } else {
-                        delegate.onFailure(err);
-                    }
-                })
-            );
+        final var deleteRepositoryRequest = new DeleteRepositoryRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
+            request.param("repository")
+        );
+        return channel -> client.admin().cluster().deleteRepository(deleteRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link DoubleArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class DoubleBigArrayVector extends AbstractVector implements DoubleVector, Releasable {
 
@@ -79,7 +79,7 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

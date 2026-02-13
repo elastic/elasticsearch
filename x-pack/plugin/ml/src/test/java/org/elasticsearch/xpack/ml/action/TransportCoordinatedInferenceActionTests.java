@@ -17,21 +17,21 @@ public class TransportCoordinatedInferenceActionTests extends ESTestCase {
     public void testConvertPrefixToInputType_ConvertsIngestCorrectly() {
         assertThat(
             TransportCoordinatedInferenceAction.convertPrefixToInputType(TrainedModelPrefixStrings.PrefixType.INGEST),
-            is(InputType.INGEST)
+            is(InputType.INTERNAL_INGEST)
         );
     }
 
     public void testConvertPrefixToInputType_ConvertsSearchCorrectly() {
         assertThat(
             TransportCoordinatedInferenceAction.convertPrefixToInputType(TrainedModelPrefixStrings.PrefixType.SEARCH),
-            is(InputType.SEARCH)
+            is(InputType.INTERNAL_SEARCH)
         );
     }
 
     public void testConvertPrefixToInputType_DefaultsToIngestWhenUnknown() {
         assertThat(
             TransportCoordinatedInferenceAction.convertPrefixToInputType(TrainedModelPrefixStrings.PrefixType.NONE),
-            is(InputType.INGEST)
+            is(InputType.INTERNAL_INGEST)
         );
     }
 }

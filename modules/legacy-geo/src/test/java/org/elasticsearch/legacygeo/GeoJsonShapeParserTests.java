@@ -15,7 +15,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
@@ -344,8 +343,6 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(p, polygonGeoJson, false);
     }
 
-    @UpdateForV9
-    @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParse3DPolygon() throws IOException, ParseException {
         XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()
             .startObject()
@@ -391,7 +388,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
             MapperBuilderContext.root(false, false)
         );

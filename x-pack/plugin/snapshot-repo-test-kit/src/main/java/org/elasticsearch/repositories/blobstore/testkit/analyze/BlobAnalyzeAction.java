@@ -9,15 +9,16 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -29,9 +30,10 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -48,9 +50,10 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +74,11 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  * version of the blob, but again must not yield partial data). Usually, however, we write once and only read after the write completes, and
  * in this case we insist that the read succeeds.
  *
+ * The writer may also attempt to copy the blob, either just before the write completes (which may fail with not found)
+ * or after (which should not fail). The writer may overwrite the source while the copy is in progress. If a copy is attempted,
+ * readers will read the copy instead of the original. As above, if the copy succeeds, then readers should see a complete copy.
+ * If the source is overwritten while the copy is in progress, readers may see either the original blob or the new one but no
+ * mixture or partial result.
  *
  * <pre>
  *
@@ -83,6 +91,12 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *      |                                    |                                        |
  *      | Write blob with random content     |                                        |
  *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      | Copy blob during write (rarely)    |                                        |
+ *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      |                      Copy complete |                                        |
+ *      |←-----------------------------------|                                        |
  *      |                                    |                                        |
  *      | Read range during write (rarely)   |                                        |
  *      |----------------------------------------------------------------------------→|
@@ -106,6 +120,18 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *      | -------------\                     |                                        |
  *      |-| Read phase |                     |                                        |
  *      | |------------|                     |                                        |
+ *      |                                    |                                        |
+ *      | Copy blob (rarely)                 |                                        |
+ *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      | TODO: Overwrite source (rarely)    |                                        |
+ *      |-----------------------------------→|                                        |
+ *      |                                    |                                        |
+ *      |                 Overwrite complete |                                        |
+ *      |←-----------------------------------|                                        |
+ *      |                                    |                                        |
+ *      |                      Copy complete |                                        |
+ *      |←-----------------------------------|                                        |
  *      |                                    |                                        |
  *      | Read range [a,b)                   |                                        |
  *      |----------------------------------------------------------------------------→|
@@ -144,9 +170,20 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
  * unnecessary resources.
- *
  */
-class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
+public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
+
+    /**
+     * Turns off copy-during-write as a test: minio implements this with a long wait
+     * and a client timeout. See: #135565
+     */
+    public static final Setting<Boolean> ENABLE_COPY_DURING_WRITE_CONTENTION = Setting.boolSetting(
+        "repositories.blobstore.testkit.analyze.copy_during_write_contention",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    private final boolean enableEarlyCopy;
 
     private static final Logger logger = LogManager.getLogger(BlobAnalyzeAction.class);
 
@@ -155,10 +192,16 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
     private final RepositoriesService repositoriesService;
     private final TransportService transportService;
 
-    BlobAnalyzeAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
+    BlobAnalyzeAction(
+        TransportService transportService,
+        Settings settings,
+        ActionFilters actionFilters,
+        RepositoriesService repositoriesService
+    ) {
         super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
+        this.enableEarlyCopy = ENABLE_COPY_DURING_WRITE_CONTENTION.get(settings);
     }
 
     @Override
@@ -177,7 +220,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         logger.trace("handling [{}]", request);
 
         assert task instanceof CancellableTask;
-        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener).run();
+        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener, enableEarlyCopy)
+            .run();
     }
 
     /**
@@ -192,35 +236,39 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
     private static class BlobAnalysis {
         private final TransportService transportService;
         private final CancellableTask task;
-        private final BlobAnalyzeAction.Request request;
+        private final Request request;
         private final BlobStoreRepository repository;
         private final BlobContainer blobContainer;
-        private final ActionListener<BlobAnalyzeAction.Response> listener;
         private final Random random;
         private final boolean checksumWholeBlob;
         private final long checksumStart;
         private final long checksumEnd;
+        // If a copy is requested, do exactly one so that the number of blobs created is controlled by RepositoryAnalyzeAction.
+        // Doing the copy in step 1 exercises copy before read completes. Step 2 exercises copy after read completes or the happy path.
+        private final boolean doEarlyCopy;
         private final List<DiscoveryNode> earlyReadNodes;
         private final List<DiscoveryNode> readNodes;
-        private final GroupedActionListener<NodeResponse> readNodesListener;
-        private final ListenableFuture<WriteDetails> write1Step = new ListenableFuture<>();
-        private final ListenableFuture<WriteDetails> write2Step = new ListenableFuture<>();
+        private final List<DiscoveryNode> readCopyNodes;
+        private final List<NodeResponse> nodeResponses;
+        private final RefCountingListener readResponseListeners;
+        private WriteDetails write1Details;
+        private WriteDetails write2Details;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
 
         BlobAnalysis(
             TransportService transportService,
             CancellableTask task,
-            BlobAnalyzeAction.Request request,
+            Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<BlobAnalyzeAction.Response> listener
+            ActionListener<Response> listener,
+            boolean enableEarlyCopy
         ) {
             this.transportService = transportService;
             this.task = task;
             this.request = request;
             this.repository = repository;
             this.blobContainer = blobContainer;
-            this.listener = listener;
             this.random = new Random(this.request.seed);
 
             checksumWholeBlob = random.nextBoolean();
@@ -231,6 +279,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 checksumStart = randomLongBetween(0L, request.targetLength);
                 checksumEnd = randomLongBetween(checksumStart + 1, request.targetLength + 1);
             }
+            doEarlyCopy = enableEarlyCopy && random.nextBoolean();
 
             final ArrayList<DiscoveryNode> nodes = new ArrayList<>(request.nodes); // copy for shuffling purposes
             if (request.readEarly) {
@@ -241,61 +290,60 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             }
             Collections.shuffle(nodes, random);
             readNodes = nodes.stream().limit(request.readNodeCount).collect(Collectors.toList());
+            if (request.getCopyBlobName() != null) {
+                Collections.shuffle(nodes, random);
+                readCopyNodes = nodes.stream().limit(request.readNodeCount).collect(Collectors.toList());
+            } else {
+                readCopyNodes = List.of();
+            }
 
-            final ListenableFuture<Collection<NodeResponse>> readsCompleteStep = new ListenableFuture<>();
-            readNodesListener = new GroupedActionListener<>(
-                earlyReadNodes.size() + readNodes.size(),
-                new ThreadedActionListener<>(transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT), readsCompleteStep)
-            );
-
-            // The order is important in this chain: if writing fails then we may never even start all the reads, and we want to cancel
-            // any read tasks that were started, but the reads step only fails after all the reads have completed so there's no need to
-            // cancel anything.
-            write1Step.addListener(
-                ActionListener.wrap(
-                    write1Details -> write2Step.addListener(
-                        ActionListener.wrap(
-                            write2Details -> readsCompleteStep.addListener(
-                                ActionListener.wrap(
-                                    responses -> onReadsComplete(responses, write1Details, write2Details),
-                                    this::cleanUpAndReturnFailure
-                                )
-                            ),
-                            this::cancelReadsCleanUpAndReturnFailure
-                        )
-                    ),
-                    this::cancelReadsCleanUpAndReturnFailure
+            nodeResponses = Collections.synchronizedList(new ArrayList<>(earlyReadNodes.size() + readNodes.size() + readCopyNodes.size()));
+            readResponseListeners = new RefCountingListener(
+                new ThreadedActionListener<>(
+                    transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT),
+                    listener.delegateResponse((l, e) -> l.onFailure(cleanUpAndWrapException(e))).map(ignored -> makeResponse())
                 )
             );
-
             task.addListener(() -> cancellableThreads.cancel(task.getReasonCancelled()));
         }
 
+        /**
+         * Execute the blob analysis: write the blob and then fire off the read requests, possibly with some extra reads or writes according
+         * to the options in the request.
+         */
         void run() {
-            writeRandomBlob(
-                request.readEarly || request.getAbortWrite() || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
-                true,
-                this::onLastReadForInitialWrite,
-                write1Step
-            );
-
-            if (request.writeAndOverwrite) {
-                assert request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
-                write1Step.addListener(
-                    ActionListener.wrap(ignored -> writeRandomBlob(true, false, this::doReadAfterWrite, write2Step), ignored -> {})
+            try {
+                write1Details = writeRandomBlob(
+                    request.readEarly || request.getAbortWrite() || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean()),
+                    true,
+                    this::onLastReadForInitialWrite
                 );
-            } else {
-                write2Step.onResponse(null);
-                doReadAfterWrite();
+
+                if (request.writeAndOverwrite) {
+                    assert request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
+                    write2Details = writeRandomBlob(true, false, this::doReadAfterWrite);
+                } else {
+                    doReadAfterWrite();
+                }
+            } catch (Exception e) {
+                readResponseListeners.acquire().onFailure(e);
+                transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
+            } finally {
+                readResponseListeners.close();
             }
         }
 
-        private void writeRandomBlob(
-            boolean atomic,
-            boolean failIfExists,
-            Runnable onLastRead,
-            ListenableFuture<WriteDetails> stepListener
-        ) {
+        /**
+         * Write a randomly-generated blob.
+         *
+         * @param atomic       If {@code true} then always use {@link BlobContainer#writeBlobAtomic} to write the blob, otherwise sometimes
+         *                     use {@link BlobContainer#writeBlob}.
+         * @param failIfExists Passed through to {@link BlobContainer#writeBlob} or {@link BlobContainer#writeBlobAtomic}.
+         * @param onLastRead   Callback executed just before emitting the last few bytes of the blob, allowing the caller to trigger some
+         *                     reads just before the write operation completes and/or to fail the write operation part-way through.
+         * @return the details of the write operation, reported back to the coordinating node.
+         */
+        private WriteDetails writeRandomBlob(boolean atomic, boolean failIfExists, Runnable onLastRead) {
             assert atomic == false || request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
             final RandomBlobContent content = new RandomBlobContent(
                 request.getRepositoryName(),
@@ -309,25 +357,25 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 logger.trace("writing blob [atomic={}, failIfExists={}] for [{}]", atomic, failIfExists, request.getDescription());
             }
             final long startNanos = System.nanoTime();
-            ActionListener.completeWith(stepListener, () -> {
 
-                // TODO push some of this writing logic down into the blob container implementation.
-                // E.g. for S3 blob containers we would like to choose somewhat more randomly between single-part and multi-part uploads,
-                // rather than relying on the usual distinction based on the size of the blob.
+            // TODO push some of this writing logic down into the blob container implementation.
+            // E.g. for S3 blob containers we would like to choose somewhat more randomly between single-part and multi-part uploads,
+            // rather than relying on the usual distinction based on the size of the blob.
 
-                if (atomic || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean())) {
-                    final RandomBlobContentBytesReference bytesReference = new RandomBlobContentBytesReference(
-                        content,
-                        Math.toIntExact(request.getTargetLength())
-                    ) {
-                        @Override
-                        public StreamInput streamInput() throws IOException {
-                            return new InputStreamStreamInput(
-                                repository.maybeRateLimitSnapshots(super.streamInput(), throttledNanos::addAndGet)
-                            );
-                        }
-                    };
-                    if (atomic) {
+            if (atomic || (request.targetLength <= MAX_ATOMIC_WRITE_SIZE && random.nextBoolean())) {
+                final RandomBlobContentBytesReference bytesReference = new RandomBlobContentBytesReference(
+                    content,
+                    Math.toIntExact(request.getTargetLength())
+                ) {
+                    @Override
+                    public StreamInput streamInput() throws IOException {
+                        return new InputStreamStreamInput(
+                            repository.maybeRateLimitSnapshots(super.streamInput(), throttledNanos::addAndGet)
+                        );
+                    }
+                };
+                if (atomic) {
+                    cancellableThreads.execute(() -> {
                         try {
                             blobContainer.writeBlobAtomic(
                                 OperationPurpose.REPOSITORY_ANALYSIS,
@@ -335,163 +383,250 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                                 bytesReference,
                                 failIfExists
                             );
-                        } catch (BlobWriteAbortedException e) {
-                            assert request.getAbortWrite() : "write unexpectedly aborted";
+                        } catch (Exception e) {
+                            if (ExceptionsHelper.unwrap(e, BlobWriteAbortedException.class) != null) {
+                                assert request.getAbortWrite() : "write unexpectedly aborted";
+                            } else {
+                                throw new RuntimeException(e);
+                            }
                         }
-                    } else {
-                        blobContainer.writeBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName, bytesReference, failIfExists);
-                    }
+                    });
                 } else {
                     cancellableThreads.execute(() -> {
                         try {
-                            blobContainer.writeBlob(
-                                OperationPurpose.REPOSITORY_ANALYSIS,
-                                request.blobName,
-                                repository.maybeRateLimitSnapshots(
-                                    new RandomBlobContentStream(content, request.getTargetLength()),
-                                    throttledNanos::addAndGet
-                                ),
-                                request.targetLength,
-                                failIfExists
-                            );
-                        } catch (IOException e) {
+                            blobContainer.writeBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName, bytesReference, failIfExists);
+                        } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
                     });
                 }
-                final long elapsedNanos = System.nanoTime() - startNanos;
-                final long checksum = content.getChecksum(checksumStart, checksumEnd);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("finished writing blob for [{}], got checksum [{}]", request.getDescription(), checksum);
-                }
-                return new WriteDetails(request.targetLength, elapsedNanos, throttledNanos.get(), checksum);
-            });
+            } else {
+                cancellableThreads.execute(() -> {
+                    try {
+                        blobContainer.writeBlob(
+                            OperationPurpose.REPOSITORY_ANALYSIS,
+                            request.blobName,
+                            repository.maybeRateLimitSnapshots(
+                                new RandomBlobContentStream(content, request.getTargetLength()),
+                                throttledNanos::addAndGet
+                            ),
+                            request.targetLength,
+                            failIfExists
+                        );
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+            final long elapsedNanos = System.nanoTime() - startNanos;
+            final long checksum = content.getChecksum(checksumStart, checksumEnd);
+            if (logger.isTraceEnabled()) {
+                logger.trace("finished writing blob for [{}], got checksum [{}]", request.getDescription(), checksum);
+            }
+            return new WriteDetails(request.targetLength, elapsedNanos, throttledNanos.get(), checksum);
         }
 
+        /**
+         * Called just before completing the first write operation, after transmitting almost the whole blob's contents. Possibly does one
+         * or more of the following:
+         * <ul>
+         *     <li>Try and copy the blob, which should fail.</li>
+         *     <li>Fire off some early read operations, which may succeed or fail but mustn't see partial results.</li>
+         *     <li>Abort the write operation.</li>
+         * </ul>
+         */
         private void onLastReadForInitialWrite() {
+            var copySuccess = false;
+            if (request.copyBlobName != null && doEarlyCopy) {
+                try {
+                    blobContainer.copyBlob(
+                        OperationPurpose.REPOSITORY_ANALYSIS,
+                        blobContainer,
+                        request.blobName,
+                        request.copyBlobName,
+                        request.targetLength
+                    );
+                    copySuccess = true;
+                } catch (UnsupportedOperationException uoe) {
+                    // not all repositories support copy
+                } catch (NoSuchFileException | FileNotFoundException ignored) {
+                    // assume this is due to copy starting before the source was finished
+                    logger.trace("copy FNF before write completed: {}", request.blobName);
+                } catch (IOException e) {
+                    if (request.getAbortWrite() == false) {
+                        throw new RepositoryVerificationException(
+                            request.getRepositoryName(),
+                            "failed to copy blob before write: [" + request.blobName + "]",
+                            e
+                        );
+                    }
+                }
+            }
             if (earlyReadNodes.isEmpty() == false) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("sending read request to [{}] for [{}] before write complete", earlyReadNodes, request.getDescription());
                 }
-                readOnNodes(earlyReadNodes, true);
+                readOnNodes(earlyReadNodes, request.getBlobName(), true);
+                if (copySuccess) {
+                    readOnNodes(earlyReadNodes, request.getCopyBlobName(), true);
+                }
             }
             if (request.getAbortWrite()) {
                 throw new BlobWriteAbortedException();
             }
         }
 
+        /**
+         * Called after completing the first write operation. If this action involves a second overwrite operation then this is called just
+         * before completing that second write, after transmitting almost the whole blob's new contents. Otherwise, called once the first
+         * write operation has succeeded.
+         * <p>
+         * Fires off read requests to other nodes, which should all succeed. May also copy the blob and then fire off read requests for the
+         * copy.
+         */
         private void doReadAfterWrite() {
             if (logger.isTraceEnabled()) {
                 logger.trace("sending read request to [{}] for [{}] after write complete", readNodes, request.getDescription());
             }
-            readOnNodes(readNodes, false);
+            var copySuccess = false;
+            if (request.copyBlobName != null && doEarlyCopy == false && request.getAbortWrite() == false) {
+                try {
+                    blobContainer.copyBlob(
+                        OperationPurpose.REPOSITORY_ANALYSIS,
+                        blobContainer,
+                        request.blobName,
+                        request.copyBlobName,
+                        request.targetLength
+                    );
+                    copySuccess = true;
+                } catch (UnsupportedOperationException uoe) {
+                    // not all repositories support copy
+                } catch (IOException e) {
+                    readResponseListeners.acquire()
+                        .onFailure(
+                            new RepositoryVerificationException(
+                                request.getRepositoryName(),
+                                "failed to copy blob after write: [" + request.blobName + "]",
+                                e
+                            )
+                        );
+                    return;
+                }
+            }
+
+            readOnNodes(readNodes, request.blobName, false);
+            if (copySuccess) {
+                readOnNodes(readCopyNodes, request.copyBlobName, false);
+            }
         }
 
-        private void readOnNodes(List<DiscoveryNode> nodes, boolean beforeWriteComplete) {
+        /**
+         * Fire off a collection of read operations, collecting the responses with {@link #addNodeResponse} and retaining references to
+         * {@link #readResponseListeners} until the operations complete.
+         */
+        private void readOnNodes(List<DiscoveryNode> nodes, String blobName, boolean beforeWriteComplete) {
             for (DiscoveryNode node : nodes) {
-                if (task.isCancelled()) {
-                    // record dummy response since we're already on the path to failure
-                    readNodesListener.onResponse(
-                        new NodeResponse(node, beforeWriteComplete, GetBlobChecksumAction.Response.BLOB_NOT_FOUND)
-                    );
-                } else {
-                    // no need for extra synchronization after checking if we were cancelled a couple of lines ago -- we haven't notified
-                    // the outer listener yet so any bans on the children are still in place
-                    final GetBlobChecksumAction.Request blobChecksumRequest = getBlobChecksumRequest();
+                if (task.isCancelled() == false) {
+                    // no need for extra synchronization after checking if we were cancelled here -- we haven't notified the outer listener
+                    // yet so any bans on the children are still in place
+                    final GetBlobChecksumAction.Request blobChecksumRequest = getBlobChecksumRequest(blobName);
                     transportService.sendChildRequest(
                         node,
                         GetBlobChecksumAction.NAME,
                         blobChecksumRequest,
                         task,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(new ActionListener<>() {
-                            @Override
-                            public void onResponse(GetBlobChecksumAction.Response response) {
-                                readNodesListener.onResponse(makeNodeResponse(node, beforeWriteComplete, response));
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                readNodesListener.onFailure(
-                                    new RepositoryVerificationException(
-                                        request.getRepositoryName(),
-                                        "["
-                                            + blobChecksumRequest
-                                            + "] ("
-                                            + (beforeWriteComplete ? "before" : "after")
-                                            + " write complete) failed on node ["
-                                            + node
-                                            + "]",
-                                        e
+                        new ActionListenerResponseHandler<>(
+                            readResponseListeners.<GetBlobChecksumAction.Response>acquire(
+                                response -> addNodeResponse(node, beforeWriteComplete, response)
+                            )
+                                .delegateResponse(
+                                    (l, e) -> l.onFailure(
+                                        new RepositoryVerificationException(
+                                            request.getRepositoryName(),
+                                            "["
+                                                + blobChecksumRequest
+                                                + "] ("
+                                                + (beforeWriteComplete ? "before" : "after")
+                                                + " write complete) failed on node ["
+                                                + node
+                                                + "]",
+                                            e
+                                        )
                                     )
-                                );
-
-                            }
-                        }, GetBlobChecksumAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+                                ),
+                            GetBlobChecksumAction.Response::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
                     );
                 }
             }
         }
 
-        private GetBlobChecksumAction.Request getBlobChecksumRequest() {
+        private GetBlobChecksumAction.Request getBlobChecksumRequest(String blobName) {
             return new GetBlobChecksumAction.Request(
                 request.getRepositoryName(),
                 request.getBlobPath(),
-                request.getBlobName(),
+                blobName,
                 checksumStart,
                 checksumWholeBlob ? 0L : checksumEnd
             );
         }
 
-        private NodeResponse makeNodeResponse(DiscoveryNode node, boolean beforeWriteComplete, GetBlobChecksumAction.Response response) {
-            logger.trace(
-                "received read response [{}] from [{}] for [{}] [beforeWriteComplete={}]",
-                response,
-                node,
-                request.getDescription(),
-                beforeWriteComplete
-            );
-            return new NodeResponse(node, beforeWriteComplete, response);
+        private void addNodeResponse(DiscoveryNode node, boolean beforeWriteComplete, GetBlobChecksumAction.Response response) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "received read response [{}] from [{}] for [{}] [beforeWriteComplete={}]",
+                    response,
+                    node,
+                    request.getDescription(),
+                    beforeWriteComplete
+                );
+            }
+            nodeResponses.add(new NodeResponse(node, beforeWriteComplete, response));
         }
 
-        private void cancelReadsCleanUpAndReturnFailure(Exception exception) {
-            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
-            cleanUpAndReturnFailure(exception);
-        }
-
-        private void cleanUpAndReturnFailure(Exception exception) {
+        /**
+         * Called on failure: attempts to clean up the created blob(s) and then adds a {@link RepositoryVerificationException} wrapper to
+         * the exception.
+         */
+        private Exception cleanUpAndWrapException(Exception exception) {
             if (logger.isTraceEnabled()) {
                 logger.trace(() -> "analysis failed [" + request.getDescription() + "] cleaning up", exception);
             }
             try {
-                blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.REPOSITORY_ANALYSIS, Iterators.single(request.blobName));
+                blobContainer.deleteBlobsIgnoringIfNotExists(
+                    OperationPurpose.REPOSITORY_ANALYSIS,
+                    request.getCopyBlobName() == null
+                        ? Iterators.single(request.getBlobName())
+                        : List.of(request.getBlobName(), request.getCopyBlobName()).iterator()
+                );
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
                     () -> format(
-                        "failure during post-failure cleanup while analysing repository [%s], you may need to manually remove [%s/%s]",
+                        "failure during post-failure cleanup while analysing repository [%s], you may need to manually remove [%s/%s]%s",
                         request.getRepositoryName(),
                         request.getBlobPath(),
-                        request.getBlobName()
+                        request.getBlobName(),
+                        request.getCopyBlobName() == null ? "" : format(" and/or [%s/%s]", request.getBlobPath(), request.getCopyBlobName())
                     ),
                     exception
                 );
             }
-            listener.onFailure(
-                new RepositoryVerificationException(
-                    request.getRepositoryName(),
-                    "failure processing [" + request.getDescription() + "]",
-                    exception
-                )
+            return new RepositoryVerificationException(
+                request.getRepositoryName(),
+                "failure processing [" + request.getDescription() + "]",
+                exception
             );
         }
 
-        private void onReadsComplete(Collection<NodeResponse> responses, WriteDetails write1Details, @Nullable WriteDetails write2Details) {
+        /**
+         * @return The final response to send back to the coordinator.
+         */
+        private Response makeResponse() {
             if (task.isCancelled()) {
-                cleanUpAndReturnFailure(
-                    new RepositoryVerificationException(request.getRepositoryName(), "cancelled during checksum verification")
-                );
-                return;
+                throw new RepositoryVerificationException(request.getRepositoryName(), "cancelled during checksum verification");
             }
 
             final long checksumLength = checksumEnd - checksumStart;
@@ -507,7 +642,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
 
             boolean anyFound = false;
             RepositoryVerificationException failure = null;
-            for (final NodeResponse nodeResponse : responses) {
+            for (final NodeResponse nodeResponse : nodeResponses) {
                 final GetBlobChecksumAction.Response response = nodeResponse.response;
                 final RepositoryVerificationException nodeFailure;
                 if (response.isNotFound()) {
@@ -566,39 +701,36 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             }
 
             if (failure != null) {
-                cleanUpAndReturnFailure(failure);
-                return;
+                throw failure;
             }
 
             final long overwriteElapsedNanos = write2Details == null ? 0L : write2Details.elapsedNanos;
             final long overwriteThrottledNanos = write2Details == null ? 0L : write2Details.throttledNanos;
-            listener.onResponse(
-                new Response(
-                    transportService.getLocalNode().getId(),
-                    transportService.getLocalNode().getName(),
-                    request.blobName,
-                    request.targetLength,
-                    request.readEarly,
-                    request.writeAndOverwrite,
-                    checksumStart,
-                    checksumEnd,
-                    write1Details.elapsedNanos,
-                    overwriteElapsedNanos,
-                    write1Details.throttledNanos + overwriteThrottledNanos,
-                    responses.stream()
-                        .map(
-                            nr -> new ReadDetail(
-                                nr.node.getId(),
-                                nr.node.getName(),
-                                nr.beforeWriteComplete,
-                                nr.response.isNotFound(),
-                                nr.response.getFirstByteNanos(),
-                                nr.response.getElapsedNanos(),
-                                nr.response.getThrottleNanos()
-                            )
+            return new Response(
+                transportService.getLocalNode().getId(),
+                transportService.getLocalNode().getName(),
+                request.blobName,
+                request.targetLength,
+                request.readEarly,
+                request.writeAndOverwrite,
+                checksumStart,
+                checksumEnd,
+                write1Details.elapsedNanos,
+                overwriteElapsedNanos,
+                write1Details.throttledNanos + overwriteThrottledNanos,
+                nodeResponses.stream()
+                    .map(
+                        nr -> new ReadDetail(
+                            nr.node.getId(),
+                            nr.node.getName(),
+                            nr.beforeWriteComplete,
+                            nr.response.isNotFound(),
+                            nr.response.getFirstByteNanos(),
+                            nr.response.getElapsedNanos(),
+                            nr.response.getThrottleNanos()
                         )
-                        .collect(Collectors.toList())
-                )
+                    )
+                    .collect(Collectors.toList())
             );
         }
 
@@ -638,7 +770,10 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
     }
 
-    static class Request extends ActionRequest {
+    static class Request extends LegacyActionRequest {
+
+        private static final TransportVersion REPO_ANALYSIS_COPY_BLOB = TransportVersion.fromName("repo_analysis_copy_blob");
+
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;
@@ -651,6 +786,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         private final boolean readEarly;
         private final boolean writeAndOverwrite;
         private final boolean abortWrite;
+        @Nullable
+        private final String copyBlobName;
 
         Request(
             String repositoryName,
@@ -663,7 +800,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             int earlyReadNodeCount,
             boolean readEarly,
             boolean writeAndOverwrite,
-            boolean abortWrite
+            boolean abortWrite,
+            @Nullable String copyBlobName
         ) {
             assert 0 < targetLength;
             assert targetLength <= MAX_ATOMIC_WRITE_SIZE || (readEarly == false && writeAndOverwrite == false) : "oversized atomic write";
@@ -679,6 +817,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             this.readEarly = readEarly;
             this.writeAndOverwrite = writeAndOverwrite;
             this.abortWrite = abortWrite;
+            this.copyBlobName = copyBlobName;
         }
 
         Request(StreamInput in) throws IOException {
@@ -693,10 +832,11 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                abortWrite = in.readBoolean();
+            abortWrite = in.readBoolean();
+            if (in.getTransportVersion().supports(REPO_ANALYSIS_COPY_BLOB)) {
+                copyBlobName = in.readOptionalString();
             } else {
-                abortWrite = false;
+                copyBlobName = null;
             }
         }
 
@@ -713,11 +853,13 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                out.writeBoolean(abortWrite);
-            } else if (abortWrite) {
+            out.writeBoolean(abortWrite);
+            if (out.getTransportVersion().supports(REPO_ANALYSIS_COPY_BLOB)) {
+                out.writeOptionalString(copyBlobName);
+            } else if (copyBlobName != null) {
+                assert false : out.getTransportVersion();
                 throw new IllegalStateException(
-                    "cannot send abortWrite request on transport version [" + out.getTransportVersion().toReleaseVersion() + "]"
+                    "cannot serialize " + this + "] using transport version [" + out.getTransportVersion() + "]"
                 );
             }
         }
@@ -745,6 +887,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 + writeAndOverwrite
                 + ", abortWrite="
                 + abortWrite
+                + ", copyBlobName="
+                + copyBlobName
                 + "]";
         }
 
@@ -768,6 +912,10 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
 
         String getBlobName() {
             return blobName;
+        }
+
+        String getCopyBlobName() {
+            return copyBlobName;
         }
 
         long getTargetLength() {
@@ -825,7 +973,6 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             nodeName = in.readString();
             blobName = in.readString();

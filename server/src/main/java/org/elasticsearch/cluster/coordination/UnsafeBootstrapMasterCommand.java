@@ -15,6 +15,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -104,8 +105,10 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
             .clusterUUIDCommitted(true)
             .persistentSettings(persistentSettings)
             .coordinationMetadata(newCoordinationMetadata);
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
-            newMetadata.put(
+
+        final ProjectMetadata.Builder newProject = ProjectMetadata.builder(metadata.getProject());
+        for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
+            newProject.put(
                 IndexMetadata.builder(indexMetadata)
                     .settings(
                         Settings.builder()
@@ -114,6 +117,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
                     )
             );
         }
+        newMetadata.put(newProject);
 
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(newMetadata).build();
 

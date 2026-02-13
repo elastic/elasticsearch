@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -662,7 +661,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     factory.fetchSource(FetchSourceContext.fromXContent(parser));
                 } else if (SearchSourceBuilder.SCRIPT_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<ScriptField> scriptFields = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         String scriptFieldName = parser.currentName();
                         token = parser.nextToken();
                         if (token == XContentParser.Token.START_OBJECT) {
@@ -740,12 +739,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                         parser
                     );
                 } else if (SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
                         factory.docValueField(ff.field, ff.format);
                     }
                 } else if (SearchSourceBuilder.FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
                         factory.fetchField(ff);
                     }
@@ -820,6 +819,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

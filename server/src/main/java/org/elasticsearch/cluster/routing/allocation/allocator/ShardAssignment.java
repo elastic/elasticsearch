@@ -17,6 +17,14 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
 
+/**
+ * Simple shard assignment summary of shard copies for a particular index shard.
+ *
+ * @param nodeIds The node IDs of nodes holding a shard copy.
+ * @param total The total number of shard copies.
+ * @param unassigned The number of unassigned shard copies.
+ * @param ignored The number of ignored shard copies.
+ */
 public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, int ignored) {
 
     public ShardAssignment {
@@ -28,9 +36,13 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
         return nodeIds.size();
     }
 
-    public static ShardAssignment ofAssignedShards(List<ShardRouting> routings) {
+    /**
+     * Helper method to instantiate a new ShardAssignment from a given list of ShardRouting instances. Assumes all shards are assigned.
+     */
+    public static ShardAssignment createFromAssignedShardRoutingsList(List<ShardRouting> routings) {
         var nodeIds = new LinkedHashSet<String>();
         for (ShardRouting routing : routings) {
+            assert routing.unassignedInfo() == null : "Expected assigned shard copies only, unassigned info: " + routing.unassignedInfo();
             nodeIds.add(routing.currentNodeId());
         }
         return new ShardAssignment(unmodifiableSet(nodeIds), routings.size(), 0, 0);

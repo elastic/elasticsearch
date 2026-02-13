@@ -7,13 +7,17 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant int value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantIntVector extends AbstractVector implements IntVector {
 
@@ -37,7 +41,7 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantIntVector(value, positions.length);
     }
 
@@ -113,6 +117,11 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public IntVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantIntVector(value, getPositionCount());
     }
 
     @Override

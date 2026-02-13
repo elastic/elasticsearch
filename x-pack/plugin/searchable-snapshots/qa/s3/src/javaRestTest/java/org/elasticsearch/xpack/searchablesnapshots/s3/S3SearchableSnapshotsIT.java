@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsRestTestCase;
@@ -20,9 +22,9 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class S3SearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
-    static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
+    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE, S3ConsistencyModel::randomConsistencyModel);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

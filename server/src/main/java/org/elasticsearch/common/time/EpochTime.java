@@ -35,6 +35,25 @@ class EpochTime {
 
     private static final ValueRange POSITIVE_LONG_INTEGER_RANGE = ValueRange.of(0, Long.MAX_VALUE);
 
+    // TemporalField is only present in the presence of a rounded timestamp
+    private static final long ROUNDED_SIGN_PLACEHOLDER = -2;
+    private static final EpochField ROUNDED_SIGN_FIELD = new EpochField(
+        ChronoUnit.FOREVER,
+        ChronoUnit.FOREVER,
+        ValueRange.of(ROUNDED_SIGN_PLACEHOLDER, ROUNDED_SIGN_PLACEHOLDER)
+    ) {
+        // FIXME: what should this be?
+        @Override
+        public boolean isSupportedBy(TemporalAccessor temporal) {
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.getLong(ChronoField.INSTANT_SECONDS) < 0;
+        }
+
+        @Override
+        public long getFrom(TemporalAccessor temporal) {
+            return ROUNDED_SIGN_PLACEHOLDER;
+        }
+    };
+
     // TemporalField is only present in the presence of a negative (potentially fractional) timestamp.
     private static final long NEGATIVE_SIGN_PLACEHOLDER = -1;
     private static final EpochField NEGATIVE_SIGN_FIELD = new EpochField(
@@ -161,6 +180,10 @@ class EpochTime {
             Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
             long secondsAndMillis = fieldValues.remove(this);
 
+            // this flag indicates whether we were asked to round up and we defaulted to 999_999 nanos or nanos were given by the users
+            // specifically we do not wnat to confuse defaulted 999_999 nanos with user supplied 999_999 nanos
+            boolean roundUp = fieldValues.remove(ROUNDED_SIGN_FIELD) != null;
+
             long seconds;
             long nanos;
             if (isNegative != null) {
@@ -169,10 +192,18 @@ class EpochTime {
                 nanos = secondsAndMillis % 1000 * 1_000_000;
                 // `secondsAndMillis < 0` implies negative timestamp; so `nanos < 0`
                 if (nanosOfMilli != null) {
-                    // aggregate fractional part of the input; subtract b/c `nanos < 0`
-                    nanos -= nanosOfMilli;
+                    if (roundUp) {
+                        // these are not the nanos you think they are; these are "round up nanos" not the fractional part of the input
+                        // this is the case where we defaulted the value to 999_999 and the intention for rounding is that the value
+                        // moves closer to positive infinity
+                        nanos += nanosOfMilli;
+                    } else {
+                        // aggregate fractional part of the input; subtract b/c `nanos < 0`
+                        // this is the case where the user has supplied a nanos value and we'll want to shift toward negative infinity
+                        nanos -= nanosOfMilli;
+                    }
                 }
-                if (nanos != 0) {
+                if (nanos < 0) {
                     // nanos must be positive. B/c the timestamp is represented by the
                     // (seconds, nanos) tuple, seconds moves 1s toward negative-infinity
                     // and nanos moves 1s toward positive-infinity
@@ -235,21 +266,6 @@ class EpochTime {
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
-    // this supports milliseconds
-    public static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder().optionalStart()
-        .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
-        .optionalEnd()
-        .appendValue(UNSIGNED_MILLIS, 1, 19, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendFraction(NANOS_OF_MILLI, 0, 6, true)
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
-    // this supports milliseconds ending in dot
-    private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER1)
-        .appendLiteral('.')
-        .toFormatter(Locale.ROOT);
-
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter(
         "epoch_second",
         new JavaTimeDateTimePrinter(SECONDS_FORMATTER1),
@@ -258,12 +274,62 @@ class EpochTime {
         new JavaTimeDateTimeParser(SECONDS_FORMATTER2)
     );
 
+    public static final DateTimeFormatter MILLISECONDS_FORMATTER_BASE = new DateTimeFormatterBuilder().optionalStart()
+        .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
+        .optionalEnd()
+        .appendValue(UNSIGNED_MILLIS, 1, 19, SignStyle.NOT_NEGATIVE)
+        .toFormatter(Locale.ROOT);
+
+    // FIXME: clean these up and append one to the other
+    // this supports milliseconds
+    public static final DateTimeFormatter MILLISECONDS_FORMATTER = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER_BASE)
+        .optionalStart()
+        .appendFraction(NANOS_OF_MILLI, 0, 6, true)
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    // this supports milliseconds
+    public static final DateTimeFormatter MILLISECONDS_PARSER_W_NANOS = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER_BASE)
+        .appendFraction(NANOS_OF_MILLI, 0, 6, true)
+        .toFormatter(Locale.ROOT);
+
+    // we need an additional parser to detect the difference between user provided nanos and defaulted ones because of the necessity
+    // to parse the two differently in the round up case
+    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER_BASE)
+        .toFormatter(Locale.ROOT);
+
+    // we need an additional parser to detect the difference between user provided nanos and defaulted ones because of the necessity
+    // to parse the two differently in the round up case
+    public static final DateTimeFormatter MILLISECONDS_PARSER_WO_NANOS_ROUNDING = new DateTimeFormatterBuilder().append(
+        MILLISECONDS_FORMATTER_BASE
+    ).parseDefaulting(EpochTime.ROUNDED_SIGN_FIELD, -2L).parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L).toFormatter(Locale.ROOT);
+
+    // this supports milliseconds ending in dot
+    private static final DateTimeFormatter MILLISECONDS_PARSER_ENDING_IN_PERIOD = new DateTimeFormatterBuilder().append(
+        MILLISECONDS_FORMATTER_BASE
+    ).appendLiteral('.').toFormatter(Locale.ROOT);
+
+    /*
+    We separately handle the rounded and non-rounded uses cases here with different parsers.  The reason is because of how we store and
+    handle negative milliseconds since the epoch.  If a user supplies nanoseconds as part of a negative millisecond since epoch value
+    then we need to round toward negative infinity.  However, in the case where nanos are not supplied, and we are requested to
+    round up we will default the value of nanos to 999_999 and need to delineate that this rounding was intended to push the value
+    toward positive infinity not negative infinity.  Differentiating these two cases during parsing requires a flag called out above
+    the ROUNDED_SIGN_FIELD flag.  In addition to this flag we need to know that we are in the "rounding up" state.  So any time we are
+    asked to round up we will force setting the ROUNDED_SIGN_FIELD flag and be able to detect that when parsing and
+    storing the time information and be able to make the correct decision to round toward positive infinity.
+     */
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
         "epoch_millis",
-        new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER1),
-        JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L)),
-        new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER1),
-        new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER2)
+        new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER),
+        new JavaTimeDateTimeParser[] {
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_WO_NANOS_ROUNDING),
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_W_NANOS),
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_ENDING_IN_PERIOD) },
+        new JavaTimeDateTimeParser[] {
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_WO_NANOS),
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_W_NANOS),
+            new JavaTimeDateTimeParser(MILLISECONDS_PARSER_ENDING_IN_PERIOD) }
     );
 
     private abstract static class EpochField implements TemporalField {

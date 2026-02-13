@@ -15,11 +15,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -32,8 +30,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestAliasAction extends AbstractCatAction {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestAliasAction.class);
 
     @Override
     public List<Route> routes() {
@@ -52,24 +48,12 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final GetAliasesRequest getAliasesRequest = request.hasParam("alias")
-            ? new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias")))
-            : new GetAliasesRequest();
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
+        final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(
+            masterNodeTimeout,
+            Strings.commaDelimitedListToStringArray(request.param("alias"))
+        );
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
-
-        if (request.hasParam("local")) {
-            // consume this param just for validation
-            final var localParam = request.paramAsBoolean("local", false);
-            if (request.getRestApiVersion() != RestApiVersion.V_7) {
-                DEPRECATION_LOGGER.critical(
-                    DeprecationCategory.API,
-                    "cat-aliases-local",
-                    "the [?local={}] query parameter to cat-aliases requests has no effect and will be removed in a future version",
-                    localParam
-                );
-            }
-        }
-
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .getAliases(getAliasesRequest, new RestResponseListener<>(channel) {

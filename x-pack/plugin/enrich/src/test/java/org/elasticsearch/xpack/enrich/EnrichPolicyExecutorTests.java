@@ -20,7 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -385,8 +385,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     public void testRunPolicyLocallyMissingPolicy() {
         EnrichPolicy enrichPolicy = EnrichPolicyTests.randomEnrichPolicy(XContentType.JSON);
+        final var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build())
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId).putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build()
+            )
             .build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -405,7 +408,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         ExecuteEnrichPolicyTask task = mock(ExecuteEnrichPolicyTask.class);
         Exception e = expectThrows(
             ResourceNotFoundException.class,
-            () -> testExecutor.runPolicyLocally(task, "my-policy", ".enrich-my-policy-123456789", null)
+            () -> testExecutor.runPolicyLocally(projectId, task, "my-policy", ".enrich-my-policy-123456789", null)
         );
         assertThat(e.getMessage(), equalTo("policy [my-policy] does not exist"));
     }

@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -31,8 +31,8 @@ public class SumFloatGroupingAggregatorFunctionTests extends GroupingAggregatorF
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumFloatAggregatorFunctionSupplier();
     }
 
     @Override

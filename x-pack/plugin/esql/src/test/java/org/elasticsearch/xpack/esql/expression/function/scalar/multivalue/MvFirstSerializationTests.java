@@ -21,9 +21,4 @@ public class MvFirstSerializationTests extends AbstractExpressionSerializationTe
     protected MvFirst mutateInstance(MvFirst instance) throws IOException {
         return new MvFirst(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

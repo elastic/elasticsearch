@@ -38,7 +38,7 @@ public class SegmentCountStepInfoTests extends AbstractXContentTestCase<SegmentC
     }
 
     protected final Info copyInstance(Info instance) throws IOException {
-        return new Info(instance.getNumberShardsLeftToMerge());
+        return new Info(instance.numberShardsLeftToMerge());
     }
 
     protected Info mutateInstance(Info instance) throws IOException {

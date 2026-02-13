@@ -93,7 +93,7 @@ public class UpdateVersionsTask extends AbstractVersionsTask {
         if (setCurrent && addVersion == null) {
             throw new IllegalArgumentException("No new version added to set as the current version");
         }
-        if (Objects.equals(addVersion, removeVersion)) {
+        if (addVersion != null && removeVersion != null && Objects.equals(addVersion, removeVersion)) {
             throw new IllegalArgumentException("Same version specified to add and remove");
         }
 

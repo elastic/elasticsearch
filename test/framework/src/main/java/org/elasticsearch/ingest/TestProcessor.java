@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -102,7 +104,8 @@ public class TestProcessor implements Processor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             return new TestProcessor(processorTag, "test-processor", description, ingestDocument -> {});
         }

@@ -15,6 +15,8 @@ import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.List;
 
 public interface LocalClusterHandle extends ClusterHandle {
 
@@ -53,6 +55,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * @return cluster node TCP transport endpoints
      */
     String getTransportEndpoints();
+
+    /**
+     * @return a list of all available TCP transport endpoints, which may be empty if none of the nodes in this cluster are started.
+     */
+    List<String> getAvailableTransportEndpoints();
 
     /**
      * Returns the TCP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster
@@ -101,6 +108,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * Returns an {@link InputStream} for the given node log.
      */
     InputStream getNodeLog(int index, LogType logType);
+
+    /**
+     * Returns the {@link Path} to the given node's config directory.
+     */
+    Path getNodeConfigPath(int index);
 
     /**
      * Writes secure settings to the relevant secure config file on each node. Use this method if you are dynamically updating secure

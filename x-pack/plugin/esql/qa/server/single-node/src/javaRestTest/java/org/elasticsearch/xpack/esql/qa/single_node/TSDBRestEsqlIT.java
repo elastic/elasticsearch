@@ -8,22 +8,24 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 
@@ -36,35 +38,36 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
 
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
     public void testTimeSeriesQuerying() throws IOException {
-        assumeTrue("time series querying relies on query pragma", Build.current().isSnapshot());
         var settings = Settings.builder()
-            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
-            .build();
+            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false);
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            settings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        }
         String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-k8s-mapping.json"));
-        createIndex("k8s", settings, mapping);
+        assertTrue("Failed to create index [k8s]", createIndex("k8s", settings.build(), mapping).isAcknowledged());
 
         Request bulk = new Request("POST", "/k8s/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.addParameter("filter_path", "errors");
 
         String bulkBody = new String(
             TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-bulk-request.txt").readAllBytes(),
             StandardCharsets.UTF_8
         );
         bulk.setJsonEntity(bulkBody);
-        Response response = client().performRequest(bulk);
-        assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        assertIndexedDocuments(entityAsMap(client().performRequest(bulk)));
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");
-        builder.pragmas(Settings.builder().put("time_series", true).build());
-        Map<String, Object> result = runEsqlSync(builder);
+        Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
         @SuppressWarnings("unchecked")
         List<Map<?, ?>> columns = (List<Map<?, ?>>) result.get("columns");
         assertEquals(2, columns.size());
@@ -98,5 +101,20 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
         assertEquals("2021-04-29T17:29:22.470Z", values.get(4).get(1));
         assertEquals("rat", values.get(7).get(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertIndexedDocuments(Map<String, Object> response) {
+        if (Objects.equals(response.get("errors"), true)) {
+            List<Map<?, Map<?, ?>>> items = (List<Map<?, Map<?, ?>>>) response.get("items");
+            for (Map<?, Map<?, ?>> item : items) {
+                for (Map<?, ?> docResponse : item.values()) {
+                    Map<?, ?> error = (Map<?, ?>) docResponse.get("error");
+                    if (error != null) {
+                        fail("Failed to index documents: " + error.get("reason"));
+                    }
+                }
+            }
+        }
     }
 }

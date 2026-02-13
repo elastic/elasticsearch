@@ -18,14 +18,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -112,12 +112,14 @@ public class RestCancellableNodeClient extends FilterClient {
 
     private class CloseListener implements ActionListener<Void> {
         private final AtomicReference<HttpChannel> channel = new AtomicReference<>();
-        private final Set<TaskId> tasks = new HashSet<>();
+
+        @Nullable // if already drained
+        private Set<TaskId> tasks = new HashSet<>();
 
         CloseListener() {}
 
         synchronized int getNumTasks() {
-            return tasks.size();
+            return tasks == null ? 0 : tasks.size();
         }
 
         void maybeRegisterChannel(HttpChannel httpChannel) {
@@ -130,16 +132,23 @@ public class RestCancellableNodeClient extends FilterClient {
             }
         }
 
-        synchronized void registerTask(TaskHolder taskHolder, TaskId taskId) {
-            taskHolder.taskId = taskId;
-            if (taskHolder.completed == false) {
-                this.tasks.add(taskId);
+        void registerTask(TaskHolder taskHolder, TaskId taskId) {
+            synchronized (this) {
+                taskHolder.taskId = taskId;
+                if (tasks != null) {
+                    if (taskHolder.completed == false) {
+                        tasks.add(taskId);
+                    }
+                    return;
+                }
             }
+            // else tasks == null so the channel is already closed
+            cancelTask(taskId);
         }
 
         synchronized void unregisterTask(TaskHolder taskHolder) {
-            if (taskHolder.taskId != null) {
-                this.tasks.remove(taskHolder.taskId);
+            if (taskHolder.taskId != null && tasks != null) {
+                tasks.remove(taskHolder.taskId);
             }
             taskHolder.completed = true;
         }
@@ -149,16 +158,18 @@ public class RestCancellableNodeClient extends FilterClient {
             final HttpChannel httpChannel = channel.get();
             assert httpChannel != null : "channel not registered";
             // when the channel gets closed it won't be reused: we can remove it from the map and forget about it.
-            CloseListener closeListener = httpChannels.remove(httpChannel);
-            assert closeListener != null : "channel not found in the map of tracked channels";
-            final List<TaskId> toCancel;
-            synchronized (this) {
-                toCancel = new ArrayList<>(tasks);
-                tasks.clear();
-            }
-            for (TaskId taskId : toCancel) {
+            final CloseListener closeListener = httpChannels.remove(httpChannel);
+            assert closeListener != null : "channel not found in the map of tracked channels: " + httpChannel;
+            assert closeListener == CloseListener.this : "channel had a different CloseListener registered: " + httpChannel;
+            for (final var taskId : drainTasks()) {
                 cancelTask(taskId);
             }
+        }
+
+        private synchronized Collection<TaskId> drainTasks() {
+            final var drained = tasks;
+            tasks = null;
+            return drained;
         }
 
         @Override

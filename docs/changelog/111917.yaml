@@ -1,7 +1,0 @@
-pr: 111917
-summary: "[ES|QL] Cast mixed numeric types to a common numeric type for Coalesce and\
-  \ In at Analyzer"
-area: ES|QL
-type: enhancement
-issues:
- - 111486

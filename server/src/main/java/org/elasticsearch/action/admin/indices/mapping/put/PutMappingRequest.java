@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -82,7 +80,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 .allowClosedIndices(true)
                 .allowAliasToMultipleIndices(true)
                 .ignoreThrottled(false)
-                .allowFailureIndices(false)
+                .allowSelectors(false)
         )
         .build();
 
@@ -97,12 +95,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readOptionalString();
-            if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-                throw new IllegalArgumentException("Expected type [_doc] but received [" + type + "]");
-            }
-        }
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
@@ -330,9 +322,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);

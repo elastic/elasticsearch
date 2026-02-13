@@ -33,6 +33,9 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
 
+    public static final String SUPPORTS_DEFAULT_REPO_SETTING = "repositories.default_repository_setting";
+    private static final Set<String> CAPABILITIES = Set.of(SUPPORTS_DEFAULT_REPO_SETTING);
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(PUT, "/_cluster/settings"));
@@ -72,5 +75,10 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

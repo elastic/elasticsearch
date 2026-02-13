@@ -16,6 +16,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -51,12 +52,12 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = createFieldType();
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", MOCK_CONTEXT));
         assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")), ft.termQueryCaseInsensitive("fOo", null));
 
         MappedFieldType unsearchable = new ConstantScoreTextFieldType("field", false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testTermsQuery() {
@@ -64,14 +65,14 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
-        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new ConstantScoreTextFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null)
+            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testRangeQuery() {
@@ -223,28 +224,34 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermIntervals() throws IOException {
-        MappedFieldType ft = createFieldType();
+        ConstantScoreTextFieldType ft = createFieldType();
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.term(new BytesRef("foo")), termIntervals);
     }
 
     public void testPrefixIntervals() throws IOException {
-        MappedFieldType ft = createFieldType();
+        ConstantScoreTextFieldType ft = createFieldType();
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.prefix(new BytesRef("foo")), prefixIntervals);
+        assertEquals(Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), prefixIntervals);
     }
 
     public void testWildcardIntervals() throws IOException {
-        MappedFieldType ft = createFieldType();
+        ConstantScoreTextFieldType ft = createFieldType();
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
+    }
+
+    public void testRegexpIntervals() {
+        ConstantScoreTextFieldType ft = createFieldType();
+        IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), regexpIntervals);
     }
 
     public void testFuzzyIntervals() throws IOException {
-        MappedFieldType ft = createFieldType();
+        ConstantScoreTextFieldType ft = createFieldType();
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
-        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), "foo");
+        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), "foo");
         assertEquals(expectedIntervals, fuzzyIntervals);
     }
 
@@ -259,6 +266,15 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
         ConstantScoreTextFieldType ft = createFieldType();
         ft.setIndexPrefixes(1, 4);
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
+    }
+
+    public void testRangeIntervals() {
+        ConstantScoreTextFieldType ft = createFieldType();
+        IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
+        assertEquals(
+            Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
+            rangeIntervals
+        );
     }
 }

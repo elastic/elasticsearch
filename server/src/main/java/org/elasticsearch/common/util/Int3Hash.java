@@ -58,8 +58,8 @@ public final class Int3Hash extends AbstractHash {
      * Get the id associated with <code>key</code> or -1 if the key is not contained in the hash.
      */
     public long find(int key1, int key2, int key3) {
-        long index = slot(hash(key1, key2, key3), mask);
-        while (true) {
+        final long slot = slot(hash(key1, key2, key3), mask);
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
             if (id == -1) {
                 return id;
@@ -69,48 +69,49 @@ public final class Int3Hash extends AbstractHash {
                     return id;
                 }
             }
-            index = nextSlot(index, mask);
         }
     }
 
     private long set(int key1, int key2, int key3, long id) {
         assert size < maxSize;
-        long index = slot(hash(key1, key2, key3), mask);
-        while (true) {
+        long slot = slot(hash(key1, key2, key3), mask);
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key1, key2, key3);
                 ++size;
                 return id;
             } else {
-                long keyOffset = 3 * curId;
+                final long keyOffset = 3 * curId;
                 if (keys.get(keyOffset) == key1 && keys.get(keyOffset + 1) == key2 && keys.get(keyOffset + 2) == key3) {
                     return -1 - curId;
                 }
             }
-            index = nextSlot(index, mask);
         }
     }
 
     private void append(long id, int key1, int key2, int key3) {
-        long keyOffset = 3 * id;
+        final long keyOffset = 3 * id;
         keys = bigArrays.grow(keys, keyOffset + 3);
         keys.set(keyOffset, key1);
         keys.set(keyOffset + 1, key2);
         keys.set(keyOffset + 2, key3);
     }
 
-    private void reset(int key1, int key2, int key3, long id) {
-        long index = slot(hash(key1, key2, key3), mask);
-        while (true) {
+    private void reset(long id) {
+        final IntArray keys = this.keys;
+        final long keyOffset = id * 3;
+        final int key1 = keys.get(keyOffset);
+        final int key2 = keys.get(keyOffset + 1);
+        final int key3 = keys.get(keyOffset + 2);
+        final long slot = slot(hash(key1, key2, key3), mask);
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
-                append(id, key1, key2, key3);
+                setId(index, id);
                 break;
             }
-            index = nextSlot(index, mask);
         }
     }
 
@@ -130,13 +131,9 @@ public final class Int3Hash extends AbstractHash {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
-        long keyOffset = id * 3;
-        final int key1 = keys.getAndSet(keyOffset, 0);
-        final int key2 = keys.getAndSet(keyOffset + 1, 0);
-        final int key3 = keys.getAndSet(keyOffset + 2, 0);
-        reset(key1, key2, key3, id);
+        reset(id);
     }
 
     @Override

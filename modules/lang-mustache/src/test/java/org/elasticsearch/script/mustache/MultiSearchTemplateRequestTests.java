@@ -11,9 +11,9 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -36,7 +36,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON)
             .build();
 
-        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest request = new RestMultiSearchTemplateAction(Settings.EMPTY).parseRequest(restRequest, true);
 
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
@@ -74,7 +74,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .build();
 
-        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest request = new RestMultiSearchTemplateAction(Settings.EMPTY).parseRequest(restRequest, true);
 
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
@@ -102,7 +102,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
             String[] indices = { "test" };
             SearchRequest searchRequest = new SearchRequest(indices);
             // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
@@ -126,7 +126,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         // Deserialize the request
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(serialized), XContentType.JSON)
             .build();
-        MultiSearchTemplateRequest deser = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest deser = new RestMultiSearchTemplateAction(Settings.EMPTY).parseRequest(restRequest, true);
 
         // For object equality purposes need to set the search requests' source to non-null
         for (SearchTemplateRequest str : deser.requests()) {

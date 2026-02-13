@@ -14,6 +14,7 @@ import fixture.geoip.EnterpriseGeoIpHttpFixture;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -22,36 +23,53 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
+import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.IPINFO_TOKEN_SETTING;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
-    private static final String DATABASE_TYPE = "GeoIP2-City";
+    private static final String MAXMIND_DATABASE_TYPE = "GeoIP2-City";
+    private static final String IPINFO_DATABASE_TYPE = "asn";
+    private static final String MAXMIND_CONFIGURATION = "test-1";
+    private static final String IPINFO_CONFIGURATION = "test-2";
 
     @ClassRule
-    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(DATABASE_TYPE);
+    public static final EnterpriseGeoIpHttpFixture fixture = new EnterpriseGeoIpHttpFixture(
+        List.of(MAXMIND_DATABASE_TYPE),
+        List.of(IPINFO_DATABASE_TYPE)
+    );
 
     protected String getEndpoint() {
         return fixture.getAddress();
@@ -61,6 +79,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(MAXMIND_LICENSE_KEY_SETTING.getKey(), "license_key");
+        secureSettings.setString(IPINFO_TOKEN_SETTING.getKey(), "token");
         Settings.Builder builder = Settings.builder();
         builder.setSecureSettings(secureSettings)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
@@ -79,6 +98,7 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @TestLogging(reason = "For debugging tricky race conditions", value = "org.elasticsearch.ingest.geoip:TRACE")
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
          * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest
@@ -87,34 +107,72 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
          * Note that the "enterprise database" is actually just a geolite database being loaded by the GeoIpHttpFixture.
          */
         EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
-        final String pipelineName = "enterprise_geoip_pipeline";
+        EnterpriseGeoIpDownloader.DEFAULT_IPINFO_ENDPOINT = getEndpoint();
         final String indexName = "enterprise_geoip_test_index";
+        final String geoipPipelineName = "enterprise_geoip_pipeline";
+        final String iplocationPipelineName = "enterprise_iplocation_pipeline";
         final String sourceField = "ip";
-        final String targetField = "ip-city";
+        final String targetField = "ip-result";
 
-        startEnterpriseGeoIpDownloaderTask();
-        configureDatabase(DATABASE_TYPE);
-        createGeoIpPipeline(pipelineName, DATABASE_TYPE, sourceField, targetField);
+        startEnterpriseGeoIpDownloaderTask(ProjectId.DEFAULT);
+        configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
+        configureIpinfoDatabase(IPINFO_DATABASE_TYPE);
+        waitAround();
+        createPipeline(geoipPipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
+        createPipeline(iplocationPipelineName, "ip_location", IPINFO_DATABASE_TYPE, sourceField, targetField);
 
+        /*
+         * We know that the databases index has been populated (because we waited around, :wink:), but we don't know for sure that
+         * the databases have been pulled down and made available on all nodes. So we run these ingest-and-check steps in assertBusy blocks.
+         */
         assertBusy(() -> {
-            /*
-             * We know that the .geoip_databases index has been populated, but we don't know for sure that the database has been pulled
-             * down and made available on all nodes. So we run this ingest-and-check step in an assertBusy.
-             */
             logger.info("Ingesting a test document");
-            String documentId = ingestDocument(indexName, pipelineName, sourceField);
+            String documentId = ingestDocument(indexName, geoipPipelineName, sourceField, "89.160.20.128");
             GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
             Map<String, Object> returnedSource = getResponse.getSource();
             assertNotNull(returnedSource);
             Object targetFieldValue = returnedSource.get(targetField);
             assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("Bredband2 AB"));
+            assertThat(((Map<String, Object>) targetFieldValue).get("city_name"), equalTo("Linköping"));
+        });
+        assertBusy(() -> {
+            logger.info("Ingesting another test document");
+            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "103.134.48.0");
+            GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
+            Map<String, Object> returnedSource = getResponse.getSource();
+            assertNotNull(returnedSource);
+            Object targetFieldValue = returnedSource.get(targetField);
+            assertNotNull(targetFieldValue);
+            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("PT Nevigate Telekomunikasi Indonesia"));
         });
     }
 
-    private void startEnterpriseGeoIpDownloaderTask() {
+    @After
+    public void cleanup() throws InterruptedException {
+        /*
+         * This method cleans up the database configurations that the test created. This allows the test to be run repeatedly.
+         */
+        CountDownLatch latch = new CountDownLatch(1);
+        LatchedActionListener<AcknowledgedResponse> listener = new LatchedActionListener<>(ActionListener.noop(), latch);
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> deleteDatabaseConfiguration(MAXMIND_CONFIGURATION, l))
+            .<AcknowledgedResponse>andThen(l -> deleteDatabaseConfiguration(IPINFO_CONFIGURATION, l))
+            .addListener(listener);
+        latch.await(10, TimeUnit.SECONDS);
+    }
+
+    private void deleteDatabaseConfiguration(String configurationName, ActionListener<AcknowledgedResponse> listener) {
+        admin().cluster()
+            .execute(
+                DeleteDatabaseConfigurationAction.INSTANCE,
+                new DeleteDatabaseConfigurationAction.Request(TimeValue.MAX_VALUE, TimeValue.timeValueSeconds(10), configurationName),
+                listener
+            );
+    }
+
+    private void startEnterpriseGeoIpDownloaderTask(ProjectId projectId) {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        persistentTasksService.sendStartRequest(
+        persistentTasksService.sendProjectStartRequest(
+            projectId,
             ENTERPRISE_GEOIP_DOWNLOADER,
             ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams(),
@@ -128,36 +186,53 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         );
     }
 
-    private void configureDatabase(String databaseType) throws Exception {
+    private void configureMaxmindDatabase(String databaseType) {
         admin().cluster()
             .execute(
                 PutDatabaseConfigurationAction.INSTANCE,
                 new PutDatabaseConfigurationAction.Request(
                     TimeValue.MAX_VALUE,
                     TimeValue.MAX_VALUE,
-                    new DatabaseConfiguration("test", databaseType, new DatabaseConfiguration.Maxmind("test_account"))
+                    new DatabaseConfiguration(MAXMIND_CONFIGURATION, databaseType, new DatabaseConfiguration.Maxmind("test_account"))
                 )
             )
             .actionGet();
+    }
+
+    private void configureIpinfoDatabase(String databaseType) {
+        admin().cluster()
+            .execute(
+                PutDatabaseConfigurationAction.INSTANCE,
+                new PutDatabaseConfigurationAction.Request(
+                    TimeValue.MAX_VALUE,
+                    TimeValue.MAX_VALUE,
+                    new DatabaseConfiguration(IPINFO_CONFIGURATION, databaseType, new DatabaseConfiguration.Ipinfo())
+                )
+            )
+            .actionGet();
+    }
+
+    private void waitAround() throws Exception {
         ensureGreen(GeoIpDownloader.DATABASES_INDEX);
         assertBusy(() -> {
             SearchResponse searchResponse = client().search(new SearchRequest(GeoIpDownloader.DATABASES_INDEX)).actionGet();
             try {
-                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat(searchResponse.getHits().getHits().length, equalTo(2));
             } finally {
                 searchResponse.decRef();
             }
         });
     }
 
-    private void createGeoIpPipeline(String pipelineName, String databaseType, String sourceField, String targetField) throws IOException {
+    private void createPipeline(String pipelineName, String processorType, String databaseType, String sourceField, String targetField)
+        throws IOException {
         putJsonPipeline(pipelineName, (builder, params) -> {
             builder.field("description", "test");
             builder.startArray("processors");
             {
                 builder.startObject();
                 {
-                    builder.startObject("geoip");
+                    builder.startObject(processorType);
                     {
                         builder.field("field", sourceField);
                         builder.field("target_field", targetField);
@@ -171,11 +246,11 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         });
     }
 
-    private String ingestDocument(String indexName, String pipelineName, String sourceField) {
+    private String ingestDocument(String indexName, String pipelineName, String sourceField, String value) {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(
-            new IndexRequest(indexName).source("{\"" + sourceField + "\": \"89.160.20.128\"}", XContentType.JSON).setPipeline(pipelineName)
-        );
+        bulkRequest.add(new IndexRequest(indexName).source(Strings.format("""
+            { "%s": "%s"}
+            """, sourceField, value), XContentType.JSON).setPipeline(pipelineName));
         BulkResponse response = client().bulk(bulkRequest).actionGet();
         BulkItemResponse[] bulkItemResponses = response.getItems();
         assertThat(bulkItemResponses.length, equalTo(1));

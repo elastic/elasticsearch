@@ -1,25 +1,27 @@
 {
-  "nodes.get_repositories_metering_info":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-repositories-metering-api.html",
-      "description":"Returns cluster repositories metering information."
+  "nodes.get_repositories_metering_info": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-get-repositories-metering-info",
+      "description": "Get cluster repositories metering"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_nodes/{node_id}/_repositories_metering",
-          "methods":[
+          "path": "/_nodes/{node_id}/_repositories_metering",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "node_id":{
-              "type":"list",
-              "description":"A comma-separated list of node IDs or names to limit the returned information."
+          "parts": {
+            "node_id": {
+              "type": "list",
+              "description": "A comma-separated list of node IDs or names to limit the returned information."
             }
           }
         }

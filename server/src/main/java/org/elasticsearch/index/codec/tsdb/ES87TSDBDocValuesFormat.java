@@ -43,13 +43,57 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
     static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
 
+    // number of documents in an interval
+    private static final int DEFAULT_SKIP_INDEX_INTERVAL_SIZE = 4096;
+    // bytes on an interval:
+    // * 1 byte : number of levels
+    // * 16 bytes: min / max value,
+    // * 8 bytes: min / max docID
+    // * 4 bytes: number of documents
+    private static final long SKIP_INDEX_INTERVAL_BYTES = 29L;
+    // number of intervals represented as a shift to create a new level, this is 1 << 3 == 8
+    // intervals.
+    static final int SKIP_INDEX_LEVEL_SHIFT = 3;
+    // max number of levels
+    // Increasing this number, it increases how much heap we need at index time.
+    // we currently need (1 * 8 * 8 * 8) = 512 accumulators on heap
+    static final int SKIP_INDEX_MAX_LEVEL = 4;
+    // number of bytes to skip when skipping a level. It does not take into account the
+    // current interval that is being read.
+    static final long[] SKIP_INDEX_JUMP_LENGTH_PER_LEVEL = new long[SKIP_INDEX_MAX_LEVEL];
+
+    static {
+        // Size of the interval minus read bytes (1 byte for level and 4 bytes for maxDocID)
+        SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[0] = SKIP_INDEX_INTERVAL_BYTES - 5L;
+        for (int level = 1; level < SKIP_INDEX_MAX_LEVEL; level++) {
+            // jump from previous level
+            SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level] = SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level - 1];
+            // nodes added by new level
+            SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level] += (1 << (level * SKIP_INDEX_LEVEL_SHIFT)) * SKIP_INDEX_INTERVAL_BYTES;
+            // remove the byte levels added in the previous level
+            SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level] -= (1 << ((level - 1) * SKIP_INDEX_LEVEL_SHIFT));
+        }
+    }
+
+    final int skipIndexIntervalSize;
+
+    /** Default constructor. */
     public ES87TSDBDocValuesFormat() {
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE);
+    }
+
+    /** Doc values fields format with specified skipIndexIntervalSize. */
+    public ES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
         super(CODEC_NAME);
+        if (skipIndexIntervalSize < 2) {
+            throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
+        }
+        this.skipIndexIntervalSize = skipIndexIntervalSize;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES87TSDBDocValuesConsumer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        throw new UnsupportedOperationException("writing es87 doc values is no longer supported");
     }
 
     @Override

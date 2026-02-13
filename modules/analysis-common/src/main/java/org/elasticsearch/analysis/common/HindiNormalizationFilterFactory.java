@@ -22,7 +22,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class HindiNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     HindiNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
     }
 
     @Override

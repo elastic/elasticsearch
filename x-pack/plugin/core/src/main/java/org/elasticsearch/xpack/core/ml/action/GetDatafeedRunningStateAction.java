@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -100,11 +99,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                    this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
-                } else {
-                    this.searchInterval = null;
-                }
+                this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
             }
 
             @Override
@@ -126,9 +121,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                    out.writeOptionalWriteable(searchInterval);
-                }
+                out.writeOptionalWriteable(searchInterval);
             }
 
             @Override
@@ -146,12 +139,28 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         private final Map<String, RunningState> datafeedRunningState;
 
+        private static RunningState selectMostRecentState(RunningState state1, RunningState state2) {
+
+            if (state1.searchInterval != null && state2.searchInterval != null) {
+                return state1.searchInterval.startMs() > state2.searchInterval.startMs() ? state1 : state2;
+            }
+
+            if (state1.searchInterval != null) {
+                return state1;
+            }
+            if (state2.searchInterval != null) {
+                return state2;
+            }
+
+            return state2;
+        }
+
         public static Response fromResponses(List<Response> responses) {
             return new Response(
                 responses.stream()
                     .flatMap(r -> r.datafeedRunningState.entrySet().stream())
                     .filter(entry -> entry.getValue() != null)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Response::selectMostRecentState))
             );
         }
 

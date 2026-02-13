@@ -69,12 +69,6 @@ class SumDoubleAggregator {
         current.add(v, groupId);
     }
 
-    public static void combineStates(GroupingSumState current, int groupId, GroupingSumState state, int statePosition) {
-        if (state.hasValue(statePosition)) {
-            current.add(state.values.get(statePosition), state.deltas.get(statePosition), groupId);
-        }
-    }
-
     public static void combineIntermediate(GroupingSumState current, int groupId, double inValue, double inDelta, boolean seen) {
         if (seen) {
             current.add(inValue, inDelta, groupId);
@@ -89,30 +83,38 @@ class SumDoubleAggregator {
         DriverContext driverContext
     ) {
         assert blocks.length >= offset + 3;
+        boolean allHaveValue = true;
         try (
-            var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-            var deltaBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-            var seenBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
+            var valuesBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+            var deltaBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+            var seenBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < state.values.size()) {
-                    valuesBuilder.appendDouble(state.values.get(group));
-                    deltaBuilder.appendDouble(state.deltas.get(group));
+                if (group < state.values.size() && state.hasValue(group)) {
+                    valuesBuilder.appendDouble(i, state.values.get(group));
+                    deltaBuilder.appendDouble(i, state.deltas.get(group));
+                    seenBuilder.appendBoolean(i, true);
                 } else {
-                    valuesBuilder.appendDouble(0);
-                    deltaBuilder.appendDouble(0);
+                    allHaveValue = false;
+                    valuesBuilder.appendDouble(i, 0);
+                    deltaBuilder.appendDouble(i, 0);
+                    seenBuilder.appendBoolean(i, false);
                 }
-                seenBuilder.appendBoolean(state.hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
-            blocks[offset + 1] = deltaBuilder.build();
-            blocks[offset + 2] = seenBuilder.build();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
+            blocks[offset + 1] = deltaBuilder.build().asBlock();
+            if (allHaveValue) {
+                // switch to a constant block to reduce memory usage and allow fast checks
+                blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+            } else {
+                blocks[offset + 2] = seenBuilder.build().asBlock();
+            }
         }
     }
 
-    public static Block evaluateFinal(GroupingSumState state, IntVector selected, DriverContext driverContext) {
-        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(GroupingSumState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (DoubleBlock.Builder builder = ctx.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.values.size()) {

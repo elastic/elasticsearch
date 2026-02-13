@@ -7,15 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant BytesRef value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
@@ -29,8 +32,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
-        return value;
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
     }
 
     @Override
@@ -44,7 +50,7 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantBytesRefVector(value, positions.length);
     }
 
@@ -109,13 +115,18 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
         return true;
     }
 
-    public static long ramBytesUsed(BytesRef value) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    @Override
+    public BytesRefVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefVector(value, getPositionCount());
+    }
+
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(value);
+        return ramBytesUsedWithLength(value);
     }
 
     @Override

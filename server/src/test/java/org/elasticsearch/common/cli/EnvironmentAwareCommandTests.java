@@ -16,6 +16,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.junit.Before;
@@ -126,5 +127,16 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
             assertThat(settings.get("simple.setting"), equalTo("override"));
         };
         execute("-Esimple.setting=original");
+    }
+
+    public void testDuplicateCommandLineSetting() {
+        var e = expectThrows(UserException.class, () -> execute("-E", "my.setting=foo", "-E", "my.setting=bar"));
+        assertThat(e.getMessage(), equalTo("setting [my.setting] set twice via command line -E"));
+    }
+
+    public void testConflictingPathCommandLineSettingWithSysprop() {
+        sysprops.put("es.path.data", "foo");
+        var e = expectThrows(UserException.class, () -> execute("-E", "path.data=bar"));
+        assertThat(e.getMessage(), equalTo("setting [path.data] found via command-line -E and system property [es.path.data]"));
     }
 }

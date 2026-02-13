@@ -12,12 +12,14 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,10 +40,12 @@ import java.io.IOException;
 public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,
     BroadcastResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    TransportBroadcastByNodeAction.EmptyResult,
+    Void> {
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportForceMergeAction(
@@ -49,6 +53,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -62,6 +67,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         );
         this.indicesService = indicesService;
         this.threadPool = transportService.getThreadPool();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,15 +95,20 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         ForceMergeRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener
+        Void nodeContext,
+        ActionListener<EmptyResult> listener
     ) {
         assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
-        threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(listener, () -> {
+        SubscribableListener.<IndexShard>newForked(l -> {
             IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                 .getShard(shardRouting.shardId().id());
-            indexShard.forceMerge(request);
-            return EmptyResult.INSTANCE;
-        }));
+            indexShard.ensureMutable(l.map(unused -> indexShard), false);
+        }).<EmptyResult>andThen((l, indexShard) -> {
+            threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(l, () -> {
+                indexShard.forceMerge(request);
+                return EmptyResult.INSTANCE;
+            }));
+        }).addListener(listener);
     }
 
     /**
@@ -105,16 +116,16 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ForceMergeRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices);
     }
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ForceMergeRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ForceMergeRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

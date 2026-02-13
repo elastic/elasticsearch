@@ -286,7 +286,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
      * Compares the results of running two analyzers against many random
-     * strings. The goal is to figure out if two anlayzers are "the same" by
+     * strings. The goal is to figure out if two analyzers are "the same" by
      * comparing their results. This is far from perfect but should be fairly
      * accurate, especially for gross things like missing {@code decimal_digit}
      * token filters, and should be fairly fast because it compares a fairly

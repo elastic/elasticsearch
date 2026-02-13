@@ -40,7 +40,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test_idx"))
+            .addAsNew(metadata.getProject().index("test_idx"))
             .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()

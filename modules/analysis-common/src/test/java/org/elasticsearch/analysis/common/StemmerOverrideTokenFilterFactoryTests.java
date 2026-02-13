@@ -25,6 +25,8 @@ import java.io.StringReader;
 import java.util.List;
 import java.util.Locale;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class StemmerOverrideTokenFilterFactoryTests extends ESTokenStreamTestCase {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

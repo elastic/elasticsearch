@@ -21,11 +21,9 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-
 public class BigCountTestsMergingDigestTests extends BigCountTests {
     @Override
-    public TDigest createDigest() {
-        return new MergingDigest(WrapperTDigestArrays.INSTANCE, 100);
+    public TDigest createDigest(int compression) {
+        return TDigest.createMergingDigest(arrays(), compression);
     }
 }

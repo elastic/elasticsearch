@@ -1,34 +1,38 @@
 {
-  "ml.put_filter":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html",
-      "description":"Instantiates a filter."
+  "ml.put_filter": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-filter",
+      "description": "Create a filter"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/filters/{filter_id}",
-          "methods":[
+          "path": "/_ml/filters/{filter_id}",
+          "methods": [
             "PUT"
           ],
-          "parts":{
-            "filter_id":{
-              "type":"string",
-              "description":"The ID of the filter to create"
+          "parts": {
+            "filter_id": {
+              "type": "string",
+              "description": "The ID of the filter to create"
             }
           }
         }
       ]
     },
-    "body":{
-      "description":"The filter details",
-      "required":true
+    "body": {
+      "description": "The filter details",
+      "required": true
     }
   }
 }

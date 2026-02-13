@@ -101,7 +101,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>(numberOfRoles);
-        IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases();
+        IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (int i = 1; i <= numberOfRoles; i++) {
             String value = "value" + i;
             requests.add(prepareIndex("test").setId(value).setSource("field1", value));
@@ -116,7 +116,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
                 client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD)))
                     .prepareSearch("test"),
                 searchResponse1 -> assertResponse(prepareSearch("alias" + role), searchResponse2 -> {
-                    assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(searchResponse2.getHits().getTotalHits().value));
+                    assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(searchResponse2.getHits().getTotalHits().value()));
                     for (int hitI = 0; hitI < searchResponse1.getHits().getHits().length; hitI++) {
                         assertThat(searchResponse1.getHits().getAt(hitI).getId(), equalTo(searchResponse2.getHits().getAt(hitI).getId()));
                     }

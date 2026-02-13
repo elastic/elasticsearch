@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Collection;
@@ -31,7 +33,10 @@ import java.util.Random;
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
 public class AVLTreeDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLTreeDigest.class);
+
     private final TDigestArrays arrays;
+    private boolean closed = false;
 
     final Random gen = new Random();
     private final double compression;
@@ -42,6 +47,16 @@ public class AVLTreeDigest extends AbstractTDigest {
     // Indicates if a sample has been added after the last compression.
     private boolean needsCompression;
 
+    static AVLTreeDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new AVLTreeDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
     /**
      * A histogram structure that will record a sketch of a distribution.
      *
@@ -50,15 +65,20 @@ public class AVLTreeDigest extends AbstractTDigest {
      *                    quantiles.  Conversely, you should expect to track about 5 N centroids for this
      *                    accuracy.
      */
-    AVLTreeDigest(TDigestArrays arrays, double compression) {
+    private AVLTreeDigest(TDigestArrays arrays, double compression) {
         this.arrays = arrays;
         this.compression = compression;
-        summary = new AVLGroupTree(arrays);
+        summary = AVLGroupTree.create(arrays);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + summary.ramBytesUsed();
     }
 
     /**
      * Sets the seed for the RNG.
-     * In cases where a predicatable tree should be created, this function may be used to make the
+     * In cases where a predictable tree should be created, this function may be used to make the
      * randomness in this AVLTree become more deterministic.
      *
      * @param seed The random seed to use for RNG purposes
@@ -153,26 +173,27 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
         needsCompression = false;
 
-        AVLGroupTree centroids = summary;
-        this.summary = new AVLGroupTree(arrays);
+        try (AVLGroupTree centroids = summary) {
+            this.summary = AVLGroupTree.create(arrays);
 
-        final int[] nodes = new int[centroids.size()];
-        nodes[0] = centroids.first();
-        for (int i = 1; i < nodes.length; ++i) {
-            nodes[i] = centroids.next(nodes[i - 1]);
-            assert nodes[i] != IntAVLTree.NIL;
-        }
-        assert centroids.next(nodes[nodes.length - 1]) == IntAVLTree.NIL;
+            final int[] nodes = new int[centroids.size()];
+            nodes[0] = centroids.first();
+            for (int i = 1; i < nodes.length; ++i) {
+                nodes[i] = centroids.next(nodes[i - 1]);
+                assert nodes[i] != IntAVLTree.NIL;
+            }
+            assert centroids.next(nodes[nodes.length - 1]) == IntAVLTree.NIL;
 
-        for (int i = centroids.size() - 1; i > 0; --i) {
-            final int other = gen.nextInt(i + 1);
-            final int tmp = nodes[other];
-            nodes[other] = nodes[i];
-            nodes[i] = tmp;
-        }
+            for (int i = centroids.size() - 1; i > 0; --i) {
+                final int other = gen.nextInt(i + 1);
+                final int tmp = nodes[other];
+                nodes[other] = nodes[i];
+                nodes[i] = tmp;
+            }
 
-        for (int node : nodes) {
-            add(centroids.mean(node), centroids.count(node));
+            for (int node : nodes) {
+                add(centroids.mean(node), centroids.count(node));
+            }
         }
     }
 
@@ -355,5 +376,14 @@ public class AVLTreeDigest extends AbstractTDigest {
     public int byteSize() {
         compress();
         return 64 + summary.size() * 13;
+    }
+
+    @Override
+    public void close() {
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(summary);
+        }
     }
 }

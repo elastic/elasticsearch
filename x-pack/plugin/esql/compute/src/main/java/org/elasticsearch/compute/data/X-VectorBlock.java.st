@@ -7,16 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
 
@@ -74,13 +76,18 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override
     public $Type$Block keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public $Type$Block deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

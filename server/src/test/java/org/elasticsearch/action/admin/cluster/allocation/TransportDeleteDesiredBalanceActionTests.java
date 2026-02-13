@@ -20,16 +20,18 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceInput;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -74,7 +75,6 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class),
             mock(ShardsAllocator.class)
         ).masterOperation(mock(Task.class), new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT), ClusterState.EMPTY_STATE, listener);
@@ -101,7 +101,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
         var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
 
         var delegate = new BalancedShardsAllocator();
-        var computer = new DesiredBalanceComputer(clusterSettings, threadPool, delegate) {
+        var computer = new DesiredBalanceComputer(clusterSettings, threadPool, delegate, TEST_ONLY_EXPLAINER) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 
@@ -122,20 +122,24 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             clusterService,
             computer,
             (state, action) -> state,
-            TelemetryProvider.NOOP
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),
             new TestGatewayAllocator(),
             allocator,
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
         safeAwait((ActionListener<Void> listener) -> allocationService.reroute(clusterState, "inital-allocate", listener));
 
         var balanceBeforeReset = allocator.getDesiredBalance();
-        assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.INITIAL.lastConvergedIndex()));
+        assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.BECOME_MASTER_INITIAL.lastConvergedIndex()));
         assertThat(balanceBeforeReset.assignments(), not(anEmptyMap()));
 
         var listener = new PlainActionFuture<ActionResponse.Empty>();
@@ -148,7 +152,6 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             allocationService,
             allocator
         );

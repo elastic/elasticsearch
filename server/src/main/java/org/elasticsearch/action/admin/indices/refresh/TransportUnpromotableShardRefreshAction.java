@@ -9,20 +9,32 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
 
 public class TransportUnpromotableShardRefreshAction extends TransportBroadcastUnpromotableAction<
     UnpromotableShardRefreshRequest,
@@ -36,6 +48,8 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     }
 
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
+    private final boolean useRefreshBlock;
 
     @Inject
     public TransportUnpromotableShardRefreshAction(
@@ -43,7 +57,28 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         TransportService transportService,
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
-        IndicesService indicesService
+        IndicesService indicesService,
+        ThreadPool threadPool
+    ) {
+        this(
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            indicesService,
+            threadPool,
+            MetadataCreateIndexService.useRefreshBlock(clusterService.getSettings())
+        );
+    }
+
+    public TransportUnpromotableShardRefreshAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        boolean useRefreshBlock
     ) {
         super(
             NAME,
@@ -55,6 +90,58 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
         );
         this.indicesService = indicesService;
+        this.threadPool = threadPool;
+        this.useRefreshBlock = useRefreshBlock;
+    }
+
+    @Override
+    protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
+        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("dispatching refresh request for unpromotable shard {}", request.shardId());
+            }
+            super.doExecute(task, request, l);
+        }));
+    }
+
+    private void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
+        if (useRefreshBlock == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        var clusterStateObserver = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
+
+        if (isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterStateObserver.setAndGetObservedState()) == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "shard refresh timed out waiting for index block to be removed",
+                        new ClusterBlockException(Map.of(request.shardId().getIndexName(), Set.of(INDEX_REFRESH_BLOCK)))
+                    )
+                );
+            }
+        }, clusterState -> isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterState) == false);
+    }
+
+    private static boolean isIndexBlockedForRefresh(String index, ClusterState state) {
+        return state.blocks().hasIndexBlock(index, INDEX_REFRESH_BLOCK);
     }
 
     @Override
@@ -69,16 +156,30 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         final var indexService = indicesService.indexService(request.shardId().getIndex());
         final var shard = indexService == null ? null : indexService.getShardOrNull(request.shardId().id());
         if (shard == null) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("unpromotable shard {} not yet created, responding OK to refresh request", request.shardId());
+            }
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
 
+        var primaryTerm = request.getPrimaryTerm();
+        assert Engine.UNKNOWN_PRIMARY_TERM < primaryTerm : primaryTerm;
+        var segmentGeneration = request.getSegmentGeneration();
+        assert Engine.RefreshResult.UNKNOWN_GENERATION < segmentGeneration : segmentGeneration;
+
         ActionListener.run(responseListener, listener -> {
-            shard.waitForPrimaryTermAndGeneration(
-                request.getPrimaryTerm(),
-                request.getSegmentGeneration(),
-                listener.map(l -> ActionResponse.Empty.INSTANCE)
-            );
+            shard.waitForPrimaryTermAndGeneration(primaryTerm, segmentGeneration, listener.map(l -> {
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "refreshed unpromotable shard {} for requested primary term {} and segment generation {}",
+                        request.shardId(),
+                        primaryTerm,
+                        segmentGeneration
+                    );
+                }
+                return ActionResponse.Empty.INSTANCE;
+            }));
         });
     }
 

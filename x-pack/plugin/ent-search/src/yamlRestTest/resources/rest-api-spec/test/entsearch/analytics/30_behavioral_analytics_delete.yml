@@ -1,0 +1,50 @@
+setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.put_behavioral_analytics:
+        name: my-test-analytics-collection
+
+---
+teardown:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.delete_behavioral_analytics:
+        name: my-test-analytics-collection
+        ignore: 404
+
+---
+"Delete Analytics Collection":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.delete_behavioral_analytics:
+        name: my-test-analytics-collection
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.get_behavioral_analytics:
+        name: my-test-analytics-collection
+
+---
+"Delete Analytics Collection - Analytics Collection does not exist":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      catch: "missing"
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.delete_behavioral_analytics:
+        name: test-nonexistent-analytics-collection
+

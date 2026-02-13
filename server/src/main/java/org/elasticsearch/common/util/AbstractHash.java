@@ -32,7 +32,17 @@ abstract class AbstractHash extends AbstractPagedHashMap {
         return ids.get(index) - 1;
     }
 
-    protected final long id(long index, long id) {
+    /**
+     * Set the id provided key at <code>0 &lt;= index &lt;= capacity()</code> .
+     */
+    protected final void setId(long index, long id) {
+        ids.set(index, id + 1);
+    }
+
+    /**
+     * Set the id provided key at <code>0 &lt;= index &lt;= capacity()</code>  and get the previous value or -1 if this slot is unused.
+     */
+    protected final long getAndSetId(long index, long id) {
         return ids.getAndSet(index, id + 1) - 1;
     }
 

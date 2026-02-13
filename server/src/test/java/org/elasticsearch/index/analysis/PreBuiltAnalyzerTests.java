@@ -55,6 +55,10 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
             PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
             is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_COMPATIBLE))
         );
+        assertThat(
+            PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_READONLY_COMPATIBLE))
+        );
     }
 
     public void testThatInstancesAreCachedAndReused() {
@@ -63,15 +67,15 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
             PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current())
         );
         // same index version should be cached
-        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        IndexVersion v = IndexVersionUtils.randomVersion();
         assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(v), PreBuiltAnalyzers.STANDARD.getAnalyzer(v));
         assertNotSame(
             PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current()),
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.current()))
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersion.current()))
         );
 
         // Same Lucene version should be cached:
-        IndexVersion v1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion v1 = IndexVersionUtils.randomVersion();
         IndexVersion v2 = new IndexVersion(v1.id() - 1, v1.luceneVersion());
         assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(v1), PreBuiltAnalyzers.STOP.getAnalyzer(v2));
     }
@@ -81,7 +85,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         PreBuiltAnalyzers randomPreBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
-        IndexVersion randomVersion = IndexVersionUtils.randomVersion(random());
+        IndexVersion randomVersion = IndexVersionUtils.randomWriteVersion();
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(

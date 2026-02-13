@@ -7,24 +7,24 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
-import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
@@ -48,10 +48,9 @@ import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
@@ -78,10 +77,19 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfigWithoutHeaders(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
+        return randomTransformConfigWithoutHeaders(id, pivotConfig, latestConfig, randomDestConfig());
+    }
+
+    public static TransformConfig randomTransformConfigWithoutHeaders(
+        String id,
+        PivotConfig pivotConfig,
+        LatestConfig latestConfig,
+        DestConfig destConfig
+    ) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
-            randomDestConfig(),
+            destConfig,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
@@ -147,6 +155,14 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig = LatestConfigTests.randomLatestConfig();
         }
 
+        return randomTransformConfigWithSettings(settingsConfig, pivotConfig, latestConfig);
+    }
+
+    public static TransformConfig randomTransformConfigWithSettings(
+        SettingsConfig settingsConfig,
+        PivotConfig pivotConfig,
+        LatestConfig latestConfig
+    ) {
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
@@ -162,6 +178,25 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             null
+        );
+    }
+
+    public static TransformConfig randomTransformConfigWithHeaders(Map<String, String> headers) {
+        return new TransformConfig(
+            randomAlphaOfLengthBetween(1, 10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean() ? null : randomSyncConfig(),
+            headers,
+            randomBoolean() ? null : PivotConfigTests.randomPivotConfig(),
+            randomBoolean() ? null : LatestConfigTests.randomLatestConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            randomBoolean() ? null : Instant.now(),
+            TransformConfigVersion.CURRENT.toString()
         );
     }
 
@@ -297,6 +332,30 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     @Override
     protected TransformConfig mutateInstance(TransformConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TransformConfig mutateInstanceForVersion(TransformConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static TransformConfig mutateForVersion(TransformConfig instance, TransportVersion version) {
+        return new TransformConfig(
+            instance.getId(),
+            SourceConfigTests.mutateForVersion(instance.getSource(), version),
+            instance.getDestination(),
+            instance.getFrequency(),
+            instance.getSyncConfig(),
+            instance.getHeaders(),
+            instance.getPivotConfig(),
+            instance.getLatestConfig(),
+            instance.getDescription(),
+            instance.getSettings(),
+            instance.getMetadata(),
+            instance.getRetentionPolicyConfig(),
+            instance.getCreateTime(),
+            instance.getVersion() == null ? null : instance.getVersion().toString()
+        );
     }
 
     @Override
@@ -817,47 +876,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertThat(transformConfig.getAdditionalSourceDestValidations(), is(empty()));
     }
 
-    public void testGetAdditionalSourceDestValidations_WithRuntimeMappings() throws IOException {
-        String json = """
-            {
-              "id": "body_id",
-              "source": {
-                "index": "src",
-                "runtime_mappings": {
-                  "some-field": "some-value"
-                }
-              },
-              "dest": {
-                "index": "dest"
-              },
-              "pivot": {
-                "group_by": {
-                  "id": {
-                    "terms": {
-                      "field": "id"
-                    }
-                  }
-                },
-                "aggs": {
-                  "avg": {
-                    "avg": {
-                      "field": "points"
-                    }
-                  }
-                }
-              }
-            }""";
-
-        TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
-        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalSourceDestValidations();
-        assertThat(additiionalValidations, hasSize(1));
-        assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
-        RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =
-            (RemoteClusterMinimumVersionValidation) additiionalValidations.get(0);
-        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedTransportVersion(), is(equalTo(TransportVersions.V_7_12_0)));
-        assertThat(remoteClusterMinimumVersionValidation.getReason(), is(equalTo("source.runtime_mappings field was set")));
-    }
-
     public void testGroupByStayInOrder() throws IOException {
         String json = Strings.format("""
             {
@@ -915,10 +933,13 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         }
     }
 
-    public void testCheckForDeprecations() {
+    public void testCheckForDeprecations_NoDeprecationWarnings() throws IOException {
         String id = randomAlphaOfLengthBetween(1, 10);
         assertThat(randomTransformConfig(id, TransformConfigVersion.CURRENT).checkForDeprecations(xContentRegistry()), is(empty()));
+    }
 
+    public void testCheckForDeprecations_WithDeprecatedFields_VersionCurrent() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
         TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.CURRENT);
 
         // check _and_ clear warnings
@@ -930,7 +951,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             equalTo(
                 Collections.singletonList(
                     new DeprecationIssue(
-                        Level.WARNING,
+                        Level.CRITICAL,
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
@@ -940,8 +961,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+    }
 
-        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_10_0);
+    public void testCheckForDeprecations_WithDeprecatedFields_Version_7_10() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_10_0);
 
         // check _and_ clear warnings
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
@@ -952,7 +976,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             equalTo(
                 List.of(
                     new DeprecationIssue(
-                        Level.WARNING,
+                        Level.CRITICAL,
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
@@ -962,8 +986,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+    }
 
-        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_4_0);
+    public void testCheckForDeprecations_WithDeprecatedFields_Version_7_4() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_4_0);
 
         // check _and_ clear warnings
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
@@ -982,7 +1009,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                         null
                     ),
                     new DeprecationIssue(
-                        Level.WARNING,
+                        Level.CRITICAL,
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
@@ -1047,6 +1074,105 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             }
         }
         assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+    }
+
+    public void testCrossProjectWithFeatureEnabled() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project-feature-enabled");
+        assertNull(transformConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(true, null));
+    }
+
+    public void testCrossProjectWithFeatureDisabled() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project-feature-not-enabled");
+        var validationException = transformConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(false, null);
+        assertNotNull(validationException);
+        assertThat(
+            validationException.getMessage(),
+            containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
+        );
+        assertThat(
+            validationException.getMessage(),
+            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
+        );
+    }
+
+    public void testNotCrossProjectEnvironment() throws IOException {
+        var transformConfig = createTransformConfigFromString("""
+            {
+              "source": {
+                "index": "remote-1:src",
+                "project_routing": "_alias:_origin"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", "cross-project");
+        assertNull(transformConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

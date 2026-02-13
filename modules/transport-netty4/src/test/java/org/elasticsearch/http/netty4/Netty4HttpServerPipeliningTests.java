@@ -17,16 +17,15 @@ import io.netty.util.ReferenceCounted;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static org.elasticsearch.http.netty4.Netty4TestUtils.randomClusterSettings;
 import static org.hamcrest.Matchers.contains;
 
 /**
@@ -103,10 +103,10 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.threadPool,
                 xContentRegistry(),
-                new NullDispatcher(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                new AggregatingDispatcher(),
+                randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)

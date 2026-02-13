@@ -44,9 +44,6 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     /** Get HyperLogLog algorithm */
     protected abstract AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd);
 
-    /** Get the number of data structures */
-    public abstract long maxOrd();
-
     /** Collect a value in the given bucket */
     public abstract void collect(long bucketOrd, long hash);
 

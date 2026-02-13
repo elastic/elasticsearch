@@ -14,11 +14,13 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
+import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 import java.nio.file.Files
 import java.nio.file.Path
+
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild
 
 plugins {
   id 'base'
@@ -31,10 +33,13 @@ configurations {
     attributes {
       attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
     }
+    attributes {
+      attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, DependenciesInfoPlugin.USAGE_ATTRIBUTE))
+    }
   }
   featuresMetadata {
     attributes {
-      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
     }
   }
 }
@@ -45,9 +50,9 @@ dependencies {
 
 def thisProj = project
 rootProject.allprojects { proj ->
-    proj.plugins.withType(DependenciesInfoPlugin) {
-      thisProj.dependencies.add("dependencyInfos", project.dependencies.project(path: proj.path))
-    }
+  proj.plugins.withType(DependenciesInfoPlugin) {
+    thisProj.dependencies.add("dependencyInfos", project.dependencies.project(path: proj.path))
+  }
 }
 
 /*****************************************************************************
@@ -58,9 +63,10 @@ rootProject.allprojects { proj ->
 tasks.register("generateDependenciesReport", ConcatFilesTask) {
   files = configurations.dependencyInfos
   headerLine = "name,version,url,license,sourceURL"
-  target = new File(providers.systemProperty('csv')
-                      .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
-                      .get()
+  target = new File(
+    providers.systemProperty('csv')
+      .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
+      .get()
   )
   // explicitly add our dependency on the JDK
   String jdkVersion = VersionProperties.versions.get('bundled_jdk').split('@')[0]
@@ -71,12 +77,17 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   // Explicitly add the dependency on the RHEL UBI Docker base image
   String[] rhelUbiFields = [
     'Red Hat Universal Base Image minimal',
-    '8',
-    'https://catalog.redhat.com/software/containers/ubi8/ubi-minimal/5c359a62bed8bd75a2c3fba8',
+    '9',
+    'https://catalog.redhat.com/software/containers/ubi9-minimal/61832888c0d15aff4912fe0d',
     'Custom;https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf',
-    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
+    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/9/ubi-minimal-9-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
+  doLast {
+    if(target.text.readLines().size() < 100) {
+      throw new GradleException("Suspiciously low number of dependencies. Double check.")
+    }
+  }
 }
 
 /*****************************************************************************
@@ -208,7 +219,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
   dependencies.add('featuresMetadata', module)
-  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
+  if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
@@ -243,26 +254,48 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
 
-  // Setup all required JDKs
-  project.jdks {
-    ['darwin', 'windows', 'linux'].each { platform ->
-      (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
-        "bundled_${platform}_${architecture}" {
-          it.platform = platform
-          it.version = VersionProperties.bundledJdkVersion
-          it.vendor = VersionProperties.bundledJdkVendor
-          it.architecture = architecture
+  if (buildParams.runtimeJava.preRelease) {
+    String preReleaseType = buildParams.runtimeJava.preReleaseType
+    def runtimeJavaMajorVersion = Integer.parseInt(buildParams.runtimeJavaVersion.get().getMajorVersion())
+    String preReleaseVersionString = String.format("%d-%s+%d", runtimeJavaMajorVersion, preReleaseType, buildParams.runtimeJava.buildNumber)
+
+    project.jdks {
+      ['darwin', 'windows', 'linux'].each { platform ->
+        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+          "bundled_${platform}_${architecture}" {
+            it.version = preReleaseVersionString;
+            it.vendor = "openjdk"
+            it.platform = platform
+            it.architecture = architecture
+            it.distributionVersion = preReleaseType
+          }
         }
       }
     }
+  } else {
+    // Setup all required JDKs
+    project.jdks {
+      ['darwin', 'windows', 'linux'].each { platform ->
+        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+          "bundled_${platform}_${architecture}" {
+            it.platform = platform
+            it.version = VersionProperties.bundledJdkVersion
+            it.vendor = VersionProperties.bundledJdkVendor
+            it.architecture = architecture
+          }
+        }
+      }
+    }
+
   }
+
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -273,10 +306,27 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
+    libsEntitlementBridge {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE)
+      }
+    }
     all {
       resolutionStrategy.dependencySubstitution {
-        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:elasticsearch-log4j") because "patched to remove JndiLookup clas"}
+        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:log4j") because "patched to remove JndiLookup class"
+      }
     }
+  }
+
+  // Register artifact transform for filtering entitlements-bridge jar
+  FilteringJarTransform.registerTransform(dependencies) { spec ->
+    spec.exclude('module-info.class')
+    spec.exclude('META-INF/versions/**')
   }
 
   dependencies {
@@ -291,7 +341,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
+    libsNative project(':libs:native:native-libraries')
+    libsEntitlementAgent project(':libs:entitlement:agent')
+    libsEntitlementBridge project(':libs:entitlement:bridge')
   }
 
   project.ext {
@@ -333,8 +385,14 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('platform') {
           from(configurations.libsNative)
           if (os != null) {
-            include (os + '-' + architecture + '/*')
+            include(os + '-' + architecture + '/*')
           }
+        }
+        into('entitlement-agent') {
+          from(configurations.libsEntitlementAgent)
+        }
+        into('entitlement-bridge') {
+          from(configurations.libsEntitlementBridge)
         }
       }
     }
@@ -370,7 +428,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (BuildParams.isSnapshotBuild()) {
+        if (buildParams.getSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {
@@ -389,7 +447,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          filter("tokens" : expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
+          filter("tokens": expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
         from isTestDistro ? integTestConfigFiles : defaultConfigFiles
@@ -404,11 +462,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile {
-            it.permissions{
+            it.permissions {
               unix(0755)
             }
           }
-          filter("tokens" : expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
+          filter("tokens": expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -416,7 +474,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            filter("tokens" : expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
+            filter("tokens": expansionsForDistribution(distributionType, testDistro), ReplaceTokens.class)
           }
           with copySpec {
             from '../src/bin'
@@ -439,7 +497,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
-          from (buildDefaultNoticeTaskProvider) {
+          from(buildDefaultNoticeTaskProvider) {
             filePermissions {
               unix(0644)
             }
@@ -507,13 +565,12 @@ subprojects {
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
-    final String packagingLoggc = "${pathLogs}/gc.log"
 
     String licenseText
     if (isTestDistro) {
-      licenseText = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
     } else {
-      licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
     }
     // license text needs to be indented with a single space
     licenseText = ' ' + licenseText.replace('\n', '\n ')
@@ -521,74 +578,57 @@ subprojects {
     String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
     Map<String, Object> expansions = [
-      'project.name': project.name,
-      'project.version': version,
+      'project.name'         : project.name,
+      'project.version'      : version,
       'project.minor.version': "${VersionProperties.elasticsearchVersion.major}.${VersionProperties.elasticsearchVersion.minor}",
 
-      'path.conf': [
+      'path.conf'            : [
         'deb': '/etc/elasticsearch',
         'rpm': '/etc/elasticsearch',
         'def': '"$ES_HOME"/config'
       ],
-      'path.data': [
+      'path.data'            : [
         'deb': packagingPathData,
         'rpm': packagingPathData,
         'def': '#path.data: /path/to/data'
       ],
-      'path.env': [
+      'path.env'             : [
         'deb': '/etc/default/elasticsearch',
         'rpm': '/etc/sysconfig/elasticsearch',
         /* There isn't one of these files for tar or zip but its important to
           make an empty string here so the script can properly skip it. */
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
       ],
-      'source.path.env': [
+      'source.path.env'      : [
         'deb': 'source /etc/default/elasticsearch',
         'rpm': 'source /etc/sysconfig/elasticsearch',
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
       ],
-      'path.logs': [
+      'path.logs'            : [
         'deb': packagingPathLogs,
         'rpm': packagingPathLogs,
         'def': '#path.logs: /path/to/logs'
       ],
-      'loggc': [
-        'deb': packagingLoggc,
-        'rpm': packagingLoggc,
-        'def': 'logs/gc.log'
-      ],
 
-      'heap.dump.path': [
-        'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'def': "-XX:HeapDumpPath=data"
-      ],
-
-      'error.file': [
-        'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
-      ],
-
-      'scripts.footer': [
+      'scripts.footer'       : [
         /* Debian needs exit 0 on these scripts so we add it here and preserve
           the pretty footer. */
         'deb': "exit 0\n${footer}",
         'def': footer
       ],
 
-      'es.distribution.type': [
+      'es.distribution.type' : [
         'deb': 'deb',
         'rpm': 'rpm',
         'tar': 'tar',
         'zip': 'zip'
       ],
 
-      'license.name': [
+      'license.name'         : [
         'deb': 'Elastic-License'
       ],
 
-      'license.text': [
+      'license.text'         : [
         'deb': licenseText,
       ],
     ]
@@ -620,28 +660,12 @@ subprojects {
   }
 }
 
-['archives:windows-zip',
- 'archives:darwin-tar',
- 'archives:darwin-aarch64-tar',
- 'archives:linux-aarch64-tar',
- 'archives:linux-tar',
- 'archives:integ-test-zip',
- 'packages:rpm', 'packages:deb',
- 'packages:aarch64-rpm', 'packages:aarch64-deb',
-].forEach { subName ->
-  Project subproject = project("${project.path}:${subName}")
-  Configuration configuration = configurations.create(subproject.name)
-  dependencies {
-    "${configuration.name}" project(path: subproject.path, configuration:'default')
-  }
-}
-
 // This artifact makes it possible for other projects to pull
 // in the final log4j2.properties configuration, as it appears in the
 // archive distribution.
 artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
-  type 'file'
-  name 'log4j2.properties'
+  type = 'file'
+  name = 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
 }
 

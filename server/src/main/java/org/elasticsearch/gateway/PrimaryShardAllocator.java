@@ -98,7 +98,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(unassignedShard.index());
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
@@ -402,7 +402,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 : allocation.deciders().canAllocate(shardRouting, node, allocation);
             DecidedNode decidedNode = new DecidedNode(nodeShardState, decision);
             (switch (decision.type()) {
-                case YES -> yesNodeShards;
+                case YES, NOT_PREFERRED -> yesNodeShards;
                 case THROTTLE -> throttledNodeShards;
                 case NO -> noNodeShards;
             }).add(decidedNode);

@@ -162,10 +162,6 @@ public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, Chu
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(Fields.THREAD_POOL),
-            Iterators.flatMap(stats.iterator(), s -> s.toXContentChunked(params)),
-            ChunkedToXContentHelper.endObject()
-        );
+        return ChunkedToXContentHelper.object(Fields.THREAD_POOL, Iterators.flatMap(stats.iterator(), s -> s.toXContentChunked(params)));
     }
 }

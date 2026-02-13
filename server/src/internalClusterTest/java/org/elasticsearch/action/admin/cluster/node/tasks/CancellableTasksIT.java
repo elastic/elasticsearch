@@ -14,11 +14,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -118,6 +118,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     /**
      * Allow some parts of the request to be completed
+     *
      * @return a pending child requests
      */
     static Set<TestRequest> allowPartialRequest(TestRequest request) throws Exception {
@@ -252,11 +253,13 @@ public class CancellableTasksIT extends ESIntegTestCase {
         if (waitForCompletion) {
             assertFalse(cancelFuture.isDone());
         } else {
-            assertBusy(() -> assertTrue(cancelFuture.isDone()));
+            cancelFuture.get();
         }
         allowEntireRequest(rootRequest);
         waitForRootTask(mainTaskFuture, false);
-        cancelFuture.actionGet();
+        if (waitForCompletion) {
+            cancelFuture.actionGet();
+        }
         ensureBansAndCancellationsConsistency();
     }
 
@@ -360,6 +363,10 @@ public class CancellableTasksIT extends ESIntegTestCase {
             allowEntireRequest(rootRequest);
             cancelFuture.actionGet();
             ensureBansAndCancellationsConsistency();
+            // This method will call the cluster health API with wait_for_tasks set to Priority#LANGUID. This will ensure that all tasks
+            // currently submitted to the master service (included re-election after a disconnect) are processed before returning. This
+            // ensures cluster stability for the post-test consistency checks.
+            ensureStableCluster(nodes.size());
         }
     }
 
@@ -416,7 +423,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
     }
 
-    static class TestRequest extends ActionRequest {
+    static class TestRequest extends LegacyActionRequest {
         final int id;
         final DiscoveryNode node;
         final List<TestRequest> subRequests;
@@ -493,9 +500,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         }
 
-        public TestResponse(StreamInput in) throws IOException {
-            super(in);
-        }
+        public TestResponse(StreamInput in) {}
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -603,8 +608,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     public static class TaskPlugin extends Plugin implements ActionPlugin {
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return Collections.singletonList(new ActionHandler<>(TransportTestAction.ACTION, TransportTestAction.class));
+        public List<ActionHandler> getActions() {
+            return Collections.singletonList(new ActionHandler(TransportTestAction.ACTION, TransportTestAction.class));
         }
     }
 

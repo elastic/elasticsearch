@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -29,6 +30,11 @@ public interface AllocationCommand extends NamedWriteable, ToXContentObject {
      * @return name of the command
      */
     String name();
+
+    /**
+     * Get the {@link ProjectId} that this command targets to.
+     */
+    ProjectId projectId();
 
     /**
      * Executes the command on a {@link RoutingAllocation} setup

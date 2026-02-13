@@ -1,6 +1,3 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -9,12 +6,15 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+
+import org.elasticsearch.gradle.LoggedExec
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
-  classname 'org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
+  description = 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
+  classname ='org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
 }
 
 def localVersions = versions + [
@@ -50,24 +50,25 @@ restResources {
   }
 }
 
-// needed to be consistent with ssl host checking
-String host = InetAddress.getLoopbackAddress().getHostAddress()
-
-// location of keystore and files to generate it
-File keystore = new File(project.buildDir, 'keystore/test-node.jks')
-
 // generate the keystore
 TaskProvider createKey = tasks.register("createKey", LoggedExec) {
+  // needed to be consistent with ssl host checking
+  String host = InetAddress.getLoopbackAddress().getHostAddress()
+
+  // location of keystore and files to generate it
+  File keystore = project.layout.buildDirectory.file('keystore/test-node.jks').get().asFile
+
   doFirst {
     delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
   }
   outputs.file(keystore).withPropertyName('keystoreFile')
-  executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/keytool"
   getStandardInput().set('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n')
+  String keystorePath = projectDir.toPath().relativize(keystore.toPath()).toString()
   args '-genkey',
     '-alias', 'test-node',
-    '-keystore', keystore,
+    '-keystore', keystorePath,
     '-keyalg', 'RSA',
     '-keysize', '2048',
     '-validity', '712',
@@ -75,10 +76,9 @@ TaskProvider createKey = tasks.register("createKey", LoggedExec) {
     '-keypass', 'keypass',
     '-storepass', 'keypass'
 }
-//no unit tests
-tasks.named("test").configure { enabled = false }
+
 // add keystore to test classpath: it expects it there
-tasks.named("processInternalClusterTestResources").configure {
+tasks.named("processInternalClusterTestResources") {
   from createKey
 }
 

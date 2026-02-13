@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -23,7 +23,7 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
+public abstract class BaseUpdateApiKeyRequest extends LegacyActionRequest {
 
     @Nullable
     protected final List<RoleDescriptor> roleDescriptors;
@@ -31,15 +31,19 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
     protected final Map<String, Object> metadata;
     @Nullable
     protected final TimeValue expiration;
+    @Nullable
+    protected final CertificateIdentity certificateIdentity;
 
     public BaseUpdateApiKeyRequest(
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
-        @Nullable final TimeValue expiration
+        @Nullable final TimeValue expiration,
+        @Nullable final CertificateIdentity certificateIdentity
     ) {
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;
         this.expiration = expiration;
+        this.certificateIdentity = certificateIdentity;
     }
 
     public Map<String, Object> getMetadata() {
@@ -52,6 +56,10 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
 
     public TimeValue getExpiration() {
         return expiration;
+    }
+
+    public CertificateIdentity getCertificateIdentity() {
+        return certificateIdentity;
     }
 
     public abstract ApiKey.Type getType();

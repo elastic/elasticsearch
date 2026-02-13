@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.action.reservedstate;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
@@ -27,16 +29,21 @@ import static org.hamcrest.Matchers.empty;
  */
 public class ReservedRoleMappingActionTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedRoleMappingAction action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(ProjectId projectId, ReservedRoleMappingAction action, TransformState prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
-            return action.transform(content, prevState);
+            return action.transform(projectId, content, prevState);
         }
     }
 
     public void testValidation() {
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata project = ProjectMetadata.builder(projectId).build();
+        TransformState prevState = new TransformState(
+            ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build(),
+            Collections.emptySet()
+        );
         ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String badPolicyJSON = """
             {
@@ -59,18 +66,22 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
             }""";
         assertEquals(
             "failed to parse role-mapping [everyone_fleet]. missing field [rules]",
-            expectThrows(ParsingException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            expectThrows(ParsingException.class, () -> processJSON(projectId, action, prevState, badPolicyJSON)).getMessage()
         );
     }
 
     public void testAddRemoveRoleMapping() throws Exception {
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata project = ProjectMetadata.builder(projectId).build();
+        TransformState prevState = new TransformState(
+            ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build(),
+            Collections.emptySet()
+        );
         ReservedRoleMappingAction action = new ReservedRoleMappingAction();
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
-        assertEquals(0, updatedState.keys().size());
+        TransformState updatedState = processJSON(projectId, action, prevState, emptyJSON);
+        assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
         String json = """
@@ -96,10 +107,10 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, json);
+        updatedState = processJSON(projectId, action, prevState, json);
         assertThat(updatedState.keys(), containsInAnyOrder("everyone_kibana", "everyone_fleet"));
 
-        updatedState = processJSON(action, prevState, emptyJSON);
+        updatedState = processJSON(projectId, action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
     }
 }

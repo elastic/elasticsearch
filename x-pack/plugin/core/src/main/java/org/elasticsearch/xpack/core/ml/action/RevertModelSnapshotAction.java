@@ -152,7 +152,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         private final ModelSnapshot model;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             model = new ModelSnapshot(in);
         }
 

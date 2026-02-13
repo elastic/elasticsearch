@@ -21,4 +21,21 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.SOURCE)
 @Target({ ElementType.LOCAL_VARIABLE, ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
 public @interface UpdateForV10 {
+    enum Owner {
+        CORE_INFRA,
+        DISTRIBUTED,
+        ENTERPRISE_SEARCH,
+        MACHINE_LEARNING,
+        PROFILING,
+        SEARCH_ANALYTICS,
+        SEARCH_FOUNDATIONS,
+        SEARCH_RELEVANCE,
+        SECURITY,
+        STORAGE_ENGINE
+    }
+
+    /**
+     * The owning team of the task to act on this annotation when the time comes.
+     */
+    Owner owner();
 }

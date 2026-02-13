@@ -12,9 +12,11 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -25,9 +27,10 @@ import java.util.Set;
 /**
  * Cluster state update request that allows to create an index
  */
-public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CreateIndexClusterStateUpdateRequest> {
+public class CreateIndexClusterStateUpdateRequest {
 
     private final String cause;
+    private final ProjectId projectId;
     private final String index;
     private String dataStreamName;
     private final String providedName;
@@ -36,6 +39,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private ResizeType resizeType;
     private boolean copySettings;
     private SystemDataStreamDescriptor systemDataStreamDescriptor;
+    private boolean isFailureIndex = false;
 
     private Settings settings = Settings.EMPTY;
 
@@ -49,8 +53,19 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private ComposableIndexTemplate matchingTemplate;
 
+    private boolean settingsSystemProvided = false;
+
+    /**
+     * @deprecated project id ought always be specified
+     */
+    @Deprecated(forRemoval = true)
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
+        this(cause, Metadata.DEFAULT_PROJECT_ID, index, providedName);
+    }
+
+    public CreateIndexClusterStateUpdateRequest(String cause, ProjectId projectId, String index, String providedName) {
         this.cause = cause;
+        this.projectId = projectId;
         this.index = index;
         this.providedName = providedName;
     }
@@ -103,12 +118,21 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest isFailureIndex(boolean isFailureIndex) {
+        this.isFailureIndex = isFailureIndex;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
 
     public String index() {
         return index;
+    }
+
+    public ProjectId projectId() {
+        return projectId;
     }
 
     public Settings settings() {
@@ -169,6 +193,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return dataStreamName;
     }
 
+    public boolean isFailureIndex() {
+        return isFailureIndex;
+    }
+
     public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
         this.dataStreamName = dataStreamName;
         return this;
@@ -198,11 +226,28 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    /**
+     * Indicates whether the {@link #settings} of this request are system provided.
+     * System-provided settings are allowed to configure {@linkplain Setting.Property#PrivateIndex private} settings.
+     * These are typically coming from an {@link org.elasticsearch.index.IndexSettingProvider}.
+     */
+    public CreateIndexClusterStateUpdateRequest settingsSystemProvided(boolean settingsSystemProvided) {
+        this.settingsSystemProvided = settingsSystemProvided;
+        return this;
+    }
+
+    public boolean settingsSystemProvided() {
+        return settingsSystemProvided;
+    }
+
     @Override
     public String toString() {
         return "CreateIndexClusterStateUpdateRequest{"
             + "cause='"
             + cause
+            + '\''
+            + ", projectId='"
+            + projectId
             + '\''
             + ", index='"
             + index
@@ -229,6 +274,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             + systemDataStreamDescriptor
             + ", matchingTemplate="
             + matchingTemplate
+            + ", isFailureIndex="
+            + isFailureIndex
             + '}';
     }
 }

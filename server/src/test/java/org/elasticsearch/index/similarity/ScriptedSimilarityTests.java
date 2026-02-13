@@ -144,7 +144,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
             3.2f
         );
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);
         r.close();
@@ -188,7 +188,8 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
                     if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
-                        return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score");
+                        return ste.getClassName().endsWith(".TermScorer")
+                            && (ste.getMethodName().equals("score") || ste.getMethodName().equals("nextDocsAndScores"));
                     }) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
@@ -236,7 +237,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
         searcher.setSimilarity(sim);
         Query query = new BoostQuery(new TermQuery(new Term("f", "foo")), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertTrue(initCalled.get());
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);

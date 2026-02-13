@@ -113,7 +113,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
                     assertResponse(
                         prepareSearch(".monitoring-*"),
-                        response -> assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value))
+                        response -> assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value()))
                     );
                 });
 
@@ -236,7 +236,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         templates.add(".monitoring-logstash");
         templates.add(".monitoring-beats");
 
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT, ".monitoring-*").get();
         Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetadata::getName).collect(Collectors.toSet());
         assertEquals(templates, actualTemplates);
     }
@@ -260,7 +260,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         DateFormatter dateFormatter = DateFormatter.forPattern(customTimeFormat).withZone(ZoneOffset.UTC);
 
         assertResponse(prepareSearch(".monitoring-*").setSize(100), rsp -> {
-            assertThat(rsp.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(rsp.getHits().getTotalHits().value(), greaterThan(0L));
             for (SearchHit hit : rsp.getHits().getHits()) {
                 final Map<String, Object> source = hit.getSourceAsMap();
 

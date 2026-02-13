@@ -30,6 +30,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecSpec;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
@@ -166,8 +167,10 @@ public abstract class DockerBuildTask extends DefaultTask {
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
                     LoggedExec.exec(execOperations, spec -> {
+                        maybeConfigureDockerConfig(spec);
                         spec.executable("docker");
                         spec.args("pull");
+                        spec.environment("DOCKER_BUILDKIT", "1");
                         spec.args(baseImage);
                     });
 
@@ -179,6 +182,13 @@ public abstract class DockerBuildTask extends DefaultTask {
 
             // If we successfully ran `docker pull` above, we would have returned before this point.
             throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
+        }
+
+        private void maybeConfigureDockerConfig(ExecSpec spec) {
+            String dockerConfig = System.getenv("DOCKER_CONFIG");
+            if (dockerConfig != null) {
+                spec.environment("DOCKER_CONFIG", dockerConfig);
+            }
         }
 
         @Override
@@ -193,8 +203,10 @@ public abstract class DockerBuildTask extends DefaultTask {
             final boolean isCrossPlatform = isCrossPlatform();
 
             LoggedExec.exec(execOperations, spec -> {
-                spec.executable("docker");
+                maybeConfigureDockerConfig(spec);
 
+                spec.executable("docker");
+                spec.environment("DOCKER_BUILDKIT", "1");
                 if (isCrossPlatform) {
                     spec.args("buildx");
                 }
@@ -215,6 +227,12 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 if (parameters.getPush().getOrElse(false)) {
                     spec.args("--push");
+                } else if (!isCrossPlatform) {
+                    // For single-platform builds, add --load to ensure the image is loaded into
+                    // the local Docker daemon as a regular image, not a manifest list.
+                    // This prevents issues with newer Docker versions (23.0+) that may create
+                    // manifest lists even for single-platform builds when BuildKit is enabled.
+                    spec.args("--load");
                 }
             });
 

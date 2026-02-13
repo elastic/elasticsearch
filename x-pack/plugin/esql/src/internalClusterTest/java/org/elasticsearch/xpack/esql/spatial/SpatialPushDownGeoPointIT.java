@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.spatial;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 
 public class SpatialPushDownGeoPointIT extends SpatialPushDownPointsTestCase {
 
@@ -35,5 +36,17 @@ public class SpatialPushDownGeoPointIT extends SpatialPushDownPointsTestCase {
     @Override
     protected String castingFunction() {
         return "TO_GEOSHAPE";
+    }
+
+    @Override
+    protected double searchDistance() {
+        return 10000000;
+    }
+
+    @Override
+    protected Point quantizePoint(Point point) {
+        double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getY()));
+        double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
+        return new Point(lon, lat);
     }
 }

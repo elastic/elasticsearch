@@ -39,10 +39,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -69,11 +71,14 @@ import static org.elasticsearch.core.Strings.format;
  * @param <Request>              the underlying client request
  * @param <Response>             the response to the client request
  * @param <ShardOperationResult> per-shard operation results
+ * @param <NodeContext>          an (optional) node context created by {@link #createNodeContext} on each node and passed to each call
+ *                               to {@link #shardOperation}
  */
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
     Response extends BaseBroadcastResponse,
-    ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
+    ShardOperationResult extends Writeable,
+    NodeContext> extends HandledTransportAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportBroadcastByNodeAction.class);
 
@@ -177,14 +182,24 @@ public abstract class TransportBroadcastByNodeAction<
      * @param request      the node-level request
      * @param shardRouting the shard on which to execute the operation
      * @param task         the task for this node-level request
+     * @param nodeContext  the context created by {{@link #createNodeContext()}}
      * @param listener     the listener to notify with the result of the shard-level operation
      */
     protected abstract void shardOperation(
         Request request,
         ShardRouting shardRouting,
         Task task,
+        @Nullable NodeContext nodeContext,
         ActionListener<ShardOperationResult> listener
     );
+
+    /**
+     * @return an (optional) node-level context for this operation, passed to each call to {@link #shardOperation}.
+     */
+    @Nullable
+    protected NodeContext createNodeContext() {
+        return null;
+    }
 
     /**
      * Determines the shards on which this operation will be executed on. The operation is executed once per shard.
@@ -194,6 +209,7 @@ public abstract class TransportBroadcastByNodeAction<
      * @param concreteIndices the concrete indices on which to execute the operation
      * @return the shards on which to execute the operation
      */
+    @FixForMultiProject(description = "consider taking project scoped state as parameter")
     protected abstract ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     /**
@@ -213,13 +229,14 @@ public abstract class TransportBroadcastByNodeAction<
      * @param concreteIndices the concrete indices on which to execute the operation
      * @return a non-null exception if the operation if blocked
      */
+    @FixForMultiProject(description = "consider taking project scoped state as parameter")
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
     /**
      * Resolves a list of concrete index names. Override this if index names should be resolved differently than normal.
      *
      * @param clusterState the cluster state
-     * @param request the underlying request
+     * @param request      the underlying request
      * @return a list of concrete index names that this action should operate on
      */
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, Request request) {
@@ -412,7 +429,7 @@ public abstract class TransportBroadcastByNodeAction<
     ) {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         logger.trace("[{}] executing operation on [{}] shards", actionName, shards.size());
-
+        final NodeContext nodeContext = createNodeContext();
         new CancellableFanOut<ShardRouting, ShardOperationResult, NodeResponse>() {
 
             final ArrayList<ShardOperationResult> results = new ArrayList<>(shards.size());
@@ -421,7 +438,7 @@ public abstract class TransportBroadcastByNodeAction<
             @Override
             protected void sendItemRequest(ShardRouting shardRouting, ActionListener<ShardOperationResult> listener) {
                 logger.trace(() -> format("[%s] executing operation for shard [%s]", actionName, shardRouting.shortSummary()));
-                ActionRunnable.wrap(listener, l -> shardOperation(request, shardRouting, task, l)).run();
+                ActionRunnable.wrap(listener, l -> shardOperation(request, shardRouting, task, nodeContext, l)).run();
             }
 
             @Override
@@ -462,7 +479,7 @@ public abstract class TransportBroadcastByNodeAction<
         }.run(task, shards.iterator(), listener);
     }
 
-    class NodeRequest extends TransportRequest implements IndicesRequest {
+    class NodeRequest extends AbstractTransportRequest implements IndicesRequest {
         private final Request indicesLevelRequest;
         private final List<ShardRouting> shards;
         private final String nodeId;
@@ -551,7 +568,6 @@ public abstract class TransportBroadcastByNodeAction<
         protected List<ShardOperationResult> results;
 
         NodeResponse(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             totalShards = in.readVInt();
             results = in.readCollectionAsList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
@@ -608,11 +624,10 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     /**
-     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting, Task, ActionListener) shardOperation} for
-     * which there is no shard-level return value.
+     * Can be used for implementations of {@link #shardOperation} for which there is no shard-level return value.
      */
     public static final class EmptyResult implements Writeable {
-        public static EmptyResult INSTANCE = new EmptyResult();
+        public static final EmptyResult INSTANCE = new EmptyResult();
 
         private EmptyResult() {}
 

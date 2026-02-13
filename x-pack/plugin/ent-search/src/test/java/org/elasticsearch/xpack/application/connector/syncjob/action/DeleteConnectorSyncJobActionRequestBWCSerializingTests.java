@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -30,7 +30,9 @@ public class DeleteConnectorSyncJobActionRequestBWCSerializingTests extends Abst
 
     @Override
     protected DeleteConnectorSyncJobAction.Request mutateInstance(DeleteConnectorSyncJobAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new DeleteConnectorSyncJobAction.Request(
+            randomValueOtherThan(instance.getConnectorSyncJobId(), () -> randomAlphaOfLengthBetween(5, 15))
+        );
     }
 
     @Override

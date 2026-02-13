@@ -7,13 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link BooleanVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock {
 
@@ -53,13 +55,18 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
-    public BooleanBlock filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override
     public BooleanBlock keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public BooleanBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

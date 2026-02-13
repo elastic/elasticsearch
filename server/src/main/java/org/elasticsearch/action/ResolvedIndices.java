@@ -11,9 +11,9 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -124,7 +124,7 @@ public class ResolvedIndices {
     /**
      * Get the search context ID.
      * Returns a non-null value only when the instance is created using
-     * {@link ResolvedIndices#resolveWithPIT(PointInTimeBuilder, IndicesOptions, ClusterState, NamedWriteableRegistry)}.
+     * {@link ResolvedIndices#resolveWithPIT(PointInTimeBuilder, IndicesOptions, ProjectMetadata, NamedWriteableRegistry)}.
      *
      * @return The search context ID
      */
@@ -137,7 +137,7 @@ public class ResolvedIndices {
      * Create a new {@link ResolvedIndices} instance from an {@link IndicesRequest}.
      *
      * @param request The indices request
-     * @param clusterState The cluster state
+     * @param projectMetadata The project holding the indices
      * @param indexNameExpressionResolver The index name expression resolver used to resolve concrete local indices
      * @param remoteClusterService The remote cluster service used to group remote cluster indices
      * @param startTimeInMillis The request start time in milliseconds
@@ -145,22 +145,42 @@ public class ResolvedIndices {
      */
     public static ResolvedIndices resolveWithIndicesRequest(
         IndicesRequest request,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
         long startTimeInMillis
     ) {
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+        return resolveWithIndexNamesAndOptions(
+            request.indices(),
             request.indicesOptions(),
-            request.indices()
+            projectMetadata,
+            indexNameExpressionResolver,
+            remoteClusterService,
+            startTimeInMillis
         );
+    }
+
+    public static ResolvedIndices resolveWithIndexNamesAndOptions(
+        String[] indexNames,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteClusterService remoteClusterService,
+        long startTimeInMillis
+    ) {
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(indicesOptions, indexNames);
+
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         Index[] concreteLocalIndices = localIndices == null
             ? Index.EMPTY_ARRAY
-            : indexNameExpressionResolver.concreteIndices(clusterState, localIndices, startTimeInMillis);
+            : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
 
-        return new ResolvedIndices(remoteClusterIndices, localIndices, resolveLocalIndexMetadata(concreteLocalIndices, clusterState, true));
+        return new ResolvedIndices(
+            remoteClusterIndices,
+            localIndices,
+            resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, true)
+        );
     }
 
     /**
@@ -168,14 +188,14 @@ public class ResolvedIndices {
      *
      * @param pit The point-in-time builder
      * @param indicesOptions The indices options to propagate to the new {@link ResolvedIndices} instance
-     * @param clusterState The cluster state
+     * @param projectMetadata The project holding the indices
      * @param namedWriteableRegistry The named writeable registry used to decode the search context ID
      * @return a new {@link ResolvedIndices} instance
      */
     public static ResolvedIndices resolveWithPIT(
         PointInTimeBuilder pit,
         IndicesOptions indicesOptions,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         final SearchContextId searchContextId = pit.getSearchContextId(namedWriteableRegistry);
@@ -215,19 +235,57 @@ public class ResolvedIndices {
         return new ResolvedIndices(
             remoteClusterIndices,
             localIndices,
-            resolveLocalIndexMetadata(concreteLocalIndices, clusterState, false),
+            resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, false),
             searchContextId
         );
     }
 
+    /**
+     * Create a new {@link ResolvedIndices} instance from a Map of Projects to {@link ResolvedIndexExpressions}. This is intended to be
+     * used for Cross-Project Search (CPS).
+     *
+     * @param localIndices this value is set as-is in the resulting ResolvedIndices.
+     * @param localIndexMetadata this value is set as-is in the resulting ResolvedIndices.
+     * @param remoteExpressions the map of project names to {@link ResolvedIndexExpressions}. This map is used to create the
+     *                          {@link ResolvedIndices#getRemoteClusterIndices()} for the resulting ResolvedIndices. Each project keyed
+     *                          in the map is guaranteed to have at least one index for the index expression provided by the user.
+     *                          The resulting {@link ResolvedIndices#getRemoteClusterIndices()} will map to the original index expression
+     *                          provided by the user. For example, if the user requested "logs" and "project-1" resolved that to "logs-1",
+     *                          then the result will map "project-1" to "logs". We rely on the remote search request to expand "logs" back
+     *                          to "logs-1".
+     * @param indicesOptions this value is set as-is in the resulting ResolvedIndices.
+     */
+    public static ResolvedIndices resolveWithIndexExpressions(
+        OriginalIndices localIndices,
+        Map<Index, IndexMetadata> localIndexMetadata,
+        Map<String, ResolvedIndexExpressions> remoteExpressions,
+        IndicesOptions indicesOptions
+    ) {
+        Map<String, OriginalIndices> remoteIndices = remoteExpressions.entrySet().stream().collect(HashMap::new, (map, entry) -> {
+            var indices = entry.getValue().expressions().stream().filter(expression -> {
+                var resolvedExpressions = expression.localExpressions();
+                var successfulResolution = resolvedExpressions
+                    .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+                // if the expression is a wildcard, it will be successful even if there are no indices, so filter for no indices
+                var hasResolvedIndices = resolvedExpressions.indices().isEmpty() == false;
+                return successfulResolution && hasResolvedIndices;
+            }).map(ResolvedIndexExpression::original).toArray(String[]::new);
+            if (indices.length > 0) {
+                map.put(entry.getKey(), new OriginalIndices(indices, indicesOptions));
+            }
+        }, Map::putAll);
+
+        return new ResolvedIndices(remoteIndices, localIndices, localIndexMetadata);
+    }
+
     private static Map<Index, IndexMetadata> resolveLocalIndexMetadata(
         Index[] concreteLocalIndices,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         boolean failOnMissingIndex
     ) {
         Map<Index, IndexMetadata> localIndexMetadata = new HashMap<>();
         for (Index index : concreteLocalIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            IndexMetadata indexMetadata = projectMetadata.index(index);
             if (indexMetadata == null) {
                 if (failOnMissingIndex) {
                     throw new IndexNotFoundException(index);

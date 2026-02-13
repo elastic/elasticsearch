@@ -9,9 +9,9 @@ package org.elasticsearch.compute.data.sort;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
@@ -21,15 +21,19 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.Arrays;
 import java.util.stream.IntStream;
 
 /**
  * Aggregates the top N IP values per bucket.
  * See {@link BucketedSort} for more information.
+ * <p>
+ *     This is substantially different from {@link BytesRefBucketedSort} because
+ *     this takes advantage of IPs having a fixed length and allocates a dense
+ *     storage for them.
+ * </p>
  */
 public class IpBucketedSort implements Releasable {
-    private static final int IP_LENGTH = 16;
+    private static final int IP_LENGTH = 16; // Bytes. It's ipv6.
 
     // BytesRefs used in internal methods
     private final BytesRef scratch1 = new BytesRef();
@@ -39,18 +43,11 @@ public class IpBucketedSort implements Releasable {
      */
     private final byte[] scratchBytes = new byte[IP_LENGTH];
 
-    private final BigArrays bigArrays;
-    private final SortOrder order;
-    private final int bucketSize;
-    /**
-     * {@code true} if the bucket is in heap mode, {@code false} if
-     * it is still gathering.
-     */
-    private final BitArray heapMode;
+    private final BucketedSortCommon common;
     /**
      * An array containing all the values on all buckets. The structure is as follows:
      * <p>
-     *     For each bucket, there are bucketSize elements, based on the bucket id (0, 1, 2...).
+     *     For each bucket, there are {@link BucketedSortCommon#bucketSize} elements, based on the bucket id (0, 1, 2...).
      *     Then, for each bucket, it can be in 2 states:
      * </p>
      * <ul>
@@ -77,10 +74,7 @@ public class IpBucketedSort implements Releasable {
     private ByteArray values;
 
     public IpBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
-        this.bigArrays = bigArrays;
-        this.order = order;
-        this.bucketSize = bucketSize;
-        heapMode = new BitArray(0, bigArrays);
+        this.common = new BucketedSortCommon(bigArrays, order, bucketSize);
 
         boolean success = false;
         try {
@@ -101,44 +95,29 @@ public class IpBucketedSort implements Releasable {
      */
     public void collect(BytesRef value, int bucket) {
         assert value.length == IP_LENGTH;
-        long rootIndex = (long) bucket * bucketSize;
-        if (inHeapMode(bucket)) {
+        long rootIndex = common.rootIndex(bucket);
+        if (common.inHeapMode(bucket)) {
             if (betterThan(value, get(rootIndex, scratch1))) {
                 set(rootIndex, value);
-                downHeap(rootIndex, 0);
+                downHeap(rootIndex, 0, common.bucketSize);
             }
             return;
         }
         // Gathering mode
-        long requiredSize = (rootIndex + bucketSize) * IP_LENGTH;
+        long requiredSize = common.endIndex(rootIndex) * IP_LENGTH;
         if (values.size() < requiredSize) {
-            grow(requiredSize);
+            grow(bucket);
         }
         int next = getNextGatherOffset(rootIndex);
-        assert 0 <= next && next < bucketSize
-            : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
+        common.assertValidNextOffset(next);
         long index = next + rootIndex;
         set(index, value);
         if (next == 0) {
-            heapMode.set(bucket);
-            heapify(rootIndex);
+            common.enableHeapMode(bucket);
+            heapify(rootIndex, common.bucketSize);
         } else {
             setNextGatherOffset(rootIndex, next - 1);
         }
-    }
-
-    /**
-     * The order of the sort.
-     */
-    public SortOrder getOrder() {
-        return order;
-    }
-
-    /**
-     * The number of values to store per bucket.
-     */
-    public int getBucketSize() {
-        return bucketSize;
     }
 
     /**
@@ -146,13 +125,13 @@ public class IpBucketedSort implements Releasable {
      * Returns [0, 0] if the bucket has never been collected.
      */
     private Tuple<Long, Long> getBucketValuesIndexes(int bucket) {
-        long rootIndex = (long) bucket * bucketSize;
+        long rootIndex = common.rootIndex(bucket);
         if (rootIndex >= values.size() / IP_LENGTH) {
             // We've never seen this bucket.
             return Tuple.tuple(0L, 0L);
         }
-        long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
-        long end = rootIndex + bucketSize;
+        long start = startIndex(bucket, rootIndex);
+        long end = common.endIndex(rootIndex);
         return Tuple.tuple(start, end);
     }
 
@@ -183,14 +162,12 @@ public class IpBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        // Used to sort the values in the bucket.
-        var bucketValues = new BytesRef[bucketSize];
-
         try (var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
                 var bounds = getBucketValuesIndexes(bucket);
+                var rootIndex = bounds.v1();
                 var size = bounds.v2() - bounds.v1();
 
                 if (size == 0) {
@@ -199,26 +176,19 @@ public class IpBucketedSort implements Releasable {
                 }
 
                 if (size == 1) {
-                    builder.appendBytesRef(get(bounds.v1(), scratch1));
+                    builder.appendBytesRef(get(rootIndex, scratch1));
                     continue;
                 }
 
-                for (int i = 0; i < size; i++) {
-                    bucketValues[i] = get(bounds.v1() + i, new BytesRef());
+                // If we are in the gathering mode, we need to heapify before sorting.
+                if (common.inHeapMode(bucket) == false) {
+                    heapify(rootIndex, (int) size);
                 }
-
-                // TODO: Make use of heap structures to faster iterate in order instead of copying and sorting
-                Arrays.sort(bucketValues, 0, (int) size);
+                heapSort(rootIndex, (int) size);
 
                 builder.beginPositionEntry();
-                if (order == SortOrder.ASC) {
-                    for (int i = 0; i < size; i++) {
-                        builder.appendBytesRef(bucketValues[i]);
-                    }
-                } else {
-                    for (int i = (int) size - 1; i >= 0; i--) {
-                        builder.appendBytesRef(bucketValues[i]);
-                    }
+                for (int i = 0; i < size; i++) {
+                    builder.appendBytesRef(get(rootIndex + i, new BytesRef()));
                 }
                 builder.endPositionEntry();
             }
@@ -226,11 +196,11 @@ public class IpBucketedSort implements Releasable {
         }
     }
 
-    /**
-     * Is this bucket a min heap {@code true} or in gathering mode {@code false}?
-     */
-    private boolean inHeapMode(int bucket) {
-        return heapMode.get(bucket);
+    private long startIndex(int bucket, long rootIndex) {
+        if (common.inHeapMode(bucket)) {
+            return rootIndex;
+        }
+        return rootIndex + getNextGatherOffset(rootIndex) + 1;
     }
 
     /**
@@ -267,7 +237,7 @@ public class IpBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(BytesRef lhs, BytesRef rhs) {
-        return getOrder().reverseMul() * lhs.compareTo(rhs) < 0;
+        return common.order.reverseMul() * lhs.compareTo(rhs) < 0;
     }
 
     /**
@@ -294,19 +264,25 @@ public class IpBucketedSort implements Releasable {
      * Allocate storage for more buckets and store the "next gather offset"
      * for those new buckets.
      */
-    private void grow(long minSize) {
+    private void grow(int bucket) {
         long oldMax = values.size() / IP_LENGTH;
-        values = bigArrays.grow(values, minSize);
+        assert oldMax % common.bucketSize == 0;
+
+        int bucketBytes = common.bucketSize * IP_LENGTH;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketBytes, PageCacheRecycler.BYTE_PAGE_SIZE, 1);
+        // Round up to the next full bucket.
+        newSize = (newSize + bucketBytes - 1) / bucketBytes;
+        values = common.bigArrays.resize(values, newSize * bucketBytes);
         // Set the next gather offsets for all newly allocated buckets.
-        setNextGatherOffsets(oldMax - (oldMax % bucketSize));
+        fillGatherOffsets(oldMax);
     }
 
     /**
      * Maintain the "next gather offsets" for newly allocated buckets.
      */
-    private void setNextGatherOffsets(long startingAt) {
-        int nextOffset = bucketSize - 1;
-        for (long bucketRoot = startingAt; bucketRoot < values.size() / IP_LENGTH; bucketRoot += bucketSize) {
+    private void fillGatherOffsets(long startingAt) {
+        int nextOffset = common.bucketSize - 1;
+        for (long bucketRoot = startingAt; bucketRoot < values.size() / IP_LENGTH; bucketRoot += common.bucketSize) {
             setNextGatherOffset(bucketRoot, nextOffset);
         }
     }
@@ -333,10 +309,28 @@ public class IpBucketedSort implements Releasable {
      * </ul>
      * @param rootIndex the index the start of the bucket
      */
-    private void heapify(long rootIndex) {
-        int maxParent = bucketSize / 2 - 1;
+    private void heapify(long rootIndex, int heapSize) {
+        int maxParent = heapSize / 2 - 1;
         for (int parent = maxParent; parent >= 0; parent--) {
-            downHeap(rootIndex, parent);
+            downHeap(rootIndex, parent, heapSize);
+        }
+    }
+
+    /**
+     * Sorts all the values in the heap using heap sort algorithm.
+     * This runs in {@code O(n log n)} time.
+     * @param rootIndex index of the start of the bucket
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
+     */
+    private void heapSort(long rootIndex, int heapSize) {
+        while (heapSize > 0) {
+            swap(rootIndex, rootIndex + heapSize - 1);
+            heapSize--;
+            downHeap(rootIndex, 0, heapSize);
         }
     }
 
@@ -346,22 +340,27 @@ public class IpBucketedSort implements Releasable {
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
      *               For example, 0 is the "root".
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
      */
-    private void downHeap(long rootIndex, int parent) {
+    private void downHeap(long rootIndex, int parent, int heapSize) {
         while (true) {
             long parentIndex = rootIndex + parent;
             int worst = parent;
             long worstIndex = parentIndex;
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
-            if (leftChild < bucketSize) {
+            if (leftChild < heapSize) {
                 if (betterThan(get(worstIndex, scratch1), get(leftIndex, scratch2))) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < bucketSize && betterThan(get(worstIndex, scratch1), get(rightIndex, scratch2))) {
+                if (rightChild < heapSize && betterThan(get(worstIndex, scratch1), get(rightIndex, scratch2))) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }
@@ -400,6 +399,6 @@ public class IpBucketedSort implements Releasable {
 
     @Override
     public final void close() {
-        Releasables.close(values, heapMode);
+        Releasables.close(values, common);
     }
 }

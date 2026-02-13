@@ -57,7 +57,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
-        options.contains("-linkoffline '$expectedLink' './some-lib/build/docs/javadoc/'")
+        options.contains("-linkoffline '$expectedLink' '../some-lib/build/docs/javadoc/'")
 
         where:
         version        | versionType | expectedLink
@@ -73,7 +73,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
-                    id 'com.github.johnrengelman.shadow' version '7.1.2'
+                    id 'com.gradleup.shadow'
                     id 'java'
                 }
                 group = 'org.acme.depending'
@@ -131,7 +131,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
         // normal dependencies handles as usual
         result.task(":some-lib:javadoc").outcome == TaskOutcome.SUCCESS
-        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc/'")
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '../some-lib/build/docs/javadoc/'")
         file('some-depending-lib/build/docs/javadoc/org/acme/Something.html').exists() == false
 
         // source of shadowed dependencies are inlined
@@ -179,7 +179,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
-        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc'") == false
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '../some-lib/build/docs/javadoc'") == false
     }
 
     def "ensures module dependency in javadoc of projects"() {

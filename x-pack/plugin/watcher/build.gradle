@@ -1,11 +1,15 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
-  name 'x-pack-watcher'
-  description 'Elasticsearch Expanded Pack Plugin - Watcher'
-  classname 'org.elasticsearch.xpack.watcher.Watcher'
-  hasNativeController false
-  requiresKeystore false
+  name = 'x-pack-watcher'
+  description = 'Elasticsearch Expanded Pack Plugin - Watcher'
+  classname = 'org.elasticsearch.xpack.watcher.Watcher'
+  hasNativeController = false
+  requiresKeystore = false
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
@@ -14,6 +18,16 @@ base {
 }
 
 ext.compactProfile = 'full'
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack',
+      'put_script', 'ingest', 'count', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
@@ -34,7 +48,7 @@ dependencies {
   api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20211018.2'
   runtimeOnly 'com.google.guava:guava:32.0.1-jre' // needed by watcher for the html sanitizer
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
-  api 'com.sun.mail:jakarta.mail:1.6.4'
+  api 'com.sun.mail:jakarta.mail:1.6.8'
   api 'com.sun.activation:jakarta.activation:1.2.1'
   compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -44,6 +58,19 @@ dependencies {
   testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
 
   internalClusterTestImplementation project(":modules:analysis-common")
+
+  javaRestTestImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
+
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('ilm'))
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

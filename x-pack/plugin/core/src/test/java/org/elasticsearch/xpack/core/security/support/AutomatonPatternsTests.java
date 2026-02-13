@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.core.security.support;
 
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class AutomatonPatternsTests extends ESTestCase {
 
@@ -37,7 +40,7 @@ public class AutomatonPatternsTests extends ESTestCase {
 
         // check that the action patterns for remote CCS are not allowed by remote CCR privileges
         Arrays.stream(CCS_INDICES_PRIVILEGE_NAMES).forEach(ccsPrivilege -> {
-            Automaton ccsAutomaton = IndexPrivilege.get(Set.of(ccsPrivilege)).getAutomaton();
+            Automaton ccsAutomaton = IndexPrivilege.get(ccsPrivilege).getAutomaton();
             Automatons.getPatterns(ccsAutomaton).forEach(ccsPattern -> {
                 // emulate an action name that could be allowed by a CCS privilege
                 String actionName = ccsPattern.replaceAll("\\*", randomAlphaOfLengthBetween(1, 8));
@@ -49,14 +52,14 @@ public class AutomatonPatternsTests extends ESTestCase {
                         ccrPrivileges,
                         ccsPattern
                     );
-                    assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccrPrivileges)).predicate().test(actionName));
+                    assertFalse(errorMessage, IndexPrivilege.get(ccrPrivileges).predicate().test(actionName));
                 });
             });
         });
 
         // check that the action patterns for remote CCR are not allowed by remote CCS privileges
         Arrays.stream(CCR_INDICES_PRIVILEGE_NAMES).forEach(ccrPrivilege -> {
-            Automaton ccrAutomaton = IndexPrivilege.get(Set.of(ccrPrivilege)).getAutomaton();
+            Automaton ccrAutomaton = IndexPrivilege.get(ccrPrivilege).getAutomaton();
             Automatons.getPatterns(ccrAutomaton).forEach(ccrPattern -> {
                 // emulate an action name that could be allowed by a CCR privilege
                 String actionName = ccrPattern.replaceAll("\\*", randomAlphaOfLengthBetween(1, 8));
@@ -72,10 +75,30 @@ public class AutomatonPatternsTests extends ESTestCase {
                             ccsPrivileges,
                             ccrPattern
                         );
-                        assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccsPrivileges)).predicate().test(actionName));
+                        assertFalse(errorMessage, IndexPrivilege.get(ccsPrivileges).predicate().test(actionName));
                     }
                 });
             });
         });
+    }
+
+    /**
+     * `read_cross_cluster` is deprecated in favour of `read`, and should not have any new privileges added. If new privileges are required,
+     * these should either be added to `read` or `view_index_metadata`.
+     */
+    public void testReadCrossClusterDoesNotHaveNewPrivileges() {
+        var privileges = Automatons.getPatterns(IndexPrivilege.DEPRECATED_READ_CROSS_CLUSTER.getAutomaton());
+
+        assertThat(
+            privileges,
+            containsInAnyOrder(
+                "internal:transport/proxy/indices:data/read/*",
+                TransportClusterSearchShardsAction.TYPE.name(),
+                TransportSearchShardsAction.TYPE.name(),
+                TransportResolveClusterAction.NAME,
+                "indices:data/read/esql",
+                "indices:data/read/esql/compute"
+            )
+        );
     }
 }

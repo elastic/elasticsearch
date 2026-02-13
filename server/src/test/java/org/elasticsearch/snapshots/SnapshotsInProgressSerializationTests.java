@@ -15,14 +15,17 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -31,11 +34,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -46,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -58,12 +64,18 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         .putCompatibilityVersions("local", new CompatibilityVersions(TransportVersion.current(), Map.of()))
         .build();
 
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
+
     @Override
     protected Custom createTestInstance() {
-        int numberOfSnapshots = randomInt(10);
+        return createTestInstance(() -> randomSnapshot(randomProjectIdOrDefault()));
+    }
+
+    private Custom createTestInstance(Supplier<Entry> randomEntrySupplier) {
+        int numberOfSnapshots = randomInt(20);
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY;
         for (int i = 0; i < numberOfSnapshots; i++) {
-            snapshotsInProgress = snapshotsInProgress.withAddedEntry(randomSnapshot());
+            snapshotsInProgress = snapshotsInProgress.withAddedEntry(randomEntrySupplier.get());
         }
 
         final var nodeIdsForRemoval = randomList(3, ESTestCase::randomUUID);
@@ -74,6 +86,36 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         }
 
         return snapshotsInProgress;
+    }
+
+    public void testSerializationBwc() throws IOException {
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOT);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        final Custom original = createTestInstance(() -> randomSnapshot(ProjectId.DEFAULT));
+        original.writeTo(out);
+
+        final var in = out.bytes().streamInput();
+        in.setTransportVersion(oldVersion);
+        final SnapshotsInProgress fromStream = new SnapshotsInProgress(in);
+        assertThat(fromStream, equalTo(original));
+    }
+
+    public void testDiffSerializationBwc() throws IOException {
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOT);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+
+        final Custom before = createTestInstance(() -> randomSnapshot(ProjectId.DEFAULT));
+        final Custom after = makeTestChanges(before, () -> randomSnapshot(ProjectId.DEFAULT));
+        final Diff<Custom> diff = after.diff(before);
+        diff.writeTo(out);
+
+        final var in = out.bytes().streamInput();
+        in.setTransportVersion(oldVersion);
+        final NamedDiff<Custom> diffFromStream = SnapshotsInProgress.readDiffFrom(in);
+
+        assertThat(diffFromStream.apply(before), equalTo(after));
     }
 
     private ClusterState getClusterStateWithNodeShutdownMetadata(List<String> nodeIdsForRemoval) {
@@ -88,6 +130,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                                 nodeId -> SingleNodeShutdownMetadata.builder()
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setNodeId(nodeId)
+                                    .setNodeEphemeralId(nodeId)
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason(getTestName())
                                     .build()
@@ -99,7 +142,15 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     private Entry randomSnapshot() {
-        Snapshot snapshot = new Snapshot("repo-" + randomInt(5), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        return randomSnapshot(randomProjectIdOrDefault());
+    }
+
+    private Entry randomSnapshot(ProjectId projectId) {
+        Snapshot snapshot = new Snapshot(
+            projectId,
+            "repo-" + randomInt(5),
+            new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10))
+        );
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
         int numberOfIndices = randomIntBetween(0, 10);
@@ -133,7 +184,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             shards,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
-            IndexVersionUtils.randomVersion(random())
+            IndexVersionUtils.randomVersion()
         );
     }
 
@@ -157,6 +208,10 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
+        return makeTestChanges(testInstance, () -> randomSnapshot(randomProjectIdOrDefault()));
+    }
+
+    protected Custom makeTestChanges(Custom testInstance, Supplier<Entry> randomEntrySupplier) {
         final SnapshotsInProgress snapshots = (SnapshotsInProgress) testInstance;
         SnapshotsInProgress updatedInstance = SnapshotsInProgress.EMPTY;
         if (randomBoolean() && snapshots.count() > 1) {
@@ -177,7 +232,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             // add some elements
             int addElements = randomInt(10);
             for (int i = 0; i < addElements; i++) {
-                updatedInstance = updatedInstance.withAddedEntry(randomSnapshot());
+                updatedInstance = updatedInstance.withAddedEntry(randomEntrySupplier.get());
             }
         }
         if (randomBoolean()) {
@@ -193,7 +248,12 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 if (randomBoolean()) {
                     entries = shuffledList(entries);
                 }
-                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntries.get(0).repository(), entries);
+                final Entry firstEntry = perRepoEntries.get(0);
+                updatedInstance = updatedInstance.createCopyWithUpdatedEntriesForRepo(
+                    firstEntry.projectId(),
+                    firstEntry.repository(),
+                    entries
+                );
             }
         }
         return updatedInstance;
@@ -218,10 +278,12 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 return snapshotsInProgress.withAddedEntry(randomSnapshot());
             } else {
                 // mutate or remove an entry
-                final String repo = randomFrom(
-                    snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
+                final var repo = randomFrom(
+                    snapshotsInProgress.asStream()
+                        .map(entry -> new ProjectRepo(entry.projectId(), entry.repository()))
+                        .collect(Collectors.toSet())
                 );
-                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
+                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo.projectId(), repo.name());
                 int index = randomIntBetween(0, forRepo.size() - 1);
                 Entry entry = forRepo.get(index);
                 final List<Entry> updatedEntries = new ArrayList<>(forRepo);
@@ -230,7 +292,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 } else {
                     updatedEntries.remove(index);
                 }
-                return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
+                return snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(repo.projectId(), repo.name(), updatedEntries);
             }
         } else {
             return snapshotsInProgress.withUpdatedNodeIdsForRemoval(
@@ -437,9 +499,10 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
 
     public void testXContent() throws IOException {
         final IndexId indexId = new IndexId("index", "uuid");
+        final ProjectId projectId = ProjectId.fromId("some-project");
         SnapshotsInProgress sip = SnapshotsInProgress.EMPTY.withAddedEntry(
             Entry.snapshot(
-                new Snapshot("repo", new SnapshotId("name", "uuid")),
+                new Snapshot(projectId, "repo", new SnapshotId("name", "uuid")),
                 true,
                 true,
                 State.SUCCESS,
@@ -476,6 +539,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                                 "node-id",
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId("node-id")
+                                    .setNodeEphemeralId("node-id")
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason("test")
@@ -495,6 +559,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     {
                       "snapshots": [
                         {
+                          "project_id": "some-project",
                           "repository": "repo",
                           "snapshot": "name",
                           "uuid": "uuid",
@@ -545,6 +610,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     {
                       "snapshots": [
                         {
+                          "project_id": "some-project",
                           "repository": "repo",
                           "snapshot": "name",
                           "uuid": "uuid",

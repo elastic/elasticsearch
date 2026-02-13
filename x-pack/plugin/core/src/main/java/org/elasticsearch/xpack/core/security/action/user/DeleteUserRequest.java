@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete a native user.
  */
-public class DeleteUserRequest extends ActionRequest implements UserRequest, WriteRequest<DeleteUserRequest> {
+public class DeleteUserRequest extends LegacyActionRequest implements UserRequest, WriteRequest<DeleteUserRequest> {
 
     private String username;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;

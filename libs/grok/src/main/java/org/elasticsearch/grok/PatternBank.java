@@ -23,7 +23,7 @@ import java.util.Set;
 
 public class PatternBank {
 
-    public static PatternBank EMPTY = new PatternBank(Map.of());
+    public static final PatternBank EMPTY = new PatternBank(Map.of());
 
     private final Map<String, String> bank;
 

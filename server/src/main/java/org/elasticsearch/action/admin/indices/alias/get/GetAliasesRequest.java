@@ -8,41 +8,31 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
 import java.util.Map;
 
-public class GetAliasesRequest extends ActionRequest implements AliasesRequest {
+public class GetAliasesRequest extends LocalClusterStateRequest implements AliasesRequest {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHidden();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHiddenNoSelectors();
 
     private String[] aliases;
     private String[] originalAliases;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    public GetAliasesRequest(String... aliases) {
+    public GetAliasesRequest(TimeValue masterTimeout, String... aliases) {
+        super(masterTimeout);
         this.aliases = aliases;
         this.originalAliases = aliases;
-    }
-
-    public GetAliasesRequest() {
-        this(Strings.EMPTY_ARRAY);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 
     @Override

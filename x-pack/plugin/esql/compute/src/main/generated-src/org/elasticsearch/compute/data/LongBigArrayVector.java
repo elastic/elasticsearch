@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link LongArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class LongBigArrayVector extends AbstractVector implements LongVector, Releasable {
 
@@ -79,7 +79,7 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public LongVector filter(int... positions) {
+    public LongVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

@@ -12,7 +12,7 @@ package org.elasticsearch.action.admin.indices.dangling.find;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
 
-public class FindDanglingIndexRequest extends BaseNodesRequest<FindDanglingIndexRequest> {
+public class FindDanglingIndexRequest extends BaseNodesRequest {
     private final String indexUUID;
 
     public FindDanglingIndexRequest(String indexUUID) {

@@ -5,6 +5,7 @@ export type EsPipelineConfig = {
     "included-regions"?: string | string[];
     "excluded-regions"?: string | string[];
     "trigger-phrase"?: string;
+    "skip-target-branches"?: string | string[];
   };
 };
 

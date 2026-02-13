@@ -15,9 +15,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -41,18 +39,10 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetSourceAction extends BaseRestHandler {
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source "
-        + "requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}/_source/{id}"),
-            new Route(HEAD, "/{index}/_source/{id}"),
-            Route.builder(GET, "/{index}/{type}/{id}/_source").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(HEAD, "/{index}/{type}/{id}/_source").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/{index}/_source/{id}"), new Route(HEAD, "/{index}/_source/{id}"));
     }
 
     @Override
@@ -62,11 +52,6 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type"); // consume and ignore the type
-            deprecationLogger.compatibleCritical("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));

@@ -9,11 +9,11 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
-import java.util.List;
 import java.util.Map;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
@@ -23,11 +23,11 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        return aggregation.copyWithRewritenBuckets(aggregations -> {
-            List<InternalAggregation> aggs = aggregations.copyResults();
-            aggs.add(doReduce(aggregations, reduceContext));
-            return InternalAggregations.from(aggs);
-        });
+        return aggregation.copyWithRewritenBuckets(
+            aggregations -> InternalAggregations.from(
+                CollectionUtils.appendToCopyNoNullElements(aggregations.copyResults(), doReduce(aggregations, reduceContext))
+            )
+        );
     }
 
     public abstract InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context);

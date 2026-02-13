@@ -40,7 +40,12 @@ public class Murmur3Hasher {
         update(inputBytes, 0, inputBytes.length);
     }
 
-    private void update(byte[] inputBytes, int offset, int length) {
+    /**
+     * Similar to {@link #update(byte[])}, but processes a specific portion of the input bytes
+     * starting from the given {@code offset} for the specified {@code length}.
+     * @see #update(byte[])
+     */
+    public void update(byte[] inputBytes, int offset, int length) {
         if (remainderLength + length >= remainder.length) {
             if (remainderLength > 0) {
                 // fill rest of remainder from inputBytes and hash remainder
@@ -70,7 +75,7 @@ public class Murmur3Hasher {
                 System.arraycopy(inputBytes, offset + numBytesToHash, remainder, 0, remainderLength);
             }
         } else {
-            System.arraycopy(inputBytes, 0, remainder, remainderLength, length);
+            System.arraycopy(inputBytes, offset, remainder, remainderLength, length);
             remainderLength += length;
         }
     }

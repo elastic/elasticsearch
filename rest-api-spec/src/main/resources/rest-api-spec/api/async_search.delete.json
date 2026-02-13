@@ -1,25 +1,27 @@
 {
-  "async_search.delete":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html",
-      "description": "Deletes an async search by ID. If the search is still running, the search request will be cancelled. Otherwise, the saved search results are deleted."
+  "async_search.delete": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit",
+      "description": "Delete an async search"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_async_search/{id}",
-          "methods":[
+          "path": "/_async_search/{id}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The async search ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async search ID"
             }
           }
         }

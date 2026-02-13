@@ -25,13 +25,13 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import java.util.List;
 public class SourceIntervalsSourceTests extends ESTestCase {
 
     private static final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER =
-        context -> docID -> Collections.<Object>singletonList(context.reader().document(docID).get("body"));
+        context -> docID -> Collections.<Object>singletonList(context.reader().storedFields().document(docID).get("body"));
 
     public void testIntervals() throws IOException {
         final FieldType ft = new FieldType(TextField.TYPE_STORED);
@@ -111,7 +111,7 @@ public class SourceIntervalsSourceTests extends ESTestCase {
                 // Same test, but with a bad approximation now
                 source = new SourceIntervalsSource(
                     Intervals.term(new BytesRef("d")),
-                    new MatchAllDocsQuery(),
+                    Queries.ALL_DOCS_INSTANCE,
                     SOURCE_FETCHER_PROVIDER,
                     Lucene.STANDARD_ANALYZER
                 );

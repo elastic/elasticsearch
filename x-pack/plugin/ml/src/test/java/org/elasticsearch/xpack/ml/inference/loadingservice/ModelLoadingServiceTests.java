@@ -67,11 +67,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -502,6 +504,52 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(5L)));
     }
 
+    public void testExpiredModelsAreEvictedBeforeLoading() throws Exception {
+        String smallModel1 = "small-model-1";
+        String smallModel2 = "small-model-2";
+        String justSmallEnoughModel = "just-small-enough-model";
+        long cbBytes = 13;
+        withTrainedModel(smallModel1, cbBytes / 2);
+        withTrainedModel(smallModel1, cbBytes / 2);
+        long justSmallEnoughModelBytes = cbBytes - 1;
+        withTrainedModel(justSmallEnoughModel, justSmallEnoughModelBytes);
+        CircuitBreaker circuitBreaker = new CustomCircuitBreaker(cbBytes);
+
+        // Create cache with a low TTL value so models can be evicted quickly
+        ModelLoadingService modelLoadingService = new ModelLoadingService(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker,
+            mock(XPackLicenseState.class),
+            TimeValue.timeValueMillis(200)
+        );
+
+        // These 2 models will be loaded as the circuit breaker has enough free memory
+        modelLoadingService.clusterChanged(ingestChangedEvent(smallModel1, smallModel2));
+
+        assertBusy(() -> {
+            assertThat(circuitBreaker.getUsed(), greaterThan(0L));
+            assertThat(circuitBreaker.getTrippedCount(), equalTo(0L));
+        }, 2, TimeUnit.SECONDS);
+
+        AtomicBoolean modelLoaded = new AtomicBoolean(false);
+
+        // This model can only be loaded if the first 2 are evicted from the cache
+        // and space freed in the circuit breaker.
+        modelLoadingService.addModelLoadedListener(justSmallEnoughModel, ActionListener.wrap(r -> {
+            modelLoaded.set(true);
+            assertThat(circuitBreaker.getUsed(), equalTo(justSmallEnoughModelBytes));
+        }, ESTestCase::fail));
+        modelLoadingService.clusterChanged(ingestChangedEvent(justSmallEnoughModel));
+
+        assertBusy(() -> assertTrue(modelLoaded.get()), 2, TimeUnit.SECONDS);
+    }
+
     public void testReferenceCounting() throws Exception {
         String modelId = "test-reference-counting";
         withTrainedModel(modelId, 1L);
@@ -762,14 +810,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
         if (ingestToo) {
             set.add(IngestMetadata.TYPE);
         }
-        when(event.changedCustomMetadataSet()).thenReturn(set);
+        when(event.changedCustomProjectMetadataSet()).thenReturn(set);
         when(event.state()).thenReturn(withModelReferencesAndAliasChange(isIngestNode, modelId, modelIdAndAliases));
         return event;
     }
 
     private static ClusterChangedEvent ingestChangedEvent(boolean isIngestNode, String... modelId) throws IOException {
         ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.changedCustomMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
+        when(event.changedCustomProjectMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
         when(event.state()).thenReturn(buildClusterStateWithModelReferences(isIngestNode, modelId));
         return event;
     }

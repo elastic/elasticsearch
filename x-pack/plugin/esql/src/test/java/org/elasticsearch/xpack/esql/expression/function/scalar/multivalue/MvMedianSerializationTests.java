@@ -21,9 +21,4 @@ public class MvMedianSerializationTests extends AbstractExpressionSerializationT
     protected MvMedian mutateInstance(MvMedian instance) throws IOException {
         return new MvMedian(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

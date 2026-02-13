@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * Results of the {@link ChildrenToParentAggregator}.
  */
-public class InternalParent extends InternalSingleBucketAggregation implements Parent {
+public class InternalParent extends InternalSingleBucketAggregation {
     public InternalParent(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
         super(name, docCount, aggregations, metadata);
     }

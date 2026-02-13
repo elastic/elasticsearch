@@ -23,13 +23,17 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ProjectScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Collections;
 
 public class ClusterService extends AbstractLifecycleComponent {
     private final MasterService masterService;
@@ -52,13 +56,33 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final ClusterSettings clusterSettings;
 
+    private final ProjectScopedSettings projectScopedSettings;
+
     private final String nodeName;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this(
             settings,
             clusterSettings,
-            new MasterService(settings, clusterSettings, threadPool, taskManager),
+            new ProjectScopedSettings(settings, Collections.emptySet()),
+            new MasterService(settings, clusterSettings, threadPool, taskManager, MeterRegistry.NOOP),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
+        );
+    }
+
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ProjectScopedSettings projectScopedSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
+    ) {
+        this(
+            settings,
+            clusterSettings,
+            projectScopedSettings,
+            new MasterService(settings, clusterSettings, threadPool, taskManager, meterRegistry),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -69,9 +93,20 @@ public class ClusterService extends AbstractLifecycleComponent {
         MasterService masterService,
         ClusterApplierService clusterApplierService
     ) {
+        this(settings, clusterSettings, new ProjectScopedSettings(settings, Collections.emptySet()), masterService, clusterApplierService);
+    }
+
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ProjectScopedSettings projectScopedSettings,
+        MasterService masterService,
+        ClusterApplierService clusterApplierService
+    ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = masterService;
+        this.projectScopedSettings = projectScopedSettings;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -199,6 +234,10 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public ClusterSettings getClusterSettings() {
         return clusterSettings;
+    }
+
+    public ProjectScopedSettings getProjectScopedSettings() {
+        return projectScopedSettings;
     }
 
     /**

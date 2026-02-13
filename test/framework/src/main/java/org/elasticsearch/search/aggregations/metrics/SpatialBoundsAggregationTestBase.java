@@ -12,7 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -63,7 +63,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
                 .setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))),
             response -> {
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo((long) numDocs));
@@ -155,7 +155,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
         assertNoFailuresAndResponse(
             client().prepareSearch(EMPTY_IDX_NAME).setQuery(matchAllQuery()).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
                 SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
                 assertThat(geoBounds, notNullValue());
                 assertThat(geoBounds.getName(), equalTo(aggName()));

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -17,19 +16,17 @@ import org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Request;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("data_streams", "ilm_policies", "templates");
+
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_migration/deprecations").replaces(GET, "/_xpack/migration/deprecations", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_migration/deprecations")
-                .replaces(GET, "/{index}/_xpack/migration/deprecations", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(GET, "/_migration/deprecations"), new Route(GET, "/{index}/_migration/deprecations"));
     }
 
     @Override
@@ -52,5 +49,10 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("index"))
         );
         return channel -> client.execute(DeprecationInfoAction.INSTANCE, infoRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
     }
 }

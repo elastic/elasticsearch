@@ -140,9 +140,9 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
                 isPooled = isPooled || hit.isPooled();
             }
         }
-        var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        var sortFields = in.readOptional(Lucene::readSortFieldArray);
         var collapseField = in.readOptionalString();
-        var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        var collapseValues = in.readOptional(Lucene::readSortValues);
         if (isPooled) {
             return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
         } else {
@@ -164,7 +164,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         }
         out.writeFloat(maxScore);
         out.writeArray(hits);
-        out.writeOptionalArray(Lucene::writeSortField, sortFields);
+        out.writeOptional(Lucene::writeSortFieldArray, sortFields);
         out.writeOptionalString(collapseField);
         out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
     }
@@ -252,6 +252,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     private void deallocate() {
+        var hits = this.hits;
         for (int i = 0; i < hits.length; i++) {
             assert hits[i] != null;
             hits[i].decRef();
@@ -285,19 +286,18 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(Iterators.single((b, p) -> b.startObject(Fields.HITS)), Iterators.single((b, p) -> {
+        return Iterators.concat(Iterators.single((b, p) -> {
+            b.startObject(Fields.HITS);
             boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
             if (totalHitAsInt) {
-                long total = totalHits == null ? -1 : totalHits.value;
+                long total = totalHits == null ? -1 : totalHits.value();
                 b.field(Fields.TOTAL, total);
             } else if (totalHits != null) {
                 b.startObject(Fields.TOTAL);
-                b.field("value", totalHits.value);
-                b.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
+                b.field("value", totalHits.value());
+                b.field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte");
                 b.endObject();
             }
-            return b;
-        }), Iterators.single((b, p) -> {
             if (Float.isNaN(maxScore)) {
                 b.nullField(Fields.MAX_SCORE);
             } else {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -148,6 +149,10 @@ public final class JsonProcessor extends AbstractProcessor {
         boolean strictJsonParsing
     ) {
         Object value = apply(ctx.get(fieldName), allowDuplicateKeys, strictJsonParsing);
+        mergeParsedJson(ctx, value, conflictStrategy);
+    }
+
+    private static void mergeParsedJson(Map<String, Object> ctx, Object value, ConflictStrategy conflictStrategy) {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
@@ -183,10 +188,11 @@ public final class JsonProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
+        Object value = apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing);
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootConflictStrategy, strictJsonParsing);
+            mergeParsedJson(document.getSourceAndMetadata(), value, addToRootConflictStrategy);
         } else {
-            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing));
+            document.setFieldValue(targetField, value);
         }
         return document;
     }
@@ -217,7 +223,8 @@ public final class JsonProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");

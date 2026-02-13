@@ -68,6 +68,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -102,6 +103,9 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null,
                 123,
                 1,
+                randomBoolean(),
+                randomBoolean(),
+                null,
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -168,7 +172,15 @@ public class PITAwareQueryClientTests extends ESTestCase {
             }
 
             SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, booleanArrayOf(stages, false), cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(wrap(response -> {
                 // do nothing, we don't care about the query results
             }, ex -> { fail("Shouldn't have failed"); }));
@@ -208,7 +220,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest closePIT) {
                 assertTrue(openedPIT);
-                assertEquals(pitId, closePIT.getId());
+                assertThat(closePIT.getId(), equalBytes(pitId));
 
                 openedPIT = false;
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
@@ -218,7 +230,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 searchRequestsRemainingCount--;
                 assertTrue(searchRequestsRemainingCount >= 0);
 
-                assertEquals(pitId, searchRequest.source().pointInTimeBuilder().getEncodedId());
+                assertThat(searchRequest.source().pointInTimeBuilder().getEncodedId(), equalBytes(pitId));
                 assertEquals(0, searchRequest.indices().length); // no indices set in the search request
                 assertEquals(1, searchRequest.source().subSearches().size());
 

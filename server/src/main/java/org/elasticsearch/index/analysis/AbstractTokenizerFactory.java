@@ -9,15 +9,11 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-
 public abstract class AbstractTokenizerFactory implements TokenizerFactory {
 
     private final String name;
 
-    public AbstractTokenizerFactory(IndexSettings indexSettings, Settings settings, String name) {
-        Analysis.checkForDeprecatedVersion(name, settings);
+    public AbstractTokenizerFactory(String name) {
         this.name = name;
     }
 

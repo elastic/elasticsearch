@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchModel;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.action.AlibabaCloudSearchActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -57,10 +56,14 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
         AlibabaCloudSearchRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+    }
+
+    public AlibabaCloudSearchRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings.getCommonSettings()
+            modelConfigurations,
+            modelSecrets,
+            ((AlibabaCloudSearchRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
         );
     }
 
@@ -88,7 +91,7 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
     }
 
     @Override
-    public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 }

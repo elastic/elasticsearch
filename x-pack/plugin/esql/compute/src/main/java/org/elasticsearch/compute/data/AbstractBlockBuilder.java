@@ -12,7 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import java.util.BitSet;
 import java.util.stream.IntStream;
 
-abstract class AbstractBlockBuilder implements Block.Builder {
+public abstract class AbstractBlockBuilder implements Block.Builder {
 
     protected final BlockFactory blockFactory;
 
@@ -34,7 +34,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     /** The number of bytes currently estimated with the breaker. */
     protected long estimatedBytes;
 
-    boolean closed = false;
+    private boolean closed = false;
 
     protected AbstractBlockBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
@@ -147,9 +147,9 @@ abstract class AbstractBlockBuilder implements Block.Builder {
             return;
         }
         int newSize = ArrayUtil.oversize(valueCount, elementSize());
-        adjustBreaker(newSize * elementSize());
+        adjustBreaker((long) newSize * elementSize());
         growValuesArray(newSize);
-        adjustBreaker(-valuesLength * elementSize());
+        adjustBreaker(-(long) valuesLength * elementSize());
     }
 
     @Override
@@ -182,5 +182,9 @@ abstract class AbstractBlockBuilder implements Block.Builder {
             adjustBreaker(-(long) currentSize * Integer.BYTES);
         }
         firstValueIndexes[position] = value;
+    }
+
+    public boolean isReleased() {
+        return closed;
     }
 }

@@ -12,8 +12,10 @@ package org.elasticsearch.gradle.internal.toolchain
 
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.jvm.toolchain.JavaLanguageVersion
+
 import static org.gradle.jvm.toolchain.JvmVendorSpec.ORACLE
-import static org.gradle.platform.Architecture.*
+import static org.gradle.platform.Architecture.AARCH64
+import static org.gradle.platform.Architecture.X86_64
 import static org.gradle.platform.OperatingSystem.*
 
 class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
@@ -26,8 +28,14 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
             }
         }
         toolChain.builds = [
-            new OracleOpenJdkToolchainResolver.ReleasedJdkBuild(JavaLanguageVersion.of(20), "20", "36", "bdc68b4b9cbc4ebcb30745c85038d91d"),
-            new OracleOpenJdkToolchainResolver.EarlyAccessJdkBuild(JavaLanguageVersion.of(21), "21", "6")
+            new OracleOpenJdkToolchainResolver.ReleaseJdkBuild(
+                JavaLanguageVersion.of(20),
+                "download.oracle.com",
+                "20",
+                "36",
+                "bdc68b4b9cbc4ebcb30745c85038d91d"
+            ),
+            OracleOpenJdkToolchainResolver.getBundledJdkBuild("24.0.2+12@fdc5d0102fe0414db21410ad5834341f", "24"),
         ]
         toolChain
     }
@@ -43,24 +51,26 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
          [20, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-x64_bin.tar.gz"],
          [20, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-aarch64_bin.tar.gz"],
          [20, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"],
-         // https://download.java.net/java/early_access/jdk23/23/GPL/openjdk-23-ea+23_macos-aarch64_bin.tar.gz
-         [21, ORACLE, MAC_OS, X86_64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_macos-x64_bin.tar.gz"],
-         [21, ORACLE, MAC_OS, AARCH64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_macos-aarch64_bin.tar.gz"],
-         [21, ORACLE, LINUX, X86_64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_linux-x64_bin.tar.gz"],
-         [21, ORACLE, LINUX, AARCH64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_linux-aarch64_bin.tar.gz"],
-         [21, ORACLE, WINDOWS, X86_64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_windows-x64_bin.zip"],
-         [21, anyVendor(), MAC_OS, X86_64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_macos-x64_bin.tar.gz"],
-         [21, anyVendor(), MAC_OS, AARCH64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_macos-aarch64_bin.tar.gz"],
-         [21, anyVendor(), LINUX, X86_64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_linux-x64_bin.tar.gz"],
-         [21, anyVendor(), LINUX, AARCH64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_linux-aarch64_bin.tar.gz"],
-         [21, anyVendor(), WINDOWS, X86_64, "https://download.java.net/java/early_access/jdk21/21/GPL/openjdk-21-ea+6_windows-x64_bin.zip"]
+         // bundled jdk
+         [24, ORACLE, MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-x64_bin.tar.gz"],
+         [24, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-aarch64_bin.tar.gz"],
+         [24, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-x64_bin.tar.gz"],
+         [24, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-aarch64_bin.tar.gz"],
+         [24, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_windows-x64_bin.zip"],
+         [24, anyVendor(), MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-x64_bin.tar.gz"],
+         [24, anyVendor(), MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_macos-aarch64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-x64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_linux-aarch64_bin.tar.gz"],
+         [24, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24.0.2/fdc5d0102fe0414db21410ad5834341f/12/GPL/openjdk-24.0.2_windows-x64_bin.zip"]
         ]
     }
 
+    private static String urlPrefix(int i) {
+        return "https://builds.es-jdk-archive.com/jdks/openjdk/" + i + "/"
+    }
+
     def unsupportedRequests() {
-        [
-                [20, ORACLE, WINDOWS, AARCH64]
-        ]
+        [[20, ORACLE, WINDOWS, AARCH64]]
     }
 
 }

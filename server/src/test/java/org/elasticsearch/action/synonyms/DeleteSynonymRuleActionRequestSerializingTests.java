@@ -23,11 +23,20 @@ public class DeleteSynonymRuleActionRequestSerializingTests extends AbstractWire
 
     @Override
     protected DeleteSynonymRuleAction.Request createTestInstance() {
-        return new DeleteSynonymRuleAction.Request(randomIdentifier(), randomIdentifier());
+        return new DeleteSynonymRuleAction.Request(randomIdentifier(), randomIdentifier(), randomBoolean());
     }
 
     @Override
     protected DeleteSynonymRuleAction.Request mutateInstance(DeleteSynonymRuleAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String synonymsSetId = instance.synonymsSetId();
+        String synonymRuleId = instance.synonymRuleId();
+        boolean refresh = instance.refresh();
+        switch (between(0, 2)) {
+            case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+            case 1 -> synonymRuleId = randomValueOtherThan(synonymRuleId, () -> randomIdentifier());
+            case 2 -> refresh = refresh == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new DeleteSynonymRuleAction.Request(synonymsSetId, synonymRuleId, refresh);
     }
 }

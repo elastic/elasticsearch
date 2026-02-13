@@ -63,6 +63,22 @@ public interface Operator extends Releasable {
     boolean isFinished();
 
     /**
+     * Returns true if the operator can produce more output pages without requiring additional input pages.
+     * This is useful for operators that buffer data or have internal state that can produce multiple output pages.
+     * <p>
+     * Operators that do not buffer data should return {@code false} - they cannot produce pages out of thin air.
+     * Examples of operators that may return {@code true}:
+     * <ul>
+     *   <li>Operators with internal buffers (e.g., {@link AsyncOperator} with pending results)</li>
+     *   <li>Operators processing a single input page into multiple output pages</li>
+     *   <li>Aggregation operators that buffer partial results</li>
+     * </ul>
+     *
+     * @return {@code true} if the operator has buffered data that can produce output, {@code false} otherwise
+     */
+    boolean canProduceMoreDataWithoutExtraInput();
+
+    /**
      * returns non-null if output page available. Only called when isFinished() == false
      * @throws UnsupportedOperationException  if the operator is a {@link SinkOperator}
      */
@@ -92,7 +108,7 @@ public interface Operator extends Releasable {
         return NOT_BLOCKED;
     }
 
-    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.newSucceeded(null), "not blocked");
+    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
     /**
      * A factory for creating intermediate operators.
@@ -105,5 +121,21 @@ public interface Operator extends Releasable {
     /**
      * Status of an {@link Operator} to be returned by the tasks API.
      */
-    interface Status extends ToXContentObject, VersionedNamedWriteable {}
+    interface Status extends ToXContentObject, VersionedNamedWriteable {
+        /**
+         * The number of documents found by this operator. Most operators
+         * don't find documents and will return {@code 0} here.
+         */
+        default long documentsFound() {
+            return 0;
+        }
+
+        /**
+         * The number of values loaded by this operator. Most operators
+         * don't load values and will return {@code 0} here.
+         */
+        default long valuesLoaded() {
+            return 0;
+        }
+    }
 }

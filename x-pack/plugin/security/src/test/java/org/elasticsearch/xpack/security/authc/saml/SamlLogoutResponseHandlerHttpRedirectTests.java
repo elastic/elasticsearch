@@ -55,7 +55,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, () -> Collections.singletonList(credential));
         final X509Credential spCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"), spCredential);
-        final SpConfiguration sp = new SpConfiguration(
+        final SpConfiguration sp = new SingleSamlSpConfiguration(
             "https://sp.test/",
             "https://sp.test/saml/asc",
             LOGOUT_URL,

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -21,11 +22,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.common.ConvertProcessor.Type;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -100,10 +104,8 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertLong() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Long> expectedResult = new HashMap<>();
         long randomLong = randomLong();
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomLong);
-        expectedResult.put(fieldName, randomLong);
 
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.LONG, false);
         processor.execute(ingestDocument);
@@ -170,10 +172,8 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertDouble() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Double> expectedResult = new HashMap<>();
         double randomDouble = randomDouble();
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomDouble);
-        expectedResult.put(fieldName, randomDouble);
 
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.DOUBLE, false);
         processor.execute(ingestDocument);
@@ -213,10 +213,8 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertFloat() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Float> expectedResult = new HashMap<>();
         float randomFloat = randomFloat();
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomFloat);
-        expectedResult.put(fieldName, randomFloat);
 
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.FLOAT, false);
         processor.execute(ingestDocument);
@@ -514,20 +512,17 @@ public class ConvertProcessorTests extends ESTestCase {
         Object randomValue;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
-                float randomFloat = randomFloat();
-                randomValue = randomFloat;
+                randomValue = randomFloat();
             }
             case 1 -> {
-                int randomInt = randomInt();
-                randomValue = randomInt;
+                randomValue = randomInt();
             }
             case 2 -> {
-                boolean randomBoolean = randomBoolean();
-                randomValue = randomBoolean;
+                randomValue = randomBoolean();
             }
             default -> throw new UnsupportedOperationException();
         }
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomValue));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomValue)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -536,7 +531,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testAutoConvertStringNotMatched() throws Exception {
         String value = "notAnIntFloatOrBool";
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", value));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", value)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -546,7 +541,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchBoolean() throws Exception {
         boolean randomBoolean = randomBoolean();
         String booleanString = Boolean.toString(randomBoolean);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", booleanString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", booleanString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -556,7 +551,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchInteger() throws Exception {
         int randomInt = randomInt();
         String randomString = Integer.toString(randomInt);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -566,7 +561,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchLong() throws Exception {
         long randomLong = randomLong();
         String randomString = Long.toString(randomLong);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -577,7 +572,7 @@ public class ConvertProcessorTests extends ESTestCase {
         double randomDouble = randomDouble();
         String randomString = Double.toString(randomDouble);
         float randomFloat = Float.parseFloat(randomString);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -588,7 +583,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchFloat() throws Exception {
         float randomFloat = randomFloat();
         String randomString = Float.toString(randomFloat);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -604,5 +599,328 @@ public class ConvertProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(String.valueOf(randomInt)));
         assertThat(ingestDocument.getFieldValue(targetField, Integer.class), equalTo(randomInt));
+    }
+
+    /**
+     * This class encapsulates a matrix of tests for converting between different numeric types, including string representations of
+     * numbers, and including conversion to {@link Type#AUTO}.
+     *
+     * <p>The {@link #streamTests()} returns a stream of test cases. The {@link TestCase#run()} method of each case runs that test.
+     *
+     * <p>N.B. The purpose of this test matrix is at least partly to describe the current behaviour, to prevent changes being made
+     * accidentally. The presence of a test case in this list is not intended as a statement that this is actually the intended behaviour.
+     */
+    private static class NumericConversionTestMatrix {
+
+        private static final String TEST_CASES_CSV = """
+            Integer,123,STRING,String,123
+            Long,123,STRING,String,123
+            Float,123.0,STRING,String,123.0
+            Double,123.0,STRING,String,123.0
+            String,123,STRING,String,123
+            String,0x7b,STRING,String,0x7b
+            String,123.0,STRING,String,123.0
+            String,1.230000e+02,STRING,String,1.230000e+02
+            Float,123.45,STRING,String,123.45
+            Double,123.45,STRING,String,123.45
+            String,123.45,STRING,String,123.45
+            String,1.234500e+02,STRING,String,1.234500e+02
+            String,0x1.edcdp6,STRING,String,0x1.edcdp6
+            Integer,16777217,STRING,String,16777217
+            Long,16777217,STRING,String,16777217
+            Double,1.6777217E7,STRING,String,1.6777217E7
+            String,16777217,STRING,String,16777217
+            String,16777217.0,STRING,String,16777217.0
+            Long,2147483648,STRING,String,2147483648
+            Double,2.147483648E9,STRING,String,2.147483648E9
+            String,2147483648,STRING,String,2147483648
+            String,2147483648.0,STRING,String,2147483648.0
+            Long,9007199254740993,STRING,String,9007199254740993
+            String,9007199254740993,STRING,String,9007199254740993
+            String,9007199254740993.0,STRING,String,9007199254740993.0
+            String,9223372036854775808,STRING,String,9223372036854775808
+            String,9223372036854775808.0,STRING,String,9223372036854775808.0
+            String,680564693277057720000000000000000000000,STRING,String,680564693277057720000000000000000000000
+            String,680564693277057720000000000000000000000.0,STRING,String,680564693277057720000000000000000000000.0
+            Integer,123,INTEGER,Integer,123
+            Long,123,INTEGER,Integer,123
+            Float,123.0,INTEGER,THROWS,
+            Double,123.0,INTEGER,THROWS,
+            String,123,INTEGER,Integer,123
+            String,0x7b,INTEGER,Integer,123
+            String,123.0,INTEGER,THROWS,
+            String,1.230000e+02,INTEGER,THROWS,
+            Float,123.45,INTEGER,THROWS,
+            Double,123.45,INTEGER,THROWS,
+            String,123.45,INTEGER,THROWS,
+            String,1.234500e+02,INTEGER,THROWS,
+            String,0x1.edcdp6,INTEGER,THROWS,
+            Integer,16777217,INTEGER,Integer,16777217
+            Long,16777217,INTEGER,Integer,16777217
+            Double,1.6777217E7,INTEGER,THROWS,
+            String,16777217,INTEGER,Integer,16777217
+            String,16777217.0,INTEGER,THROWS,
+            Long,2147483648,INTEGER,THROWS,
+            Double,2.147483648E9,INTEGER,THROWS,
+            String,2147483648,INTEGER,THROWS,
+            String,2147483648.0,INTEGER,THROWS,
+            Long,9007199254740993,INTEGER,THROWS,
+            String,9007199254740993,INTEGER,THROWS,
+            String,9007199254740993.0,INTEGER,THROWS,
+            String,9223372036854775808,INTEGER,THROWS,
+            String,9223372036854775808.0,INTEGER,THROWS,
+            String,680564693277057720000000000000000000000,INTEGER,THROWS,
+            String,680564693277057720000000000000000000000.0,INTEGER,THROWS,
+            Integer,123,LONG,Long,123
+            Long,123,LONG,Long,123
+            Float,123.0,LONG,THROWS,
+            Double,123.0,LONG,THROWS,
+            String,123,LONG,Long,123
+            String,0x7b,LONG,Long,123
+            String,123.0,LONG,THROWS,
+            String,1.230000e+02,LONG,THROWS,
+            Float,123.45,LONG,THROWS,
+            Double,123.45,LONG,THROWS,
+            String,123.45,LONG,THROWS,
+            String,1.234500e+02,LONG,THROWS,
+            String,0x1.edcdp6,LONG,THROWS,
+            Integer,16777217,LONG,Long,16777217
+            Long,16777217,LONG,Long,16777217
+            Double,1.6777217E7,LONG,THROWS,
+            String,16777217,LONG,Long,16777217
+            String,16777217.0,LONG,THROWS,
+            Long,2147483648,LONG,Long,2147483648
+            Double,2.147483648E9,LONG,THROWS,
+            String,2147483648,LONG,Long,2147483648
+            String,2147483648.0,LONG,THROWS,
+            Long,9007199254740993,LONG,Long,9007199254740993
+            String,9007199254740993,LONG,Long,9007199254740993
+            String,9007199254740993.0,LONG,THROWS,
+            String,9223372036854775808,LONG,THROWS,
+            String,9223372036854775808.0,LONG,THROWS,
+            String,680564693277057720000000000000000000000,LONG,THROWS,
+            String,680564693277057720000000000000000000000.0,LONG,THROWS,
+            Integer,123,DOUBLE,Double,123.0
+            Long,123,DOUBLE,Double,123.0
+            Float,123.0,DOUBLE,Double,123.0
+            Double,123.0,DOUBLE,Double,123.0
+            String,123,DOUBLE,Double,123.0
+            String,0x7b,DOUBLE,THROWS,
+            String,123.0,DOUBLE,Double,123.0
+            String,1.230000e+02,DOUBLE,Double,123.0
+            Float,123.45,DOUBLE,Double,123.45
+            Double,123.45,DOUBLE,Double,123.45
+            String,123.45,DOUBLE,Double,123.45
+            String,1.234500e+02,DOUBLE,Double,123.45
+            String,0x1.edcdp6,DOUBLE,Double,123.4501953125
+            Integer,16777217,DOUBLE,Double,1.6777217E7
+            Long,16777217,DOUBLE,Double,1.6777217E7
+            Double,1.6777217E7,DOUBLE,Double,1.6777217E7
+            String,16777217,DOUBLE,Double,1.6777217E7
+            String,16777217.0,DOUBLE,Double,1.6777217E7
+            Long,2147483648,DOUBLE,Double,2.147483648E9
+            Double,2.147483648E9,DOUBLE,Double,2.147483648E9
+            String,2147483648,DOUBLE,Double,2.147483648E9
+            String,2147483648.0,DOUBLE,Double,2.147483648E9
+            Long,9007199254740993,DOUBLE,Double,9.007199254740992E15
+            String,9007199254740993,DOUBLE,Double,9.007199254740992E15
+            String,9007199254740993.0,DOUBLE,Double,9.007199254740992E15
+            String,9223372036854775808,DOUBLE,Double,9.223372036854776E18
+            String,9223372036854775808.0,DOUBLE,Double,9.223372036854776E18
+            String,680564693277057720000000000000000000000,DOUBLE,Double,6.805646932770577E38
+            String,680564693277057720000000000000000000000.0,DOUBLE,Double,6.805646932770577E38
+            Integer,123,FLOAT,Float,123.0
+            Long,123,FLOAT,Float,123.0
+            Float,123.0,FLOAT,Float,123.0
+            Double,123.0,FLOAT,Float,123.0
+            String,123,FLOAT,Float,123.0
+            String,0x7b,FLOAT,THROWS,
+            String,123.0,FLOAT,Float,123.0
+            String,1.230000e+02,FLOAT,Float,123.0
+            Float,123.45,FLOAT,Float,123.45
+            Double,123.45,FLOAT,Float,123.45
+            String,123.45,FLOAT,Float,123.45
+            String,1.234500e+02,FLOAT,Float,123.45
+            String,0x1.edcdp6,FLOAT,Float,123.450195
+            Integer,16777217,FLOAT,Float,1.6777216E7
+            Long,16777217,FLOAT,Float,1.6777216E7
+            Double,1.6777217E7,FLOAT,Float,1.6777216E7
+            String,16777217,FLOAT,Float,1.6777216E7
+            String,16777217.0,FLOAT,Float,1.6777216E7
+            Long,2147483648,FLOAT,Float,2.1474836E9
+            Double,2.147483648E9,FLOAT,Float,2.1474836E9
+            String,2147483648,FLOAT,Float,2.1474836E9
+            String,2147483648.0,FLOAT,Float,2.1474836E9
+            Long,9007199254740993,FLOAT,Float,9.007199E15
+            String,9007199254740993,FLOAT,Float,9.007199E15
+            String,9007199254740993.0,FLOAT,Float,9.007199E15
+            String,9223372036854775808,FLOAT,Float,9.223372E18
+            String,9223372036854775808.0,FLOAT,Float,9.223372E18
+            String,680564693277057720000000000000000000000,FLOAT,Float,Infinity
+            String,680564693277057720000000000000000000000.0,FLOAT,Float,Infinity
+            Integer,123,AUTO,Integer,123
+            Long,123,AUTO,Long,123
+            Float,123.0,AUTO,Float,123.0
+            Double,123.0,AUTO,Double,123.0
+            String,123,AUTO,Integer,123
+            String,0x7b,AUTO,Integer,123
+            String,123.0,AUTO,Float,123.0
+            String,1.230000e+02,AUTO,Float,123.0
+            Float,123.45,AUTO,Float,123.45
+            Double,123.45,AUTO,Double,123.45
+            String,123.45,AUTO,Float,123.45
+            String,1.234500e+02,AUTO,Float,123.45
+            String,0x1.edcdp6,AUTO,Float,123.450195
+            Integer,16777217,AUTO,Integer,16777217
+            Long,16777217,AUTO,Long,16777217
+            Double,1.6777217E7,AUTO,Double,1.6777217E7
+            String,16777217,AUTO,Integer,16777217
+            String,16777217.0,AUTO,Float,1.6777216E7
+            Long,2147483648,AUTO,Long,2147483648
+            Double,2.147483648E9,AUTO,Double,2.147483648E9
+            String,2147483648,AUTO,Long,2147483648
+            String,2147483648.0,AUTO,Float,2.1474836E9
+            Long,9007199254740993,AUTO,Long,9007199254740993
+            String,9007199254740993,AUTO,Long,9007199254740993
+            String,9007199254740993.0,AUTO,Float,9.007199E15
+            String,9223372036854775808,AUTO,Float,9.223372E18
+            String,9223372036854775808.0,AUTO,Float,9.223372E18
+            String,680564693277057720000000000000000000000,AUTO,Float,Infinity
+            String,680564693277057720000000000000000000000.0,AUTO,Float,Infinity
+            """;
+
+        static Stream<TestCase> streamTests() {
+            return Stream.of(TEST_CASES_CSV.split("\n")).map(NumericConversionTestMatrix::parseTestCaseFromCsv);
+        }
+
+        private static TestCase parseTestCaseFromCsv(String csv) {
+            String[] fields = csv.split(",");
+            return switch (fields.length) {
+                case 5 -> new ExpectConvertsTestCase(
+                    parseObjectOfType(fields[0], fields[1]),
+                    Type.valueOf(fields[2]),
+                    parseObjectOfType(fields[3], fields[4])
+                );
+                case 4 -> {
+                    if (fields[3].equals("THROWS")) {
+                        yield new ExpectThrowsTestCase(parseObjectOfType(fields[0], fields[1]), Type.valueOf(fields[2]));
+                    } else {
+                        throw new IllegalArgumentException("With 4 comma-delimited fields, expected 4th to be THROWS, was " + fields[3]);
+                    }
+                }
+                default -> throw new IllegalArgumentException("Expected 4 or 5 comma-delimited fields, got " + csv);
+            };
+        }
+
+        private static Object parseObjectOfType(String type, String string) {
+            return switch (type) {
+                case "Integer" -> Integer.decode(string);
+                case "Long" -> Long.decode(string);
+                case "Float" -> Float.valueOf(string);
+                case "Double" -> Double.valueOf(string);
+                case "String" -> string;
+                default -> throw new IllegalArgumentException("Unexpected type " + type);
+            };
+        }
+
+        interface TestCase {
+
+            Object input();
+
+            Type targetType();
+
+            TestResult run();
+
+            default Object attemptConversion() throws Exception {
+                IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", input())));
+                Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", targetType(), false);
+                processor.execute(ingestDocument);
+                return ingestDocument.getFieldValue("field", Object.class);
+            }
+
+            default String describeTest() {
+                return Strings.format("converting (%s) %s to %s", input().getClass().getSimpleName(), input(), targetType());
+            }
+        }
+
+        record ExpectConvertsTestCase(Object input, Type targetType, Object expectedOutput) implements TestCase {
+
+            @Override
+            public TestResult run() {
+                try {
+                    Object actualOutput = attemptConversion();
+                    if (expectedOutput.equals(actualOutput)) {
+                        return new TestPass(this);
+                    } else {
+                        return new TestFailureWrongValue(this, expectedOutput, actualOutput);
+                    }
+                } catch (Exception e) {
+                    return new TestFailureUnexpectedException(this, expectedOutput, e);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return Strings.format(
+                    "Expected %s to give (%s) %s",
+                    describeTest(),
+                    expectedOutput.getClass().getSimpleName(),
+                    expectedOutput
+                );
+            }
+        }
+
+        record ExpectThrowsTestCase(Object input, Type targetType) implements TestCase {
+
+            @Override
+            public TestResult run() {
+                try {
+                    Object actualOutput = attemptConversion();
+                    return new TestFailureMissingException(this, actualOutput);
+                } catch (Exception e) {
+                    return new TestPass(this);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return Strings.format("Expected %s to throw", describeTest());
+            }
+        }
+
+        interface TestResult {}
+
+        record TestPass(TestCase testCase) implements TestResult {}
+
+        record TestFailureWrongValue(TestCase testCase, Object expected, Object actual) implements TestResult {
+
+            @Override
+            public String toString() {
+                return Strings.format("%s but got (%s) %s", testCase, actual.getClass().getSimpleName(), actual);
+            }
+        }
+
+        record TestFailureUnexpectedException(TestCase testCase, Object expected, Exception threw) implements TestResult {
+
+            @Override
+            public String toString() {
+                return Strings.format("%s but threw (%s) %s", testCase, threw.getClass().getSimpleName(), threw.getMessage());
+            }
+        }
+
+        record TestFailureMissingException(TestCase testCase, Object actual) implements TestResult {
+
+            @Override
+            public String toString() {
+                return Strings.format("%s but got (%s) %s", testCase, actual.getClass().getSimpleName(), actual);
+            }
+        }
+    }
+
+    public void testNumericConversionMatrix() {
+        List<NumericConversionTestMatrix.TestResult> testResults = NumericConversionTestMatrix.streamTests()
+            .map(NumericConversionTestMatrix.TestCase::run)
+            .toList();
+        assertThat(testResults, everyItem(instanceOf(NumericConversionTestMatrix.TestPass.class)));
     }
 }

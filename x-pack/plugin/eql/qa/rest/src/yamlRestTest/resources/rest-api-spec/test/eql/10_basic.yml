@@ -83,6 +83,34 @@ setup:
             id: 123
             valid: true
 
+  - do:
+      indices.create:
+        index:  eql_test_rebel
+        body:
+          mappings:
+            properties:
+              some_keyword:
+                type: keyword
+            runtime:
+              day_of_week:
+                type: keyword
+                script:
+                  source: "throw new IllegalArgumentException(\"rebel shards\")"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test_rebel
+              _id:    "1"
+          - event:
+              - category: process
+            "@timestamp": 2020-02-03T12:34:56Z
+            user: SYSTEM
+            id: 123
+            valid: false
+            some_keyword: longer than normal
+
 ---
 # Testing round-trip and the basic shape of the response
 "Execute some EQL.":
@@ -478,3 +506,139 @@ setup:
           query: 'sequence with maxspan=10d [network where user == "ADMIN"] ![network where used == "SYSTEM"]'
   - match: { error.root_cause.0.type: "verification_exception" }
   - match: { error.root_cause.0.reason: "Found 1 problem\nline 1:75: Unknown column [used], did you mean [user]?" }
+
+
+---
+
+"Execute query shard failures":
+  - do:
+      eql.search:
+        index: eql_test*
+        body:
+          query: 'process where user == "SYSTEM" and day_of_week == "Monday"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+          allow_partial_search_results: true
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.valid: [false]}
+  - match: {hits.events.0.fields.day_of_week: ["Monday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
+
+"Execute query shard failures and with allow_partial_search_results":
+  - do:
+      eql.search:
+        index: eql_test*
+        body:
+          query: 'process where user == "SYSTEM" and day_of_week == "Monday"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+          allow_partial_search_results: true
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.valid: [false]}
+  - match: {hits.events.0.fields.day_of_week: ["Monday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
+"Execute query shard failures and with allow_partial_search_results as request param":
+  - do:
+      eql.search:
+        index: eql_test*
+        body:
+          query: 'process where user == "SYSTEM" and day_of_week == "Monday"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.valid: [false]}
+  - match: {hits.events.0.fields.day_of_week: ["Monday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
+"Execute sequence with shard failures and allow_partial_search_results=true":
+  - do:
+      eql.search:
+        index: eql_test*
+        body:
+          query: 'sequence [process where user == "SYSTEM" and day_of_week == "Monday"] [process where user == "SYSTEM" and day_of_week == "Tuesday"]'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+          allow_partial_search_results: true
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 0}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
+"Execute sequence with shard failures, allow_partial_search_results=true and allow_partial_sequence_results=true":
+  - do:
+      eql.search:
+        index: eql_test*
+        body:
+          query: 'sequence [process where user == "SYSTEM" and day_of_week == "Monday"] [process where user == "SYSTEM" and day_of_week == "Tuesday"]'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+          allow_partial_sequence_results: true
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.events.0._source.user: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.sequences.0.events.0.fields.id: [123]}
+  - match: {hits.sequences.0.events.0.fields.valid: [false]}
+  - match: {hits.sequences.0.events.0.fields.day_of_week: ["Monday"]}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields.@timestamp: ["1580819696000"]}
+  - match: {hits.sequences.0.events.1.fields.id: [123]}
+  - match: {hits.sequences.0.events.1.fields.valid: [true]}
+  - match: {hits.sequences.0.events.1.fields.day_of_week: ["Tuesday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
+"Execute sequence with shard failures, allow_partial_search_results=true and allow_partial_sequence_results=true as query params":
+  - do:
+      eql.search:
+        index: eql_test*
+        allow_partial_sequence_results: true
+        body:
+          query: 'sequence [process where user == "SYSTEM" and day_of_week == "Monday"] [process where user == "SYSTEM" and day_of_week == "Tuesday"]'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.events.0._source.user: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.sequences.0.events.0.fields.id: [123]}
+  - match: {hits.sequences.0.events.0.fields.valid: [false]}
+  - match: {hits.sequences.0.events.0.fields.day_of_week: ["Monday"]}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1.fields.@timestamp: ["1580819696000"]}
+  - match: {hits.sequences.0.events.1.fields.id: [123]}
+  - match: {hits.sequences.0.events.1.fields.valid: [true]}
+  - match: {hits.sequences.0.events.1.fields.day_of_week: ["Tuesday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}

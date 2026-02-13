@@ -9,9 +9,11 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+// Don't add default distro dependency for these projects, they're special
+def integTestDistroProjects = [':x-pack:plugin:sql:qa:jdbc']
 
 ext.bwcTaskName = { Version version ->
   return "v${version}#bwcTest"
@@ -19,7 +21,7 @@ ext.bwcTaskName = { Version version ->
 
 def bwcTestSnapshots = tasks.register("bwcTestSnapshots") {
   if (project.bwc_tests_enabled) {
-    dependsOn tasks.matching { task -> BuildParams.bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
+    dependsOn tasks.matching { task -> buildParams.bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
   }
 }
 
@@ -48,7 +50,9 @@ plugins.withType(InternalJavaRestTestPlugin) {
   tasks.withType(StandaloneRestIntegTestTask).configureEach {
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs
     classpath = sourceSets.javaRestTest.runtimeClasspath
-    usesDefaultDistribution()
+    if (integTestDistroProjects.contains(project.path) == false) {
+      usesDefaultDistribution("BWC tests require full distribution for now")
+    }
   }
 }
 

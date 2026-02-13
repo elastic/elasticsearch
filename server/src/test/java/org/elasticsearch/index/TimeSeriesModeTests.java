@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesModeTests extends MapperServiceTestCase {
@@ -70,16 +71,20 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     public void testWithoutRoutingPath() {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
     }
 
     public void testWithEmptyRoutingPath() {
         Settings s = getSettings("");
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
     }
 
     public void testWithoutStartTime() {
@@ -173,14 +178,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
         })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be configured with [time_series_dimension: true] "
-                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. [dim.o] was [object]."
-            )
-        );
+        assertThat(e.getMessage(), equalTo("All fields that match routing_path must be flattened fields. [dim.o] was [object]."));
     }
 
     public void testRoutingPathMatchesNonDimensionKeyword() {

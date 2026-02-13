@@ -53,6 +53,12 @@ public class ValidationException extends IllegalArgumentException {
         return validationErrors;
     }
 
+    public final void throwIfValidationErrorsExist() {
+        if (validationErrors().isEmpty() == false) {
+            throw this;
+        }
+    }
+
     @Override
     public final String getMessage() {
         StringBuilder sb = new StringBuilder();

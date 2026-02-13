@@ -22,7 +22,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class ScandinavianFoldingFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     ScandinavianFoldingFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
     }
 
     @Override

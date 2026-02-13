@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -65,7 +66,33 @@ public class AllocatedPersistentTask extends CancellableTask {
         final PersistentTaskState state,
         final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
     ) {
-        persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, state, null, listener);
+        persistentTasksService.sendUpdateStateRequest(
+            persistentTaskId,
+            allocationId,
+            state,
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
+            listener
+        );
+    }
+
+    /**
+     * Updates the persistent state for the corresponding project scope persistent task.
+     * <p>
+     * This doesn't affect the status of this allocated task.
+     */
+    public void updateProjectPersistentTaskState(
+        final ProjectId projectId,
+        final PersistentTaskState state,
+        final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+    ) {
+        persistentTasksService.sendProjectUpdateStateRequest(
+            projectId,
+            persistentTaskId,
+            allocationId,
+            state,
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
+            listener
+        );
     }
 
     public String getPersistentTaskId() {
@@ -201,7 +228,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                         getAllocationId(),
                         failure,
                         localAbortReason,
-                        null,
+                        TimeValue.THIRTY_SECONDS /* TODO should this be longer? infinite? */,
                         new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {

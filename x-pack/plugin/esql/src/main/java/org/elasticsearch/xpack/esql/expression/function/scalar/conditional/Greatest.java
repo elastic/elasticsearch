@@ -30,7 +30,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -43,8 +44,32 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
 
     private DataType dataType;
 
+    private static final Map<DataType, BiFunction<Source, ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map
+        .of(
+            DataType.BOOLEAN,
+            GreatestBooleanEvaluator.Factory::new,
+            DataType.DOUBLE,
+            GreatestDoubleEvaluator.Factory::new,
+            DataType.INTEGER,
+            GreatestIntEvaluator.Factory::new,
+            DataType.LONG,
+            GreatestLongEvaluator.Factory::new,
+            DataType.DATETIME,
+            GreatestLongEvaluator.Factory::new,
+            DataType.DATE_NANOS,
+            GreatestLongEvaluator.Factory::new,
+            DataType.IP,
+            GreatestBytesRefEvaluator.Factory::new,
+            DataType.VERSION,
+            GreatestBytesRefEvaluator.Factory::new,
+            DataType.KEYWORD,
+            GreatestBytesRefEvaluator.Factory::new,
+            DataType.TEXT,
+            GreatestBytesRefEvaluator.Factory::new
+        );
+
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
         description = "Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>>\n"
             + "except it is intended to run on multiple columns at once.",
         note = "When run on `keyword` or `text` fields, this returns the last string in alphabetical order. "
@@ -55,12 +80,12 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(
             name = "first",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "First of the columns to evaluate."
         ) Expression first,
         @Param(
             name = "rest",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "The rest of the columns to evaluate.",
             optional = true
         ) List<Expression> rest
@@ -105,12 +130,12 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         for (int position = 0; position < children().size(); position++) {
             Expression child = children().get(position);
             if (dataType == null || dataType == NULL) {
-                dataType = child.dataType();
+                dataType = child.dataType().noText();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
                 child,
-                t -> t == dataType,
+                t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
                 dataType.typeName()
@@ -119,6 +144,11 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
                 return resolution;
             }
         }
+
+        if (dataType != NULL && EVALUATOR_MAP.containsKey(dataType) == false && DataType.isString(dataType) == false) {
+            return new TypeResolution("Cannot use [" + dataType.typeName() + "] with function [" + getWriteableName() + "]");
+        }
+
         return TypeResolution.TYPE_RESOLVED;
     }
 
@@ -138,33 +168,23 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // force datatype initialization
         var dataType = dataType();
+        if (dataType == DataType.NULL) {
+            throw EsqlIllegalArgumentException.illegalDataType(dataType);
+        }
+
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
-        if (dataType == DataType.BOOLEAN) {
-            return new GreatestBooleanEvaluator.Factory(source(), factories);
-        }
-        if (dataType == DataType.DOUBLE) {
-            return new GreatestDoubleEvaluator.Factory(source(), factories);
-        }
-        if (dataType == DataType.INTEGER) {
-            return new GreatestIntEvaluator.Factory(source(), factories);
-        }
-        if (dataType == DataType.LONG) {
-            return new GreatestLongEvaluator.Factory(source(), factories);
-        }
-        if (dataType == DataType.KEYWORD
-            || dataType == DataType.TEXT
-            || dataType == DataType.IP
-            || dataType == DataType.VERSION
-            || dataType == DataType.UNSUPPORTED) {
 
-            return new GreatestBytesRefEvaluator.Factory(source(), factories);
+        var evaluatorFactory = EVALUATOR_MAP.get(dataType);
+        if (evaluatorFactory == null) {
+            throw EsqlIllegalArgumentException.illegalDataType(dataType);
         }
-        throw EsqlIllegalArgumentException.illegalDataType(dataType);
+
+        return evaluatorFactory.apply(source(), factories);
     }
 
     @Evaluator(extraName = "Boolean")

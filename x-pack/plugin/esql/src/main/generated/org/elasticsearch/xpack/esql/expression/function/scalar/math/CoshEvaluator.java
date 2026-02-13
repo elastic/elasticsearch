@@ -8,32 +8,37 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cosh}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoshEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public CoshEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
+    this.source = source;
     this.val = val;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -47,24 +52,32 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Cosh.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Cosh.process(val));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -75,10 +88,11 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double val = valVector.getDouble(p);
         try {
-          result.appendDouble(Cosh.process(valVector.getDouble(p)));
+          result.appendDouble(Cosh.process(val));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -94,6 +108,13 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +31,11 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final EqlSearchTask task;
     private final int fetchSize;
     private final int maxSamplesPerKey;
+    private final boolean allowPartialSearchResults;
+    private final boolean allowPartialSequenceResults;
+    private final String projectRouting;
+    private final boolean crossProjectEnabled;
+    private final ResolvedIndexExpressions resolvedIndexExpressions;
 
     @Nullable
     private final QueryBuilder filter;
@@ -50,9 +56,56 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         IndicesOptions indicesOptions,
         int fetchSize,
         int maxSamplesPerKey,
+        boolean allowPartialSearchResults,
+        boolean allowPartialSequenceResults,
+        String projectRouting,
         String clientId,
         TaskId taskId,
         EqlSearchTask task
+    ) {
+        this(
+            indices,
+            zi,
+            username,
+            clusterName,
+            filter,
+            runtimeMappings,
+            fetchFields,
+            requestTimeout,
+            indicesOptions,
+            fetchSize,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            projectRouting,
+            clientId,
+            taskId,
+            task,
+            false,
+            null
+        );
+    }
+
+    public EqlConfiguration(
+        String[] indices,
+        ZoneId zi,
+        String username,
+        String clusterName,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        List<FieldAndFormat> fetchFields,
+        TimeValue requestTimeout,
+        IndicesOptions indicesOptions,
+        int fetchSize,
+        int maxSamplesPerKey,
+        boolean allowPartialSearchResults,
+        boolean allowPartialSequenceResults,
+        String projectRouting,
+        String clientId,
+        TaskId taskId,
+        EqlSearchTask task,
+        boolean crossProjectEnabled,
+        ResolvedIndexExpressions resolvedIndexExpressions
     ) {
         super(zi, username, clusterName);
 
@@ -67,6 +120,23 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.task = task;
         this.fetchSize = fetchSize;
         this.maxSamplesPerKey = maxSamplesPerKey;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
+        this.projectRouting = projectRouting;
+        this.crossProjectEnabled = crossProjectEnabled;
+        this.resolvedIndexExpressions = resolvedIndexExpressions;
+    }
+
+    public boolean crossProjectEnabled() {
+        return crossProjectEnabled;
+    }
+
+    public ResolvedIndexExpressions resolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 
     public String[] indices() {
@@ -87,6 +157,14 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public int maxSamplesPerKey() {
         return maxSamplesPerKey;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
     }
 
     public QueryBuilder filter() {
@@ -116,4 +194,5 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     public TaskId getTaskId() {
         return taskId;
     }
+
 }

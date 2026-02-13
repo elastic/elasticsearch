@@ -34,6 +34,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
@@ -207,7 +208,7 @@ public final class XMoreLikeThis {
     /**
      * Return a Query with no more than this many terms.
      *
-     * @see BooleanQuery#getMaxClauseCount
+     * @see IndexSearcher#getMaxClauseCount
      * @see #setMaxQueryTerms
      */
     public static final int DEFAULT_MAX_QUERY_TERMS = 25;
@@ -468,7 +469,7 @@ public final class XMoreLikeThis {
 
             try {
                 query.add(tq, BooleanClause.Occur.SHOULD);
-            } catch (BooleanQuery.TooManyClauses ignore) {
+            } catch (IndexSearcher.TooManyClauses ignore) {
                 break;
             }
         }

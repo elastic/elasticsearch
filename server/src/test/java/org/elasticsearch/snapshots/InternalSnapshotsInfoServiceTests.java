@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -82,13 +84,15 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
     private RerouteService rerouteService;
+    private ProjectId projectId;
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        projectId = randomProjectIdOrDefault();
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId);
         repositoriesService = mock(RepositoriesService.class);
         rerouteService = (reason, priority, listener) -> listener.onResponse(null);
     }
@@ -138,7 +142,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
             }
         };
-        when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
+        when(repositoriesService.repository(projectId, "_repo")).thenReturn(mockRepository);
 
         applyClusterState("add-unassigned-shards", clusterState -> addUnassignedShards(clusterState, indexName, numberOfShards));
         waitForMaxActiveGenericThreads(Math.min(numberOfShards, maxConcurrentFetches));
@@ -163,7 +167,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         final SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();
         for (int i = 0; i < numberOfShards; i++) {
-            final ShardRouting shardRouting = clusterService.state().routingTable().index(indexName).shard(i).primaryShard();
+            final ShardRouting shardRouting = clusterService.state().routingTable(projectId).index(indexName).shard(i).primaryShard();
             assertThat(snapshotShardSizeInfo.getShardSize(shardRouting), equalTo(expectedShardSizes[i]));
             assertThat(snapshotShardSizeInfo.getShardSize(shardRouting, Long.MIN_VALUE), equalTo(expectedShardSizes[i]));
         }
@@ -196,7 +200,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             @Override
             public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 final InternalSnapshotsInfoService.SnapshotShard snapshotShard = new InternalSnapshotsInfoService.SnapshotShard(
-                    new Snapshot("_repo", snapshotId),
+                    new Snapshot(projectId, "_repo", snapshotId),
                     indexId,
                     shardId
                 );
@@ -210,7 +214,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 }
             }
         };
-        when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
+        when(repositoriesService.repository(projectId, "_repo")).thenReturn(mockRepository);
 
         final Thread addSnapshotRestoreIndicesThread = new Thread(() -> {
             int remainingShards = maxShardsToCreate;
@@ -249,7 +253,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         for (Map.Entry<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShard : results.entrySet()) {
             final ShardId shardId = snapshotShard.getKey().shardId();
             final ShardRouting shardRouting = clusterService.state()
-                .routingTable()
+                .routingTable(projectId)
                 .index(shardId.getIndexName())
                 .shard(shardId.id())
                 .primaryShard();
@@ -286,7 +290,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
             }
         };
-        when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
+        when(repositoriesService.repository(projectId, "_repo")).thenReturn(mockRepository);
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -320,13 +324,13 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             @Override
             public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 if (randomBoolean()) {
-                    throw new SnapshotException(new Snapshot("_repo", snapshotId), "simulated");
+                    throw new SnapshotException(new Snapshot(projectId, "_repo", snapshotId), "simulated");
                 } else {
                     return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
                 }
             }
         };
-        when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
+        when(repositoriesService.repository(projectId, "_repo")).thenReturn(mockRepository);
 
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
@@ -362,11 +366,17 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 snapshotsInfoService
             );
             assertCriticalWarnings(
-                "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the breaking changes documentation for the next major version."
             );
             applyClusterState(
                 "starting shards for " + indexName,
-                clusterState -> ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName)
+                clusterState -> ESAllocationTestCase.startInitializingShardsAndReroute(
+                    allocationService,
+                    clusterState,
+                    projectId,
+                    indexName
+                )
             );
             RoutingNodes routingNodes = clusterService.state().getRoutingNodes();
             assertTrue(RoutingNodesHelper.shardsWithState(routingNodes, ShardRoutingState.UNASSIGNED).isEmpty());
@@ -374,7 +384,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         } else {
             // simulate deletion of the index
             applyClusterState("delete index " + indexName, clusterState -> deleteIndex(clusterState, indexName));
-            assertFalse(clusterService.state().metadata().hasIndex(indexName));
+            assertFalse(clusterService.state().metadata().getProject(projectId).hasIndex(indexName));
         }
 
         assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(0));
@@ -404,7 +414,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState addUnassignedShards(final ClusterState currentState, String indexName, int numberOfShards) {
-        assertThat(currentState.metadata().hasIndex(indexName), is(false));
+        assertThat(currentState.metadata().getProject(projectId).hasIndex(indexName), is(false));
 
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()));
@@ -413,21 +423,20 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             indexMetadataBuilder.putInSyncAllocationIds(i, Collections.singleton(AllocationId.newInitializing().getId()));
         }
 
-        final Metadata.Builder metadata = Metadata.builder(currentState.metadata())
-            .put(indexMetadataBuilder.build(), true)
-            .generateClusterUuidIfNeeded();
+        final Metadata.Builder metadata = Metadata.builder(currentState.metadata()).generateClusterUuidIfNeeded();
+        final ProjectMetadata.Builder projectMetadata = metadata.getProject(projectId).put(indexMetadataBuilder.build(), true);
 
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
-            new Snapshot("_repo", new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID(random()))),
+            new Snapshot(projectId, "_repo", new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID(random()))),
             IndexVersion.current(),
             new IndexId(indexName, UUIDs.randomBase64UUID(random()))
         );
 
-        final IndexMetadata indexMetadata = metadata.get(indexName);
+        final IndexMetadata indexMetadata = projectMetadata.get(indexName);
         final Index index = indexMetadata.getIndex();
 
-        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable(projectId));
         routingTable.add(
             IndexRoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, index)
                 .initializeAsNewRestore(indexMetadata, recoverySource, new HashSet<>())
@@ -453,7 +462,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         return ClusterState.builder(currentState)
             .putCustom(RestoreInProgress.TYPE, restores.build())
-            .routingTable(routingTable.build())
+            .putRoutingTable(projectId, routingTable.build())
             .metadata(metadata)
             .build();
     }
@@ -469,8 +478,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
     private ClusterState deleteIndex(final ClusterState currentState, final String indexName) {
         return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.metadata()).remove(indexName))
-            .routingTable(RoutingTable.builder(currentState.routingTable()).remove(indexName).build())
+            .putProjectMetadata(ProjectMetadata.builder(currentState.metadata().getProject(projectId)).remove(indexName))
+            .putRoutingTable(projectId, RoutingTable.builder(currentState.routingTable(projectId)).remove(indexName).build())
             .build();
     }
 }

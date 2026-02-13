@@ -7,55 +7,93 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Flow;
+
+import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeEquals;
+import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeHashCode;
+import static org.elasticsearch.xpack.core.inference.DequeUtils.readDeque;
+import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
 
 /**
  * Chat Completion results that only contain a Flow.Publisher.
  */
-public record StreamingChatCompletionResults(Flow.Publisher<ChunkedToXContent> publisher) implements InferenceServiceResults {
+public record StreamingChatCompletionResults(Flow.Publisher<? extends InferenceServiceResults.Result> publisher)
+    implements
+        InferenceServiceResults {
 
     @Override
     public boolean isStreaming() {
         return true;
     }
 
-    @Override
-    public List<? extends InferenceResults> transformToCoordinationFormat() {
-        throw new UnsupportedOperationException("Not implemented");
+    public record Results(Deque<Result> results) implements InferenceServiceResults.Result {
+        public static final String NAME = "streaming_chat_completion_results";
+
+        public Results(StreamInput in) throws IOException {
+            this(readDeque(in, Result::new));
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startArray(COMPLETION),
+                Iterators.flatMap(results.iterator(), d -> d.toXContentChunked(params)),
+                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(results);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            Results other = (Results) o;
+            return dequeEquals(this.results, other.results());
+        }
+
+        @Override
+        public int hashCode() {
+            return dequeHashCode(results);
+        }
     }
 
-    @Override
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
+    public record Result(String delta) implements ChunkedToXContent, Writeable {
+        public static final String RESULT = "delta";
 
-    @Override
-    public Map<String, Object> asMap() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
+        private Result(StreamInput in) throws IOException {
+            this(in.readString());
+        }
 
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return ChunkedToXContentHelper.chunk((b, p) -> b.startObject().field(RESULT, delta).endObject());
+        }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        throw new UnsupportedOperationException("Not implemented");
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(delta);
+        }
     }
 }

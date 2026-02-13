@@ -12,13 +12,15 @@ package org.elasticsearch.gradle.internal.testfixtures;
 import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
 import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class TestFixturesDeployPlugin implements Plugin<Project> {
 
@@ -27,13 +29,19 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
         NamedDomainObjectContainer<TestFixtureDeployment> fixtures = project.container(TestFixtureDeployment.class);
         project.getExtensions().add("dockerFixtures", fixtures);
-        registerDeployTaskPerFixture(project, fixtures);
+        registerDeployTaskPerFixture(project, fixtures, buildParams.getCi());
         project.getTasks().register(DEPLOY_FIXTURE_TASK_NAME, task -> task.dependsOn(project.getTasks().withType(DockerBuildTask.class)));
     }
 
-    private static void registerDeployTaskPerFixture(Project project, NamedDomainObjectContainer<TestFixtureDeployment> fixtures) {
+    private static void registerDeployTaskPerFixture(
+        Project project,
+        NamedDomainObjectContainer<TestFixtureDeployment> fixtures,
+        boolean isCi
+    ) {
         fixtures.all(
             fixture -> project.getTasks()
                 .register("deploy" + StringUtils.capitalize(fixture.getName()) + "DockerImage", DockerBuildTask.class, task -> {
@@ -42,12 +50,12 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
                     if (baseImages.isEmpty() == false) {
                         task.setBaseImages(baseImages.toArray(new String[baseImages.size()]));
                     }
-                    task.setNoCache(BuildParams.isCi());
+                    task.setNoCache(isCi);
                     task.setTags(
                         new String[] {
                             resolveTargetDockerRegistry(fixture) + "/" + fixture.getName() + "-fixture:" + fixture.getVersion().get() }
                     );
-                    task.getPush().set(BuildParams.isCi());
+                    task.getPush().set(isCi);
                     task.getPlatforms().addAll(Arrays.stream(Architecture.values()).map(a -> a.dockerPlatform).toList());
                     task.setGroup("Deploy TestFixtures");
                     task.setDescription("Deploys the " + fixture.getName() + " test fixture");

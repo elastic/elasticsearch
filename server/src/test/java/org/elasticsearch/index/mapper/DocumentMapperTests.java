@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
@@ -16,12 +17,15 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -75,7 +79,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             merged,
             merged.toCompressedXContent(),
             IndexVersion.current(),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            "myIndex",
+            randomFrom(IndexMode.values())
         );
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
@@ -491,5 +497,23 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 thread.join();
             }
         }
+    }
+
+    @TestLogging(reason = "testing DEBUG logging", value = "org.elasticsearch.index.mapper.DocumentMapper:DEBUG")
+    public void testParsingErrorLogging() throws Exception {
+        DocumentMapper doc = createDocumentMapper(mapping(b -> b.startObject("value").field("type", "integer").endObject()));
+        MockLog.assertThatLogger(
+            () -> assertThat(
+                expectThrows(DocumentParsingException.class, () -> doc.parse(source(b -> b.field("value", "foo")))).getMessage(),
+                containsString("failed to parse field [value] of type [integer] in document with id '1'")
+            ),
+            DocumentMapper.class,
+            new MockLog.SeenEventExpectation(
+                "parse message",
+                DocumentMapper.class.getCanonicalName(),
+                Level.DEBUG,
+                "*failed to parse field [value] of type [integer] in document with id '1'*"
+            )
+        );
     }
 }

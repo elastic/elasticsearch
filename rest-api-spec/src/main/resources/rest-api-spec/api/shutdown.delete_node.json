@@ -1,31 +1,46 @@
 {
-  "shutdown.delete_node":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current",
-      "description":"Removes a node from the shutdown list. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+  "shutdown.delete_node": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-shutdown-delete-node",
+      "description": "Cancel node shutdown preparations"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_nodes/{node_id}/shutdown",
-          "methods":[
+          "path": "/_nodes/{node_id}/shutdown",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "node_id":{
-              "type":"string",
-              "description":"The node id of node to be removed from the shutdown state"
+          "parts": {
+            "node_id": {
+              "type": "string",
+              "description": "The node id of node to be removed from the shutdown state"
             }
           }
         }
       ]
     },
-    "params":{}
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
+    }
   }
 }

@@ -16,8 +16,8 @@ import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -26,7 +26,6 @@ import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -110,6 +109,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      */
     public QueryBuilder query() {
         return query;
+    }
+
+    /**
+     * Returns path to the searched nested object.
+     */
+    public String path() {
+        return path;
     }
 
     /**
@@ -291,9 +297,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
         if (mapper == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
-                throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
+                throw new QueryShardException(context, "[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
         }
         final BitSetProducer parentFilter;
@@ -314,8 +320,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
-        NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
-        if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
+        if (NestedHelper.mightMatchNonNestedDocs(innerQuery, path, context)) {
             innerQuery = Queries.filtered(innerQuery, mapper.nestedTypeFilter());
         }
 
@@ -390,6 +395,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         private final NestedObjectMapper parentObjectMapper;
         private final NestedObjectMapper childObjectMapper;
+        private final SearchExecutionContext searchExecutionContext;
 
         NestedInnerHitSubContext(
             String name,
@@ -400,6 +406,24 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             super(name, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
+            this.searchExecutionContext = null;
+        }
+
+        NestedInnerHitSubContext(NestedInnerHitSubContext nestedInnerHitSubContext, SearchExecutionContext searchExecutionContext) {
+            super(nestedInnerHitSubContext);
+            this.parentObjectMapper = nestedInnerHitSubContext.parentObjectMapper;
+            this.childObjectMapper = nestedInnerHitSubContext.childObjectMapper;
+            this.searchExecutionContext = searchExecutionContext;
+        }
+
+        @Override
+        public NestedInnerHitSubContext copyWithSearchExecutionContext(SearchExecutionContext searchExecutionContext) {
+            return new NestedInnerHitSubContext(this, searchExecutionContext);
+        }
+
+        @Override
+        public SearchExecutionContext getSearchExecutionContext() {
+            return searchExecutionContext != null ? searchExecutionContext : super.getSearchExecutionContext();
         }
 
         @Override
@@ -443,12 +467,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 TopDocsCollector<?> topDocsCollector;
                 MaxScoreCollector maxScoreCollector = null;
                 if (sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE).newCollector();
                     if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE).newCollector();
                     maxScoreCollector = new MaxScoreCollector();
                 }
                 intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
@@ -464,6 +488,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

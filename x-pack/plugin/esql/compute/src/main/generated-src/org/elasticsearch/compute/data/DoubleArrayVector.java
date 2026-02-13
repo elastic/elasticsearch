@@ -7,19 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
@@ -83,7 +88,7 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendDouble(values[pos]);

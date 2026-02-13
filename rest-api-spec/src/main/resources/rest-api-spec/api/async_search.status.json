@@ -1,33 +1,36 @@
 {
-  "async_search.status":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html",
-      "description": "Retrieves the status of a previously submitted async search request given its ID."
+  "async_search.status": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit",
+      "description": "Get the async search status"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_async_search/status/{id}",
-          "methods":[
+          "path": "/_async_search/status/{id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The async search ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async search ID"
             }
           }
         }
       ]
     },
-    "params":{
+    "params": {
       "keep_alive": {
         "type": "time",
+        "default": "5d",
         "description": "Specify the time interval in which the results (partial or final) for this search will be available"
       }
     }

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -95,14 +94,9 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     final void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
-            final Request request = new Request(shardId, retentionLeases);
-            try (var ignored = threadContext.newTraceContext()) {
-                sendRetentionLeaseSyncAction(shardId, primaryAllocationId, primaryTerm, request);
-            }
+            sendRetentionLeaseSyncAction(shardId, primaryAllocationId, primaryTerm, new Request(shardId, retentionLeases));
         }
     }
 

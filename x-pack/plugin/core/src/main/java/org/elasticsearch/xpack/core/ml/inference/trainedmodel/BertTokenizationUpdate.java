@@ -21,7 +21,7 @@ public class BertTokenizationUpdate extends AbstractTokenizationUpdate {
 
     public static final ParseField NAME = BertTokenization.NAME;
 
-    public static ConstructingObjectParser<BertTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<BertTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
         "bert_tokenization_update",
         a -> new BertTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]), (Integer) a[1])
     );

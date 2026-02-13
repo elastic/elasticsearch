@@ -11,16 +11,13 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 
 public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFunctionBuilder> {
     public static final String NAME = "gauss";
-    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     public static final ScoreFunctionParser<GaussDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(GaussDecayFunctionBuilder::new);
     public static final DecayFunction GAUSS_DECAY_FUNCTION = new GaussScoreFunction();
 
@@ -55,7 +52,7 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     private static final class GaussScoreFunction implements DecayFunction {

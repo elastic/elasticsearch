@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -34,7 +34,14 @@ public class ListSearchApplicationActionRequestBWCSerializingTests extends Abstr
 
     @Override
     protected ListSearchApplicationAction.Request mutateInstance(ListSearchApplicationAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String query = instance.query();
+        PageParams pageParams = instance.pageParams();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> query = randomValueOtherThan(query, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> pageParams = randomValueOtherThan(pageParams, EnterpriseSearchModuleTestUtils::randomPageParams);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new ListSearchApplicationAction.Request(query, pageParams);
     }
 
     @Override

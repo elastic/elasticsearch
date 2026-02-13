@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,10 +24,30 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ReservedStateUpdateTaskTests extends ESTestCase {
     public void testBlockedClusterState() {
-        var task = new ReservedStateUpdateTask("dummy", null, Map.of(), List.of(), e -> {}, ActionListener.noop());
+        ReservedStateUpdateTask<?> task = new ReservedClusterStateUpdateTask(
+            "dummy",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
         ClusterState notRecoveredClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .build();
+        assertThat(task.execute(notRecoveredClusterState), sameInstance(notRecoveredClusterState));
+
+        task = new ReservedProjectStateUpdateTask(
+            randomProjectIdOrDefault(),
+            "dummy",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
         assertThat(task.execute(notRecoveredClusterState), sameInstance(notRecoveredClusterState));
     }
 }

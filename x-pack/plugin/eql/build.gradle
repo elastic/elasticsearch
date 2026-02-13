@@ -1,10 +1,16 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-eql'
-  description 'The Elasticsearch plugin that powers EQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.eql.plugin.EqlPlugin'
+  name = 'x-pack-eql'
+  description = 'The Elasticsearch plugin that powers EQL for Elasticsearch'
+  classname ='org.elasticsearch.xpack.eql.plugin.EqlPlugin'
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
@@ -32,7 +38,7 @@ dependencies {
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
-if (BuildParams.isSnapshotBuild()) {
+if (buildParams.snapshotBuild) {
   addQaCheckDependencies(project)
 }
 

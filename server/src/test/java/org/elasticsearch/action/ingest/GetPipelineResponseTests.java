@@ -10,18 +10,15 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,7 +26,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public class GetPipelineResponseTests extends AbstractXContentSerializingTestCase<GetPipelineResponse> {
+public class GetPipelineResponseTests extends ESTestCase {
 
     private XContentBuilder getRandomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
@@ -79,11 +76,10 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
         assertEquals(actualPipelines.size(), parsedPipelines.size());
         for (PipelineConfiguration pipeline : parsedPipelines) {
             assertTrue(pipelinesMap.containsKey(pipeline.getId()));
-            assertEquals(pipelinesMap.get(pipeline.getId()).getConfigAsMap(), pipeline.getConfigAsMap());
+            assertEquals(pipelinesMap.get(pipeline.getId()).getConfig(), pipeline.getConfig());
         }
     }
 
-    @Override
     protected GetPipelineResponse doParseInstance(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         List<PipelineConfiguration> pipelines = new ArrayList<>();
@@ -104,24 +100,4 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
         return new GetPipelineResponse(pipelines);
     }
 
-    @Override
-    protected GetPipelineResponse createTestInstance() {
-        try {
-            return new GetPipelineResponse(new ArrayList<>(createPipelineConfigMap().values()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    @Override
-    protected Writeable.Reader<GetPipelineResponse> instanceReader() {
-        return GetPipelineResponse::new;
-    }
-
-    @Override
-    protected GetPipelineResponse mutateInstance(GetPipelineResponse response) throws IOException {
-        return new GetPipelineResponse(
-            CollectionUtils.appendToCopy(response.pipelines(), createRandomPipeline("pipeline_" + response.pipelines().size() + 1))
-        );
-    }
 }

@@ -8,9 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -26,13 +29,23 @@ import java.util.Objects;
  * The number of blocks can be retrieved via {@link #getBlockCount()}, and the respective
  * blocks can be retrieved via their index {@link #getBlock(int)}.
  *
- * <p> Pages are immutable and can be passed between threads.
+ * <p> Pages are immutable and can be passed between threads. This class may be subclassed to
+ * add metadata (e.g., batch information for streaming exchanges). Subclasses must maintain
+ * the immutability and thread-safety guarantees.
  */
-public final class Page implements Writeable {
+public final class Page implements Writeable, Releasable {
+
+    private static final TransportVersion BATCH_METADATA_VERSION = TransportVersion.fromName("esql_batch_page");
 
     private final Block[] blocks;
 
     private final int positionCount;
+
+    /**
+     * Optional batch metadata for bidirectional batch exchanges.
+     */
+    @Nullable
+    private final BatchMetadata batchMetadata;
 
     /**
      * True if we've called {@link #releaseBlocks()} which causes us to remove the
@@ -49,7 +62,7 @@ public final class Page implements Writeable {
      * @throws IllegalArgumentException if all blocks do not have the same number of positions
      */
     public Page(Block... blocks) {
-        this(true, determinePositionCount(blocks), blocks);
+        this(true, determinePositionCount(blocks), blocks, null);
     }
 
     /**
@@ -61,14 +74,15 @@ public final class Page implements Writeable {
      * @param blocks the blocks
      */
     public Page(int positionCount, Block... blocks) {
-        this(true, positionCount, blocks);
+        this(true, positionCount, blocks, null);
     }
 
-    private Page(boolean copyBlocks, int positionCount, Block[] blocks) {
+    private Page(boolean copyBlocks, int positionCount, Block[] blocks, @Nullable BatchMetadata batchMetadata) {
         Objects.requireNonNull(blocks, "blocks is null");
         // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
+        this.batchMetadata = batchMetadata;
         for (Block b : blocks) {
             assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
             if (b.isReleased()) {
@@ -83,12 +97,13 @@ public final class Page implements Writeable {
     private Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException(
+                throw new IllegalStateException(
                     "Block [" + block + "] does not have same position count: " + block.getPositionCount() + " != " + prev.positionCount
                 );
             }
         }
         this.positionCount = prev.positionCount;
+        this.batchMetadata = prev.batchMetadata;
 
         this.blocks = Arrays.copyOf(prev.blocks, prev.blocks.length + toAdd.length);
         System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
@@ -98,10 +113,11 @@ public final class Page implements Writeable {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
+        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         boolean success = false;
         try {
             for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+                blocks[blockIndex] = Block.readTypedBlock(blockStreamInput);
             }
             success = true;
         } finally {
@@ -111,6 +127,20 @@ public final class Page implements Writeable {
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
+        // Read optional batch metadata at the end (added in BATCH_METADATA_VERSION)
+        this.batchMetadata = in.getTransportVersion().supports(BATCH_METADATA_VERSION) ? in.readOptional(BatchMetadata::readFrom) : null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(positionCount);
+        out.writeVInt(getBlockCount());
+        for (Block block : blocks) {
+            Block.writeTypedBlock(block, out);
+        }
+        if (out.getTransportVersion().supports(BATCH_METADATA_VERSION)) {
+            out.writeOptionalWriteable(batchMetadata);
+        }
     }
 
     private static int determinePositionCount(Block... blocks) {
@@ -189,8 +219,7 @@ public final class Page implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Page page = (Page) o;
-        return positionCount == page.positionCount
-            && (positionCount == 0 || Arrays.equals(blocks, 0, blocks.length, page.blocks, 0, page.blocks.length));
+        return positionCount == page.positionCount && Arrays.equals(blocks, page.blocks);
     }
 
     @Override
@@ -217,13 +246,36 @@ public final class Page implements Writeable {
         return blocks.length;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(positionCount);
-        out.writeVInt(getBlockCount());
+    @Nullable
+    public BatchMetadata batchMetadata() {
+        return batchMetadata;
+    }
+
+    /**
+     * Creates a new page with the same blocks but with the given batch metadata.
+     * The blocks are shared (ref count incremented) with the original page.
+     */
+    public Page withBatchMetadata(BatchMetadata metadata) {
         for (Block block : blocks) {
-            out.writeNamedWriteable(block);
+            block.incRef();
         }
+        return new Page(false, positionCount, blocks.clone(), metadata);
+    }
+
+    /**
+     * Check if this page is a batch marker (empty page with isLastPageInBatch=true).
+     * Marker pages are used to signal batch completion for batches that produce no output.
+     */
+    public boolean isBatchMarkerOnly() {
+        return positionCount == 0 && batchMetadata != null && batchMetadata.isLastPageInBatch();
+    }
+
+    /**
+     * Creates an empty marker page for batch completion.
+     * A marker page is an empty page with isLastPageInBatch=true.
+     */
+    public static Page createBatchMarkerPage(long batchId, int pageIndexInBatch) {
+        return new Page(false, 0, new Block[0], BatchMetadata.createMarker(batchId, pageIndexInBatch));
     }
 
     public long ramBytesUsedByBlocks() {
@@ -243,6 +295,11 @@ public final class Page implements Writeable {
         Releasables.closeExpectNoException(blocks);
     }
 
+    @Override
+    public void close() {
+        releaseBlocks();
+    }
+
     /**
      * Before passing a Page to another Driver, it is necessary to switch the owning block factories of its Blocks to their parents,
      * which are associated with the global circuit breaker. This ensures that when the new driver releases this Page, it returns
@@ -259,7 +316,7 @@ public final class Page implements Writeable {
         for (Block b : blocks) {
             b.incRef();
         }
-        return new Page(blocks);
+        return new Page(false, positionCount, blocks.clone(), batchMetadata);
     }
 
     /**
@@ -284,7 +341,7 @@ public final class Page implements Writeable {
                 mapped[b] = blocks[blockMapping[b]];
                 mapped[b].incRef();
             }
-            Page result = new Page(false, getPositionCount(), mapped);
+            Page result = new Page(false, getPositionCount(), mapped, batchMetadata);
             mapped = null;
             return result;
         } finally {
@@ -292,5 +349,28 @@ public final class Page implements Writeable {
                 Releasables.close(mapped);
             }
         }
+    }
+
+    /**
+     * Creates a new page that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions to retain
+     * @return a filtered page
+     */
+    public Page filter(boolean mayContainDuplicates, int... positions) {
+        Block[] filteredBlocks = new Block[blocks.length];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                filteredBlocks[i] = getBlock(i).filter(mayContainDuplicates, positions);
+            }
+            success = true;
+        } finally {
+            releaseBlocks();
+            if (success == false) {
+                Releasables.closeExpectNoException(filteredBlocks);
+            }
+        }
+        return new Page(false, positions.length, filteredBlocks, batchMetadata);
     }
 }

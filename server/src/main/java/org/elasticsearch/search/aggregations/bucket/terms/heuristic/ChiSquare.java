@@ -38,10 +38,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if ((other instanceof ChiSquare) == false) {
-            return false;
-        }
-        return super.equals(other);
+        return other instanceof ChiSquare && super.equals(other);
     }
 
     @Override
@@ -80,17 +77,4 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static class ChiSquareBuilder extends NXYSignificanceHeuristic.NXYBuilder {
-        public ChiSquareBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
-            super(includeNegatives, backgroundIsSuperset);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME);
-            super.build(builder);
-            builder.endObject();
-            return builder;
-        }
-    }
 }

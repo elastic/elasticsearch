@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,9 +50,21 @@ public class AggregationOperator implements Operator {
      */
     private long aggregationNanos;
     /**
+     * Nanoseconds this operator has spent running the aggregations final evaluation.
+     */
+    private long aggregationFinishNanos;
+    /**
      * Count of pages this operator has processed.
      */
     private int pagesProcessed;
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
 
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
 
@@ -102,14 +113,23 @@ public class AggregationOperator implements Operator {
             page.releaseBlocks();
             aggregationNanos += System.nanoTime() - start;
             pagesProcessed++;
+            rowsReceived += page.getPositionCount();
         }
     }
 
     @Override
     public Page getOutput() {
         Page p = output;
+        if (p != null) {
+            rowsEmitted += p.getPositionCount();
+        }
         this.output = null;
         return p;
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return output != null;
     }
 
     @Override
@@ -117,6 +137,7 @@ public class AggregationOperator implements Operator {
         if (finished) {
             return;
         }
+        long start = System.nanoTime();
         finished = true;
         Block[] blocks = null;
         boolean success = false;
@@ -136,6 +157,7 @@ public class AggregationOperator implements Operator {
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);
             }
+            aggregationFinishNanos += System.nanoTime() - start;
         }
     }
 
@@ -175,7 +197,7 @@ public class AggregationOperator implements Operator {
 
     @Override
     public Operator.Status status() {
-        return new Status(aggregationNanos, pagesProcessed);
+        return new Status(aggregationNanos, aggregationFinishNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     public static class Status implements Operator.Status {
@@ -189,30 +211,54 @@ public class AggregationOperator implements Operator {
          * Nanoseconds this operator has spent running the aggregations.
          */
         private final long aggregationNanos;
+
+        /**
+         * Nanoseconds this operator has spent running the aggregations final evaluation.
+         */
+        private final Long aggregationFinishNanos;
         /**
          * Count of pages this operator has processed.
          */
         private final int pagesProcessed;
+        /**
+         * Count of rows this operator has received.
+         */
+        private final long rowsReceived;
+        /**
+         * Count of rows this operator has emitted.
+         */
+        private final long rowsEmitted;
 
         /**
          * Build.
-         * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
-         * @param pagesProcessed Count of pages this operator has processed.
+         *
+         * @param aggregationNanos       Nanoseconds this operator has spent running the aggregations.
+         * @param aggregationFinishNanos Nanoseconds this operator has spent running the aggregations.
+         * @param pagesProcessed         Count of pages this operator has processed.
          */
-        public Status(long aggregationNanos, int pagesProcessed) {
+        public Status(long aggregationNanos, long aggregationFinishNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
             this.aggregationNanos = aggregationNanos;
+            this.aggregationFinishNanos = aggregationFinishNanos;
             this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
         }
 
         protected Status(StreamInput in) throws IOException {
             aggregationNanos = in.readVLong();
+            aggregationFinishNanos = in.readOptionalVLong();
             pagesProcessed = in.readVInt();
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(aggregationNanos);
+            out.writeOptionalVLong(aggregationFinishNanos);
             out.writeVInt(pagesProcessed);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override
@@ -228,10 +274,31 @@ public class AggregationOperator implements Operator {
         }
 
         /**
+         * Nanoseconds this operator has spent running the aggregations final evaluation.
+         */
+        public long aggregationFinishNanos() {
+            return aggregationFinishNanos;
+        }
+
+        /**
          * Count of pages this operator has processed.
          */
         public int pagesProcessed() {
             return pagesProcessed;
+        }
+
+        /**
+         * Count of rows this operator has received.
+         */
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        /**
+         * Count of rows this operator has emitted.
+         */
+        public long rowsEmitted() {
+            return rowsEmitted;
         }
 
         @Override
@@ -241,7 +308,16 @@ public class AggregationOperator implements Operator {
             if (builder.humanReadable()) {
                 builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
             }
+            builder.field("aggregation_finish_nanos", aggregationFinishNanos);
+            if (builder.humanReadable()) {
+                builder.field(
+                    "aggregation_finish_time",
+                    aggregationFinishNanos == null ? null : TimeValue.timeValueNanos(aggregationFinishNanos)
+                );
+            }
             builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
 
         }
@@ -251,12 +327,16 @@ public class AggregationOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return aggregationNanos == status.aggregationNanos && pagesProcessed == status.pagesProcessed;
+            return aggregationNanos == status.aggregationNanos
+                && Objects.equals(aggregationFinishNanos, status.aggregationFinishNanos)
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(aggregationNanos, pagesProcessed);
+            return Objects.hash(aggregationNanos, aggregationFinishNanos, pagesProcessed, rowsReceived, rowsEmitted);
         }
 
         @Override
@@ -266,7 +346,7 @@ public class AggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -49,10 +47,11 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        @SuppressWarnings({ "rawtypes", "unchecked" })
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+            asMultiBucketAggregation(aggregation);
+
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
         BucketAggregationScript.Factory factory = reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
@@ -80,13 +79,11 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {
-                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                        .collect(Collectors.toCollection(ArrayList::new));
-
-                    InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(), formatter, metadata());
-                    aggs.add(simpleValue);
                     InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(
-                        InternalAggregations.from(aggs),
+                        InternalAggregations.append(
+                            bucket.getAggregations(),
+                            new InternalSimpleValue(name(), returned.doubleValue(), formatter, metadata())
+                        ),
                         bucket
                     );
                     newBuckets.add(newBucket);

@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -84,11 +84,12 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -118,11 +119,12 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -152,11 +154,12 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -193,11 +196,12 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -233,14 +237,15 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         }).when(indicesClient).stats(any(), any());
 
         final SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 fail(
                     "onResponse should not be called in this test, called with conditionMet: "
                         + conditionMet
                         + " and stepInfo: "
-                        + Strings.toString(infomationContext)
+                        + Strings.toString(informationContext)
                 );
             }
 
@@ -263,7 +268,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             XPackInfoFeatureResponse xPackInfoFeatureResponse = new XPackInfoFeatureResponse(featureSet);
             listener.onResponse(xPackInfoFeatureResponse);
             return null;
-        }).when(client).execute(Mockito.same(XPackInfoFeatureAction.CCR), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(XPackInfoFeatureAction.CCR), Mockito.any(), Mockito.any());
     }
 
     private void mockIndexStatsCall(String expectedIndexName, IndexStats indexStats) {

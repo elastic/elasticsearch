@@ -9,10 +9,11 @@
 apply plugin: "elasticsearch.publish"
 
 dependencies {
-  api project(':libs:elasticsearch-core')
+  api project(':libs:core')
+  api project(':libs:entitlement')
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
+    exclude group: 'org.elasticsearch', module: 'ssl-config'
   }
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

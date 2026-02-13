@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -28,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
@@ -88,6 +88,11 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(InternalExtendedStats.Fields.OUTPUT_FORMAT);
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.NUMERIC;
     }
@@ -143,6 +148,6 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

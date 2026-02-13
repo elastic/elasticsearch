@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -20,17 +21,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -39,10 +48,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -61,8 +72,8 @@ public class IndicesServiceBuilder {
     BigArrays bigArrays;
     ScriptService scriptService;
     ClusterService clusterService;
+    ProjectResolver projectResolver;
     Client client;
-    FeatureService featureService;
     MetaStateService metaStateService;
     Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = List.of();
     Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = Map.of();
@@ -74,6 +85,12 @@ public class IndicesServiceBuilder {
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
+    MergeMetrics mergeMetrics;
+    List<SearchOperationListener> searchOperationListener = List.of();
+    QueryRewriteInterceptor queryRewriteInterceptor = null;
+    ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {};
+    Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
+    ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -145,13 +162,13 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder client(Client client) {
-        this.client = client;
+    public IndicesServiceBuilder projectResolver(ProjectResolver projectResolver) {
+        this.projectResolver = projectResolver;
         return this;
     }
 
-    public IndicesServiceBuilder featureService(FeatureService featureService) {
-        this.featureService = featureService;
+    public IndicesServiceBuilder client(Client client) {
+        this.client = client;
         return this;
     }
 
@@ -177,6 +194,25 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder mergeMetrics(MergeMetrics mergeMetrics) {
+        this.mergeMetrics = mergeMetrics;
+        return this;
+    }
+
+    public List<SearchOperationListener> searchOperationListeners() {
+        return searchOperationListener;
+    }
+
+    public IndicesServiceBuilder searchOperationListeners(List<SearchOperationListener> searchOperationListener) {
+        this.searchOperationListener = searchOperationListener;
+        return this;
+    }
+
+    public IndicesServiceBuilder loggingFieldsProvider(ActionLoggingFieldsProvider loggingFieldsProvider) {
+        this.loggingFieldsProvider = loggingFieldsProvider;
+        return this;
+    }
+
     public IndicesService build() {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(pluginsService);
@@ -192,8 +228,8 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(scriptService);
         Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(projectResolver);
         Objects.requireNonNull(client);
-        Objects.requireNonNull(featureService);
         Objects.requireNonNull(metaStateService);
         Objects.requireNonNull(engineFactoryProviders);
         Objects.requireNonNull(directoryFactories);
@@ -201,12 +237,26 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(indexFoldersDeletionListeners);
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
+        Objects.requireNonNull(mergeMetrics);
+        Objects.requireNonNull(searchOperationListener);
+        Objects.requireNonNull(loggingFieldsProvider);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)
             .<Function<IndexSettings, Optional<EngineFactory>>>map(plugin -> plugin::getEngineFactory)
             .toList();
 
+        directoryMetricHolderMap = new HashMap<>();
+        var directoryMetricsRegistrator = new BiConsumer<String, PluggableDirectoryMetricsHolder<?>>() {
+            @Override
+            public void accept(String s, PluggableDirectoryMetricsHolder<?> metricHolder) {
+                directoryMetricHolderMap.put(s, metricHolder);
+            }
+        };
+        storeMetricsHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        directoryMetricHolderMap.put("store", storeMetricsHolder);
+
+        pluginsService.filterPlugins(EnginePlugin.class).forEach(plugin -> plugin.registerDirectoryMetrics(directoryMetricsRegistrator));
         directoryFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
             .map(IndexStorePlugin::getDirectoryFactories)
             .flatMap(m -> m.entrySet().stream())
@@ -226,6 +276,27 @@ public class IndicesServiceBuilder {
             .map(IndexStorePlugin::getSnapshotCommitSuppliers)
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        var queryRewriteInterceptors = pluginsService.filterPlugins(InternalSearchPlugin.class)
+            .map(InternalSearchPlugin::getQueryRewriteInterceptors)
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(QueryRewriteInterceptor::getQueryName, interceptor -> {
+                if (interceptor.getQueryName() == null) {
+                    throw new IllegalArgumentException("QueryRewriteInterceptor [" + interceptor.getClass().getName() + "] requires name");
+                }
+                return interceptor;
+            }, (a, b) -> {
+                throw new IllegalStateException(
+                    "Conflicting rewrite interceptors ["
+                        + a.getQueryName()
+                        + "] found in ["
+                        + a.getClass().getName()
+                        + "] and ["
+                        + b.getClass().getName()
+                        + "]"
+                );
+            }));
+        queryRewriteInterceptor = QueryRewriteInterceptor.multi(queryRewriteInterceptors);
 
         return new IndicesService(this);
     }

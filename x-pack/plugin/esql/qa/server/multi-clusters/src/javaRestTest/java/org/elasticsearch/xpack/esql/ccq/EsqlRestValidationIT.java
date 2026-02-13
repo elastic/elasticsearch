@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlRestValidationTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -77,5 +79,36 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
             remoteClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
         }
         return remoteClient;
+    }
+
+    protected boolean isSkipUnavailable() {
+        return true;
+    }
+
+    @Override
+    public void testAlias() throws IOException {
+        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        super.testAlias();
+    }
+
+    @Override
+    public void testInexistentIndexNameWithoutWildcard() {
+        assumeFalse("skip_unavailable=true causes partial result with corresponding remote being skipped", isSkipUnavailable());
+        super.testInexistentIndexNameWithoutWildcard();
+    }
+
+    @Override
+    public void testExistentIndexWithoutWildcard() throws IOException {
+        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        super.testExistentIndexWithoutWildcard();
+    }
+
+    @Before
+    public void skipTestOnOldVersions() {
+        Version version = Clusters.localClusterVersion();
+        assumeTrue(
+            "skip on old versions",
+            version.onOrAfter(Version.V_9_1_0) || (version.onOrAfter(Version.V_8_19_0) && version.before(Version.V_9_0_0))
+        );
     }
 }

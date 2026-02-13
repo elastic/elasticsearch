@@ -12,14 +12,14 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 
-public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends ObjectArrayPriorityQueue<B> {
+public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends ObjectArrayPriorityQueue<BucketAndOrd<B>> {
 
     public BucketSignificancePriorityQueue(int size, BigArrays bigArrays) {
         super(size, bigArrays);
     }
 
     @Override
-    protected boolean lessThan(SignificantTerms.Bucket o1, SignificantTerms.Bucket o2) {
-        return o1.getSignificanceScore() < o2.getSignificanceScore();
+    protected boolean lessThan(BucketAndOrd<B> o1, BucketAndOrd<B> o2) {
+        return o1.bucket.getSignificanceScore() < o2.bucket.getSignificanceScore();
     }
 }

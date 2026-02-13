@@ -28,7 +28,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorSyncJobErrorAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/sync_job/update_error";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_error";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorSyncJobErrorAction() {/* no instances */}

@@ -73,7 +73,17 @@ public class Docker {
     public static final Shell sh = new Shell();
     public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
-    public static final int STARTUP_ATTEMPTS_MAX = 30;
+    public static final int STARTUP_ATTEMPTS_MAX = 45;
+
+    /**
+     * The length of the command exceeds what we can use for COLUMNS so we use
+     * a workaround to find the process we're looking for
+     */
+    private static final String ELASTICSEARCH_FULL_CLASSNAME = "org.elasticsearch.bootstrap.Elasticsearch";
+    private static final String FIND_ELASTICSEARCH_PROCESS = "for pid in $(ps -eo pid,comm | grep java | awk '\\''{print $1}'\\''); "
+        + "do cmdline=$(cat /proc/$pid/cmdline 2>/dev/null | tr \"\\0\" \" \"); [[ $cmdline == *"
+        + ELASTICSEARCH_FULL_CLASSNAME
+        + "* ]] && echo \"$pid: $cmdline\"; done";
 
     /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,
@@ -185,11 +195,8 @@ public class Docker {
             try {
                 // Give the container enough time for security auto-configuration or a chance to crash out
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
-
-                // Set COLUMNS so that `ps` doesn't truncate its output
-                psOutput = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout();
-
-                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
+                psOutput = dockerShell.run("bash -c '" + FIND_ELASTICSEARCH_PROCESS + " | wc -l'").stdout();
+                if (psOutput.contains("1")) {
                     isElasticsearchRunning = true;
                     break;
                 }
@@ -206,13 +213,32 @@ public class Docker {
                 ps output:
                 %s
 
-                stdout():
+                Stdout:
                 %s
 
                 Stderr:
+                %s
+
+                Thread dump:
                 %s\
-                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr()));
+                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr(), getThreadDump()));
         }
+    }
+
+    /**
+     * @return output of jstack for currently running Java process
+     */
+    private static String getThreadDump() {
+        try {
+            String pid = dockerShell.run("/usr/share/elasticsearch/jdk/bin/jps | grep -v 'Jps' | awk '{print $1}'").stdout();
+            if (pid.isEmpty() == false) {
+                return dockerShell.run("/usr/share/elasticsearch/jdk/bin/jstack " + Integer.parseInt(pid)).stdout();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to get thread dump", e);
+        }
+
+        return "";
     }
 
     /**
@@ -486,9 +512,9 @@ public class Docker {
         // Ensure the `elasticsearch` user and group exist.
         // These lines will both throw an exception if the command fails
         dockerShell.run("id elasticsearch");
-        dockerShell.run("getent group elasticsearch");
+        dockerShell.run("grep -E '^elasticsearch:' /etc/group");
 
-        final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
+        final Shell.Result passwdResult = dockerShell.run("grep -E '^elasticsearch:' /etc/passwd");
         final String homeDir = passwdResult.stdout().trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
@@ -532,7 +558,7 @@ public class Docker {
                 )
             );
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             verifyCloudContainerInstallation(es);
         }
     }
@@ -716,6 +742,10 @@ public class Docker {
     }
 
     public static Shell.Result getContainerLogs(String containerId) {
+        if (containerId == null || containerId.isBlank()) {
+            // Avoid running `docker logs null` which is confusing and hides the real failure.
+            return new Shell.Result(1, "", "No container id available to fetch docker logs");
+        }
         return sh.run("docker logs " + containerId);
     }
 

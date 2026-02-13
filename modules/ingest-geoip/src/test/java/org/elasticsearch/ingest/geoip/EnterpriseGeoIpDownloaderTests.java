@@ -27,13 +27,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
+import org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloader.Checksum;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -51,11 +52,7 @@ import org.junit.Before;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.PasswordAuthentication;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -80,9 +77,12 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     private ThreadPool threadPool;
     private MockClient client;
     private EnterpriseGeoIpDownloader geoIpDownloader;
+    private ProjectId projectId;
 
     @Before
     public void setup() throws IOException {
+        // TODO: change to random projectId
+        projectId = ProjectId.DEFAULT;
         httpClient = mock(HttpClient.class);
         when(httpClient.getBytes(any(), anyString())).thenReturn(
             "e4a3411cdd7b21eaf18675da5a7f9f360d33c6882363b2c19c38715834c9e836  GeoIP2-City_20240709.tar.gz".getBytes(StandardCharsets.UTF_8)
@@ -96,7 +96,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, Set.of(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING))
         );
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
         geoIpDownloader = new EnterpriseGeoIpDownloader(
@@ -111,7 +111,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            (input) -> new HttpClient.PasswordAuthenticationHolder("name", "password".toCharArray())
+            (type) -> "password".toCharArray()
         ) {
             {
                 EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams geoIpTaskParams = mock(EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams.class);
@@ -206,8 +206,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
                 "test",
                 empty,
                 0,
-                MessageDigests.sha256(),
-                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                Checksum.sha256("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
                 0
             )
         );
@@ -228,7 +227,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
 
         IOException exception = expectThrows(
             IOException.class,
-            () -> geoIpDownloader.indexChunks("test", new ByteArrayInputStream(new byte[0]), 0, MessageDigests.sha256(), "123123", 0)
+            () -> geoIpDownloader.indexChunks("test", new ByteArrayInputStream(new byte[0]), 0, Checksum.sha256("123123"), 0)
         );
         assertEquals(
             "checksum mismatch, expected [123123], actual [e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855]",
@@ -279,8 +278,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
                 "test",
                 big,
                 15,
-                MessageDigests.sha256(),
-                "f2304545f224ff9ffcc585cb0a993723f911e03beb552cc03937dd443e931eab",
+                Checksum.sha256("f2304545f224ff9ffcc585cb0a993723f911e03beb552cc03937dd443e931eab"),
                 0
             )
         );
@@ -304,7 +302,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            (input) -> new HttpClient.PasswordAuthenticationHolder("name", "password".toCharArray())
+            (type) -> "password".toCharArray()
         ) {
             @Override
             protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
@@ -312,18 +310,11 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            Tuple<Integer, String> indexChunks(
-                String name,
-                InputStream is,
-                int chunk,
-                MessageDigest digest,
-                String expectedMd5,
-                long start
-            ) {
+            Tuple<Integer, String> indexChunks(String name, InputStream is, int chunk, Checksum checksum, long start) {
                 assertSame(bais, is);
                 assertEquals(0, chunk);
                 indexedChunks.set(true);
-                return Tuple.tuple(11, expectedMd5);
+                return Tuple.tuple(11, checksum.checksum());
             }
 
             @Override
@@ -340,10 +331,9 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY);
-        PasswordAuthentication auth = new PasswordAuthentication("name", "password".toCharArray());
         String id = randomIdentifier();
         DatabaseConfiguration databaseConfiguration = new DatabaseConfiguration(id, "test", new DatabaseConfiguration.Maxmind("name"));
-        geoIpDownloader.processDatabase(auth, databaseConfiguration);
+        geoIpDownloader.processDatabase(id, databaseConfiguration);
         assertThat(indexedChunks.get(), equalTo(true));
     }
 
@@ -363,7 +353,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            (input) -> new HttpClient.PasswordAuthenticationHolder("name", "password".toCharArray())
+            (type) -> "password".toCharArray()
         ) {
             @Override
             protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
@@ -371,18 +361,11 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            Tuple<Integer, String> indexChunks(
-                String name,
-                InputStream is,
-                int chunk,
-                MessageDigest digest,
-                String expectedMd5,
-                long start
-            ) {
+            Tuple<Integer, String> indexChunks(String name, InputStream is, int chunk, Checksum checksum, long start) {
                 assertSame(bais, is);
                 assertEquals(9, chunk);
                 indexedChunks.set(true);
-                return Tuple.tuple(1, expectedMd5);
+                return Tuple.tuple(1, checksum.checksum());
             }
 
             @Override
@@ -399,10 +382,9 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0", 0)));
-        PasswordAuthentication auth = new PasswordAuthentication("name", "password".toCharArray());
         String id = randomIdentifier();
         DatabaseConfiguration databaseConfiguration = new DatabaseConfiguration(id, "test", new DatabaseConfiguration.Maxmind("name"));
-        geoIpDownloader.processDatabase(auth, databaseConfiguration);
+        geoIpDownloader.processDatabase(id, databaseConfiguration);
         assertThat(indexedChunks.get(), equalTo(true));
     }
 
@@ -431,7 +413,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             EMPTY_TASK_ID,
             Map.of(),
             () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
-            (input) -> new HttpClient.PasswordAuthenticationHolder("name", "password".toCharArray())
+            (type) -> "password".toCharArray()
         ) {
             @Override
             protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
@@ -440,16 +422,9 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            Tuple<Integer, String> indexChunks(
-                String name,
-                InputStream is,
-                int chunk,
-                MessageDigest digest,
-                String expectedChecksum,
-                long start
-            ) {
+            Tuple<Integer, String> indexChunks(String name, InputStream is, int chunk, Checksum checksum, long start) {
                 fail();
-                return Tuple.tuple(0, expectedChecksum);
+                return Tuple.tuple(0, checksum.checksum());
             }
 
             @Override
@@ -463,17 +438,21 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             }
         };
         geoIpDownloader.setState(taskState);
-        PasswordAuthentication auth = new PasswordAuthentication("name", "password".toCharArray());
         String id = randomIdentifier();
         DatabaseConfiguration databaseConfiguration = new DatabaseConfiguration(id, "test", new DatabaseConfiguration.Maxmind("name"));
-        geoIpDownloader.processDatabase(auth, databaseConfiguration);
+        geoIpDownloader.processDatabase(id, databaseConfiguration);
     }
 
     public void testUpdateDatabasesWriteBlock() {
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
-        var geoIpIndex = state.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
+        var geoIpIndex = state.getMetadata()
+            .getProject(projectId)
+            .getIndicesLookup()
+            .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
+            .getWriteIndex()
+            .getName();
         state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
@@ -492,24 +471,143 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabasesIndexNotReady() throws IOException {
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
-        var geoIpIndex = state.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()), true);
+        var geoIpIndex = state.getMetadata()
+            .getProject(projectId)
+            .getIndicesLookup()
+            .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
+            .getWriteIndex()
+            .getName();
         state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);
     }
 
-    private GeoIpTaskState.Metadata newGeoIpTaskStateMetadata(boolean expired) {
-        Instant lastChecked;
-        if (expired) {
-            lastChecked = Instant.now().minus(randomIntBetween(31, 100), ChronoUnit.DAYS);
-        } else {
-            lastChecked = Instant.now().minus(randomIntBetween(0, 29), ChronoUnit.DAYS);
+    public void testMaxmindUrls() {
+        // non-static classes have fun syntax, but it's nice to be able to test this behavior by itself
+        final EnterpriseGeoIpDownloader.MaxmindDownload download = geoIpDownloader.new MaxmindDownload(
+            "GeoLite2-City", new DatabaseConfiguration.Maxmind("account_id")
+        );
+
+        {
+            String url = "https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz";
+            assertThat(download.url("tar.gz"), equalTo(url));
         }
-        return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
+        {
+            String url = "https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz.sha256";
+            assertThat(download.url("tar.gz.sha256"), equalTo(url));
+        }
+    }
+
+    public void testIpinfoUrls() {
+        // a 'free' database like 'asn' has 'free/' in the url (automatically)
+        final EnterpriseGeoIpDownloader.IpinfoDownload download = geoIpDownloader.new IpinfoDownload(
+            "asn", new DatabaseConfiguration.Ipinfo()
+        );
+
+        {
+            String url = "https://ipinfo.io/data/free/asn.mmdb";
+            assertThat(download.url("mmdb"), equalTo(url));
+        }
+        {
+            String url = "https://ipinfo.io/data/free/asn.mmdb/checksums";
+            assertThat(download.url("mmdb/checksums"), equalTo(url));
+        }
+
+        // but a non-'free' database like 'standard_asn' does not
+        final EnterpriseGeoIpDownloader.IpinfoDownload download2 = geoIpDownloader.new IpinfoDownload(
+            "standard_asn", new DatabaseConfiguration.Ipinfo()
+        );
+
+        {
+            String url = "https://ipinfo.io/data/standard_asn.mmdb";
+            assertThat(download2.url("mmdb"), equalTo(url));
+        }
+        {
+            String url = "https://ipinfo.io/data/standard_asn.mmdb/checksums";
+            assertThat(download2.url("mmdb/checksums"), equalTo(url));
+        }
+    }
+
+    /**
+     * Tests that if an exception is thrown while {@link EnterpriseGeoIpDownloader#runOnDemand()} is running subsequent calls still proceed.
+     * This ensures that the "lock" mechanism used to prevent concurrent runs is released properly.
+     */
+    public void testRequestRunOnDemandReleasesLock() throws Exception {
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
+        when(clusterService.state()).thenReturn(state);
+        // Track the number of calls to runDownloader.
+        AtomicInteger calls = new AtomicInteger();
+        // Create a GeoIpDownloader that throws an exception on the first call to runDownloader.
+        geoIpDownloader = new EnterpriseGeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            (type) -> "password".toCharArray()
+        ) {
+            @Override
+            synchronized void runDownloader() {
+                if (calls.incrementAndGet() == 1) {
+                    throw new RuntimeException("test exception");
+                }
+                super.runDownloader();
+            }
+        };
+        geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY);
+        geoIpDownloader.requestRunOnDemand();
+        assertBusy(() -> assertEquals(1, calls.get()));
+        geoIpDownloader.requestRunOnDemand();
+        assertBusy(() -> assertEquals(2, calls.get()));
+    }
+
+    /**
+     * Tests that if an exception is thrown while {@link EnterpriseGeoIpDownloader#runPeriodic()} is running subsequent calls still proceed.
+     * This ensures that the "lock" mechanism used to prevent concurrent runs is released properly.
+     */
+    public void testRestartPeriodicRunReleasesLock() throws Exception {
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
+        when(clusterService.state()).thenReturn(state);
+        // Track the number of calls to runDownloader.
+        AtomicInteger calls = new AtomicInteger();
+        // Create a GeoIpDownloader that throws an exception on the first call to runDownloader.
+        geoIpDownloader = new EnterpriseGeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            (type) -> "password".toCharArray()
+        ) {
+            @Override
+            synchronized void runDownloader() {
+                if (calls.incrementAndGet() == 1) {
+                    throw new RuntimeException("test exception");
+                }
+                super.runDownloader();
+            }
+        };
+        geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY);
+        geoIpDownloader.restartPeriodicRun();
+        assertBusy(() -> assertEquals(1, calls.get()));
+        geoIpDownloader.restartPeriodicRun();
+        assertBusy(() -> assertEquals(2, calls.get()));
     }
 
     private static class MockClient extends NoOpClient {

@@ -69,9 +69,9 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
                 if (block.isNull(p)) {
                     continue;
                 }
-                int valueCount = block.getValueCount(p);
+                int dims = block.getValueCount(p);
                 int start = block.getFirstValueIndex(p);
-                for (int i = 0; i < valueCount; i++) {
+                for (int i = 0; i < dims; i++) {
                     expectedSum[i] += block.getFloat(start + i);
                 }
             }
@@ -84,7 +84,7 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
         int start = resultBlock.getFirstValueIndex(0);
         for (int i = 0; i < vectorDimensions; i++) {
             // Use a relative tolerance since float summation order changes across partitions
-            double tolerance = Math.max(1.0, Math.abs(expectedSum[i]) * 0.001);
+            double tolerance = Math.abs(expectedSum[i]) * 1e-3f;
             assertThat("Dimension " + i + " mismatch", (double) resultBlock.getFloat(start + i), closeTo(expectedSum[i], tolerance));
         }
     }

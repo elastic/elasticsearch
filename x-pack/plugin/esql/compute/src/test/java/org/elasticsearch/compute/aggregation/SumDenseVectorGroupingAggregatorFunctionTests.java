@@ -106,7 +106,7 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
             assertThat(
                 "Dimension " + i + " mismatch",
                 (double) resultBlock.getFloat(start + i),
-                closeTo(expectedSum[i], Math.max(1.0, Math.abs(expectedSum[i]) * 0.001))
+                closeTo(expectedSum[i], Math.abs(expectedSum[i]) * 1e-5f)
             );
         }
     }

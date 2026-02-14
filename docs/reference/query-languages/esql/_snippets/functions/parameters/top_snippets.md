@@ -3,10 +3,10 @@
 **Parameters**
 
 `field`
-:   The input to chunk.
+:   The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately.
 
 `query`
-:   The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. 
+:   The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed.
 
 `options`
 :   (Optional) `TOP_SNIPPETS` additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).

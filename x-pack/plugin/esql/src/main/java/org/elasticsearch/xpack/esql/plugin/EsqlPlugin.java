@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
+import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -351,6 +352,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
+        entries.add(MMROperator.Status.ENTRY);
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);

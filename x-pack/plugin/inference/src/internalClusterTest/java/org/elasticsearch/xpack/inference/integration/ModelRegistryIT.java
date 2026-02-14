@@ -26,8 +26,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -936,10 +934,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var model = new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId1,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings("model", null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents("url"),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -1015,10 +1010,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var eisModel = new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId1,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings("model", null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents("url"),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );

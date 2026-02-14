@@ -14,10 +14,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrNumeric;
 
@@ -25,22 +28,32 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrNumeric;
  * Adds support for dense_vector data types. Specifically provides the logic when either left or right type is a dense_vector.
  */
 public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOperation {
+    private static final String ERROR_MSG = "[{}] should evaluate to a dense_vector or scalar constant";
+
     private final DenseVectorBinaryEvaluator denseVectors;
 
     /** Set of arithmetic (quad) functions for dense_vectors. */
     public interface DenseVectorBinaryEvaluator {
         // when both arguments are dense_vectors
-        EvalOperator.ExpressionEvaluator.Factory apply(
+        EvalOperator.ExpressionEvaluator.Factory vectorsOperation(
             Source source,
             EvalOperator.ExpressionEvaluator.Factory lhs,
             EvalOperator.ExpressionEvaluator.Factory rhs
         );
 
         // when lhs is a scalar and rhs is a dense_vector
-        EvalOperator.ExpressionEvaluator.Factory apply(Source source, double lhs, EvalOperator.ExpressionEvaluator.Factory rhs);
+        EvalOperator.ExpressionEvaluator.Factory scalarVectorOperation(
+            Source source,
+            float lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        );
 
         // when lhs is a dense_vector and rhs is a scalar
-        EvalOperator.ExpressionEvaluator.Factory apply(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, double rhs);
+        EvalOperator.ExpressionEvaluator.Factory vectorScalarOperation(
+            Source source,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            float rhs
+        );
     }
 
     protected DenseVectorArithmeticOperation(
@@ -89,6 +102,9 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
         if (leftType == DENSE_VECTOR || rightType == DENSE_VECTOR) {
+            if (leftType == NULL || rightType == NULL) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
             if (leftType != DENSE_VECTOR) {
                 if (false == isSupportedScalar(leftType)) {
                     return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
@@ -119,14 +135,14 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
         var commonType = dataType();
         if (commonType == DENSE_VECTOR) {
             if (left().dataType() == DENSE_VECTOR && right().dataType() == DENSE_VECTOR) {
-                return denseVectors.apply(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+                return denseVectors.vectorsOperation(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             }
             if (left().dataType() != DENSE_VECTOR) {
-                double lhs = ((Number) left().fold(toEvaluator.foldCtx())).doubleValue();
-                return denseVectors.apply(source(), lhs, toEvaluator.apply(right()));
+                float lhs = (Float) DataTypeConverter.convert(left().fold(toEvaluator.foldCtx()), FLOAT);
+                return denseVectors.scalarVectorOperation(source(), lhs, toEvaluator.apply(right()));
             } else {
-                double rhs = ((Number) (right().fold(toEvaluator.foldCtx()))).doubleValue();
-                return denseVectors.apply(source(), toEvaluator.apply(left()), rhs);
+                float rhs = (Float) DataTypeConverter.convert(right().fold(toEvaluator.foldCtx()), FLOAT);
+                return denseVectors.vectorScalarOperation(source(), toEvaluator.apply(left()), rhs);
             }
         }
         return super.toEvaluator(toEvaluator);

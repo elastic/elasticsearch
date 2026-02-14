@@ -14,6 +14,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -35,6 +36,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -305,7 +307,7 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "AddDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Add]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -320,7 +322,7 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "AddDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Add]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -338,7 +340,7 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "AddDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Add]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -347,10 +349,9 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
 
         suppliers.addAll(
             denseVectorScalarCases(
-                "AddDenseVectorAndDoubleEvaluator",
-                (v, s) -> v.stream().map(f -> (float) (f.doubleValue() + s.doubleValue())).toList(),
-                "AddDoubleAndDenseVectorEvaluator",
-                (s, v) -> v.stream().map(f -> (float) (s.doubleValue() + f.doubleValue())).toList()
+                "Add",
+                (v, s) -> v.stream().map(f -> f + (Float) DataTypeConverter.convert(s, FLOAT)).toList(),
+                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) + f).toList()
             )
         );
 

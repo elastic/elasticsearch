@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -22,6 +23,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorTestCaseHelper.denseVectorScalarCases;
@@ -138,7 +140,7 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "MulDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Mul]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -152,7 +154,7 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "MulDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Mul]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -169,7 +171,7 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "MulDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Mul]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -178,10 +180,9 @@ public class MulTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             denseVectorScalarCases(
-                "MulDoubleAndDenseVectorEvaluator",
-                (v, s) -> v.stream().map(f -> (float) (f.doubleValue() * s.doubleValue())).toList(),
-                "MulDenseVectorAndDoubleEvaluator",
-                (s, v) -> v.stream().map(f -> (float) (s.doubleValue() * f.doubleValue())).toList()
+                "Mul",
+                (v, s) -> v.stream().map(f -> f * (Float) DataTypeConverter.convert(s, FLOAT)).toList(),
+                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) * f).toList()
             )
         );
 

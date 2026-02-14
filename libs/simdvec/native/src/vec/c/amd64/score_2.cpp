@@ -105,7 +105,7 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
             _mm512_set1_ps(queryAdditionalCorrection - centroidDp)
         );
 
-        __mmask16 is_neg_mask = _mm512_fpclass_ps_mask(res, 0x40);
+        __mmask16 is_neg_mask = _mm512_fpclass_ps_mask(res, 0x50);
         __m512 negative_scaled = _mm512_rcp14_ps(_mm512_fnmadd_ps(_mm512_set1_ps(1.0f), res, _mm512_set1_ps(1.0f)));
         __m512 positive_scaled = _mm512_add_ps(_mm512_set1_ps(1.0f), res);
 

@@ -354,6 +354,101 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         }
     }
 
+    /**
+     * Regression test: verifies that the vectorized scorer correctly handles -Infinity raw scores
+     * for MAXIMUM_INNER_PRODUCT. Passing Float.NEGATIVE_INFINITY as queryAdditionalCorrection
+     * (with all-zero corrections) forces every element's raw score to -Infinity before
+     * scaleMaxInnerProductScore is applied. The correct result is 0.0 for all elements.
+     *
+     * This catches the AVX-512 bug where {@code _mm512_fpclass_ps_mask(res, 0x40)} (Negative Finite)
+     * failed to classify -Infinity as negative, causing the positive branch ({@code 1 + res = -Infinity})
+     * to be used instead of the negative branch ({@code 1/(1 - res) = 0}).
+     */
+    public void testScoreBulkWithNegativeInfinityScore() throws Exception {
+        final int dimensions = 768;
+        final int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
+
+        final int length = switch (indexBits) {
+            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
+            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
+            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
+            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
+        };
+        final int queryBytes = length * (queryBits / indexBits);
+
+        try (Directory dir = newParametrizedDirectory()) {
+            try (IndexOutput out = dir.createOutput("testNegInf.bin", IOContext.DEFAULT)) {
+                byte[] vector = new byte[length];
+                for (int i = 0; i < bulkSize; i++) {
+                    random().nextBytes(vector);
+                    out.writeBytes(vector, 0, length);
+                }
+                // All-zero corrections: zero bytes are interpreted identically regardless of byte order
+                byte[] zeroCorrections = new byte[16 * bulkSize];
+                out.writeBytes(zeroCorrections, 0, zeroCorrections.length);
+                CodecUtil.writeFooter(out);
+            }
+
+            byte[] query = new byte[queryBytes];
+            random().nextBytes(query);
+
+            float[] scoresDefault = new float[bulkSize];
+            float[] scoresPanama = new float[bulkSize];
+
+            try (IndexInput in = dir.openInput("testNegInf.bin", IOContext.DEFAULT)) {
+                final long dataLength = (long) bulkSize * length + 16L * bulkSize;
+                final IndexInput slice = in.slice("test", 0, dataLength);
+                final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
+                    slice,
+                    queryBits,
+                    indexBits,
+                    dimensions,
+                    length,
+                    bulkSize
+                );
+                final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
+                    in,
+                    queryBits,
+                    indexBits,
+                    dimensions,
+                    length,
+                    bulkSize
+                );
+
+                // Pass Float.NEGATIVE_INFINITY as queryAdditionalCorrection.
+                // With all-zero corrections and zero query intervals, the base score is zero,
+                // and adding -Infinity makes every element's total raw score -Infinity.
+                float defaultMaxScore = defaultScorer.scoreBulk(
+                    query,
+                    0f,
+                    0f,
+                    0,
+                    Float.NEGATIVE_INFINITY,
+                    similarityFunction,
+                    0f,
+                    scoresDefault
+                );
+                float panamaMaxScore = panamaScorer.scoreBulk(
+                    query,
+                    0f,
+                    0f,
+                    0,
+                    Float.NEGATIVE_INFINITY,
+                    similarityFunction,
+                    0f,
+                    scoresPanama
+                );
+
+                assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
+                for (int j = 0; j < bulkSize; j++) {
+                    assertEquals("score mismatch at index " + j, scoresDefault[j], scoresPanama[j], 1e-2f);
+                }
+                assertEquals(dataLength, slice.getFilePointer());
+                assertEquals(dataLength, in.getFilePointer());
+            }
+        }
+    }
+
     private static void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections, IndexOutput out) throws IOException {
         for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
             out.writeInt(Float.floatToIntBits(correction.lowerInterval()));

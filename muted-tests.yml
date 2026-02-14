@@ -377,18 +377,12 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword
   issue: https://github.com/elastic/elasticsearch/issues/142282
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=1024 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142289
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
 - class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142413
 - class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
   method: testGenerateDefinitions
   issue: https://github.com/elastic/elasticsearch/issues/142417
@@ -440,15 +434,6 @@ tests:
 - class: org.elasticsearch.blobcache.shared.SharedBytesTests
   method: testMmapResourcesReleasedOnClose
   issue: https://github.com/elastic/elasticsearch/issues/142488
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=768 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142490
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=384 p1=4 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142491
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=384 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142492
 
 # Examples:
 #

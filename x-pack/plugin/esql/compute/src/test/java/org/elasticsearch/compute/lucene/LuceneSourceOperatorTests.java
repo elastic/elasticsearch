@@ -245,7 +245,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             taskConcurrency,
             maxPageSize,
             limit,
-            scoring
+            scoring,
+            null
         );
     }
 

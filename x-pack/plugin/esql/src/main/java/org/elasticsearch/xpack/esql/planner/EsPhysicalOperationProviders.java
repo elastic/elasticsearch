@@ -321,6 +321,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
         if (sorts != null && sorts.isEmpty() == false) {
+            if (esQueryExec.minCompetitive() != null) {
+                throw new IllegalStateException("minCompetitive not supported");
+            }
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {
@@ -349,6 +352,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring
             );
         } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+            if (esQueryExec.minCompetitive() != null) {
+                throw new IllegalStateException("minCompetitive not supported");
+            }
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
@@ -365,7 +371,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
-                scoring
+                scoring,
+                esQueryExec.minCompetitive()
             );
         }
         Layout.Builder layout = new Layout.Builder();

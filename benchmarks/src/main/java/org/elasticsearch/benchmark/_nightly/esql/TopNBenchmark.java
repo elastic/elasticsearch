@@ -141,7 +141,8 @@ public class TopNBenchmark {
             encoders,
             IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, true, false)).toList(),
             8 * 1024,
-            sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED
+            sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
+            null
         );
     }
 

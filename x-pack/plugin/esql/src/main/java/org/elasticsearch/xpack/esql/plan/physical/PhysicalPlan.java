@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
-import org.elasticsearch.xpack.esql.plan.physical.sidechannel.SharedBackchannelOffer;
 
 import java.util.List;
 

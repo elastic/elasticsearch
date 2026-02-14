@@ -17,7 +17,6 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.SideChannel;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -27,7 +26,36 @@ import java.util.List;
  * A thread safe, shared holder for the min competitive value from a
  * set of {@link TopNOperator}s.
  */
-public class SharedMinCompetitive extends AbstractRefCounted implements SideChannel {
+public class SharedMinCompetitive extends AbstractRefCounted implements Releasable, SideChannel {
+    public static class Supplier {
+        private final CircuitBreaker breaker;
+        private final List<ElementType> elementTypes;
+        private final List<TopNEncoder> encoders;
+        private final List<TopNOperator.SortOrder> sortOrders;
+        private SharedMinCompetitive minCompetitive;
+
+        public Supplier(
+            CircuitBreaker breaker,
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders,
+            List<TopNOperator.SortOrder> sortOrders
+        ) {
+            this.breaker = breaker;
+            this.elementTypes = elementTypes;
+            this.encoders = encoders;
+            this.sortOrders = sortOrders;
+        }
+
+        public SharedMinCompetitive get() {
+            if (minCompetitive == null) {
+                minCompetitive = new SharedMinCompetitive(breaker, elementTypes, encoders, sortOrders);
+            } else {
+                minCompetitive.incRef();
+            }
+            return minCompetitive;
+        }
+    }
+
     private final BreakingBytesRefBuilder value;
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
@@ -102,6 +130,11 @@ public class SharedMinCompetitive extends AbstractRefCounted implements SideChan
                 Releasables.close(builders);
             }
         }
+    }
+
+    @Override
+    public void close() {
+        decRef();
     }
 
     @Override

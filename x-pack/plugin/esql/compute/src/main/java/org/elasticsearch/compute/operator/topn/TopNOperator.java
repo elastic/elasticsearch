@@ -258,7 +258,7 @@ public class TopNOperator implements Operator, Accountable {
         List<SortOrder> sortOrders,
         int maxPageSize,
         InputOrdering inputOrdering,
-        @Nullable SharedMinCompetitive minCompetitive
+        @Nullable SharedMinCompetitive.Supplier minCompetitive
     ) implements OperatorFactory {
         public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -279,7 +279,7 @@ public class TopNOperator implements Operator, Accountable {
                 sortOrders,
                 maxPageSize,
                 inputOrdering,
-                minCompetitive
+                minCompetitive == null ? null : minCompetitive.get()
             );
         }
 
@@ -551,7 +551,8 @@ public class TopNOperator implements Operator, Accountable {
              * If we're in the process of outputting pages then output will contain all
              * allocated but un-emitted rows.
              */
-            output
+            output,
+            minCompetitive
         );
         // Aggressively null these so they can be GCed more quickly.
         inputQueue = null;

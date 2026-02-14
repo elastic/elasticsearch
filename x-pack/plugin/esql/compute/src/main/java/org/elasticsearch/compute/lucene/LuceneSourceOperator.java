@@ -29,6 +29,8 @@ import org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -51,19 +53,12 @@ import static org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStra
 public class LuceneSourceOperator extends LuceneOperator {
     private static final Logger log = LogManager.getLogger(LuceneSourceOperator.class);
 
-    private int currentPagePos = 0;
-    private int remainingDocs;
-    private final Limiter limiter;
-
-    private IntVector.Builder docsBuilder;
-    private DoubleVector.Builder scoreBuilder;
-    private final LeafCollector leafCollector;
-    private final int minPageSize;
-
     public static class Factory extends LuceneOperator.Factory {
         protected final IndexedByShardId<? extends RefCounted> refCounteds;
         protected final int maxPageSize;
         protected final Limiter limiter;
+        @Nullable
+        private final SharedMinCompetitive.Supplier minCompetitive;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> shardContexts,
@@ -73,7 +68,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean needsScore
+            boolean needsScore,
+            @Nullable SharedMinCompetitive.Supplier minCompetitive
         ) {
             super(
                 shardContexts,
@@ -91,11 +87,21 @@ public class LuceneSourceOperator extends LuceneOperator {
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
+            this.minCompetitive = minCompetitive;
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(
+                refCounteds,
+                driverContext.blockFactory(),
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                needsScore,
+                minCompetitive == null ? null : minCompetitive.get()
+            );
         }
 
         public int maxPageSize() {
@@ -221,6 +227,17 @@ public class LuceneSourceOperator extends LuceneOperator {
         return DOC;
     }
 
+    private int currentPagePos = 0;
+    private int remainingDocs;
+    private final Limiter limiter;
+
+    private IntVector.Builder docsBuilder;
+    private DoubleVector.Builder scoreBuilder;
+    private final LeafCollector leafCollector;
+    private final int minPageSize;
+
+    private final SharedMinCompetitive minCompetitive;
+
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
@@ -229,12 +246,14 @@ public class LuceneSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        boolean needsScore
+        boolean needsScore,
+        SharedMinCompetitive minCompetitive
     ) {
         super(refCounteds, blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
+        this.minCompetitive = minCompetitive;
         int estimatedSize = Math.min(limit, maxPageSize);
         boolean success = false;
         try {
@@ -412,7 +431,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void additionalClose() {
-        Releasables.close(docsBuilder, scoreBuilder);
+        Releasables.close(docsBuilder, scoreBuilder, minCompetitive);
     }
 
     @Override

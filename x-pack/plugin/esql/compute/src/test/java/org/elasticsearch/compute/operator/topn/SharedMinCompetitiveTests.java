@@ -10,13 +10,11 @@ package org.elasticsearch.compute.operator.topn;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;

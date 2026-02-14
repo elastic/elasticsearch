@@ -97,6 +97,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
@@ -124,6 +125,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -873,11 +875,93 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     /*
+     * Test that search at DONE returns results consistent with delete unowned having been applied (#5404)
+     */
+    public void testSearchAtDone() throws Exception {
+        // separate from the master node to create interposable TransportUpdateSplitTargetShardStateAction
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        final int numDocs = randomIntBetween(20, 50);
+        indexDocs(indexName, numDocs);
+
+        // block receiving commit notification requests on the search node after split, then attempt to wait for DONE
+        // briefly (should time out because DONE should wait for notification to be acknowledged). Perform search,
+        // check that it doesn't have too many documents (it's still filtering unowned). Release commit block.
+
+        final var deferredNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
+        final var blockNotification = new AtomicBoolean(false);
+        final var notificationBlocked = new CountDownLatch(1);
+        final var notificationsProcessed = new AtomicBoolean(false);
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                if (blockNotification.get()) {
+                    logger.info("deferring new commit notification {}", request);
+                    deferredNotifications.add(() -> {
+                        logger.info("processing deferred notification {}", request);
+                        handler.messageReceived(request, channel, task);
+                    });
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                logger.info("received update split target shard state request {}", actualRequest);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                        logger.info("signalling to block commit notification");
+                        blockNotification.set(true);
+                        notificationBlocked.countDown();
+                    }
+                    assert splitStateRequest.getNewTargetShardState() != IndexReshardingState.Split.TargetShardState.DONE
+                        || notificationsProcessed.get() : "all commit notifications should have been processed first";
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // once we've started blocking commit notifications, wait a bit before releasing them so that if resharding were going
+        // to move to DONE without waiting for the notifications, we'd (probably) catch it here. Maybe there's a better way?
+        // This works reliably on my laptop to catch the failure if the refresh is disabled.
+        notificationBlocked.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        // do it in the background so we can start waiting for DONE concurrently and run search immediately afterwards.
+        final var unblockThread = new Thread(() -> {
+            try {
+                Thread.sleep(100); // allow reshard to reach the refresh-wait in deleteUnownedDocuments
+                blockNotification.set(false);
+                while (deferredNotifications.isEmpty() == false) {
+                    deferredNotifications.take().run();
+                }
+                notificationsProcessed.set(true);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        unblockThread.start();
+
+        waitForReshardCompletion(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+        unblockThread.join();
+    }
+
+    /*
      * The coordinator may see the target move to SPLIT before the source shard does.
      * This test checks that filtering is performed in that case, as a regression because there was a bug where
      * previously it was not, resulting in duplicate documents in search results.
      */
-    public void testSearchWhenCoordinatorSeesSplitFirst() throws Exception {
+    public void testSearchWhenCoordinatorSeesSplitFirst() {
         // install a block on the search node to prevent it from seeing the split transition, then kick off a reshard.
         // When the coordinator sees the split, issue a search and verify the expected number of documents are returned.
         startMasterOnlyNode();
@@ -2363,7 +2447,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         /* This allocation rule is used to prevent the new reshard index shard from getting allocated.
          * This will also prevent the search shard from getting allocated, hence we have two search nodes above.
          */
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String indexName = randomIndexName();
         createIndex(
             indexName,
             indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
@@ -2385,9 +2469,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             );
         });
 
-        // TODO: At this point we finish the reshard once all the target states are DONE. In the future we maybe need to switch this
-        // assertion to reflect the usage of additional states
-        waitForReshardCompletion(indexName);
+        final var index = resolveIndex(indexName);
+        awaitClusterState(
+            indexNode,
+            clusterState -> clusterState.getMetadata()
+                .indexMetadata(index)
+                .getReshardingMetadata()
+                .getSplit()
+                .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.SPLIT
+        );
 
         final var searchShardExplain = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName)
             .setShard(1)

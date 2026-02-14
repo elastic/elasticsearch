@@ -20,6 +20,9 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.support.replication.BasicReplicationRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
@@ -67,6 +70,7 @@ public class ReshardIndexService {
     private static final Logger logger = LogManager.getLogger(ReshardIndexService.class);
 
     private final IndicesService indicesService;
+    private final NodeClient client;
     private final SplitCompletionTracker splitCompletionTracker;
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
@@ -78,9 +82,11 @@ public class ReshardIndexService {
         final ClusterService clusterService,
         final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         final RerouteService rerouteService,
-        final IndicesService indicesService
+        final IndicesService indicesService,
+        final NodeClient client
     ) {
         this.indicesService = indicesService;
+        this.client = client;
         splitCompletionTracker = new SplitCompletionTracker();
 
         this.reshardQueue = clusterService.createTaskQueue(
@@ -304,7 +310,25 @@ public class ReshardIndexService {
                     // will not need to retry this and can move a splitting shard to DONE.
                     // It would also be fine to just wait for the next flush after delete completes, but assuming we don't split often
                     // the cost of this flush should amortize well.
-                    engine.flush(/* force */ true, /* waitIfOngoing */ true, runListener.map(r -> null));
+                    engine.flush(/* force */ true, /* waitIfOngoing */ true, runListener.delegateFailureAndWrap((refreshListener, r) -> {
+                        // Perform a refresh on this shard before returning, so that the shard does not get marked as DONE until the
+                        // search shard has seen the result of the delete operation. The search shard stops filtering search requests
+                        // when it sees the shard is DONE, and this will cause it to return unowned documents if it doesn't see
+                        // the delete operation first.
+                        // If the refresh fails, this operation will fail and higher level retry will restart at the delete step.
+                        final var refreshRequest = new BasicReplicationRequest(shardId);
+                        client.executeLocally(
+                            TransportShardRefreshAction.TYPE,
+                            refreshRequest,
+                            refreshListener.delegateFailure((inner, response) -> {
+                                if (response.getShardInfo().getFailed() > 0) {
+                                    inner.onFailure(response.getShardInfo().getFailures()[0]);
+                                } else {
+                                    inner.onResponse(null);
+                                }
+                            })
+                        );
+                    }));
                 } else {
                     // Even though we called `ensureMutable()` it is still possible that ongoing relocation
                     // hollows the engine underneath us.

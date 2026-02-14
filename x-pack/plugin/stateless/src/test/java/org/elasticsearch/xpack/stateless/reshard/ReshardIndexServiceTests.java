@@ -18,6 +18,7 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -116,7 +117,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
     public void testMaybeAwaitSplitDoesNotThrow() {
         final var indicesService = mock(IndicesService.class);
 
-        final var svc = new ReshardIndexService(mock(ClusterService.class), null, null, indicesService);
+        final var svc = new ReshardIndexService(mock(ClusterService.class), null, null, indicesService, mock(NodeClient.class));
 
         final var badIndex = new Index("badindex", INDEX_UUID_NA_VALUE);
         final var badIndexShard = new ShardId(badIndex, 0);
@@ -137,7 +138,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
     }
 
     public void testMaybeAwaitSplit() throws InterruptedException {
-        final var svc = new ReshardIndexService(mock(ClusterService.class), null, null, mock(IndicesService.class));
+        final var svc = new ReshardIndexService(mock(ClusterService.class), null, null, mock(IndicesService.class), mock(NodeClient.class));
         final var index = new Index("index", INDEX_UUID_NA_VALUE);
         final var sourceShard = new ShardId(index, 0);
         final var targetShard = new ShardId(index, 1);
@@ -233,7 +234,8 @@ public class ReshardIndexServiceTests extends ESTestCase {
             clusterService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             null,
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            mock(NodeClient.class)
         );
 
         var request = new ReshardIndexClusterStateUpdateRequest(projectId, index, -1);

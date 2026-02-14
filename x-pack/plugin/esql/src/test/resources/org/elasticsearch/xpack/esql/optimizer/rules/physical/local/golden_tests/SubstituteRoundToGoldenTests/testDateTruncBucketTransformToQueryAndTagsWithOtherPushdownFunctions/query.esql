@@ -1,0 +1,3 @@
+from all_types
+| where keyword : "keyword"
+| stats count(*) by x = round_to(date, "2023-10-20", "2023-10-21", "2023-10-22", "2023-10-23")

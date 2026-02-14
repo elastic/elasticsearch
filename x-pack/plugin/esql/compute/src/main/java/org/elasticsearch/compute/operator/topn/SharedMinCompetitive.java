@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.SideChannel;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -26,7 +27,7 @@ import java.util.List;
  * A thread safe, shared holder for the min competitive value from a
  * set of {@link TopNOperator}s.
  */
-public class SharedMinCompetitive extends AbstractRefCounted implements Releasable, SideChannel {
+public class SharedMinCompetitive extends AbstractRefCounted implements Releasable, RefCounted, SideChannel {
     public static class Supplier {
         private final CircuitBreaker breaker;
         private final List<ElementType> elementTypes;
@@ -122,7 +123,7 @@ public class SharedMinCompetitive extends AbstractRefCounted implements Releasab
                     }
                     shallow.offset += 1;
                     shallow.length -= 1;
-                    builder.decodeKey(shallow);
+                    builder.decodeKey(shallow, sortOrder.asc());
                     builder.decodeValue(new BytesRef(new byte[] { 1 }));
                 }
                 return new Page(ResultBuilder.buildAll(builders));

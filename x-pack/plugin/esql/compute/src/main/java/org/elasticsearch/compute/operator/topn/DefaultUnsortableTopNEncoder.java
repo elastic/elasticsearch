@@ -174,11 +174,9 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        final int offset = bytesRefBuilder.length();
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         encodeVInt(value.length, bytesRefBuilder);
         bytesRefBuilder.append(value);
-        return bytesRefBuilder.length() - offset;
     }
 
     @Override
@@ -193,18 +191,13 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public TopNEncoder toSortable() {
-        return TopNEncoder.DEFAULT_SORTABLE;
+    public TopNEncoder toSortable(boolean asc) {
+        return TopNEncoder.DEFAULT_SORTABLE.toSortable(asc);
     }
 
     @Override
     public TopNEncoder toUnsortable() {
         return this;
-    }
-
-    @Override
-    public boolean decodeMutatesBytes() {
-        return false;
     }
 
     @Override

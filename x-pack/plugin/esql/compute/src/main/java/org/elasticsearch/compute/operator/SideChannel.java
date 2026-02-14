@@ -7,12 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.core.RefCounted;
-
 /**
  * A "side channel" for the {@link Operator}s running on one node. These
  * nodes must run on the same JVM, but will not run in the same {@link Driver}.
  */
-public interface SideChannel extends RefCounted {
-
+public interface SideChannel {
+    // NOCOMMIT do we need this interface at all?
 }

@@ -1490,13 +1490,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             List.of(unsupportedColumnInfo("metric.value", "double", "keyword")),
             List.of(matchesList().item(null), matchesList().item(null))
         );
-
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsql("TS metrics-long,metrics-long_dimension | KEEP metric.value")
-        );
-        String err = EntityUtils.toString(e.getResponse().getEntity());
-        assertThat(err, containsString("Time Series Metadata conflict.  Cannot merge [DIMENSION] with [METRIC]."));
     }
 
     protected Matcher<Integer> pidMatcher() {

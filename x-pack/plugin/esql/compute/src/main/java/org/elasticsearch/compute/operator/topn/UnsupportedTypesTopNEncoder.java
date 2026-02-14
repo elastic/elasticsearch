@@ -17,9 +17,9 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
  * when actually sorting on a field (which shouldn't be possible for unsupported data types) using key extractors, or when encoding/decoding
  * unsupported data types fields values (which should always be "null" by convention) using value extractors.
  */
-class UnsupportedTypesTopNEncoder extends SortableTopNEncoder {
+class UnsupportedTypesTopNEncoder extends SortableAscTopNEncoder {
     @Override
-    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         throw new UnsupportedOperationException("Encountered a bug; trying to encode an unsupported data type value for TopN");
     }
 
@@ -29,17 +29,12 @@ class UnsupportedTypesTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public boolean decodeMutatesBytes() {
-        return false;
-    }
-
-    @Override
     public String toString() {
-        return "UnsupportedTypesTopNEncoder";
+        return "Unsupported";
     }
 
     @Override
-    public TopNEncoder toSortable() {
+    public TopNEncoder toSortable(boolean asc) {
         return this;
     }
 

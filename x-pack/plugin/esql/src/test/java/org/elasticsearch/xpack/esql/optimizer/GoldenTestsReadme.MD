@@ -75,6 +75,12 @@ You can use this in combination with `-Dtests.method` to overwrite specific test
 This can also be used in combination with `git diff` to inspect the differences if you prefer that
 method to comparing `.actual` and `.expected` files.
 
+## How do I remove orphan golden tests?
+
+When you delete a test method, its golden files (e.g., `query.esql`, `*.expected`, `*.actual`) are
+left behind. Use `-Dgolden.removeorphans` to remove directories that no longer have a
+corresponding test method. This runs once per test class after all its tests.
+
 ## Drawbacks of golden tests
 
 Golden tests are by their very nature much noisier than regular tests:

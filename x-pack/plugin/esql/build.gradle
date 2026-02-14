@@ -643,6 +643,11 @@ tasks.named("test").configure {
   if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
     systemProperty "golden.overwrite", "true"
   }
+  if (System.getProperty("golden.removeorphans") != null || project.hasProperty("golden.removeorphans")) {
+    systemProperty "golden.removeorphans", "true"
+    // Disable the entitlement agent so GoldenTestCase can delete orphan golden dirs under src/test/resources
+    systemProperty "es.entitlement.enableForTests", "false"
+  }
 
   systemProperty "policy.directory", file("${projectDir}").absolutePath
   systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath

@@ -13,6 +13,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -45,9 +46,15 @@ import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.internal.AssumptionViolatedException;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
+import org.junit.runners.model.Statement;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -59,8 +66,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
@@ -72,17 +83,72 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtrasFS can create extraneous files in the output directory.
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
+    private static final boolean REMOVE_ORPHANS = System.getProperty("golden.removeorphans") != null;
+    private static final Map<Class<?>, Set<String>> testNamesByClass = new ConcurrentHashMap<>();
     private final Path baseFile;
 
+    /** When {@code golden.removeorphans} is set, deletes golden dirs that have no corresponding test method. */
+    @ClassRule
+    public static final TestRule orphanCleanup = new ExternalResource() {
+        private Class<?> testClass;
+
+        @Override
+        public Statement apply(Statement base, Description description) {
+            testClass = description.getTestClass();
+            return super.apply(base, description);
+        }
+
+        @Override
+        protected void after() {
+            if (REMOVE_ORPHANS && testClass != null) {
+                Set<String> names = testNamesByClass.remove(testClass);
+                if (names != null) {
+                    removeOrphanGoldenTests(basePath(testClass), names);
+                }
+            }
+        }
+    };
+
+    @Before
+    protected void recordTestNameForOrphanCleanup() {
+        if (REMOVE_ORPHANS) {
+            testNamesByClass.computeIfAbsent(getClass(), k -> ConcurrentHashMap.newKeySet()).add(getTestName());
+        }
+    }
+
     public GoldenTestCase() {
+        baseFile = basePath(getClass());
+    }
+
+    private static Path basePath(Class<?> testClass) {
         try {
-            String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
+            String path = PathUtils.get(testClass.getResource(".").toURI()).toAbsolutePath().normalize().toString();
             var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
-            baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
+            return PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, testClass.getSimpleName()));
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+    }
 
+    /** Remove golden test directories that have no corresponding test method (orphans). */
+    static void removeOrphanGoldenTests(Path basePath, Set<String> validTestNames) {
+        if (Files.exists(basePath) == false) {
+            return;
+        }
+        try (Stream<Path> listing = Files.list(basePath)) {
+            listing.filter(Files::isDirectory)
+                .filter(p -> validTestNames.contains(p.getFileName().toString()) == false)
+                .forEach(orphan -> {
+                    logger.info("Removing orphan golden test directory (no corresponding test method): '{}'", orphan.toAbsolutePath());
+                    try {
+                        IOUtils.rm(orphan);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to remove orphan golden tests under " + basePath, e);
+        }
     }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, String... nestedPath) {

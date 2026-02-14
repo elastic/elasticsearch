@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -832,11 +833,16 @@ public class ComputeService {
     /**
      * Splits the coordinator plan at the AggregateExec(FINAL) boundary into:
      * <ul>
-     *   <li>A <b>final plan</b>: {@code ExchangeSinkExec → AggregateExec(FINAL) → ExchangeSourceExec}
-     *       (runs per-partition in each FINAL driver)</li>
-     *   <li>An <b>output plan</b>: everything above the AggregateExec (TopN, Eval, Project, etc.)
-     *       reading from an ExchangeSourceExec (runs once, globally, after all partitions finish)</li>
+     *   <li>A <b>final plan</b> that runs per-partition in each FINAL driver</li>
+     *   <li>An <b>output plan</b> that runs once, globally, after all partitions merge</li>
      * </ul>
+     *
+     * <p>When a TopNExec is present above the AggregateExec, the split pushes the TopN
+     * (and any intermediate nodes like EvalExec between the AggregateExec and TopN) into
+     * the per-partition final plan. This allows each partition to independently compute
+     * the top-K rows, dramatically reducing the number of rows that flow to the output
+     * stage (from N rows to at most K * numPartitions). A duplicate TopN in the output
+     * plan performs the global merge on the much smaller result set.</p>
      *
      * <p>For example, given:
      * <pre>
@@ -849,8 +855,15 @@ public class ComputeService {
      * </pre>
      * The split produces:
      * <ul>
+     *   <li>Final: {@code ExchangeSinkExec → TopNExec → EvalExec → AggregateExec(FINAL) → ExchangeSourceExec}</li>
+     *   <li>Output: {@code OutputExec → ProjectExec → TopNExec → ExchangeSourceExec}</li>
+     * </ul>
+     *
+     * <p>When no TopNExec is found, the split falls back to putting only the AggregateExec
+     * in the final plan:</p>
+     * <ul>
      *   <li>Final: {@code ExchangeSinkExec → AggregateExec(FINAL) → ExchangeSourceExec}</li>
-     *   <li>Output: {@code OutputExec → ProjectExec → TopNExec → EvalExec → ExchangeSourceExec}</li>
+     *   <li>Output: everything above the AggregateExec</li>
      * </ul>
      *
      * @return a tuple of (finalPlan, outputPlan), or null if the plan doesn't match the expected pattern
@@ -869,7 +882,7 @@ public class ComputeService {
 
         // Step 2: Walk down single-child (UnaryExec) nodes to find the AggregateExec(FINAL).
         // Collect the intermediate nodes (TopN, Eval, Project, etc.) that sit between the
-        // wrapper and the AggregateExec - these must go in the output plan, not the final plan.
+        // wrapper and the AggregateExec.
         java.util.List<UnaryExec> aboveAgg = new java.util.ArrayList<>();
         PhysicalPlan current = child;
         AggregateExec aggExec = null;
@@ -890,8 +903,55 @@ public class ComputeService {
             return null;
         }
 
-        // Step 3: Build the final plan - only the AggregateExec and its ExchangeSourceExec child,
-        // wrapped in ExchangeSinkExec. This runs per-partition.
+        // Step 3: Look for a TopNExec in the chain. If found, we can push TopN and everything
+        // below it (down to AggregateExec) into the per-partition final plan. This lets each
+        // partition independently compute its top-K rows, so the output stage only processes
+        // K * numPartitions rows instead of the full result set.
+        int topNIndex = -1;
+        for (int i = 0; i < aboveAgg.size(); i++) {
+            if (aboveAgg.get(i) instanceof TopNExec) {
+                topNIndex = i;
+                break;
+            }
+        }
+
+        if (topNIndex >= 0) {
+            // Split at TopN: push TopN and everything between it and AggregateExec into the final plan.
+            TopNExec topN = (TopNExec) aboveAgg.get(topNIndex);
+            java.util.List<UnaryExec> nodesAboveTopN = aboveAgg.subList(0, topNIndex);
+            java.util.List<UnaryExec> nodesBelowTopN = aboveAgg.subList(topNIndex + 1, aboveAgg.size());
+
+            // Build final plan: TopN → [nodes between TopN and Agg] → AggregateExec → ExchangeSourceExec
+            PhysicalPlan finalChild = (PhysicalPlan) aggExec;
+            for (int i = nodesBelowTopN.size() - 1; i >= 0; i--) {
+                finalChild = nodesBelowTopN.get(i).replaceChild(finalChild);
+            }
+            finalChild = topN.replaceChild(finalChild);
+
+            PhysicalPlan finalPlan = new ExchangeSinkExec(
+                topN.source(),
+                finalChild.output(),
+                false,
+                finalChild
+            );
+
+            // Build output plan: [nodes above TopN] → TopN (global merge) → ExchangeSourceExec
+            PhysicalPlan outputChild = new ExchangeSourceExec(
+                topN.source(),
+                finalChild.output(),
+                false
+            );
+            // Add a duplicate TopN for the global merge (now on K * numPartitions rows)
+            outputChild = topN.replaceChild(outputChild);
+            // Rebuild nodes above TopN from bottom to top
+            for (int i = nodesAboveTopN.size() - 1; i >= 0; i--) {
+                outputChild = nodesAboveTopN.get(i).replaceChild(outputChild);
+            }
+
+            return new Tuple<>(finalPlan, rewrap(wrapper, outputChild));
+        }
+
+        // No TopN found: fall back to putting only the AggregateExec in the final plan.
         PhysicalPlan finalPlan = new ExchangeSinkExec(
             aggExec.source(),
             aggExec.output(),
@@ -899,9 +959,6 @@ public class ComputeService {
             aggExec
         );
 
-        // Step 4: Build the output plan. Start with an ExchangeSourceExec that reads the
-        // aggregation output from the shared exchange, then rebuild the chain of intermediate
-        // nodes (TopN, Eval, Project, etc.) on top of it.
         PhysicalPlan outputChild = new ExchangeSourceExec(
             aggExec.source(),
             aggExec.output(),
@@ -912,17 +969,19 @@ public class ComputeService {
             outputChild = aboveAgg.get(i).replaceChild(outputChild);
         }
 
-        // Re-wrap with the outermost node
-        PhysicalPlan outputPlan;
-        if (wrapper instanceof OutputExec outputExec) {
-            outputPlan = new OutputExec(outputChild, outputExec.getPageConsumer());
-        } else if (wrapper instanceof ExchangeSinkExec sinkExec) {
-            outputPlan = new ExchangeSinkExec(sinkExec.source(), sinkExec.output(), sinkExec.isIntermediateAgg(), outputChild);
-        } else {
-            return null;
-        }
+        return new Tuple<>(finalPlan, rewrap(wrapper, outputChild));
+    }
 
-        return new Tuple<>(finalPlan, outputPlan);
+    /**
+     * Re-wraps the output child plan with the original outermost node (OutputExec or ExchangeSinkExec).
+     */
+    private static PhysicalPlan rewrap(PhysicalPlan wrapper, PhysicalPlan outputChild) {
+        if (wrapper instanceof OutputExec outputExec) {
+            return new OutputExec(outputChild, outputExec.getPageConsumer());
+        } else if (wrapper instanceof ExchangeSinkExec sinkExec) {
+            return new ExchangeSinkExec(sinkExec.source(), sinkExec.output(), sinkExec.isIntermediateAgg(), outputChild);
+        }
+        return null;
     }
 
     /**

@@ -36,8 +36,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Strings.format;
-
 /**
  * This class was created to extract out the logic from {@link Node#prepareForClose()} to facilitate testing.
  * <p>
@@ -184,25 +182,14 @@ public class ShutdownPrepareService {
                 final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
                 millisWaited += pollPeriod.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn(
-                        "timed out after waiting [{}] for [{}] {} tasks to finish",
-                        timeout.toString(),
-                        tasksRemaining.size(),
-                        taskName
-                    );
+                    logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
                     return;
                 }
-                logger.debug(format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", tasksRemaining, pollPeriod));
+                logger.debug("waiting for [{}] {} tasks to finish, next poll in [{}]", tasksRemaining.size(), taskName, pollPeriod);
                 try {
                     Thread.sleep(pollPeriod.millis());
                 } catch (InterruptedException ex) {
-                    logger.warn(
-                        format(
-                            "interrupted while waiting [%s] for [%d] " + taskName + " tasks to finish",
-                            timeout.toString(),
-                            tasksRemaining
-                        )
-                    );
+                    logger.warn("interrupted while waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
                     return;
                 }
             }

@@ -27,7 +27,7 @@ public class DefaultPipelineResolverTests extends ESTestCase {
 
     private final PipelineResolver resolver = new DefaultPipelineResolver();
 
-    public void testTsdbDoubleGaugeSelectsFpc() {
+    public void testTsdbDoubleGaugeSelectsAlp() {
         final var fieldType = createNumberFieldType("cpu.usage", NumberType.DOUBLE, MetricType.GAUGE);
         final var ctx = new PipelineResolver.FieldContext(IndexMode.TIME_SERIES, fieldType, null);
         final PipelineConfig config = resolver.resolve("cpu.usage", ctx);
@@ -35,17 +35,17 @@ public class DefaultPipelineResolverTests extends ESTestCase {
         assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.blockSize(), greaterThan(0));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
     }
 
-    public void testTsdbFloatGaugeSelectsFpc() {
+    public void testTsdbFloatGaugeSelectsAlpFloat() {
         final var fieldType = createNumberFieldType("temperature", NumberType.FLOAT, MetricType.GAUGE);
         final var ctx = new PipelineResolver.FieldContext(IndexMode.TIME_SERIES, fieldType, null);
         final PipelineConfig config = resolver.resolve("temperature", ctx);
 
         assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
     }
 
     public void testTsdbLongCounterReturnsDefault() {

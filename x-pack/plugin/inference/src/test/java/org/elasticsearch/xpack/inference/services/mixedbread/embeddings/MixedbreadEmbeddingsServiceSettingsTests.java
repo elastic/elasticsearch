@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.mixedbread.TestUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -23,27 +25,23 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
-import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 
-public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<MixedbreadEmbeddingsServiceSettings> {
+public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MixedbreadEmbeddingsServiceSettings> {
     private static final RateLimitSettings RATE_LIMIT = new RateLimitSettings(2);
     private static final int MAX_INPUT_TOKENS = 3;
 
     public static MixedbreadEmbeddingsServiceSettings createRandom() {
-        return createRandom(randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }));
-    }
-
-    public static MixedbreadEmbeddingsServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
         return new MixedbreadEmbeddingsServiceSettings(
             randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
-            randomInt(10),
-            randomFrom(SimilarityMeasure.values()),
-            randomInt(10),
-            rateLimitSettings,
+            randomNonNegativeIntOrNull(),
+            randomFrom(randomSimilarityMeasure(), null),
+            randomFrom(randomIntBetween(128, 256), null),
+            randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }),
             randomBoolean()
         );
     }
@@ -114,10 +112,20 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
     @Override
     protected MixedbreadEmbeddingsServiceSettings mutateInstance(MixedbreadEmbeddingsServiceSettings instance) throws IOException {
         var modelId = instance.modelId();
+        var uri = instance.uri();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        var similarity = instance.similarity();
         var rateLimitSettings = instance.rateLimitSettings();
-        switch (randomInt(1)) {
+        var dimensionsSetByUser = instance.dimensionsSetByUser();
+        switch (randomInt(6)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
-            case 1 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(10)));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 4 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 6 -> dimensionsSetByUser = dimensionsSetByUser == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -130,22 +138,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             rateLimitSettings,
             TestUtils.DIMENSIONS_SET_BY_USER_TRUE
         );
-    }
-
-    public static Map<String, Object> getServiceSettingsMap(String modelId) {
-        return getServiceSettingsMap(modelId, null);
-    }
-
-    public static Map<String, Object> getServiceSettingsMap(String modelId, @Nullable Integer requestsPerMinute) {
-        var map = new HashMap<String, Object>();
-
-        map.put(ServiceFields.MODEL_ID, modelId);
-
-        if (requestsPerMinute != null) {
-            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(REQUESTS_PER_MINUTE_FIELD, requestsPerMinute)));
-        }
-
-        return map;
     }
 
     public static HashMap<String, Object> getServiceSettingsMap(
@@ -180,5 +172,13 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractWireSerial
             result.put(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
         return result;
+    }
+
+    @Override
+    protected MixedbreadEmbeddingsServiceSettings mutateInstanceForVersion(
+        MixedbreadEmbeddingsServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 }

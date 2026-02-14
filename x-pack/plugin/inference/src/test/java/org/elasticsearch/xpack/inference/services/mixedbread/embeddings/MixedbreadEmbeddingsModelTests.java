@@ -101,7 +101,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
         assertThat(overriddenModel, sameInstance(model));
     }
 
-    public void testOf_SetsTopN_FromRequestTaskSettings_OverridingStoredTaskSettings() {
+    public void testOf_SetsPrompt_FromRequestTaskSettings_OverridingStoredTaskSettings() {
         var model = createModel(
             TestUtils.CUSTOM_URL,
             TestUtils.API_KEY,
@@ -129,7 +129,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
         assertThat(overriddenModel, is(expectedModel));
     }
 
-    public void testOf_SetsReturnDocuments_FromRequestTaskSettings() {
+    public void testOf_SetsNormalized_FromRequestTaskSettings() {
         var model = createModel(
             TestUtils.CUSTOM_URL,
             TestUtils.API_KEY,

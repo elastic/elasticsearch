@@ -96,14 +96,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         TaskType.RERANK,
         new MixedbreadRerankModelCreator()
     );
-    public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING,
-        InputType.INTERNAL_INGEST,
-        InputType.INTERNAL_SEARCH
-    );
 
     /**
      * Constructor for creating an {@link MixedbreadService} with specified HTTP request sender factory and service components.

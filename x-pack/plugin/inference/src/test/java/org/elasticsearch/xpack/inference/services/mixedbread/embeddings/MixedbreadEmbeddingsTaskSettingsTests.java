@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<MixedbreadEmbeddingsTaskSettings> {
     public static MixedbreadEmbeddingsTaskSettings createRandom() {
         var prompt = randomAlphaOfLengthOrNull(10);
-        var normalized = randomBoolean() ? randomBoolean() : null;
+        var normalized = randomOptionalBoolean();
 
         return new MixedbreadEmbeddingsTaskSettings(prompt, normalized);
     }
@@ -42,8 +42,18 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
 
     public void testFromMap_WithNullValues_ReturnsSettingsWithNulls() {
         var settings = MixedbreadEmbeddingsTaskSettings.fromMap(Map.of());
+        assertEmptySettings(settings);
+    }
+
+    public void testFromMap_WithNullMap_ReturnsSettingsWithNulls() {
+        var settings = MixedbreadEmbeddingsTaskSettings.fromMap(null);
+        assertEmptySettings(settings);
+    }
+
+    private void assertEmptySettings(MixedbreadEmbeddingsTaskSettings settings) {
         assertNull(settings.getPrompt());
         assertNull(settings.getNormalized());
+        assertThat(settings, is(sameInstance(MixedbreadEmbeddingsTaskSettings.EMPTY_SETTINGS)));
     }
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
@@ -52,7 +62,7 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
         assertThat(initialSettings, is(sameInstance(updatedSettings)));
     }
 
-    public void testUpdatedTaskSettings_WithNewInputType_ReturnsUpdatedSettings() {
+    public void testUpdatedTaskSettings_WithNewPrompt_ReturnsUpdatedSettings() {
         var initialSettings = new MixedbreadEmbeddingsTaskSettings(TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         Map<String, Object> newSettings = Map.of(MixedbreadUtils.PROMPT_FIELD, TestUtils.PROMPT_OVERRIDDEN_VALUE);
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);
@@ -60,7 +70,7 @@ public class MixedbreadEmbeddingsTaskSettingsTests extends AbstractWireSerializi
         assertEquals(initialSettings.getNormalized(), updatedSettings.getNormalized());
     }
 
-    public void testUpdatedTaskSettings_WithNewTruncation_ReturnsUpdatedSettings() {
+    public void testUpdatedTaskSettings_WithNewNormalized_ReturnsUpdatedSettings() {
         var initialSettings = new MixedbreadEmbeddingsTaskSettings(TestUtils.PROMPT_INITIAL_VALUE, TestUtils.NORMALIZED_INITIAL_VALUE);
         Map<String, Object> newSettings = Map.of(MixedbreadUtils.NORMALIZED_FIELD, TestUtils.NORMALIZED_OVERRIDDEN_VALUE);
         MixedbreadEmbeddingsTaskSettings updatedSettings = initialSettings.updatedTaskSettings(newSettings);

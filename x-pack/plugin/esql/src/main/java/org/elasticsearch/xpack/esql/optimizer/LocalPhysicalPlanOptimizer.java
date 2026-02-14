@@ -12,6 +12,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.CreateSideChannels;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
@@ -102,6 +103,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new SpatialDocValuesExtraction(),
             new SpatialShapeBoundsExtraction()
         );
-        return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
+
+        var sideChannels = new Batch<>("Side channels", Limiter.ONCE, new CreateSideChannels());
+
+        List<Batch<PhysicalPlan>> result = new ArrayList<>();
+        result.add(pushdown);
+        if (optimizeForEsSource) {
+            result.add(substitutionRules);
+        }
+        result.add(fieldExtraction);
+        result.add(sideChannels);
+        return result;
     }
 }

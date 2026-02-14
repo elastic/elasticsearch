@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -186,9 +187,10 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
+        CircuitBreaker globalBreaker,
         PlanTimeProfile planTimeProfile
     ) {
-        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), planTimeProfile);
+        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, globalBreaker, SearchContextStats.from(searchContexts), planTimeProfile);
     }
 
     public static PhysicalPlan localPlan(
@@ -197,12 +199,13 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
+        CircuitBreaker globalBreaker,
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, globalBreaker, searchStats)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);

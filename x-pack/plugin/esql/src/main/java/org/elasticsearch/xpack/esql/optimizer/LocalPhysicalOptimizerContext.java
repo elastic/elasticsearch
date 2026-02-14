@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -18,5 +19,6 @@ public record LocalPhysicalOptimizerContext(
     EsqlFlags flags,
     Configuration configuration,
     FoldContext foldCtx,
+    CircuitBreaker globalBreaker,
     SearchStats searchStats
 ) {}

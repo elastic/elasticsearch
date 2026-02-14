@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.SideChannel;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -68,7 +69,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private final List<QueryBuilderAndTags> queryBuilderAndTags;
 
-    private final SharedMinCompetitive.Supplier minCompetitive;
+    /**
+     * Optional {@link SideChannel} for reading information about the minimum competitive
+     * match from whatever is executing a {@link TopNExec}.
+     */
+    private final transient SharedMinCompetitive.Supplier minCompetitive;
 
     public interface Sort {
         SortBuilder<?> sortBuilder();
@@ -376,7 +381,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         );
     }
 
-    public EsQueryExec minCompetitive(SharedMinCompetitive.Supplier minCompetitive) {
+    public EsQueryExec withMinCompetitive(SharedMinCompetitive.Supplier minCompetitive) {
         return new EsQueryExec(
             source(),
             indexPattern,
@@ -390,7 +395,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         );
     }
 
-    public SharedMinCompetitive.Supplier minCompetitive() {
+    public SharedMinCompetitive.Supplier withMinCompetitive() {
         return minCompetitive;
     }
 
@@ -428,7 +433,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, attrs, limit, sorts, queryBuilderAndTags);
+        return Objects.hash(indexPattern, indexMode, attrs, limit, sorts, queryBuilderAndTags, minCompetitive);
     }
 
     @Override
@@ -448,7 +453,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             && Objects.equals(limit, other.limit)
             && Objects.equals(sorts, other.sorts)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && Objects.equals(queryBuilderAndTags, other.queryBuilderAndTags);
+            && Objects.equals(queryBuilderAndTags, other.queryBuilderAndTags)
+            && Objects.equals(minCompetitive, other.minCompetitive);
     }
 
     @Override

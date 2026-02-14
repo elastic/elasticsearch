@@ -15,64 +15,43 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.SideChannel;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.lang.ref.WeakReference;
 import java.util.List;
+
+import static org.elasticsearch.compute.operator.topn.TopNOperator.BIG_NULL;
+import static org.elasticsearch.compute.operator.topn.TopNOperator.SMALL_NULL;
 
 /**
  * A thread safe, shared holder for the min competitive value from a
  * set of {@link TopNOperator}s.
  */
 public class SharedMinCompetitive extends SideChannel {
+    public record KeyConfig(ElementType elementType, TopNEncoder encoder, boolean asc, boolean nullsFirst) {}
+
     public static class Supplier extends SideChannel.Supplier<SharedMinCompetitive> {
         private final CircuitBreaker breaker;
-        private final List<ElementType> elementTypes;
-        private final List<TopNEncoder> encoders;
-        private final List<TopNOperator.SortOrder> sortOrders;
-        private SharedMinCompetitive minCompetitive;
+        private final List<KeyConfig> keyConfig;
 
-        public Supplier(
-            CircuitBreaker breaker,
-            List<ElementType> elementTypes,
-            List<TopNEncoder> encoders,
-            List<TopNOperator.SortOrder> sortOrders
-        ) {
+        public Supplier(CircuitBreaker breaker, List<KeyConfig> keyConfig) {
             this.breaker = breaker;
-            this.elementTypes = elementTypes;
-            this.encoders = encoders;
-            this.sortOrders = sortOrders;
+            this.keyConfig = keyConfig;
         }
 
         @Override
         protected SharedMinCompetitive build() {
-            return new SharedMinCompetitive(breaker, elementTypes, encoders, sortOrders, this);
+            return new SharedMinCompetitive(breaker, keyConfig, this);
         }
     }
 
     private final BreakingBytesRefBuilder value;
-    private final List<ElementType> elementTypes;
-    private final List<TopNEncoder> encoders;
-    private final List<TopNOperator.SortOrder> sortOrders;
-    private final Supplier supplier;
+    private final List<KeyConfig> keyConfig;
 
-    private SharedMinCompetitive(
-        CircuitBreaker breaker,
-        List<ElementType> elementTypes,
-        List<TopNEncoder> encoders,
-        List<TopNOperator.SortOrder> sortOrders,
-        Supplier supplier
-    ) {
+    private SharedMinCompetitive(CircuitBreaker breaker, List<KeyConfig> keyConfig, Supplier supplier) {
         super(supplier);
         this.value = new BreakingBytesRefBuilder(breaker, "min_competitive");
-        this.elementTypes = elementTypes;
-        this.encoders = encoders;
-        this.sortOrders = sortOrders;
-        this.supplier = supplier;
+        this.keyConfig = keyConfig;
     }
 
     /**
@@ -107,16 +86,14 @@ public class SharedMinCompetitive extends SideChannel {
                 }
                 copy.append(value.bytesRefView());
             }
-            ResultBuilder[] builders = new ResultBuilder[sortOrders.size()];
+            ResultBuilder[] builders = new ResultBuilder[keyConfig.size()];
             BytesRef shallow = copy.bytesRefView();
             try {
                 for (int i = 0; i < builders.length; i++) {
-                    TopNOperator.SortOrder sortOrder = sortOrders.get(i);
-                    TopNEncoder encoder = encoders.get(sortOrder.channel());
-                    ElementType elementType = elementTypes.get(sortOrder.channel());
-                    ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, elementType, encoder, true, 1);
+                    KeyConfig config = keyConfig.get(i);
+                    ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, config.elementType, config.encoder, true, 1);
                     builders[i] = builder;
-                    if (shallow.bytes[shallow.offset] == sortOrder.nul()) {
+                    if (shallow.bytes[shallow.offset] == (config.nullsFirst ? SMALL_NULL : BIG_NULL)) {
                         builder.decodeValue(new BytesRef(new byte[] { 0 }));
                         shallow.offset += 1;
                         shallow.length -= 1;
@@ -124,7 +101,7 @@ public class SharedMinCompetitive extends SideChannel {
                     }
                     shallow.offset += 1;
                     shallow.length -= 1;
-                    builder.decodeKey(shallow, sortOrder.asc());
+                    builder.decodeKey(shallow, config.asc());
                     builder.decodeValue(new BytesRef(new byte[] { 1 }));
                 }
                 return new Page(ResultBuilder.buildAll(builders));

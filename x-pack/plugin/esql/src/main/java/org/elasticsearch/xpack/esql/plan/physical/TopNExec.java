@@ -8,12 +8,19 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.SideChannel;
+import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,6 +65,10 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     private final InputOrdering inputOrdering;
 
+    /**
+     * Optional {@link SideChannel} for passing information about the minimum competitive
+     * match back to the source operator.
+     */
     @Nullable
     private final transient SharedMinCompetitive.Supplier minCompetitive;
 
@@ -155,6 +167,23 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         );
     }
 
+    public SharedMinCompetitive.Supplier minCompetitive() {
+        return minCompetitive;
+    }
+
+    public List<SharedMinCompetitive.KeyConfig> minCompetitiveKeyConfig() {
+        return order.stream()
+            .map(
+                o -> new SharedMinCompetitive.KeyConfig(
+                    keyElementType(o.child().dataType()),
+                    keyEncoder(o.child().dataType()),
+                    o.direction() == Order.OrderDirection.ASC,
+                    o.nullsPosition() == Order.NullsPosition.FIRST
+                )
+            )
+            .toList();
+    }
+
     public TopNExec withMinCompetitive(SharedMinCompetitive.Supplier minCompetitive) {
         return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
     }
@@ -193,7 +222,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering);
+        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
     }
 
     @Override
@@ -205,12 +234,28 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(limit, other.limit)
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize)
                 && Objects.equals(docValuesAttributes, other.docValuesAttributes)
-                && Objects.equals(inputOrdering, other.inputOrdering);
+                && Objects.equals(inputOrdering, other.inputOrdering)
+                && Objects.equals(minCompetitive, other.minCompetitive);
         }
         return equals;
     }
 
     public InputOrdering inputOrdering() {
         return inputOrdering;
+    }
+
+    private static ElementType keyElementType(DataType type) {
+        return PlannerUtils.toElementType(type, MappedFieldType.FieldExtractPreference.NONE);
+    }
+
+    private static TopNEncoder keyEncoder(DataType type) {
+        return switch (type) {
+            case IP -> TopNEncoder.IP;
+            case TEXT, KEYWORD -> TopNEncoder.UTF8;
+            case VERSION -> TopNEncoder.VERSION;
+            case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
+                OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
+            default -> null;
+        };
     }
 }

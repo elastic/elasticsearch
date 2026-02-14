@@ -246,7 +246,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         int limit,
         Limiter limiter,
         boolean needsScore,
-        SharedMinCompetitive minCompetitive
+        @Nullable SharedMinCompetitive minCompetitive
     ) {
         super(refCounteds, blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
@@ -259,10 +259,10 @@ public class LuceneSourceOperator extends LuceneOperator {
             this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             if (needsScore) {
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
-                this.leafCollector = new ScoringCollector();
+                this.leafCollector = new ScoringCollector(minCompetitive);
             } else {
                 scoreBuilder = null;
-                this.leafCollector = new LimitingCollector();
+                this.leafCollector = new LimitingCollector(minCompetitive);
             }
             success = true;
         } finally {
@@ -273,6 +273,12 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     class LimitingCollector implements LeafCollector {
+        private final SharedMinCompetitive minCompetitive;
+
+        LimitingCollector(SharedMinCompetitive minCompetitive) {
+            this.minCompetitive = minCompetitive;
+        }
+
         @Override
         public void setScorer(Scorable scorer) {}
 
@@ -289,12 +295,21 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public DocIdSetIterator competitiveIterator() throws IOException {
+            if (minCompetitive == null) {
+                return null;
+            }
+            Page min = minCompetitive.get(blockFactory);
+            System.err.println("nocommit " + min);
             return LeafCollector.super.competitiveIterator();
         }
     }
 
     final class ScoringCollector extends LuceneSourceOperator.LimitingCollector {
         private Scorable scorable;
+
+        ScoringCollector(SharedMinCompetitive minCompetitive) {
+            super(minCompetitive);
+        }
 
         @Override
         public void setScorer(Scorable scorer) {

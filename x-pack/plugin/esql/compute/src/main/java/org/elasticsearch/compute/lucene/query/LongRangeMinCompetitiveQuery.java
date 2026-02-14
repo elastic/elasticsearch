@@ -28,7 +28,8 @@ public class LongRangeMinCompetitiveQuery {
         this.minCompetitive = minCompetitive;
     }
 
-    public DocIdSetIterator disi(SearchExecutionContext ctx, MappedFieldType ft, LeafReaderContext leaf, boolean nullsFirst) throws IOException {
+    public DocIdSetIterator disi(SearchExecutionContext ctx, MappedFieldType ft, LeafReaderContext leaf, boolean nullsFirst)
+        throws IOException {
         Page page = minCompetitive.get(blockFactory);
         if (page == null) {
             return DocIdSetIterator.all(leaf.reader().maxDoc());

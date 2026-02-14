@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -702,6 +703,7 @@ public class ComputeService {
                     context.configuration(),
                     context.foldCtx(),
                     plan,
+                    globalBreaker(),
                     planTimeProfile
                 );
                 case DISABLED -> plan;
@@ -790,6 +792,7 @@ public class ComputeService {
         ExchangeSinkExec originalPlan,
         boolean runNodeLevelReduction,
         boolean reduceNodeLateMaterialization,
+        CircuitBreaker globalBreaker,
         PlanTimeProfile planTimeProfile
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
@@ -811,7 +814,7 @@ public class ComputeService {
                 // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
                 // aggregations, we also need the original plan, since we add the project in the reduction node.
                 LateMaterializationPlanner.planReduceDriverTopN(
-                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
+                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, globalBreaker, stats),
                     originalPlan
                 )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
@@ -854,6 +857,10 @@ public class ComputeService {
 
     public EsqlFlags createFlags() {
         return new EsqlFlags(clusterService.getClusterSettings());
+    }
+
+    public CircuitBreaker globalBreaker() {
+        return blockFactory.breaker();
     }
 
     private static class ComputeGroupTaskRequest extends AbstractTransportRequest {

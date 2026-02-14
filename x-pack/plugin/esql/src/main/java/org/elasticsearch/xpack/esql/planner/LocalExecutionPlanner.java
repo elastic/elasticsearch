@@ -535,7 +535,7 @@ public class LocalExecutionPlanner {
                 orders,
                 context.pageSize(topNExec, rowSize),
                 topNExec.inputOrdering(),
-                null
+                topNExec.minCompetitive()
             ),
             source.layout
         );

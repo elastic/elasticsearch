@@ -43,8 +43,8 @@ import java.util.Objects;
  * as valid bytes inside a binary value.
  */
 public class TopNOperator implements Operator, Accountable {
-    private static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
-    private static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
+    static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
+    static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
 
     public enum InputOrdering {
         SORTED,

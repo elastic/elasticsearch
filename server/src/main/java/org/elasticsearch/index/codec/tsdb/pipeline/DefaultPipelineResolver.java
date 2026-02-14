@@ -59,43 +59,92 @@ public final class DefaultPipelineResolver implements PipelineResolver {
 
     @Nullable
     private PipelineConfig resolveForTimeSeries(final String fieldName, final FieldContext context) {
-        final MappedFieldType fieldType = context.fieldType();
-        final String typeName = fieldType.typeName();
-        final MetricType metricType = extractMetricType(fieldType);
-        if (metricType == MetricType.GAUGE && "double".equals(typeName)) {
-            if (context.hint() == OptimizeFor.STORAGE) {
-                return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_STORAGE).offset().gcd().bitPack();
-            }
-            if (context.hint() == OptimizeFor.BALANCED) {
-                return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_BALANCED).offset().gcd().bitPack();
-            }
-            if (context.hint() == OptimizeFor.SPEED) {
-                return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).xor().patchedPFor().bitPack();
-            }
-            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_STORAGE).offset().gcd().bitPack();
+        if ("@timestamp".equals(fieldName)) {
+            return resolveTimestamp(TSDB_BLOCK_SIZE);
         }
-        if (metricType == MetricType.GAUGE && "float".equals(typeName)) {
-            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
+        final MetricType metricType = extractMetricType(context.fieldType());
+        final String typeName = context.fieldType().typeName();
+        if (metricType == MetricType.GAUGE) {
+            return resolveGauge(typeName, context.hint());
         }
-        if (metricType == MetricType.COUNTER && "double".equals(typeName)) {
-            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
-        }
-        if (metricType == MetricType.COUNTER && "float".equals(typeName)) {
-            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
+        if (metricType == MetricType.COUNTER) {
+            return resolveCounter(typeName, context.hint());
         }
         return null;
     }
 
     @Nullable
-    private PipelineConfig resolveForLogsDb(final String fieldName, final FieldContext context) {
-        final String typeName = context.fieldType().typeName();
+    private static PipelineConfig resolveGauge(final String typeName, final OptimizeFor hint) {
         if ("double".equals(typeName)) {
-            return PipelineConfig.forDoubles(LOGSDB_BLOCK_SIZE).alpDoubleStage().offset().gcd().bitPack();
+            return resolveDoubleGauge(hint);
         }
         if ("float".equals(typeName)) {
-            return PipelineConfig.forFloats(LOGSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
+            return resolveFloatGauge();
         }
         return null;
+    }
+
+    private static PipelineConfig resolveDoubleGauge(final OptimizeFor hint) {
+        if (hint == OptimizeFor.SPEED) {
+            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).xor().patchedPFor().bitPack();
+        }
+        if (hint == OptimizeFor.BALANCED) {
+            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_BALANCED).offset().gcd().bitPack();
+        }
+        return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_STORAGE).offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig resolveFloatGauge() {
+        return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
+    }
+
+    @Nullable
+    private static PipelineConfig resolveCounter(final String typeName, final OptimizeFor hint) {
+        if ("double".equals(typeName)) {
+            return resolveDoubleCounter(hint);
+        }
+        if ("float".equals(typeName)) {
+            return resolveFloatCounter();
+        }
+        return null;
+    }
+
+    private static PipelineConfig resolveDoubleCounter(final OptimizeFor hint) {
+        if (hint == OptimizeFor.STORAGE) {
+            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).gorilla();
+        }
+        return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig resolveFloatCounter() {
+        return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
+    }
+
+    @Nullable
+    private PipelineConfig resolveForLogsDb(final String fieldName, final FieldContext context) {
+        if ("@timestamp".equals(fieldName)) {
+            return resolveTimestamp(LOGSDB_BLOCK_SIZE);
+        }
+        final String typeName = context.fieldType().typeName();
+        if ("double".equals(typeName)) {
+            return resolveLogsDbDouble();
+        }
+        if ("float".equals(typeName)) {
+            return resolveLogsDbFloat();
+        }
+        return null;
+    }
+
+    private static PipelineConfig resolveLogsDbDouble() {
+        return PipelineConfig.forDoubles(LOGSDB_BLOCK_SIZE).alpDoubleStage().offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig resolveLogsDbFloat() {
+        return PipelineConfig.forFloats(LOGSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig resolveTimestamp(int blockSize) {
+        return PipelineConfig.forLongs(blockSize).deltaDelta().offset().gcd().bitPack();
     }
 
     @Nullable

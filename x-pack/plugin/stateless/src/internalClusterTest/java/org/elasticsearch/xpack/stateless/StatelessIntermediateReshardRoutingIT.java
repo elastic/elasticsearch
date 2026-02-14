@@ -363,7 +363,15 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
         indexDocs(indexName, initialDocs);
         flush(indexName);
 
-        String coordinatingNode = startIndexNode();
+        String coordinatingNode = startSearchNode();
+        // use a coordinator-only node to avoid inadvertently blocking transport thread
+        // for shard-to-shard requests during resharding
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinatingNode))
+            .get();
+
         ensureStableCluster(4);
 
         final var SHARD_REPLICATION_ACTION = getActionName(actionType);

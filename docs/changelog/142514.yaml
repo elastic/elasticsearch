@@ -1,0 +1,6 @@
+area: Vector Search
+issues: []
+pr: 142514
+summary: Fix AVX-512 fpclass mask to classify negative infinity as negative in MIP
+  scoring
+type: bug

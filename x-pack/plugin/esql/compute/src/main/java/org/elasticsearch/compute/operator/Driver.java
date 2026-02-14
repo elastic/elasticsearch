@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A driver operates single-threadedly on a simple chain of {@link Operator}s, passing
@@ -91,9 +92,6 @@ public class Driver implements Releasable, Describable {
     private final AtomicBoolean started = new AtomicBoolean();
     private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
     private final DriverScheduler scheduler = new DriverScheduler();
-    /** Reusable list to collect blocked results, avoiding new allocation on every driver loop. */
-    private final List<IsBlockedResult> blockedResults = new ArrayList<>();
-
     /**
      * Status reported to the tasks API. We write the status at most once every
      * {@link #statusNanos}, as soon as loop has finished and after {@link #statusNanos}
@@ -324,9 +322,12 @@ public class Driver implements Releasable, Describable {
         closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
 
         if (movedPage == false) {
-            blockedResults.clear();
-            activeOperators.stream().map(Operator::isBlocked).filter(laf -> laf.listener().isDone() == false).forEach(blockedResults::add);
-            IsBlockedResult result = oneOf(blockedResults);
+            IsBlockedResult result = oneOf(
+                activeOperators.stream()
+                    .map(Operator::isBlocked)
+                    .filter(laf -> laf.listener().isDone() == false)
+                    .collect(Collectors.toList())
+            );
             onNoPagesMoved();
             return result;
         }

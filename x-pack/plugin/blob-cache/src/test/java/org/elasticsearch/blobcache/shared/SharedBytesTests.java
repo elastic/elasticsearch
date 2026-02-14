@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -18,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -163,7 +163,7 @@ public class SharedBytesTests extends ESTestCase {
             // If mmap buffers were not properly unmapped, the deleted cache file would still
             // appear as a "(deleted)" entry in /proc/self/maps, and the kernel would continue
             // to hold the file's disk blocks allocated until the mapping is released.
-            try (var lines = Files.lines(Path.of("/proc/self/maps"))) {
+            try (var lines = Files.lines(PathUtils.get("/proc/self/maps"))) {
                 var leakedMappings = lines.filter(line -> line.contains("shared_snapshot_cache")).toList();
                 assertEquals(
                     "Found leaked memory-mapped regions for shared_snapshot_cache in /proc/self/maps after closing "

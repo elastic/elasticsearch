@@ -13,8 +13,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
+
+import java.util.List;
 
 /**
  * Operator is low-level building block that consumes, transforms and produces data.

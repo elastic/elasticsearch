@@ -243,7 +243,9 @@ public class TopNOperator implements Operator, Accountable {
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitive
     ) implements OperatorFactory {
-        public TopNOperatorFactory {
+        public TopNOperatorFactory
+
+        {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");
@@ -262,7 +264,7 @@ public class TopNOperator implements Operator, Accountable {
                 sortOrders,
                 maxPageSize,
                 inputOrdering,
-                minCompetitive == null ? null : minCompetitive.get()
+                minCompetitive
             );
         }
 
@@ -340,17 +342,29 @@ public class TopNOperator implements Operator, Accountable {
         List<SortOrder> sortOrders,
         int maxPageSize,
         InputOrdering inputOrdering,
-        @Nullable SharedMinCompetitive minCompetitive
+        @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier
     ) {
+        Queue inputQueue = null;
+        SharedMinCompetitive minCompetitive = null;
+        boolean success = false;
+        try {
+            inputQueue = Queue.build(breaker, topCount);
+            minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(inputQueue, minCompetitive);
+            }
+        }
+        this.inputQueue = inputQueue;
+        this.minCompetitive = minCompetitive;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageSize = maxPageSize;
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = Queue.build(breaker, topCount);
         this.inputOrdering = inputOrdering;
-        this.minCompetitive = minCompetitive;
         this.channelInKey = new boolean[elementTypes.size()];
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;

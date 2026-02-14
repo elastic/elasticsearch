@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
@@ -104,6 +107,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.not;
 
+@Repeat(iterations = 10)
 public class TopNOperatorTests extends OperatorTestCase {
     private final int pageSize = randomPageSize();
     // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
@@ -148,14 +152,20 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     @Override
     protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
+        List<ElementType> elementTypes = List.of(LONG);
+        List<TopNEncoder> encoders = List.of(DEFAULT_UNSORTABLE);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false));
+        SharedMinCompetitive.Supplier minCompetitive = randomBoolean()
+            ? null
+            : new SharedMinCompetitive.Supplier(blockFactory().breaker(), elementTypes, encoders, sortOrders);
         return new TopNOperator.TopNOperatorFactory(
             4,
-            List.of(LONG),
-            List.of(DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, true, false)),
+            elementTypes,
+            encoders,
+            sortOrders,
             pageSize,
             InputOrdering.NOT_SORTED,
-            null
+            minCompetitive
         );
     }
 
@@ -1513,112 +1523,124 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
         List<TopNOperator.SortOrder> sortOrders = uniqueOrders.stream().toList();
         NaiveTopNComparator comparator = new NaiveTopNComparator(sortOrders);
-        SharedMinCompetitive minCompetitive = randomBoolean()
-            ? new SharedMinCompetitive(blockFactory().breaker(), elementTypes, encoders, sortOrders)
+        SharedMinCompetitive.Supplier minCompetitiveSupplier = randomBoolean()
+            ? new SharedMinCompetitive.Supplier(blockFactory().breaker(), elementTypes, encoders, sortOrders)
             : null;
+        SharedMinCompetitive minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
 
-        TopNOperator operator = new TopNOperator(
-            driverContext.blockFactory(),
-            nonBreakingBigArrays().breakerService().getBreaker("request"),
-            topCount,
-            elementTypes,
-            encoders,
-            uniqueOrders.stream().toList(),
-            rowsPerPage,
-            InputOrdering.NOT_SORTED,
-            minCompetitive
-        );
-        for (int p = 0; p < pageCount; p++) {
-            assertThat(operator.needsInput(), equalTo(true));
-            assertThat(operator.isFinished(), equalTo(false));
-            assertThat(operator.getOutput(), nullValue());
+        try (
+            TopNOperator operator = new TopNOperator(
+                driverContext.blockFactory(),
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                topCount,
+                elementTypes,
+                encoders,
+                sortOrders,
+                rowsPerPage,
+                InputOrdering.NOT_SORTED,
+                minCompetitiveSupplier
+            )
+        ) {
+            for (int p = 0; p < pageCount; p++) {
+                assertThat(operator.needsInput(), equalTo(true));
+                assertThat(operator.isFinished(), equalTo(false));
+                assertThat(operator.getOutput(), nullValue());
 
-            for (int r = 0; r < rowsPerPage; r++) {
-                expectedValues.add(new ArrayList<>(blocksCount));
-            }
-            Block[] blocks = new Block[blocksCount];
-            for (int b = 0; b < blocksCount; b++) {
-                ElementType elementType = elementTypes.get(b);
-                try (Block.Builder builder = elementType.newBlockBuilder(rowsPerPage, driverContext().blockFactory())) {
-                    List<Object> previousValue = null;
+                for (int r = 0; r < rowsPerPage; r++) {
+                    expectedValues.add(new ArrayList<>(blocksCount));
+                }
+                Block[] blocks = new Block[blocksCount];
+                for (int b = 0; b < blocksCount; b++) {
+                    ElementType elementType = elementTypes.get(b);
+                    try (Block.Builder builder = elementType.newBlockBuilder(rowsPerPage, driverContext().blockFactory())) {
+                        List<Object> previousValue = null;
 
-                    for (int r = 0; r < rowsPerPage; r++) {
-                        List<Object> values = new ArrayList<>();
-                        // let's make things a bit more real for this TopN sorting: have some "equal" values in different rows for the same
-                        // block
-                        if (rarely() && previousValue != null) {
-                            values = previousValue;
-                        } else {
-                            if (elementType != ElementType.NULL && randomBoolean()) {
-                                // generate a multi-value block
-                                int mvCount = randomIntBetween(5, 10);
-                                for (int j = 0; j < mvCount; j++) {
+                        for (int r = 0; r < rowsPerPage; r++) {
+                            List<Object> values = new ArrayList<>();
+                            // let's make things a bit more real for this TopN sorting: have some "equal" values in different rows for the
+                            // same
+                            // block
+                            if (rarely() && previousValue != null) {
+                                values = previousValue;
+                            } else {
+                                if (elementType != ElementType.NULL && randomBoolean()) {
+                                    // generate a multi-value block
+                                    int mvCount = randomIntBetween(5, 10);
+                                    for (int j = 0; j < mvCount; j++) {
+                                        Object value = randomValueSuppliers.get(b).get();
+                                        values.add(value);
+                                    }
+                                } else {// null or single-valued value
                                     Object value = randomValueSuppliers.get(b).get();
                                     values.add(value);
                                 }
-                            } else {// null or single-valued value
-                                Object value = randomValueSuppliers.get(b).get();
-                                values.add(value);
+
+                                if (usually() && randomBoolean()) {
+                                    // let's remember the "previous" value, maybe we'll use it again in a different row
+                                    previousValue = values;
+                                }
                             }
 
-                            if (usually() && randomBoolean()) {
-                                // let's remember the "previous" value, maybe we'll use it again in a different row
-                                previousValue = values;
+                            if (values.size() == 1) {
+                                append(builder, values.get(0));
+                            } else {
+                                builder.beginPositionEntry();
+                                for (Object o : values) {
+                                    append(builder, o);
+                                }
+                                builder.endPositionEntry();
                             }
-                        }
 
-                        if (values.size() == 1) {
-                            append(builder, values.get(0));
-                        } else {
-                            builder.beginPositionEntry();
-                            for (Object o : values) {
-                                append(builder, o);
-                            }
-                            builder.endPositionEntry();
+                            expectedValues.get(p * rowsPerPage + r).add(values);
                         }
-
-                        expectedValues.get(p * rowsPerPage + r).add(values);
-                    }
-                    blocks[b] = builder.build();
-                }
-            }
-            operator.addInput(new Page(blocks));
-
-            if (minCompetitive != null) {
-                if ((p + 1) * rowsPerPage < topCount) {
-                    assertThat(minCompetitive.get(blockFactory()), nullValue());
-                } else {
-                    List<List<Object>> minCompetitiveRow = expectedValues.stream().sorted(comparator).skip(topCount - 1).findFirst().get();
-                    try (Page min = minCompetitive.get(blockFactory())) {
-                        assertThat(min.getBlockCount(), equalTo(sortOrders.size()));
-                        for (int s = 0; s < min.getBlockCount(); s++) {
-                            logger.info("checking key {}", s);
-                            TopNOperator.SortOrder sort = sortOrders.get(s);
-                            Object actual = BlockUtils.toJavaObject(min.getBlock(s), 0);
-                            Object expected = reduceKey(minCompetitiveRow.get(sort.channel()), sort.asc());
-                            assertThat(actual, equalTo(expected));
-                        }
+                        blocks[b] = builder.build();
                     }
                 }
+                operator.addInput(new Page(blocks));
+
+                if (minCompetitive != null) {
+                    if ((p + 1) * rowsPerPage < topCount) {
+                        assertThat(minCompetitive.get(blockFactory()), nullValue());
+                    } else {
+                        List<List<Object>> minCompetitiveRow = expectedValues.stream()
+                            .sorted(comparator)
+                            .skip(topCount - 1)
+                            .findFirst()
+                            .get();
+                        try (Page min = minCompetitive.get(blockFactory())) {
+                            assertThat(min.getBlockCount(), equalTo(sortOrders.size()));
+                            for (int s = 0; s < min.getBlockCount(); s++) {
+                                logger.info("checking key {}", s);
+                                TopNOperator.SortOrder sort = sortOrders.get(s);
+                                Object actual = BlockUtils.toJavaObject(min.getBlock(s), 0);
+                                System.err.println("adsf " + minCompetitiveRow.get(sort.channel()));
+                                Object expected = reduceKey(minCompetitiveRow.get(sort.channel()), sort.asc());
+                                assertThat(actual, equalTo(expected));
+                            }
+                        }
+                    }
+                }
             }
-        }
-        operator.finish();
-        assertThat(operator.needsInput(), equalTo(false));
-        assertThat(operator.isFinished(), equalTo(false));
+            operator.finish();
+            assertThat(operator.needsInput(), equalTo(false));
+            assertThat(operator.isFinished(), equalTo(false));
 
-        List<List<List<Object>>> actualValues = new ArrayList<>();
-        while (operator.isFinished() == false) {
-            try (Page p = operator.getOutput()) {
-                readAsRows(actualValues, p);
-                assertThat(operator.needsInput(), equalTo(false));
+            List<List<List<Object>>> actualValues = new ArrayList<>();
+            while (operator.isFinished() == false) {
+                try (Page p = operator.getOutput()) {
+                    readAsRows(actualValues, p);
+                    assertThat(operator.needsInput(), equalTo(false));
+                }
             }
+
+            List<List<List<Object>>> topNExpectedValues = expectedValues.stream().sorted(comparator).limit(topCount).toList();
+            List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
+            List<List<Object>> expectedReducedValues = extractAndReduceSortedValues(topNExpectedValues, uniqueOrders);
+
+            assertMap(actualReducedValues, matchesList(expectedReducedValues));
+        } finally {
+            Releasables.close(minCompetitive);
         }
-
-        List<List<List<Object>>> topNExpectedValues = expectedValues.stream().sorted(comparator).limit(topCount).toList();
-        List<List<Object>> actualReducedValues = extractAndReduceSortedValues(actualValues, uniqueOrders);
-        List<List<Object>> expectedReducedValues = extractAndReduceSortedValues(topNExpectedValues, uniqueOrders);
-
-        assertMap(actualReducedValues, matchesList(expectedReducedValues));
     }
 
     public void testIPSortingSingleValue() throws UnknownHostException {

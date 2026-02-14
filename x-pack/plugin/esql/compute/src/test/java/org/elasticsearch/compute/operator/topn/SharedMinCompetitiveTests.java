@@ -98,12 +98,12 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
     }
 
     private SharedMinCompetitive longMinCompetitive() {
-        return new SharedMinCompetitive(
+        return new SharedMinCompetitive.Supplier(
             blockFactory().breaker(),
             List.of(ElementType.LONG),
             List.of(TopNEncoder.DEFAULT_UNSORTABLE),
             List.of(longSortOrder())
-        );
+        ).get();
     }
 
     private void offerLong(CircuitBreaker breaker, SharedMinCompetitive minCompetitive, long l) {

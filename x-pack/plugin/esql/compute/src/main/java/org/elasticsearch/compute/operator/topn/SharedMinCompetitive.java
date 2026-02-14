@@ -21,14 +21,15 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 /**
  * A thread safe, shared holder for the min competitive value from a
  * set of {@link TopNOperator}s.
  */
-public class SharedMinCompetitive extends AbstractRefCounted implements Releasable, RefCounted, SideChannel {
-    public static class Supplier {
+public class SharedMinCompetitive extends SideChannel {
+    public static class Supplier extends SideChannel.Supplier<SharedMinCompetitive> {
         private final CircuitBreaker breaker;
         private final List<ElementType> elementTypes;
         private final List<TopNEncoder> encoders;
@@ -47,13 +48,9 @@ public class SharedMinCompetitive extends AbstractRefCounted implements Releasab
             this.sortOrders = sortOrders;
         }
 
-        public SharedMinCompetitive get() {
-            if (minCompetitive == null) {
-                minCompetitive = new SharedMinCompetitive(breaker, elementTypes, encoders, sortOrders);
-            } else {
-                minCompetitive.incRef();
-            }
-            return minCompetitive;
+        @Override
+        protected SharedMinCompetitive build() {
+            return new SharedMinCompetitive(breaker, elementTypes, encoders, sortOrders, this);
         }
     }
 
@@ -61,17 +58,21 @@ public class SharedMinCompetitive extends AbstractRefCounted implements Releasab
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<TopNOperator.SortOrder> sortOrders;
+    private final Supplier supplier;
 
-    SharedMinCompetitive(
+    private SharedMinCompetitive(
         CircuitBreaker breaker,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
-        List<TopNOperator.SortOrder> sortOrders
+        List<TopNOperator.SortOrder> sortOrders,
+        Supplier supplier
     ) {
+        super(supplier);
         this.value = new BreakingBytesRefBuilder(breaker, "min_competitive");
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
+        this.supplier = supplier;
     }
 
     /**
@@ -79,11 +80,11 @@ public class SharedMinCompetitive extends AbstractRefCounted implements Releasab
      * @param minCompetitive if it is accepted then the bytes are copied
      */
     public void offer(BytesRef minCompetitive) {
-        if (value.bytesRefView().compareTo(minCompetitive) >= 0) {
+        if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {
             return;
         }
         synchronized (value) {
-            if (value.bytesRefView().compareTo(minCompetitive) >= 0) {
+            if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {
                 return;
             }
             value.clear();
@@ -111,8 +112,8 @@ public class SharedMinCompetitive extends AbstractRefCounted implements Releasab
             try {
                 for (int i = 0; i < builders.length; i++) {
                     TopNOperator.SortOrder sortOrder = sortOrders.get(i);
-                    TopNEncoder encoder = encoders.get(i);
-                    ElementType elementType = elementTypes.get(i);
+                    TopNEncoder encoder = encoders.get(sortOrder.channel());
+                    ElementType elementType = elementTypes.get(sortOrder.channel());
                     ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, elementType, encoder, true, 1);
                     builders[i] = builder;
                     if (shallow.bytes[shallow.offset] == sortOrder.nul()) {
@@ -134,12 +135,7 @@ public class SharedMinCompetitive extends AbstractRefCounted implements Releasab
     }
 
     @Override
-    public void close() {
-        decRef();
-    }
-
-    @Override
-    protected void closeInternal() {
+    protected void closeSideChannel() {
         value.close();
     }
 }

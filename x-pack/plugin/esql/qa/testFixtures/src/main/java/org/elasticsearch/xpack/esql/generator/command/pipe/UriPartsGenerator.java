@@ -30,7 +30,6 @@ public class UriPartsGenerator implements CommandGenerator {
      */
     private static final String PREFIX = "prefix";
 
-
     /**
      * Valid literal URIs used so that at least some generated commands parse real URIs (happy path).
      */

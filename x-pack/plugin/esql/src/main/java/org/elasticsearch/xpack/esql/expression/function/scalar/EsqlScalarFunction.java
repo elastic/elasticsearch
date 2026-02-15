@@ -108,7 +108,7 @@ import java.util.List;
  *     filters have to be pushable to lucene and lucene has to know how to run the function
  *     natively. See {@link PushTopNToSource}.
  * </p>
- * <h3>{@code ET}: Engine TopN (<strong>HYPOTHETICAL</strong>)</h3>
+ * <h3>{@code ET}: Engine TopN</h3>
  * <pre>{@code
  *     FROM index METADATA _score
  *   | WHERE title:"cat"
@@ -123,6 +123,7 @@ import java.util.List;
  *     the {@code LT} but without as many limitations. Lucene has a 20-year head start on us
  *     optimizing TopN, so we should continue to use them when
  *     See <a href="https://github.com/elastic/elasticsearch/issues/136267">issue</a>.
+ *     NOCOMMIT link to how to build this
  * </p>
  * <h3>{@code BL}: Push to {@link BlockLoader}</h3>
  * <pre>{@code

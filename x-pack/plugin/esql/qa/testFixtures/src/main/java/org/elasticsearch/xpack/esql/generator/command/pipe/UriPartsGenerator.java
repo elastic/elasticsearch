@@ -7,17 +7,13 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -34,18 +30,6 @@ public class UriPartsGenerator implements CommandGenerator {
      */
     private static final String PREFIX = "prefix";
 
-    /**
-     * Expected URI_PARTS output field names and their ES|QL types. Computed once from
-     * {@link UriPartsFunctionBridge#getAllOutputFields()} and {@link DataType#fromJavaType}.
-     */
-    private static final LinkedHashMap<String, String> URI_PARTS_OUTPUT_FIELDS;
-    static {
-        LinkedHashMap<String, Class<?>> outputFields = UriPartsFunctionBridge.getAllOutputFields();
-        URI_PARTS_OUTPUT_FIELDS = new LinkedHashMap<>(outputFields.size());
-        for (Map.Entry<String, Class<?>> e : outputFields.entrySet()) {
-            URI_PARTS_OUTPUT_FIELDS.putLast(e.getKey(), Objects.requireNonNull(DataType.fromJavaType(e.getValue())).typeName());
-        }
-    }
 
     /**
      * Valid literal URIs used so that at least some generated commands parse real URIs (happy path).
@@ -125,79 +109,9 @@ public class UriPartsGenerator implements CommandGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-
-        String prefix = (String) commandDescription.context().get(PREFIX);
-        if (prefix == null) {
-            return new ValidationResult(false, "Missing prefix in command context");
+        if (previousColumns.size() > columns.size()) {
+            return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
-
-        int expectedUriPartsColumns = URI_PARTS_OUTPUT_FIELDS.size();
-        int expectedTotal = previousColumns.size() + expectedUriPartsColumns;
-        if (columns.size() != expectedTotal) {
-            return new ValidationResult(
-                false,
-                "Expecting ["
-                    + expectedTotal
-                    + "] columns ("
-                    + previousColumns.size()
-                    + " previous + "
-                    + expectedUriPartsColumns
-                    + " URI_PARTS), got ["
-                    + columns.size()
-                    + "]"
-            );
-        }
-
-        var it = columns.iterator();
-        int pos = 0;
-
-        // Previous columns must appear first, in order, with the same name and type
-        for (Column prev : previousColumns) {
-            if (it.hasNext() == false) {
-                return new ValidationResult(false, "Missing previous column [" + prev.name() + "] in output");
-            }
-            Column actual = it.next();
-            pos++;
-            if (actual.name().equals(prev.name()) == false) {
-                return new ValidationResult(
-                    false,
-                    "At position " + pos + ": expected column [" + prev.name() + "], got [" + actual.name() + "]"
-                );
-            }
-            if (actual.type().equals(prev.type()) == false) {
-                return new ValidationResult(
-                    false,
-                    "Column [" + prev.name() + "] type changed from [" + prev.type() + "] to [" + actual.type() + "]"
-                );
-            }
-        }
-
-        // URI_PARTS columns must follow, in order, with the correct name and type
-        for (Map.Entry<String, String> e : URI_PARTS_OUTPUT_FIELDS.entrySet()) {
-            if (it.hasNext() == false) {
-                return new ValidationResult(
-                    false,
-                    "Missing URI_PARTS column [" + prefix + "." + e.getKey() + "] (expected type [" + e.getValue() + "])"
-                );
-            }
-            Column actual = it.next();
-            pos++;
-            String expectedName = prefix + "." + e.getKey();
-            String expectedType = e.getValue();
-            if (actual.name().equals(expectedName) == false) {
-                return new ValidationResult(
-                    false,
-                    "At position " + pos + ": expected URI_PARTS column [" + expectedName + "], got [" + actual.name() + "]"
-                );
-            }
-            if (actual.type().equals(expectedType) == false) {
-                return new ValidationResult(
-                    false,
-                    "URI_PARTS column [" + expectedName + "] expected type [" + expectedType + "], got [" + actual.type() + "]"
-                );
-            }
-        }
-
-        return VALIDATION_OK;
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
     }
 }

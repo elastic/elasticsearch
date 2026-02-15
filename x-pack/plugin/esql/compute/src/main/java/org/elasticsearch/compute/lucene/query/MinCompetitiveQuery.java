@@ -8,7 +8,9 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -27,6 +29,10 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+/**
+ * Infrastructure to provide {@link LeafCollector#competitiveIterator} from a
+ * {@link SharedMinCompetitive}.
+ */
 public class MinCompetitiveQuery implements Releasable {
     private static final Logger log = LogManager.getLogger(MinCompetitiveQuery.class);
 
@@ -52,10 +58,23 @@ public class MinCompetitiveQuery implements Releasable {
         this.queryFunction = queryFunction;
     }
 
+    /**
+     * The actual {@link DocIdSetIterator} matching min_competitive docs.
+     */
     public DocIdSetIterator disi() {
         return disi;
     }
 
+    /**
+     * Read the {@code min_competitive} from {@link SharedMinCompetitive} and
+     * build a {@link DocIdSetIterator} for the index represented by {@code ctx}
+     * and the segment represented by {@code leaf}. If the {@code min_competitive},
+     * {@code ctx}, and {@code leaf} are the same as the last time this was called
+     * then this doesn't change anything.
+     * <p>
+     *     Reading form {@link SharedMinCompetitive} is a volatile read.
+     * </p>
+     */
     public void update(ShardContext ctx, LeafReaderContext leaf) throws IOException {
         this.disi = updatedDisi(ctx, leaf);
     }

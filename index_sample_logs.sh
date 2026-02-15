@@ -2,6 +2,7 @@
 set -euo pipefail
 
 # NOCOMMIT this whole thing
+# cursor did most of this. It's weird looking but who cares.
 
 ES_URL="${ES_URL:-http://localhost:9200}"
 INDEX="sample-logs"

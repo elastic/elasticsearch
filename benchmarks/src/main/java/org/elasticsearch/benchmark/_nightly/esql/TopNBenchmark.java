@@ -142,7 +142,7 @@ public class TopNBenchmark {
             sortOrders,
             8 * 1024,
             sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
-            null
+            null  // NOCOMMIT optionally enable this. Should have small effect. But measure it to be sure.
         );
     }
 

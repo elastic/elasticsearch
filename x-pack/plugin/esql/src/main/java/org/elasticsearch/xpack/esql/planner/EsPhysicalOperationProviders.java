@@ -417,6 +417,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private MinCompetitiveQuery.Factory planMinCompetitive(EsQueryExec.MinCompetitiveSetup minCompetitive) {
+        if (minCompetitive == null) {
+            return null;
+        }
         BiFunction<org.elasticsearch.compute.lucene.ShardContext, Page, Query> queryFn = (ctx, page) -> minCompetitiveQuery(
             (DefaultShardContext) ctx,
             page,

@@ -97,7 +97,7 @@ public class MinCompetitiveQuery implements Releasable {
         private PerMinValue newPerMinValue(Page value) throws IOException {
             try {
                 Query query = queryFunction.apply(ctx, value);
-                log.error("NOCOMMIT updating min competitive to {} {}", value, query);
+                log.debug("updating min competitive to {} {}", value, query);
                 Weight weight = query.createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 0.0F);
                 PerMinValue result = new PerMinValue(value, weight);
                 value = null;

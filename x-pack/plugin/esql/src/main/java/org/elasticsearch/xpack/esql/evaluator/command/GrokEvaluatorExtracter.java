@@ -60,8 +60,12 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
         fieldExtracters = new ArrayList<>(parser.captureConfig().size());
         for (GrokCaptureConfig config : parser.captureConfig()) {
             var key = config.name();
-            ElementType type = types.get(key);
             Integer blockIdx = keyToBlock.get(key);
+            // Skip captures that have been pruned by the optimizer
+            if (blockIdx == null) {
+                continue;
+            }
+            ElementType type = types.get(key);
             positionToType[blockIdx] = type;
 
             fieldExtracters.add(config.nativeExtracter(new GrokCaptureConfig.NativeExtracterMap<>() {

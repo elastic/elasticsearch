@@ -1926,4 +1926,494 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         as(eval.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[_meta_field{f}#300, emp_no{f}#294, first_name{f}#295, gender{f}#296, hire_date{f}#301, job{f}#302, job.raw{f}
+     * #303, languages{f}#297, last_name{f}#298, long_noidx{f}#304, salary{f}#299]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_EsRelation[test][_meta_field{f}#300, emp_no{f}#294, first_name{f}#29..]
+     * }</pre>
+     */
+    public void testPruneDissectFieldsViaDrop() {
+        var plan = plan("""
+            FROM test
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | DISSECT full_name "%{extracted_first} %{extracted_last}"
+            | DROP extracted_first, extracted_last, full_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()).contains("extracted_first"), is(false));
+        assertThat(Expressions.names(project.projections()).contains("extracted_last"), is(false));
+        assertThat(Expressions.names(project.projections()).contains("full_name"), is(false));
+        var limit = as(project.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[_meta_field{f}#265, emp_no{f}#259, first_name{f}#260, gender{f}#261, hire_date{f}#266, job{f}#267, job.raw{f}
+     * #268, languages{f}#262, last_name{f}#263, long_noidx{f}#269, salary{f}#264]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_EsRelation[test][_meta_field{f}#265, emp_no{f}#259, first_name{f}#26..]
+     * }</pre>
+     */
+    public void testPruneGrokFieldsViaDrop() {
+        var plan = plan("""
+            FROM test
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+            | DROP extracted_first, extracted_last, full_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()).contains("extracted_first"), is(false));
+        assertThat(Expressions.names(project.projections()).contains("extracted_last"), is(false));
+        assertThat(Expressions.names(project.projections()).contains("full_name"), is(false));
+        var limit = as(project.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[message{r}#181, date{r}#182]]
+     * \_Dissect[message{r}#181,Parser[pattern=%{date} - %{level} - %{ip}, appendSeparator=, parser=org.elasticsearch.dissect.Di
+     * ssectParser@6bf8b04c],[date{r}#182]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[message{r}#181],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
+     *  2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 2d 20 65 72 72 6f 72 20 2d 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
+     * }</pre>
+     */
+    public void testPartiallyPruneDissectFieldsViaDrop() {
+        var plan = plan("""
+            ROW message = "2023-01-23T12:15:00Z - error - 192.168.1.1"
+            | DISSECT message "%{date} - %{level} - %{ip}"
+            | DROP level, ip
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), contains("message", "date"));
+        var dissect = as(project.child(), Dissect.class);
+        assertThat(dissect.extractedFields(), hasSize(1));
+        assertThat(dissect.extractedFields(), containsIgnoringIds(new ReferenceAttribute(EMPTY, "date", KEYWORD)));
+        var limit = as(dissect.child(), Limit.class);
+        as(limit.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[message{r}#77, date{r}#83, level{r}#85, ip{r}#87]]
+     * \_Eval[[overwritten[KEYWORD] AS date#83, overwritten[KEYWORD] AS level#85, overwritten[KEYWORD] AS ip#87]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[message{r}#77],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
+     * 2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 2d 20 65 72 72 6f 72 20 2d 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
+     * }</pre>
+     */
+    public void testPruneDissectFieldsShadowedByEval() {
+        var plan = plan("""
+            ROW message = "2023-01-23T12:15:00Z - error - 192.168.1.1"
+            | DISSECT message "%{date} - %{level} - %{ip}"
+            | EVAL date = "overwritten", level = "overwritten", ip = "overwritten"
+            | KEEP message, date, level, ip
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(4));
+        assertThat(Expressions.names(project.projections()), contains("message", "date", "level", "ip"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(3));
+        assertThat(Expressions.names(eval.fields()), contains("date", "level", "ip"));
+        var limit = as(eval.child(), Limit.class);
+        // Dissect is completely removed since all its fields are overwritten by EVAL
+        as(limit.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[message{r}#227, date{r}#238]]
+     * \_Eval[[overwritten[KEYWORD] AS date#238]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[message{r}#227],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
+     *  2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 31 39 32 2e 31 36 38 2e 31 2e 31 20 75 73 65 72 40 65 78 61 6d 70 6c 65 2e 63 6f
+     *  6d 20 34 32]]]]}]
+     * }</pre>
+     */
+    public void testPruneGrokFieldsShadowedByEval() {
+        var plan = plan("""
+            ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
+            | GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
+            | EVAL date = "overwritten", ip = "overwritten", email = "overwritten", num = 0
+            | KEEP message, date
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), contains("message", "date"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(Expressions.names(eval.fields()), contains("date"));
+        var limit = as(eval.child(), Limit.class);
+        // Grok is completely removed since all its fields are overwritten by EVAL
+        as(limit.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[first_name{f}#145 AS extracted_first#141, extracted_last{r}#137]]
+     * \_Dissect[full_name{r}#135,Parser[pattern=%{extracted_first} %{extracted_last}, appendSeparator=, parser=org.elasticsearc
+     * h.dissect.DissectParser@2ed5e3b9],[extracted_last{r}#137]]
+     *   \_Eval[[CONCAT(first_name{f}#145, [KEYWORD],last_name{f}#148) AS full_name#135]]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#150, emp_no{f}#144, first_name{f}#14..]
+     * }</pre>
+     */
+    public void testPartiallyPruneDissectFieldShadowedByRename() {
+        var plan = plan("""
+            FROM test
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | DISSECT full_name "%{extracted_first} %{extracted_last}"
+            | RENAME first_name AS extracted_first
+            | KEEP extracted_first, extracted_last
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), contains("extracted_first", "extracted_last"));
+        // Only extracted_last survives; extracted_first from dissect is pruned because RENAME overwrites it
+        var dissect = as(project.child(), Dissect.class);
+        assertThat(dissect.extractedFields(), hasSize(1));
+        assertThat(dissect.extractedFields(), containsIgnoringIds(new ReferenceAttribute(EMPTY, "extracted_last", KEYWORD)));
+        var eval = as(dissect.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("full_name"));
+        var limit = as(eval.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[emp_no{f}#213, avg_salary{r}#208]]
+     * \_TopN[[Order[emp_no{f}#213,ASC,LAST]],5[INTEGER],false]
+     *   \_InlineJoin[LEFT,[extracted_last{r}#204],[extracted_last{r}#204]]
+     *     |_Dissect[full_name{r}#202,Parser[pattern=%{extracted_first} %{extracted_last}, appendSeparator=, parser=org.elasticsearc
+     * h.dissect.DissectParser@32b5cd5d],[extracted_last{r}#204]]
+     *     | \_Eval[[CONCAT(first_name{f}#214, [KEYWORD],last_name{f}#217) AS full_name#202]]
+     *     |   \_EsRelation[employees][_meta_field{f}#219, emp_no{f}#213, first_name{f}#21..]
+     *     \_Project[[avg_salary{r}#208, extracted_last{r}#204]]
+     *       \_Eval[[$$SUM$avg_salary$0{r$}#224 / $$COUNT$avg_salary$1{r$}#225 AS avg_salary#208]]
+     *         \_Aggregate[[extracted_last{r}#204],[SUM(salary{f}#218,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg
+     * _salary$0#224, COUNT(salary{f}#218,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg_salary$1#225, extracted_last{r}#204]]
+     *           \_StubRelation[[_meta_field{f}#219, emp_no{f}#213, first_name{f}#214, gender{f}#215, hire_date{f}#220, job{f}#221,
+     * job.raw{f}#222, languages{f}#216, last_name{f}#217, long_noidx{f}#223, salary{f}#218, full_name{r}#202, extracted_first{r}#203,
+     * extracted_last{r}#204]]
+     * }</pre>
+     */
+    public void testPruneDissectWithInlineStats() {
+        var query = """
+            FROM employees
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | DISSECT full_name "%{extracted_first} %{extracted_last}"
+            | INLINE STATS avg_salary = AVG(salary) BY extracted_last
+            | KEEP emp_no, avg_salary
+            | SORT emp_no
+            | LIMIT 5
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "avg_salary")));
+        var topN = as(project.child(), TopN.class);
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        // Left side: dissect survives with only extracted_last (the group-by key); extracted_first is pruned
+        var dissect = as(inlineJoin.left(), Dissect.class);
+        assertThat(dissect.extractedFields(), hasSize(1));
+        assertThat(dissect.extractedFields(), containsIgnoringIds(new ReferenceAttribute(EMPTY, "extracted_last", KEYWORD)));
+        var eval = as(dissect.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+        // Right side: aggregation
+        var rightProject = as(inlineJoin.right(), Project.class);
+        assertThat(Expressions.names(rightProject.projections()), is(List.of("avg_salary", "extracted_last")));
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[emp_no{f}#63, emp_no{f}#63 AS avg_salary#59]]
+     * \_TopN[[Order[emp_no{f}#63,ASC,LAST]],5[INTEGER],false]
+     *   \_EsRelation[employees][_meta_field{f}#69, emp_no{f}#63, first_name{f}#64, ..]
+     * }</pre>
+     */
+    public void testPruneGrokWithInlineStatsPrunedEntirely() {
+        var query = """
+            FROM employees
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+            | INLINE STATS avg_salary = AVG(salary) BY extracted_last
+            | EVAL avg_salary = emp_no
+            | KEEP emp_no, avg_salary
+            | SORT emp_no
+            | LIMIT 5
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "avg_salary")));
+        // Both inline stats and grok are fully pruned since avg_salary is overwritten with emp_no
+        var topN = as(project.child(), TopN.class);
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[emp_no{f}#108, language_name{f}#120]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_Join[LEFT,[languages{f}#111],[language_code{f}#119],null]
+     *     |_Limit[1000[INTEGER],false,false]
+     *     | \_EsRelation[test][_meta_field{f}#114, emp_no{f}#108, first_name{f}#10..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#119, language_name{f}#120]
+     * }</pre>
+     */
+    public void testPruneDissectWithLookupJoin() {
+        var plan = plan("""
+            FROM test
+            | EVAL language_code = languages
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | DISSECT full_name "%{extracted_first} %{extracted_last}"
+            | LOOKUP JOIN languages_lookup ON language_code
+            | DROP extracted_first, extracted_last, full_name
+            | KEEP emp_no, language_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), contains("emp_no", "language_name"));
+        var limit = as(project.child(), Limit.class);
+        var join = as(limit.child(), Join.class);
+        // Dissect is fully pruned since extracted_first and extracted_last are DROPped
+        var leftLimit = as(join.left(), Limit.class);
+        as(leftLimit.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[emp_no{f}#31, language_name{f}#43]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_Join[LEFT,[languages{f}#34],[language_code{f}#42],null]
+     *     |_Limit[1000[INTEGER],false,false]
+     *     | \_EsRelation[test][_meta_field{f}#37, emp_no{f}#31, first_name{f}#32, ..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#42, language_name{f}#43]
+     * }</pre>
+     */
+    public void testPruneGrokWithLookupJoin() {
+        var plan = plan("""
+            FROM test
+            | EVAL language_code = languages
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+            | LOOKUP JOIN languages_lookup ON language_code
+            | DROP extracted_first, extracted_last, full_name
+            | KEEP emp_no, language_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), contains("emp_no", "language_name"));
+        var limit = as(project.child(), Limit.class);
+        var join = as(limit.child(), Join.class);
+        // Grok is fully pruned since extracted_first and extracted_last are DROPped
+        var leftLimit = as(join.left(), Limit.class);
+        as(leftLimit.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[message{r}#122]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_LocalRelation[[message{r}#122],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
+     *  2d 30 31 2d 32 33 20 65 72 72 6f 72 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
+     * }</pre>
+     */
+    public void testPruneChainedDissectAndGrok() {
+        var plan = plan("""
+            ROW message = "2023-01-23 error 192.168.1.1"
+            | DISSECT message "%{date} %{rest}"
+            | GROK rest "%{WORD:level} %{IP:ip}"
+            | KEEP message
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(1));
+        assertThat(Expressions.names(project.projections()), contains("message"));
+        var limit = as(project.child(), Limit.class);
+        // Both dissect and grok are removed
+        as(limit.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[level{r}#197]]
+     * \_Grok[rest{r}#191,Parser[pattern=%{WORD:level} %{IP:ip}, grok=org.elasticsearch.grok.Grok@79a38180],[level{r}#197]]
+     *   \_Dissect[message{r}#189,Parser[pattern=%{date} %{rest}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser
+     * @268b2ed7],[rest{r}#191]]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_LocalRelation[[message{r}#189],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
+     *  2d 30 31 2d 32 33 20 65 72 72 6f 72 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
+     * }</pre>
+     */
+    public void testPartiallyPruneChainedDissectAndGrok() {
+        var plan = plan("""
+            ROW message = "2023-01-23 error 192.168.1.1"
+            | DISSECT message "%{date} %{rest}"
+            | GROK rest "%{WORD:level} %{IP:ip}"
+            | KEEP level
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(1));
+        assertThat(Expressions.names(project.projections()), contains("level"));
+        var grok = as(project.child(), Grok.class);
+        // Only 'level' survives in grok; 'ip' is pruned
+        assertThat(grok.extractedFields(), hasSize(1));
+        assertThat(grok.extractedFields(), containsIgnoringIds(new ReferenceAttribute(EMPTY, "level", KEYWORD)));
+        var dissect = as(grok.child(), Dissect.class);
+        // Only 'rest' survives in dissect (feeds the grok); 'date' is pruned
+        assertThat(dissect.extractedFields(), hasSize(1));
+        assertThat(dissect.extractedFields(), containsIgnoringIds(new ReferenceAttribute(EMPTY, "rest", KEYWORD)));
+        var limit = as(dissect.child(), Limit.class);
+        as(limit.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[extracted_first{r}#163],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#168, extracted_first{r}#
+     * 163]]
+     *   \_Eval[[constant[KEYWORD] AS extracted_first#163]]
+     *     \_EsRelation[test][_meta_field{f}#175, emp_no{f}#169, first_name{f}#17..]
+     * }</pre>
+     */
+    public void testPruneDissectFieldRedefinedBeforeStats() {
+        var plan = plan("""
+            FROM test
+            | EVAL full_name = CONCAT(first_name, " ", last_name)
+            | DISSECT full_name "%{extracted_first} %{extracted_last}"
+            | EVAL extracted_first = "constant", extracted_last = "constant"
+            | STATS count = COUNT(*) BY extracted_first
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("count", "extracted_first"));
+        // Dissect is fully pruned since extracted_first/extracted_last are overwritten by EVAL
+        var eval = as(agg.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("extracted_first"));
+        // Dissect is fully pruned — next node is EsRelation, no Dissect in the tree
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[message{r}#271, ip{r}#279]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[ip{r}#279 == 192.168.1.1[KEYWORD]]
+     *     \_Grok[message{r}#271,Parser[pattern=%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}, grok=
+     * org.elasticsearch.grok.Grok@4249dc4e],[ip{r}#279]]
+     *       \_LocalRelation[[message{r}#271],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
+     *  2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 31 39 32 2e 31 36 38 2e 31 2e 31 20 75 73 65 72 40 65 78 61 6d 70 6c 65 2e 63 6f
+     *  6d 20 34 32]]]]}]
+     * }</pre>
+     */
+    public void testNoPruneGrokFieldsUsedInFilter() {
+        var plan = plan("""
+            ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
+            | GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
+            | WHERE ip == "192.168.1.1"
+            | KEEP message, ip
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(2));
+        assertThat(Expressions.names(project.projections()), contains("message", "ip"));
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var grok = as(filter.child(), Grok.class);
+        // Only 'ip' survives because it's used in the WHERE clause; date, email, num are pruned
+        assertThat(grok.extractedFields(), hasSize(1));
+        assertThat(grok.extractedFields(), containsIgnoringIds(new ReferenceAttribute(EMPTY, "ip", KEYWORD)));
+        as(grok.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Project[[combined{r}#11]]
+     * \_Eval[[CONCAT(a{r}#5,-[KEYWORD],b{r}#6) AS combined#11]]
+     *   \_Dissect[message{r}#4,Parser[pattern=%{a} %{b}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@63bbe42
+     * c],[a{r}#5, b{r}#6]]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_LocalRelation[[message{r}#4],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[68 65 6c 6c 6
+     * f 20 77 6f 72 6c 64]]]]}]
+     * }</pre>
+     */
+    public void testNoPruneDissectFieldsUsedInEvalExpression() {
+        var plan = plan("""
+            ROW message = "hello world"
+            | DISSECT message "%{a} %{b}"
+            | EVAL combined = CONCAT(a, "-", b)
+            | KEEP combined
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(1));
+        assertThat(Expressions.names(project.projections()), contains("combined"));
+        var eval = as(project.child(), Eval.class);
+        var dissect = as(eval.child(), Dissect.class);
+        // Both a and b survive because they're referenced in the EVAL expression
+        assertThat(dissect.extractedFields(), hasSize(2));
+        assertThat(
+            dissect.extractedFields(),
+            containsIgnoringIds(new ReferenceAttribute(EMPTY, "a", KEYWORD), new ReferenceAttribute(EMPTY, "b", KEYWORD))
+        );
+        var limit = as(dissect.child(), Limit.class);
+        as(limit.child(), LocalRelation.class);
+    }
+
 }

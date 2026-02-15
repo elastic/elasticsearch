@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# NOCOMMIT this whole thing
+
 ES_URL="${ES_URL:-http://localhost:9200}"
 INDEX="sample-logs"
 TOTAL=100000000

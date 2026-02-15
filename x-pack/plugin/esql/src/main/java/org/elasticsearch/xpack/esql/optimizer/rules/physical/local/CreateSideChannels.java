@@ -70,12 +70,12 @@ public class CreateSideChannels extends ParameterizedRule<PhysicalPlan, Physical
             if (lastTopN == null) {
                 return;
             }
-            // NOCOMMIT don't do this if the values are all calculated
             SharedMinCompetitive.Supplier minCompetitive = new SharedMinCompetitive.Supplier(breaker, lastTopN.minCompetitiveKeyConfig());
-            plan.computeIfAbsent(query, k -> new ArrayList<>()).add(p -> {
-                EsQueryExec q = (EsQueryExec) p;
-                return q.withMinCompetitive(minCompetitive);
-            });
+            Function<EsQueryExec, EsQueryExec> offer = query.offerMinCompetitive(minCompetitive, lastTopN.order());
+            if (offer == null) {
+                return;
+            }
+            plan.computeIfAbsent(query, k -> new ArrayList<>()).add(p -> offer.apply((EsQueryExec) p));
             plan.computeIfAbsent(lastTopN, k -> new ArrayList<>()).add(p -> {
                 TopNExec topN = (TopNExec) p;
                 return topN.withMinCompetitive(minCompetitive);

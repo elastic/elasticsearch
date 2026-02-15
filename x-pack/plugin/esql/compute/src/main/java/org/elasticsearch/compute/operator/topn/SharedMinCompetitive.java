@@ -32,16 +32,20 @@ public class SharedMinCompetitive extends SideChannel {
 
     public static class Supplier extends SideChannel.Supplier<SharedMinCompetitive> {
         private final CircuitBreaker breaker;
-        private final List<KeyConfig> keyConfig;
+        private final List<KeyConfig> keyConfigs;
 
         public Supplier(CircuitBreaker breaker, List<KeyConfig> keyConfig) {
             this.breaker = breaker;
-            this.keyConfig = keyConfig;
+            this.keyConfigs = keyConfig;
         }
 
         @Override
         protected SharedMinCompetitive build() {
-            return new SharedMinCompetitive(breaker, keyConfig, this);
+            return new SharedMinCompetitive(breaker, keyConfigs, this);
+        }
+
+        public List<KeyConfig> keyConfigs() {
+            return keyConfigs;
         }
     }
 
@@ -52,6 +56,10 @@ public class SharedMinCompetitive extends SideChannel {
         super(supplier);
         this.value = new BreakingBytesRefBuilder(breaker, "min_competitive");
         this.keyConfig = keyConfig;
+    }
+
+    public List<KeyConfig> configs() {
+        return keyConfig;
     }
 
     /**

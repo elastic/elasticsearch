@@ -190,7 +190,16 @@ public class PlannerUtils {
         CircuitBreaker globalBreaker,
         PlanTimeProfile planTimeProfile
     ) {
-        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, globalBreaker, SearchContextStats.from(searchContexts), planTimeProfile);
+        return localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            globalBreaker,
+            SearchContextStats.from(searchContexts),
+            planTimeProfile
+        );
     }
 
     public static PhysicalPlan localPlan(

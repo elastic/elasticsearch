@@ -109,4 +109,6 @@ public abstract class SideChannel extends AbstractRefCounted implements Releasab
     }
 
     protected abstract void closeSideChannel();
+
+    // TODO status? it's concurrent.
 }

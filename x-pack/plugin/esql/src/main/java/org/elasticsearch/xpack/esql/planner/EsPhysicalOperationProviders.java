@@ -12,25 +12,35 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -82,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderE
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
+import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -97,6 +108,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -319,7 +331,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
         if (sorts != null && sorts.isEmpty() == false) {
-            if (esQueryExec.withMinCompetitive() != null) {
+            if (esQueryExec.minCompetitive() != null) {
                 throw new IllegalStateException("minCompetitive not supported");
             }
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
@@ -348,7 +360,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring
             );
         } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-            if (esQueryExec.withMinCompetitive() != null) {
+            if (esQueryExec.minCompetitive() != null) {
                 throw new IllegalStateException("minCompetitive not supported");
             }
             luceneFactory = new TimeSeriesSourceOperator.Factory(
@@ -368,7 +380,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 scoring,
-                esQueryExec.withMinCompetitive()
+                planMinCompetitive(esQueryExec.minCompetitive())
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -402,6 +414,41 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loaderAndConverter));
         }
         return fieldInfos;
+    }
+
+    private MinCompetitiveQuery.Factory planMinCompetitive(EsQueryExec.MinCompetitiveSetup minCompetitive) {
+        BiFunction<org.elasticsearch.compute.lucene.ShardContext, Page, Query> queryFn = (ctx, page) -> minCompetitiveQuery(
+            (DefaultShardContext) ctx,
+            page,
+            minCompetitive
+        );
+        return new MinCompetitiveQuery.Factory(minCompetitive.minCompetitive(), queryFn);
+    }
+
+    private static Query minCompetitiveQuery(DefaultShardContext ctx, Page page, EsQueryExec.MinCompetitiveSetup setup) {
+        if (page == null) {
+            return new MatchAllDocsQuery();
+        }
+        LongBlock minBlock = page.getBlock(0);
+        if (minBlock.isNull(0)) {
+            // NOCOMMIT is this backwards?
+            if (setup.minCompetitive().keyConfigs().getFirst().nullsFirst()) {
+                return new MatchAllDocsQuery();
+            }
+            return new MatchNoDocsQuery();
+        }
+        MappedFieldType ft = ctx.fieldType(setup.firstFieldName());
+        if (ft == null) {
+            return new MatchNoDocsQuery();
+        }
+
+        if (minBlock.getValueCount(0) != 1) {
+            throw new IllegalStateException("expected single value");
+        }
+        long min = minBlock.getLong(0);
+
+        boolean includeLower = setup.minCompetitive().keyConfigs().size() > 1;
+        return ft.rangeQuery(min, null, includeLower, true, null, null, null, ctx.ctx);
     }
 
     /**

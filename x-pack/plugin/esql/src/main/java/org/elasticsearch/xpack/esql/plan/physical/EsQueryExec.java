@@ -29,9 +29,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final EsField DOC_ID_FIELD = new EsField(
@@ -73,7 +75,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      * Optional {@link SideChannel} for reading information about the minimum competitive
      * match from whatever is executing a {@link TopNExec}.
      */
-    private final transient SharedMinCompetitive.Supplier minCompetitive;
+    private final transient MinCompetitiveSetup minCompetitive;
 
     public interface Sort {
         SortBuilder<?> sortBuilder();
@@ -174,7 +176,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         List<Sort> sorts,
         Integer estimatedRowSize,
         List<QueryBuilderAndTags> queryBuilderAndTags,
-        SharedMinCompetitive.Supplier minCompetitive
+        MinCompetitiveSetup minCompetitive
     ) {
         super(source);
         this.indexPattern = indexPattern;
@@ -381,7 +383,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         );
     }
 
-    public EsQueryExec withMinCompetitive(SharedMinCompetitive.Supplier minCompetitive) {
+    public EsQueryExec withMinCompetitive(MinCompetitiveSetup minCompetitive) {
         return new EsQueryExec(
             source(),
             indexPattern,
@@ -395,7 +397,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         );
     }
 
-    public SharedMinCompetitive.Supplier withMinCompetitive() {
+    public Function<EsQueryExec, EsQueryExec> offerMinCompetitive(SharedMinCompetitive.Supplier minCompetitive, List<Order> order) {
+        // Can we be sure this is *our* FieldAttribute?
+        if (order.getFirst().child() instanceof FieldAttribute fa) {
+            return exec -> exec.withMinCompetitive(new MinCompetitiveSetup(minCompetitive, fa.qualifiedName()));
+        }
+        return null;
+    }
+
+    public MinCompetitiveSetup minCompetitive() {
         return minCompetitive;
     }
 
@@ -520,4 +530,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return searchOrder;
         }
     }
+
+    public record MinCompetitiveSetup(SharedMinCompetitive.Supplier minCompetitive, String firstFieldName) {}
 }

@@ -26,10 +26,10 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -58,7 +58,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         protected final int maxPageSize;
         protected final Limiter limiter;
         @Nullable
-        private final SharedMinCompetitive.Supplier minCompetitive;
+        private final MinCompetitiveQuery.Factory minCompetitive;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> shardContexts,
@@ -69,7 +69,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             int maxPageSize,
             int limit,
             boolean needsScore,
-            @Nullable SharedMinCompetitive.Supplier minCompetitive
+            @Nullable MinCompetitiveQuery.Factory minCompetitive
         ) {
             super(
                 shardContexts,
@@ -100,7 +100,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 limit,
                 limiter,
                 needsScore,
-                minCompetitive == null ? null : minCompetitive.get()
+                minCompetitive
             );
         }
 
@@ -235,7 +235,8 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final LeafCollector leafCollector;
     private final int minPageSize;
 
-    private final SharedMinCompetitive minCompetitive;
+    @Nullable
+    private final MinCompetitiveQuery minCompetitiveQuery;
 
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
@@ -246,24 +247,24 @@ public class LuceneSourceOperator extends LuceneOperator {
         int limit,
         Limiter limiter,
         boolean needsScore,
-        @Nullable SharedMinCompetitive minCompetitive
+        @Nullable MinCompetitiveQuery.Factory minCompetitive
     ) {
         super(refCounteds, blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
-        this.minCompetitive = minCompetitive;
         int estimatedSize = Math.min(limit, maxPageSize);
         boolean success = false;
         try {
             this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             if (needsScore) {
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
-                this.leafCollector = new ScoringCollector(minCompetitive);
+                this.leafCollector = new ScoringCollector();
             } else {
                 scoreBuilder = null;
-                this.leafCollector = new LimitingCollector(minCompetitive);
+                this.leafCollector = new LimitingCollector();
             }
+            this.minCompetitiveQuery = minCompetitive == null ? null : minCompetitive.build(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -273,12 +274,6 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     class LimitingCollector implements LeafCollector {
-        private final SharedMinCompetitive minCompetitive;
-
-        LimitingCollector(SharedMinCompetitive minCompetitive) {
-            this.minCompetitive = minCompetitive;
-        }
-
         @Override
         public void setScorer(Scorable scorer) {}
 
@@ -295,21 +290,12 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public DocIdSetIterator competitiveIterator() throws IOException {
-            if (minCompetitive == null) {
-                return null;
-            }
-            Page min = minCompetitive.get(blockFactory);
-            System.err.println("nocommit " + min);
-            return LeafCollector.super.competitiveIterator();
+            return minCompetitiveQuery == null ? null : minCompetitiveQuery.disi();
         }
     }
 
     final class ScoringCollector extends LuceneSourceOperator.LimitingCollector {
         private Scorable scorable;
-
-        ScoringCollector(SharedMinCompetitive minCompetitive) {
-            super(minCompetitive);
-        }
 
         @Override
         public void setScorer(Scorable scorer) {
@@ -343,6 +329,9 @@ public class LuceneSourceOperator extends LuceneOperator {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
                 return null;
+            }
+            if (minCompetitiveQuery != null) {
+                minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
             }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
             try {
@@ -445,7 +434,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void additionalClose() {
-        Releasables.close(docsBuilder, scoreBuilder, minCompetitive);
+        Releasables.close(docsBuilder, scoreBuilder, minCompetitiveQuery);
     }
 
     @Override

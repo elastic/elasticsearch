@@ -3,33 +3,11 @@ set -euo pipefail
 
 ES_URL="${ES_URL:-http://localhost:9200}"
 INDEX="sample-logs"
-TOTAL=1000000
-BATCH=5000
+TOTAL=10000000
+BATCH=10000
 
-# Sample log messages to pick from
-MESSAGES=(
-  "User logged in successfully"
-  "Failed login attempt from unknown IP"
-  "Request processed in 42ms"
-  "Connection timeout after 30s"
-  "Database query returned 0 results"
-  "Cache miss for session token"
-  "File upload completed: report.pdf"
-  "Disk usage warning: 89% utilized"
-  "Scheduled backup started"
-  "API rate limit exceeded"
-  "TLS handshake failed with peer"
-  "Out of memory: killing process 4521"
-  "New deployment rolled out: v2.13.7"
-  "Health check passed on port 8080"
-  "Garbage collection paused for 120ms"
-  "DNS resolution failed for upstream host"
-  "Message queue depth exceeds threshold"
-  "Configuration reloaded from disk"
-  "Certificate expires in 14 days"
-  "Shard rebalancing initiated"
-)
-NUM_MESSAGES=${#MESSAGES[@]}
+# Sample log messages, pipe-delimited for awk
+MSG_STRING="User logged in successfully|Failed login attempt from unknown IP|Request processed in 42ms|Connection timeout after 30s|Database query returned 0 results|Cache miss for session token|File upload completed: report.pdf|Disk usage warning: 89% utilized|Scheduled backup started|API rate limit exceeded|TLS handshake failed with peer|Out of memory: killing process 4521|New deployment rolled out: v2.13.7|Health check passed on port 8080|Garbage collection paused for 120ms|DNS resolution failed for upstream host|Message queue depth exceeds threshold|Configuration reloaded from disk|Certificate expires in 14 days|Shard rebalancing initiated"
 
 # Base timestamp: 30 days ago, in seconds
 BASE_TS=$(date -d "30 days ago" +%s 2>/dev/null || date -v-30d +%s)
@@ -54,23 +32,30 @@ echo "Indexing $TOTAL documents in batches of $BATCH..."
 sent=0
 while (( sent < TOTAL )); do
   batch_size=$(( TOTAL - sent < BATCH ? TOTAL - sent : BATCH ))
-  body=""
-  rm -rf /tmp/bulk
-  for (( i = 0; i < batch_size; i++ )); do
-    offset=$(( RANDOM * RANDOM % SPAN ))
-    ts=$(( BASE_TS + offset ))
-    # Format as ISO-8601 with milliseconds
-    ts_fmt=$(date -u -d "@$ts" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || date -u -r "$ts" '+%Y-%m-%dT%H:%M:%S')
-    ms=$(printf "%03d" $(( RANDOM % 1000 )))
-    msg="${MESSAGES[$(( RANDOM % NUM_MESSAGES ))]}"
-    echo '{"index":{}}' >> /tmp/bulk
-    echo "{\"@timestamp\":\"${ts_fmt}.${ms}Z\",\"message\":\"${msg}\"}" >> /tmp/bulk
-  done
+
+  # Generate bulk body entirely in awk — no subprocess per document
+  awk -v base_ts="$BASE_TS" -v span="$SPAN" -v n="$batch_size" \
+      -v msgs="$MSG_STRING" -v seed="$RANDOM" '
+  BEGIN {
+    srand(seed)
+    num_msg = split(msgs, m, "|")
+    for (i = 1; i <= n; i++) {
+      offset = int(rand() * span)
+      ts = base_ts + offset
+      ms = int(rand() * 1000)
+      ts_fmt = strftime("%Y-%m-%dT%H:%M:%S", ts, 1)
+      msg = m[int(rand() * num_msg) + 1]
+      print "{\"index\":{}}"
+      printf "{\"@timestamp\":\"%s.%03dZ\",\"message\":\"%s\"}\n", ts_fmt, ms, msg
+    }
+  }' /dev/null > /tmp/bulk
+
   response=$(curl -uelastic:password -s -X POST "$ES_URL/$INDEX/_bulk" -H 'Content-Type: application/x-ndjson' --data-binary @/tmp/bulk)
   errors=$(echo "$response" | grep -o '"errors":\(true\|false\)' | head -1)
   sent=$(( sent + batch_size ))
   pct=$(( sent * 100 / TOTAL ))
   printf "\r  %d / %d  (%d%%)  [%s]" "$sent" "$TOTAL" "$pct" "$errors"
+  curl -uelastic:password -s -X POST "$ES_URL/$INDEX/_flush" >> /dev/null
 done
 
 echo ""

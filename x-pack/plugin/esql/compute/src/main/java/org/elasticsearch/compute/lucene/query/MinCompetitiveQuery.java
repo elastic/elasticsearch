@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -124,7 +125,9 @@ public class MinCompetitiveQuery implements Releasable {
 
         public PerLeaf perLeaf(LeafReaderContext leaf) throws IOException {
             if (perLeaf == null || perLeaf.createdThread != Thread.currentThread() || perLeaf.leaf != leaf) {
-                perLeaf = new PerLeaf(Thread.currentThread(), leaf, weight.scorer(leaf).iterator());
+                Scorer scorer = weight.scorer(leaf);
+                DocIdSetIterator disi = scorer == null ? DocIdSetIterator.empty() : scorer.iterator();
+                perLeaf = new PerLeaf(Thread.currentThread(), leaf, disi);
             }
             return perLeaf;
         }

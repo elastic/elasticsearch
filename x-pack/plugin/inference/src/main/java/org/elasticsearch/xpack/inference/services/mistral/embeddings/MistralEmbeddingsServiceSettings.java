@@ -138,7 +138,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(model);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
     }

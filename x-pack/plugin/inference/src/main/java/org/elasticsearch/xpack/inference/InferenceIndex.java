@@ -27,7 +27,7 @@ public class InferenceIndex {
     public static final String INDEX_ALIAS = ".inference-alias";
 
     // Increment this version number when the mappings change
-    private static final int INDEX_MAPPING_VERSION = 2;
+    private static final int INDEX_MAPPING_VERSION = 3;
 
     public static Settings settings() {
         return builder().build();
@@ -59,12 +59,97 @@ public class InferenceIndex {
      *
      * @return The index mappings
      */
-    public static XContentBuilder mappings() {
+    public static XContentBuilder currentMappings() {
         try {
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION)
+                .endObject()
+                .field("dynamic", "strict")
+                .startObject("properties")
+                .startObject("model_id")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("task_type")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("service")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("service_settings")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .endObject()
+                .endObject()
+                .startObject("task_settings")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .endObject()
+                .endObject()
+                .startObject("chunking_settings")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .startObject("strategy")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("metadata")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .startObject("heuristics")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .startObject("properties")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("status")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("release_date")
+                .field("type", "date")
+                .endObject()
+                .startObject("end_of_life_date")
+                .field("type", "date")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("display")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("internal")
+                .field("dynamic", "false")
+                .startObject("properties")
+                .startObject("fingerprint")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("version")
+                .field("type", "long")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build mappings for index " + INDEX_NAME, e);
+        }
+    }
+
+    public static XContentBuilder mappingsV2() {
+        try {
+            return jsonBuilder().startObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 2)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

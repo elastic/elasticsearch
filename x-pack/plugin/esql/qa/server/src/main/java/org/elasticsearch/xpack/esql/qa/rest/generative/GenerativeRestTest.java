@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_NAME;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
@@ -71,6 +73,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
+        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
+        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
+        "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
+        "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
+        "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
+        "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -97,6 +106,38 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         .map(x -> ".*" + x + ".*")
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
+
+    /**
+     * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
+     * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
+     * that included a different unmapped field but not this one, making the second one legitimately unknown.
+     * We only allow this error when the unknown column is an unmapped field name, and if a suggestion is present,
+     * the suggested column must also be an unmapped field name.
+     */
+    private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
+        ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
+    /**
+     * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
+     * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
+     * with a non-null typed field. See https://github.com/elastic/elasticsearch/issues/142115
+     */
+    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches type mismatch errors where a function argument has one of the special types that most scalar functions reject.
+     * For example: "must be [any type except counter types, dense_vector, ...], found value [...] type [counter_long]"
+     */
+    private static final Pattern SCALAR_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*found value \\[[^]]+] type \\[(counter_long|counter_double|counter_integer"
+            + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range)].*",
+        Pattern.DOTALL
+    );
+    private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
     public void setup() throws IOException {
@@ -227,6 +268,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return outputValidation;
                 }
             }
+            if (isUnmappedFieldError(outputValidation.errorMessage()) || isScalarTypeMismatchError(outputValidation.errorMessage())) {
+                return outputValidation;
+            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
@@ -237,6 +281,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
+        }
+        if (isUnmappedFieldError(query.exception().getMessage()) || isScalarTypeMismatchError(query.exception().getMessage())) {
+            return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
     }
@@ -250,6 +297,55 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
         String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    /**
+     * Checks if the error is a known unmapped field error. This covers:
+     * <ul>
+     *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
+     *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
+     *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
+     *       the expression X must contain an unmapped field name (https://github.com/elastic/elasticsearch/issues/142115)</li>
+     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields</li>
+     * </ul>
+     */
+    private static boolean isUnmappedFieldError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        // Try the more specific pattern first (with suggestion)
+        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            String suggestedColumn = matcher.group(2);
+            return UNMAPPED_NAMES.contains(unknownColumn) && UNMAPPED_NAMES.contains(suggestedColumn);
+        }
+        // Try the simpler pattern (no suggestion)
+        matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            return UNMAPPED_NAMES.contains(unknownColumn);
+        }
+        // NULL type mismatch in binary operations involving unmapped fields
+        matcher = NULL_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
+
+        // https://github.com/elastic/elasticsearch/issues/142390
+        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the error is a type mismatch where a function received a field of a special type that most scalar
+     * functions don't support (counter types, aggregate_metric_double, dense_vector, tdigest, histogram, etc.).
+     * These errors are acceptable since the generative tests may compose function calls with fields of these types.
+     */
+    private static boolean isScalarTypeMismatchError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
     @Override

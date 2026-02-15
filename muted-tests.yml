@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:match-function.TestMatchWithReplace}
   issue: https://github.com/elastic/elasticsearch/issues/142501
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/142511
 
 # Examples:
 #
